@@ -184,7 +184,7 @@ function QuickAddCard({ status, onSaved, onCancel }: {
 }) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -206,7 +206,7 @@ function QuickAddCard({ status, onSaved, onCancel }: {
   return (
     <div className="mt-2 bg-white rounded-lg p-2.5 shadow border border-orange-300">
       <textarea
-        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        ref={inputRef}
         className="w-full text-sm rounded border border-gray-200 px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-orange-400"
         placeholder="Product name..."
         rows={2}
