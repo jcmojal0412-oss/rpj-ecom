@@ -75,22 +75,32 @@ export default function ProductsClient() {
 
   // ── Delete single ─────────────────────────────────────────────────────
   const handleDelete = async (product: Product) => {
-    await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
+    const res  = await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
     setDeleting(null);
-    showToast(`${product.name} deleted`);
+    if (!res.ok) {
+      showToast(data.error || `Failed to delete ${product.name}`, 'error');
+    } else {
+      showToast(`${product.name} deleted`);
+    }
     fetchProducts();
   };
 
   // ── Bulk delete ───────────────────────────────────────────────────────
   const handleBulkDelete = async () => {
-    const ids = [...selected];
-    await fetch('/api/products/bulk-delete', {
+    const ids = Array.from(selected);
+    const res  = await fetch('/api/products/bulk-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     });
+    const data = await res.json().catch(() => ({}));
     setBulkConfirm(false);
-    showToast(`${ids.length} product${ids.length !== 1 ? 's' : ''} deleted`);
+    if (!res.ok) {
+      showToast(data.error || 'Failed to delete products', 'error');
+    } else {
+      showToast(`${ids.length} product${ids.length !== 1 ? 's' : ''} deleted`);
+    }
     fetchProducts();
   };
 

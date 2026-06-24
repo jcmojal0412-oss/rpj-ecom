@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, runTransaction } from '@/lib/db';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +16,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const db = getDb();
+    const db   = getDb();
     const body = await req.json();
-    const id = Number(params.id);
+    const id   = Number(params.id);
 
     if ('reorder_point' in body && Object.keys(body).length === 1) {
       db.prepare('UPDATE products SET reorder_point=? WHERE id=?').run(body.reorder_point, id);
@@ -40,13 +40,15 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     const db = getDb();
     const id = Number(params.id);
 
-    runTransaction(() => {
-      // Delete child records first (FK constraints)
-      db.prepare('DELETE FROM stock_movements WHERE product_id=?').run(id);
-      db.prepare('DELETE FROM po_items WHERE product_id=?').run(id);
-      db.prepare('DELETE FROM inventory WHERE product_id=?').run(id);
-      db.prepare('DELETE FROM products WHERE id=?').run(id);
-    });
+    // Check product exists
+    const exists = db.prepare('SELECT id FROM products WHERE id=?').get(id);
+    if (!exists) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+
+    // Delete child records first to satisfy FK constraints, then the product
+    db.prepare('DELETE FROM stock_movements WHERE product_id=?').run(id);
+    db.prepare('DELETE FROM po_items WHERE product_id=?').run(id);
+    db.prepare('DELETE FROM inventory WHERE product_id=?').run(id);
+    db.prepare('DELETE FROM products WHERE id=?').run(id);
 
     return NextResponse.json({ ok: true });
   } catch (e) {
