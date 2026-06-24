@@ -2,7 +2,10 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import { hashPassword } from './auth-helpers';
 
-const DB_PATH = path.join(process.cwd(), 'rpj.db');
+// On Vercel (serverless), use /tmp — on local, use project root
+const DB_PATH = process.env.VERCEL
+  ? '/tmp/rpj.db'
+  : path.join(process.cwd(), 'rpj.db');
 
 let db: DatabaseSync;
 
