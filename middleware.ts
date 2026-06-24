@@ -43,6 +43,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  if (!user) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
   // Check route-level permission
   for (const [route, module_] of ROUTE_MODULES) {
     if (pathname.startsWith(route)) {
