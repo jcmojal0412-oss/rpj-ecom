@@ -95,7 +95,7 @@ export default function ProductsClient() {
   };
 
   // ── Category chips ────────────────────────────────────────────────────
-  const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const categoryCounts = categories.map(cat => ({
     cat,
     count: products.filter(p => p.category === cat).length,
