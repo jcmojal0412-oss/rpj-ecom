@@ -35,7 +35,7 @@ export default function ReportsClient() {
   if (loading) return <div className="flex items-center justify-center h-full"><Spinner size={36} /></div>;
 
   // Monthly inventory value by category
-  const categories = [...new Set(inventory.map(i => i.category))].filter(Boolean);
+  const categories = Array.from(new Set(inventory.map(i => i.category))).filter(Boolean);
   const categoryData = categories.map(cat => {
     const items = inventory.filter(i => i.category === cat);
     return {
