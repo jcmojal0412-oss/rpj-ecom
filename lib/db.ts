@@ -2,9 +2,10 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { hashPassword } from './auth-helpers';
 
-const DB_PATH = process.env.VERCEL
-  ? '/tmp/rpj.db'
-  : path.join(process.cwd(), 'rpj.db');
+const DB_PATH =
+  process.env.DATABASE_PATH ||           // Railway volume (set in env vars)
+  (process.env.VERCEL ? '/tmp/rpj.db'   // Vercel serverless tmp
+  : path.join(process.cwd(), 'rpj.db')); // Local development
 
 let db: Database.Database;
 
