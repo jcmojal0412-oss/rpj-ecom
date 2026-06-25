@@ -150,9 +150,10 @@ export default function StatusManager({ onChanged }: Props) {
                       <button
                         key={key}
                         onClick={() => setEditColor(key)}
-                        className={`w-6 h-6 rounded-full shadow-sm transition-all ${STATUS_COLORS[key].dot} ${
+                        className={`w-6 h-6 rounded-full shadow-sm transition-all ${
                           editColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                         }`}
+                        style={{ backgroundColor: STATUS_COLORS[key].hex }}
                         title={STATUS_COLORS[key].label}
                       />
                     ))}
@@ -187,11 +188,10 @@ export default function StatusManager({ onChanged }: Props) {
                           fetchStatuses();
                           onChanged();
                         }}
-                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 shadow-sm ${STATUS_COLORS[key].dot} ${
-                          s.color === key
-                            ? 'ring-2 ring-offset-1 ring-gray-700 scale-110'
-                            : 'opacity-70 hover:opacity-100'
+                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 shadow-sm ${
+                          s.color === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-75 hover:opacity-100'
                         }`}
+                        style={{ backgroundColor: STATUS_COLORS[key].hex }}
                       />
                     ))}
                   </div>
@@ -231,9 +231,10 @@ export default function StatusManager({ onChanged }: Props) {
               <button
                 key={key}
                 onClick={() => setAddColor(key)}
-                className={`w-6 h-6 rounded-full shadow-sm transition-all ${STATUS_COLORS[key].dot} ${
+                className={`w-6 h-6 rounded-full shadow-sm transition-all ${
                   addColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                 }`}
+                style={{ backgroundColor: STATUS_COLORS[key].hex }}
                 title={STATUS_COLORS[key].label}
               />
             ))}
