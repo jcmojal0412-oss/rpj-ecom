@@ -10,8 +10,9 @@ interface Props {
 
 export default function MovingChart({ title, data, color }: Props) {
   const chartData = data.map(d => ({
-    label: d.sku,
+    label: d.name.length > 14 ? d.name.slice(0, 14) + '…' : d.name,
     fullName: d.name,
+    sku: d.sku,
     value: d.total_out,
   }));
 
@@ -36,7 +37,7 @@ export default function MovingChart({ title, data, color }: Props) {
               formatter={(val: number) => [`${val} units`, 'Stock Out']}
               labelFormatter={(label: string) => {
                 const item = chartData.find(d => d.label === label);
-                return item ? item.fullName : label;
+                return item ? `${item.fullName} (${item.sku})` : label;
               }}
               contentStyle={{ fontSize: 12, borderRadius: 8 }}
             />
