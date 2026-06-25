@@ -5,36 +5,49 @@ import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   LayoutDashboard, Package, ShoppingCart,
-  FlaskConical, BarChart3, Menu, X, Tag, LogOut, Users,
+  FlaskConical, BarChart3, Menu, X, Tag,
+  LogOut, Users, FileText, TrendingUp,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
 import type { SessionUser } from '@/lib/auth-helpers';
 
-const ALL_NAV = [
-  { label: 'Dashboard',        href: '/',                 icon: LayoutDashboard, module: 'dashboard'        },
-  { label: 'Products',         href: '/products',         icon: Tag,             module: 'products'         },
-  { label: 'Inventory',        href: '/inventory',        icon: Package,         module: 'inventory'        },
-  { label: 'Purchase Orders',  href: '/purchase-orders',  icon: ShoppingCart,    module: 'purchase_orders'  },
-  { label: 'Product Research', href: '/product-research', icon: FlaskConical,    module: 'product_research' },
-  { label: 'Reports',          href: '/reports',          icon: BarChart3,       module: 'reports'          },
+const NAV_GROUPS = [
+  {
+    label: 'MAIN',
+    items: [
+      { label: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
+    ],
+  },
+  {
+    label: 'CATALOG',
+    items: [
+      { label: 'Products',        href: '/products',         icon: Tag,           module: 'products'         },
+      { label: 'Product Research',href: '/product-research', icon: FlaskConical,  module: 'product_research' },
+    ],
+  },
+  {
+    label: 'INVENTORY',
+    items: [
+      { label: 'Inventory',       href: '/inventory',       icon: Package,       module: 'inventory'       },
+      { label: 'Purchase Orders', href: '/purchase-orders', icon: ShoppingCart,  module: 'purchase_orders' },
+    ],
+  },
+  {
+    label: 'REPORTS',
+    items: [
+      { label: 'Reports', href: '/reports', icon: BarChart3, module: 'reports' },
+    ],
+  },
 ];
 
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
-// Light blue sidebar color palette
-const SIDEBAR_BG    = '#dce8f5';
-const SIDEBAR_HOVER = 'rgba(30,80,160,0.09)';
-const SIDEBAR_BORDER= 'rgba(30,80,160,0.12)';
-const TEXT_MAIN     = '#1e3a8a';
-const TEXT_MUTED    = '#5b7ab5';
-
 export default function Sidebar() {
-  const pathname = usePathname();
-  const router   = useRouter();
+  const pathname  = usePathname();
+  const router    = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
 
@@ -47,71 +60,78 @@ export default function Sidebar() {
     router.push('/login');
   };
 
-  const navItems = ALL_NAV.filter(item =>
-    !user || user.role === 'owner' || user.permissions.includes(item.module)
-  );
+  const hasAccess = (module: string) =>
+    !user || user.role === 'owner' || user.permissions.includes(module);
 
   const NavContent = () => (
-    <div className="flex flex-col h-full" style={{ background: SIDEBAR_BG }}>
+    <div className="flex flex-col h-full bg-white border-r border-gray-100">
 
       {/* Logo */}
-      <div className="px-4 py-4 flex items-center justify-center" style={{ borderBottom: `1px solid ${SIDEBAR_BORDER}` }}>
-        <div className="rounded-xl overflow-hidden" style={{ background: '#0f1f4a', padding: '6px' }}>
-          <Image src="/logo.png" alt="RPJ Corp" width={130} height={65} className="object-contain" priority />
-        </div>
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-center bg-blue-950">
+        <Image src="/logo.png" alt="RPJ Corp" width={140} height={70} className="object-contain" priority />
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon   = item.icon;
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+      {/* Nav groups */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter(item => hasAccess(item.module));
+          if (visibleItems.length === 0) return null;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                background: active ? '#f97316' : 'transparent',
-                color:      active ? '#ffffff' : TEXT_MAIN,
-              }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = SIDEBAR_HOVER; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              <Icon size={18} />
-              {item.label}
-            </Link>
+            <div key={group.label} className="mb-4">
+              <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
+                {group.label}
+              </p>
+              {visibleItems.map((item) => {
+                const Icon   = item.icon;
+                const active = item.href === '/'
+                  ? pathname === '/'
+                  : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mb-0.5 ${
+                      active
+                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon size={17} className={active ? 'text-white' : 'text-gray-400'} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
 
-        {/* Owner-only: User Management */}
+        {/* Owner only */}
         {user?.role === 'owner' && (
-          <>
-            <div className="my-3" style={{ borderTop: `1px solid ${SIDEBAR_BORDER}` }} />
+          <div className="mb-4">
+            <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
+              SETTINGS
+            </p>
             <Link
               href="/settings/users"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                background: pathname.startsWith('/settings') ? '#f97316' : 'transparent',
-                color:      pathname.startsWith('/settings') ? '#ffffff' : TEXT_MUTED,
-              }}
-              onMouseEnter={e => { if (!pathname.startsWith('/settings')) (e.currentTarget as HTMLElement).style.background = SIDEBAR_HOVER; }}
-              onMouseLeave={e => { if (!pathname.startsWith('/settings')) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                pathname.startsWith('/settings')
+                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
             >
-              <Users size={18} />
+              <Users size={17} className={pathname.startsWith('/settings') ? 'text-white' : 'text-gray-400'} />
               User Management
             </Link>
-          </>
+          </div>
         )}
       </nav>
 
-      {/* Current user + logout */}
+      {/* User + Logout */}
       {user && (
-        <div className="px-3 py-3" style={{ borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-            style={{ background: 'rgba(30,80,160,0.07)' }}>
+        <div className="px-3 py-3 border-t border-gray-100">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50">
             <div
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#3b82f6' }}
@@ -119,15 +139,12 @@ export default function Sidebar() {
               {initials(user.name)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold truncate" style={{ color: TEXT_MAIN }}>{user.name}</p>
-              <p className="text-[10px] capitalize" style={{ color: TEXT_MUTED }}>{user.role}</p>
+              <p className="text-xs font-semibold text-gray-900 truncate">{user.name}</p>
+              <p className="text-[10px] text-gray-400 capitalize">{user.role}</p>
             </div>
             <button
               onClick={logout}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: TEXT_MUTED }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ef4444'; (e.currentTarget as HTMLElement).style.background = '#fee2e2'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = TEXT_MUTED; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
               title="Sign out"
             >
               <LogOut size={14} />
@@ -136,8 +153,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      <div className="px-5 py-3" style={{ borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
-        <p className="text-[10px] font-medium" style={{ color: TEXT_MUTED }}>© 2026 RPJ Corp.</p>
+      <div className="px-5 py-2.5 border-t border-gray-100">
+        <p className="text-[10px] text-gray-400">© 2026 RPJ Corp.</p>
       </div>
     </div>
   );
@@ -145,14 +162,13 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden lg:flex flex-col w-56 h-screen shrink-0" style={{ background: SIDEBAR_BG }}>
+      <aside className="hidden lg:flex flex-col w-56 h-screen shrink-0">
         <NavContent />
       </aside>
 
       {/* Mobile toggle */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg shadow-lg"
-        style={{ background: '#1e3a8a', color: '#fff' }}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-gray-200 text-gray-700 shadow-sm"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -161,10 +177,10 @@ export default function Sidebar() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <aside className="flex flex-col w-56 h-full shadow-2xl" style={{ background: SIDEBAR_BG }}>
+          <aside className="flex flex-col w-56 h-full shadow-2xl">
             <NavContent />
           </aside>
-          <div className="flex-1 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
       )}
     </>
