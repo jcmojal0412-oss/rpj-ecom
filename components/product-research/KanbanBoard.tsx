@@ -239,6 +239,26 @@ function QuickAddCard({ status, onSaved, onCancel }: {
 
 // ── Draggable Card ────────────────────────────────────────────────────────────
 
+function isUrl(str: string) {
+  try { return str.startsWith('http://') || str.startsWith('https://'); } catch { return false; }
+}
+
+function CardLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline truncate max-w-full"
+      onClick={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <ExternalLink size={10} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </a>
+  );
+}
+
 function DraggableCard({ item, onEdit, onDelete }: {
   item: ResearchItem;
   onEdit: (item: ResearchItem) => void;
@@ -276,30 +296,32 @@ function DraggableCard({ item, onEdit, onDelete }: {
           </div>
         </div>
 
-        <div className="mt-2 space-y-1">
+        <div className="mt-2 space-y-1.5">
           {(item.cogs || item.srp) && (
             <div className="flex items-center gap-2 text-xs text-gray-600">
               {item.cogs && <span>COGS: <span className="font-medium">{formatCurrency(item.cogs)}</span></span>}
               {item.srp  && <span>SRP: <span className="font-medium text-green-700">{formatCurrency(item.srp)}</span></span>}
             </div>
           )}
-          {item.fb_page_name && (
-            <div className="text-xs text-gray-500 truncate">
-              📘 {item.fb_page_name}
-              {item.fb_page_admin && <span className="text-gray-400"> · {item.fb_page_admin}</span>}
-            </div>
+
+          {/* Clickable links */}
+          {item.drive_link && (
+            <CardLink href={item.drive_link} label="📁 Google Drive" />
           )}
           {item.google_link && (
-            <a
-              href={item.google_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-              onClick={e => e.stopPropagation()}
-              onPointerDown={e => e.stopPropagation()}
-            >
-              <ExternalLink size={11} /> View Research
-            </a>
+            <CardLink href={item.google_link} label="🔍 Research Link" />
+          )}
+          {item.supplier_details && isUrl(item.supplier_details) && (
+            <CardLink href={item.supplier_details} label="🏪 Supplier Link" />
+          )}
+          {item.supplier_details && !isUrl(item.supplier_details) && (
+            <p className="text-xs text-gray-500 truncate">🏪 {item.supplier_details}</p>
+          )}
+          {item.fb_page_name && isUrl(item.fb_page_name) && (
+            <CardLink href={item.fb_page_name} label="📘 FB Page" />
+          )}
+          {item.fb_page_name && !isUrl(item.fb_page_name) && (
+            <p className="text-xs text-gray-500 truncate">📘 {item.fb_page_name}</p>
           )}
         </div>
       </div>
