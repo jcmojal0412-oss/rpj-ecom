@@ -103,6 +103,11 @@ function initSchema() {
       module TEXT NOT NULL,
       UNIQUE(user_id, module)
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 }
 
@@ -143,8 +148,9 @@ function seedUsersIfEmpty() {
 }
 
 function seedIfEmpty() {
-  const count = (db.prepare('SELECT COUNT(*) as c FROM products').get() as { c: number }).c;
-  if (count > 0) return;
+  // Only seed ONCE — check a permanent flag so deleted products don't re-appear on restart
+  const alreadySeeded = db.prepare("SELECT value FROM app_settings WHERE key='products_seeded'").get();
+  if (alreadySeeded) return;
 
   const now = new Date();
   const fmt = (d: Date) => d.toISOString().replace('T',' ').slice(0,19);
@@ -224,4 +230,7 @@ function seedIfEmpty() {
     insertRes.run('Reusable Silicone Bag Set',0,null,95,280,null,null,'For Research');
     insertRes.run('Wireless Charging Pad 15W',0,'https://google.com/search?q=wireless+charger+15w',200,599,'TechDeals PH','Carlo Mendoza','For Ads Testing');
   })();
+
+  // Mark as seeded permanently — even if all products are deleted later, won't re-seed
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('products_seeded', '1')").run();
 }
