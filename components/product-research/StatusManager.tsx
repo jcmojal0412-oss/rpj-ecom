@@ -172,10 +172,31 @@ export default function StatusManager({ onChanged }: Props) {
                   <span className={`flex-1 text-sm font-semibold px-2 py-0.5 rounded-full ${colors.header}`}>
                     {s.name}
                   </span>
+                  {/* Inline color swatches */}
                   <div className="flex items-center gap-1">
+                    {COLOR_KEYS.map(key => (
+                      <button
+                        key={key}
+                        title={STATUS_COLORS[key].label}
+                        onClick={async () => {
+                          await fetch(`/api/research-statuses/${s.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: s.name, color: key, sort_order: s.sort_order }),
+                          });
+                          fetchStatuses();
+                          onChanged();
+                        }}
+                        className={`w-4 h-4 rounded-full border-2 transition-transform hover:scale-110 ${STATUS_COLORS[key].dot} ${
+                          s.color === key ? 'border-gray-800 scale-110' : 'border-transparent'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1 ml-1">
                     <button onClick={() => startEdit(s)}
                       className="p-1.5 rounded-lg hover:bg-white/70 text-gray-500 hover:text-orange-500 transition-colors"
-                      title="Edit">
+                      title="Edit name">
                       <Pencil size={13} />
                     </button>
                     <button onClick={() => handleDelete(s.id)}
