@@ -79,16 +79,20 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             required placeholder="e.g. LED Strip Lights RGB" />
         </div>
 
-        {/* COGS & SRP */}
+        {/* COGS & PROMO */}
         <div>
           <label className="form-label">COGS (₱)</label>
           <input type="number" step="0.01" className="form-input" value={cogs}
             onChange={e => setCogs(e.target.value)} placeholder="0.00" />
         </div>
         <div>
-          <label className="form-label">SRP (₱)</label>
-          <input type="number" step="0.01" className="form-input" value={srp}
-            onChange={e => setSrp(e.target.value)} placeholder="0.00" />
+          <label className="form-label">Promo</label>
+          <input
+            className="form-input"
+            placeholder="e.g. SAVE20, BUY2GET1"
+            value={promo}
+            onChange={e => setPromo(e.target.value)}
+          />
         </div>
 
         {/* Google Drive Link */}
@@ -122,16 +126,6 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
           </select>
         </div>
 
-        {/* Promo */}
-        <div>
-          <label className="form-label">Promo</label>
-          <input
-            className="form-input"
-            placeholder="e.g. SAVE20, BUY2GET1, 50OFF"
-            value={promo}
-            onChange={e => setPromo(e.target.value)}
-          />
-        </div>
 
         {/* Status */}
         <div>
