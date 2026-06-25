@@ -18,6 +18,7 @@ export interface ResearchItem {
   cogs: number | null; srp: number | null;
   fb_page_name: string | null; fb_page_admin: string | null;
   supplier_details: string | null; objectives: string | null;
+  webcake_warehouse: number; add_to_warehouse: number; gsheet_monitoring: number;
   status: ResearchStatus; created_at: string;
 }
 

@@ -19,13 +19,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const db = getDb();
     const {
       product_name, image_ready, google_link, drive_link, cogs, srp,
-      fb_page_name, fb_page_admin, status, supplier_details, objectives
+      fb_page_name, fb_page_admin, status, supplier_details, objectives,
+      webcake_warehouse, add_to_warehouse, gsheet_monitoring
     } = await req.json();
 
     db.prepare(`
       UPDATE product_research SET
         product_name=?, image_ready=?, google_link=?, drive_link=?, cogs=?, srp=?,
-        fb_page_name=?, fb_page_admin=?, status=?, supplier_details=?, objectives=?
+        fb_page_name=?, fb_page_admin=?, status=?, supplier_details=?, objectives=?,
+        webcake_warehouse=?, add_to_warehouse=?, gsheet_monitoring=?
       WHERE id=?
     `).run(
       product_name, image_ready ? 1 : 0,
@@ -34,6 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       fb_page_name ?? null, fb_page_admin ?? null,
       status,
       supplier_details ?? null, objectives ?? null,
+      webcake_warehouse ? 1 : 0, add_to_warehouse ? 1 : 0, gsheet_monitoring ? 1 : 0,
       params.id
     );
 

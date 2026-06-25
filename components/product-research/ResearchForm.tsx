@@ -24,8 +24,11 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [fbPage,           setFbPage]           = useState(initial?.fb_page_name ?? '');
   const [fbAdmin,          setFbAdmin]          = useState(initial?.fb_page_admin ?? '');
   const [supplierDetails,  setSupplierDetails]  = useState(initial?.supplier_details ?? '');
-  const [objectives,       setObjectives]       = useState(initial?.objectives ?? '');
-  const [status,           setStatus]           = useState<ResearchStatus>(initial?.status ?? defaultStatus ?? 'For Research');
+  const [objectives,        setObjectives]        = useState(initial?.objectives ?? '');
+  const [webcakeWarehouse,  setWebcakeWarehouse]  = useState(!!initial?.webcake_warehouse);
+  const [addToWarehouse,    setAddToWarehouse]    = useState(!!initial?.add_to_warehouse);
+  const [gsheetMonitoring,  setGsheetMonitoring]  = useState(!!initial?.gsheet_monitoring);
+  const [status,            setStatus]            = useState<ResearchStatus>(initial?.status ?? defaultStatus ?? 'For Research');
   const [submitting,       setSubmitting]       = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,8 +43,11 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
       srp:              srp ? parseFloat(srp) : null,
       fb_page_name:     fbPage || null,
       fb_page_admin:    fbAdmin || null,
-      supplier_details: supplierDetails || null,
-      objectives:       objectives || null,
+      supplier_details:  supplierDetails || null,
+      objectives:        objectives || null,
+      webcake_warehouse: webcakeWarehouse,
+      add_to_warehouse:  addToWarehouse,
+      gsheet_monitoring: gsheetMonitoring,
       status,
     };
     try {
@@ -134,12 +140,30 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             placeholder="Admin name" />
         </div>
 
-        {/* Image Ready */}
-        <div className="flex items-center gap-3 pt-1">
-          <input type="checkbox" id="imageReady" checked={imageReady}
-            onChange={e => setImageReady(e.target.checked)}
-            className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400" />
-          <label htmlFor="imageReady" className="text-sm font-medium text-gray-700">Image Ready</label>
+        {/* Checklist section */}
+        <div className="col-span-2">
+          <p className="form-label mb-2">Checklist</p>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+            {[
+              { id: 'imageReady',       label: 'Image Ready',               checked: imageReady,       onChange: setImageReady },
+              { id: 'webcakeWarehouse', label: 'Change Webcake Warehouse',   checked: webcakeWarehouse, onChange: setWebcakeWarehouse },
+              { id: 'addToWarehouse',   label: 'Add to Warehouse',           checked: addToWarehouse,   onChange: setAddToWarehouse },
+              { id: 'gsheetMonitor',    label: 'Add to GSheet Monitoring',   checked: gsheetMonitoring, onChange: setGsheetMonitoring },
+            ].map(item => (
+              <div key={item.id} className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id={item.id}
+                  checked={item.checked}
+                  onChange={e => item.onChange(e.target.checked)}
+                  className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400"
+                />
+                <label htmlFor={item.id} className={`text-sm font-medium transition-colors ${item.checked ? 'text-green-600 line-through' : 'text-gray-700'}`}>
+                  {item.checked ? '✓ ' : ''}{item.label}
+                </label>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

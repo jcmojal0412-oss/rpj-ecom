@@ -115,9 +115,12 @@ function initSchema() {
 function migrateSchema() {
   // Add new columns to product_research if they don't exist yet
   const cols = (db.prepare('PRAGMA table_info(product_research)').all() as { name: string }[]).map(c => c.name);
-  if (!cols.includes('supplier_details')) db.exec('ALTER TABLE product_research ADD COLUMN supplier_details TEXT');
-  if (!cols.includes('objectives'))       db.exec('ALTER TABLE product_research ADD COLUMN objectives TEXT');
-  if (!cols.includes('drive_link'))       db.exec('ALTER TABLE product_research ADD COLUMN drive_link TEXT');
+  if (!cols.includes('supplier_details'))    db.exec('ALTER TABLE product_research ADD COLUMN supplier_details TEXT');
+  if (!cols.includes('objectives'))          db.exec('ALTER TABLE product_research ADD COLUMN objectives TEXT');
+  if (!cols.includes('drive_link'))          db.exec('ALTER TABLE product_research ADD COLUMN drive_link TEXT');
+  if (!cols.includes('webcake_warehouse'))   db.exec('ALTER TABLE product_research ADD COLUMN webcake_warehouse INTEGER DEFAULT 0');
+  if (!cols.includes('add_to_warehouse'))    db.exec('ALTER TABLE product_research ADD COLUMN add_to_warehouse INTEGER DEFAULT 0');
+  if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
 }
 
 function seedStatusesIfEmpty() {
