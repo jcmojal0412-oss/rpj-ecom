@@ -25,6 +25,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [fbAdmin,          setFbAdmin]          = useState(initial?.fb_page_admin ?? '');
   const [supplierDetails,  setSupplierDetails]  = useState(initial?.supplier_details ?? '');
   const [objectives,        setObjectives]        = useState(initial?.objectives ?? '');
+  const [promo,             setPromo]             = useState(initial?.promo ?? '');
   const [webcakeWarehouse,  setWebcakeWarehouse]  = useState(!!initial?.webcake_warehouse);
   const [addToWarehouse,    setAddToWarehouse]    = useState(!!initial?.add_to_warehouse);
   const [gsheetMonitoring,  setGsheetMonitoring]  = useState(!!initial?.gsheet_monitoring);
@@ -45,6 +46,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
       fb_page_admin:    fbAdmin || null,
       supplier_details:  supplierDetails || null,
       objectives:        objectives || null,
+      promo:             promo || null,
       webcake_warehouse: webcakeWarehouse,
       add_to_warehouse:  addToWarehouse,
       gsheet_monitoring: gsheetMonitoring,
@@ -118,6 +120,17 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             <option value="">— Select —</option>
             {OBJECTIVES.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
+        </div>
+
+        {/* Promo */}
+        <div>
+          <label className="form-label">Promo</label>
+          <input
+            className="form-input"
+            placeholder="e.g. SAVE20, BUY2GET1, 50OFF"
+            value={promo}
+            onChange={e => setPromo(e.target.value)}
+          />
         </div>
 
         {/* Status */}

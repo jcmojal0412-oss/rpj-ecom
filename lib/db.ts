@@ -121,6 +121,7 @@ function migrateSchema() {
   if (!cols.includes('webcake_warehouse'))   db.exec('ALTER TABLE product_research ADD COLUMN webcake_warehouse INTEGER DEFAULT 0');
   if (!cols.includes('add_to_warehouse'))    db.exec('ALTER TABLE product_research ADD COLUMN add_to_warehouse INTEGER DEFAULT 0');
   if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
+  if (!cols.includes('promo'))               db.exec('ALTER TABLE product_research ADD COLUMN promo TEXT');
 }
 
 function seedStatusesIfEmpty() {
