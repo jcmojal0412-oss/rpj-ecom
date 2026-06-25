@@ -17,18 +17,24 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const db = getDb();
-    const { product_name, image_ready, google_link, cogs, srp, fb_page_name, fb_page_admin, status } =
-      await req.json();
+    const {
+      product_name, image_ready, google_link, drive_link, cogs, srp,
+      fb_page_name, fb_page_admin, status, supplier_details, objectives
+    } = await req.json();
 
     db.prepare(`
       UPDATE product_research SET
-        product_name=?, image_ready=?, google_link=?, cogs=?, srp=?,
-        fb_page_name=?, fb_page_admin=?, status=?
+        product_name=?, image_ready=?, google_link=?, drive_link=?, cogs=?, srp=?,
+        fb_page_name=?, fb_page_admin=?, status=?, supplier_details=?, objectives=?
       WHERE id=?
     `).run(
-      product_name, image_ready ? 1 : 0, google_link ?? null,
-      cogs ?? null, srp ?? null, fb_page_name ?? null,
-      fb_page_admin ?? null, status, params.id
+      product_name, image_ready ? 1 : 0,
+      google_link ?? null, drive_link ?? null,
+      cogs ?? null, srp ?? null,
+      fb_page_name ?? null, fb_page_admin ?? null,
+      status,
+      supplier_details ?? null, objectives ?? null,
+      params.id
     );
 
     return NextResponse.json({ ok: true });

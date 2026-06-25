@@ -14,8 +14,10 @@ export type ResearchStatus = string;
 
 export interface ResearchItem {
   id: number; product_name: string; image_ready: number;
-  google_link: string | null; cogs: number | null; srp: number | null;
+  google_link: string | null; drive_link: string | null;
+  cogs: number | null; srp: number | null;
   fb_page_name: string | null; fb_page_admin: string | null;
+  supplier_details: string | null; objectives: string | null;
   status: ResearchStatus; created_at: string;
 }
 

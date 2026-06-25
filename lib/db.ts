@@ -15,6 +15,7 @@ export function getDb(): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     initSchema();
+    migrateSchema();
     seedStatusesIfEmpty();
     seedUsersIfEmpty();
     seedIfEmpty();
@@ -109,6 +110,14 @@ function initSchema() {
       value TEXT
     );
   `);
+}
+
+function migrateSchema() {
+  // Add new columns to product_research if they don't exist yet
+  const cols = (db.prepare('PRAGMA table_info(product_research)').all() as { name: string }[]).map(c => c.name);
+  if (!cols.includes('supplier_details')) db.exec('ALTER TABLE product_research ADD COLUMN supplier_details TEXT');
+  if (!cols.includes('objectives'))       db.exec('ALTER TABLE product_research ADD COLUMN objectives TEXT');
+  if (!cols.includes('drive_link'))       db.exec('ALTER TABLE product_research ADD COLUMN drive_link TEXT');
 }
 
 function seedStatusesIfEmpty() {
