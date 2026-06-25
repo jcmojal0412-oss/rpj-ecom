@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { MODULES, AVATAR_COLORS, AVATAR_HEX } from '@/lib/auth-helpers';
@@ -188,10 +188,12 @@ function ChangePasswordForm({ user, onSuccess, onCancel }: {
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const [newPw, setNewPw]       = useState('');
+  const [newPw, setNewPw]         = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]       = useState('');
+  const [showNew, setShowNew]     = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,26 +229,38 @@ function ChangePasswordForm({ user, onSuccess, onCancel }: {
       )}
       <div>
         <label className="form-label">New Password</label>
-        <input
-          type="password"
-          className="form-input"
-          placeholder="Min. 6 characters"
-          value={newPw}
-          onChange={e => setNewPw(e.target.value)}
-          required
-          autoFocus
-        />
+        <div className="relative">
+          <input
+            type={showNew ? 'text' : 'password'}
+            className="form-input pr-10"
+            placeholder="Min. 6 characters"
+            value={newPw}
+            onChange={e => setNewPw(e.target.value)}
+            required
+            autoFocus
+          />
+          <button type="button" onClick={() => setShowNew(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
       </div>
       <div>
         <label className="form-label">Confirm New Password</label>
-        <input
-          type="password"
-          className="form-input"
-          placeholder="Re-enter new password"
-          value={confirmPw}
-          onChange={e => setConfirmPw(e.target.value)}
-          required
-        />
+        <div className="relative">
+          <input
+            type={showConfirm ? 'text' : 'password'}
+            className="form-input pr-10"
+            placeholder="Re-enter new password"
+            value={confirmPw}
+            onChange={e => setConfirmPw(e.target.value)}
+            required
+          />
+          <button type="button" onClick={() => setShowConfirm(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
