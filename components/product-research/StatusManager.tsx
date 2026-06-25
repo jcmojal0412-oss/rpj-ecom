@@ -145,13 +145,13 @@ export default function StatusManager({ onChanged }: Props) {
                     onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
                   />
                   {/* Color picker */}
-                  <div className="flex items-center gap-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {COLOR_KEYS.map(key => (
                       <button
                         key={key}
                         onClick={() => setEditColor(key)}
-                        className={`w-5 h-5 rounded-full border-2 transition-transform ${STATUS_COLORS[key].dot} ${
-                          editColor === key ? 'border-gray-800 scale-125' : 'border-transparent hover:scale-110'
+                        className={`w-6 h-6 rounded-full shadow-sm transition-all ${STATUS_COLORS[key].dot} ${
+                          editColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                         }`}
                         title={STATUS_COLORS[key].label}
                       />
@@ -173,7 +173,7 @@ export default function StatusManager({ onChanged }: Props) {
                     {s.name}
                   </span>
                   {/* Inline color swatches */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap max-w-[160px]">
                     {COLOR_KEYS.map(key => (
                       <button
                         key={key}
@@ -187,8 +187,10 @@ export default function StatusManager({ onChanged }: Props) {
                           fetchStatuses();
                           onChanged();
                         }}
-                        className={`w-4 h-4 rounded-full border-2 transition-transform hover:scale-110 ${STATUS_COLORS[key].dot} ${
-                          s.color === key ? 'border-gray-800 scale-110' : 'border-transparent'
+                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 shadow-sm ${STATUS_COLORS[key].dot} ${
+                          s.color === key
+                            ? 'ring-2 ring-offset-1 ring-gray-700 scale-110'
+                            : 'opacity-70 hover:opacity-100'
                         }`}
                       />
                     ))}
@@ -224,13 +226,13 @@ export default function StatusManager({ onChanged }: Props) {
             onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
           />
           {/* Color picker for new */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {COLOR_KEYS.map(key => (
               <button
                 key={key}
                 onClick={() => setAddColor(key)}
-                className={`w-5 h-5 rounded-full border-2 transition-transform ${STATUS_COLORS[key].dot} ${
-                  addColor === key ? 'border-gray-800 scale-125' : 'border-transparent hover:scale-110'
+                className={`w-6 h-6 rounded-full shadow-sm transition-all ${STATUS_COLORS[key].dot} ${
+                  addColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                 }`}
                 title={STATUS_COLORS[key].label}
               />
