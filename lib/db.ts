@@ -148,9 +148,10 @@ function seedUsersIfEmpty() {
 }
 
 function seedIfEmpty() {
-  // Only seed ONCE — check a permanent flag so deleted products don't re-appear on restart
-  const alreadySeeded = db.prepare("SELECT value FROM app_settings WHERE key='products_seeded'").get();
-  if (alreadySeeded) return;
+  // No sample products — start fresh
+  // Mark as seeded so this never runs again
+  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('products_seeded', '1')").run();
+  return;
 
   const now = new Date();
   const fmt = (d: Date) => d.toISOString().replace('T',' ').slice(0,19);
