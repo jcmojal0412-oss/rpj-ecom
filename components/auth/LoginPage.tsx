@@ -228,41 +228,6 @@ export default function LoginPage() {
               )}
             </button>
 
-            {/* Staff Quick Access */}
-            {view === 'main' && staff.length > 0 && (
-              <div className="pt-3">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <span className="text-[10px] font-bold tracking-[0.15em] text-gray-300 uppercase whitespace-nowrap">
-                    Staff Quick Access
-                  </span>
-                  <div className="flex-1 h-px bg-gray-100" />
-                </div>
-
-                <div className="grid grid-cols-4 gap-3">
-                  {staff.map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => selectStaff(s)}
-                      className="group flex flex-col items-center gap-1.5"
-                    >
-                      <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold transition-all duration-200 group-hover:scale-110 group-active:scale-95"
-                        style={{
-                          backgroundColor: AVATAR_HEX[s.avatar_color] ?? '#3b82f6',
-                          boxShadow: `0 4px 12px ${AVATAR_HEX[s.avatar_color] ?? '#3b82f6'}55`,
-                        }}
-                      >
-                        {initials(s.name)}
-                      </div>
-                      <span className="text-[10px] font-medium text-gray-400 group-hover:text-gray-700 transition-colors leading-tight text-center">
-                        {s.name.split(' ')[0]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
