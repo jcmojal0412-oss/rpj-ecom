@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Shield, User, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { MODULES, AVATAR_COLORS, AVATAR_HEX } from '@/lib/auth-helpers';
@@ -21,6 +21,7 @@ export default function UserManager() {
   const [users, setUsers]     = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [changingPw, setChangingPw] = useState<AppUser | null>(null);
   const [editing, setEditing] = useState<AppUser | null>(null);
   const [deleting, setDeleting] = useState<AppUser | null>(null);
   const { toast, showToast, clearToast } = useToast();
@@ -104,7 +105,15 @@ export default function UserManager() {
                     </div>
                   )}
                   {u.role === 'owner' && (
-                    <p className="text-xs text-indigo-500 mt-2 font-medium">Full access to all modules</p>
+                    <>
+                      <p className="text-xs text-indigo-500 mt-2 font-medium">Full access to all modules</p>
+                      <button
+                        onClick={() => setChangingPw(u)}
+                        className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 font-medium transition-colors"
+                      >
+                        <KeyRound size={12} /> Change Password
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -157,7 +166,95 @@ export default function UserManager() {
           </div>
         </Modal>
       )}
+
+      {/* Change Password Modal */}
+      {changingPw && (
+        <Modal open={!!changingPw} onClose={() => setChangingPw(null)} title="Change Password" size="sm">
+          <ChangePasswordForm
+            user={changingPw}
+            onSuccess={() => { setChangingPw(null); showToast('Password changed!'); }}
+            onCancel={() => setChangingPw(null)}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+// ── Change Password Form ──────────────────────────────────────────────────────
+
+function ChangePasswordForm({ user, onSuccess, onCancel }: {
+  user: AppUser;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const [newPw, setNewPw]       = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]       = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPw.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (newPw !== confirmPw) { setError('Passwords do not match'); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: user.name,
+          username: user.username,
+          avatar_color: user.avatar_color,
+          active: true,
+          password: newPw,
+          permissions: user.permissions,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to change password'); return; }
+      onSuccess();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+      )}
+      <div>
+        <label className="form-label">New Password</label>
+        <input
+          type="password"
+          className="form-input"
+          placeholder="Min. 6 characters"
+          value={newPw}
+          onChange={e => setNewPw(e.target.value)}
+          required
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="form-label">Confirm New Password</label>
+        <input
+          type="password"
+          className="form-input"
+          placeholder="Re-enter new password"
+          value={confirmPw}
+          onChange={e => setConfirmPw(e.target.value)}
+          required
+        />
+      </div>
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+          {submitting ? 'Saving...' : 'Change Password'}
+        </button>
+      </div>
+    </form>
   );
 }
 
