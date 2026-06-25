@@ -106,9 +106,8 @@ export default function LoginPage() {
           {/* Logo section */}
           <div className="flex flex-col items-center pt-10 pb-6 px-10"
             style={{ background: 'linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%)' }}>
-            <div className="rounded-2xl overflow-hidden bg-blue-950 p-2 mb-5 shadow-lg"
-              style={{ width: 88, height: 88, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Image src="/logo.png" alt="RPJ Corp" width={76} height={76} className="object-contain" priority />
+            <div className="mb-5">
+              <Image src="/logo.png" alt="RPJ Corp" width={120} height={100} className="object-contain" priority />
             </div>
 
             {/* Back button */}

@@ -67,8 +67,8 @@ export default function Sidebar() {
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
 
       {/* Logo */}
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-center bg-blue-950">
-        <Image src="/logo.png" alt="RPJ Corp" width={140} height={70} className="object-contain" priority />
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-center bg-white">
+        <Image src="/logo.png" alt="RPJ Corp" width={130} height={65} className="object-contain" priority />
       </div>
 
       {/* Nav groups */}
