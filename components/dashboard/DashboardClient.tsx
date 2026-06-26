@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Package, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Download } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Download, Trophy } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import MovingChart from './MovingChart';
 import Spinner from '@/components/ui/Spinner';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface KPIs {
   inventoryValue: number;
@@ -24,29 +25,33 @@ interface SummaryRow {
 }
 
 interface ChartItem { sku: string; name: string; total_out: number; }
+interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
 
 export default function DashboardClient() {
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [fast, setFast] = useState<ChartItem[]>([]);
-  const [slow, setSlow] = useState<ChartItem[]>([]);
+  const [fast,     setFast]     = useState<ChartItem[]>([]);
+  const [slow,     setSlow]     = useState<ChartItem[]>([]);
+  const [dailyTop, setDailyTop] = useState<DailyItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [k, ls, s, f, sl] = await Promise.all([
+    const [k, ls, s, f, sl, dt] = await Promise.all([
       fetch('/api/dashboard/kpis').then(r => r.json()),
       fetch('/api/inventory?low_stock=1').then(r => r.json()),
       fetch('/api/inventory/summary').then(r => r.json()),
       fetch('/api/dashboard/fast-moving').then(r => r.json()),
       fetch('/api/dashboard/slow-moving').then(r => r.json()),
+      fetch('/api/dashboard/daily-top').then(r => r.json()),
     ]);
     setKpis(k);
     setLowStock(ls);
     setSummary(s);
     setFast(f);
     setSlow(sl);
+    setDailyTop(Array.isArray(dt) ? dt : []);
     setLoading(false);
   }, []);
 
@@ -116,6 +121,9 @@ export default function DashboardClient() {
           color="red"
         />
       </div>
+
+      {/* Daily Top 10 */}
+      <DailyTopSection data={dailyTop} />
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -198,6 +206,79 @@ export default function DashboardClient() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+const RANK_COLORS = ['#f97316','#fb923c','#fdba74','#3b82f6','#60a5fa','#93c5fd','#22c55e','#4ade80','#86efac','#d1d5db'];
+
+function DailyTopSection({ data }: { data: { sku: string; name: string; total_out: number; total_in: number }[] }) {
+  const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+  const chartData = data.map((d, i) => ({
+    rank: `#${i + 1}`,
+    name: d.name.length > 14 ? d.name.slice(0, 14) + '…' : d.name,
+    fullName: d.name,
+    out: d.total_out,
+    in: d.total_in,
+  }));
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 mb-4">
+        <Trophy className="text-orange-500" size={20} />
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Daily Top 10 Products</h2>
+          <p className="text-xs text-gray-400">{today} — ranked by units sold out</p>
+        </div>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="text-center py-10 text-gray-400 text-sm">
+          No stock movements recorded today yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Chart */}
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <Tooltip
+                formatter={(val: number, name: string) => [val, name === 'out' ? 'Stock Out' : 'Stock In']}
+                labelFormatter={(label: string) => {
+                  const item = chartData.find(d => d.name === label);
+                  return item ? item.fullName : label;
+                }}
+                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              />
+              <Bar dataKey="out" name="Stock Out" radius={[4,4,0,0]} maxBarSize={40}>
+                {chartData.map((_, i) => <Cell key={i} fill={RANK_COLORS[i] ?? '#94a3b8'} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+
+          {/* Ranking Table */}
+          <div className="space-y-2">
+            {data.map((item, i) => (
+              <div key={item.sku} className="flex items-center gap-3">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0`}
+                  style={{ backgroundColor: RANK_COLORS[i] ?? '#94a3b8' }}>
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                  <p className="text-xs text-gray-400">{item.sku}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold text-red-600">{item.total_out} out</p>
+                  {item.total_in > 0 && <p className="text-xs text-green-600">+{item.total_in} in</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
