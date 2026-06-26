@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, CreditCard } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import CreatePOForm from './CreatePOForm';
 import PODetail from './PODetail';
+import PaymentForm from './PaymentForm';
 import Spinner from '@/components/ui/Spinner';
 
 interface PurchaseOrder {
@@ -14,6 +15,7 @@ interface PurchaseOrder {
   total_amount: number; status: 'pending' | 'received' | 'cancelled';
   ordered_at: string; received_at: string | null;
   item_count: number; notes: string;
+  paid_amount: number; receipt_path: string | null;
 }
 
 export default function PurchaseOrdersClient() {
@@ -21,6 +23,7 @@ export default function PurchaseOrdersClient() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [viewingId, setViewingId] = useState<number | null>(null);
+  const [payingPO, setPayingPO] = useState<PurchaseOrder | null>(null);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -41,6 +44,8 @@ export default function PurchaseOrdersClient() {
     showToast(`PO marked as ${status}`);
     fetchOrders();
   };
+
+  const PO_HEADERS = ['PO #', 'Supplier', 'Items', 'Amount / Payment', 'Status', 'Ordered Date', 'Actions'];
 
   const statusBadge = (s: string) => {
     if (s === 'received') return <span className="badge-green">Received</span>;
@@ -77,43 +82,51 @@ export default function PurchaseOrdersClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['PO #','Supplier','Items','Total Amount','Status','Ordered Date','Actions'].map(h => (
+                  {PO_HEADERS.map(h => (
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {orders.map((po, i) => (
+                {orders.map((po, i) => {
+                  const paid = po.paid_amount ?? 0;
+                  const outstanding = po.total_amount - paid;
+                  const payStatus = paid >= po.total_amount ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
+                  return (
                   <tr key={po.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="table-cell font-mono text-xs font-semibold text-blue-700">{po.po_number}</td>
                     <td className="table-cell font-medium">{po.supplier}</td>
                     <td className="table-cell text-center">{po.item_count}</td>
-                    <td className="table-cell font-semibold">{formatCurrency(po.total_amount)}</td>
+                    <td className="table-cell">
+                      <div>
+                        <p className="font-semibold">{formatCurrency(po.total_amount)}</p>
+                        <p className={`text-xs font-medium ${payStatus === 'Paid' ? 'text-green-600' : payStatus === 'Partial' ? 'text-amber-600' : 'text-red-500'}`}>
+                          {payStatus === 'Paid' ? '✓ Fully Paid'
+                            : payStatus === 'Partial' ? `Paid ${formatCurrency(paid)}`
+                            : 'Unpaid'}
+                        </p>
+                      </div>
+                    </td>
                     <td className="table-cell">{statusBadge(po.status)}</td>
                     <td className="table-cell text-gray-500">{po.ordered_at ? formatDate(po.ordered_at) : '—'}</td>
                     <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setViewingId(po.id)}
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                          title="View"
-                        >
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setViewingId(po.id)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="View">
                           <Eye size={15} />
+                        </button>
+                        <button onClick={() => setPayingPO(po)}
+                          className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Record Payment">
+                          <CreditCard size={15} />
                         </button>
                         {po.status === 'pending' && (
                           <>
-                            <button
-                              onClick={() => updateStatus(po.id, 'received')}
-                              className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
-                              title="Mark Received"
-                            >
+                            <button onClick={() => updateStatus(po.id, 'received')}
+                              className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Mark Received">
                               <CheckCircle size={15} />
                             </button>
-                            <button
-                              onClick={() => updateStatus(po.id, 'cancelled')}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
-                              title="Cancel"
-                            >
+                            <button onClick={() => updateStatus(po.id, 'cancelled')}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors" title="Cancel">
                               <XCircle size={15} />
                             </button>
                           </>
@@ -121,7 +134,8 @@ export default function PurchaseOrdersClient() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -140,6 +154,21 @@ export default function PurchaseOrdersClient() {
       {viewingId && (
         <Modal open={!!viewingId} onClose={() => setViewingId(null)} title="Purchase Order Detail" size="lg">
           <PODetail id={viewingId} />
+        </Modal>
+      )}
+
+      {/* Payment Modal */}
+      {payingPO && (
+        <Modal open={!!payingPO} onClose={() => setPayingPO(null)} title={`Record Payment — ${payingPO.po_number}`} size="md">
+          <PaymentForm
+            poId={payingPO.id}
+            poNumber={payingPO.po_number}
+            totalAmount={payingPO.total_amount}
+            currentPaid={payingPO.paid_amount ?? 0}
+            currentReceiptPath={payingPO.receipt_path}
+            onSuccess={() => { setPayingPO(null); showToast('Payment recorded!'); fetchOrders(); }}
+            onCancel={() => setPayingPO(null)}
+          />
         </Modal>
       )}
     </div>

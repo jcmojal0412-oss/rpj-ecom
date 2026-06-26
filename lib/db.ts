@@ -122,6 +122,13 @@ function migrateSchema() {
   if (!cols.includes('add_to_warehouse'))    db.exec('ALTER TABLE product_research ADD COLUMN add_to_warehouse INTEGER DEFAULT 0');
   if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
   if (!cols.includes('promo'))               db.exec('ALTER TABLE product_research ADD COLUMN promo TEXT');
+
+  // Purchase order payment tracking
+  const poCols = (db.prepare('PRAGMA table_info(purchase_orders)').all() as { name: string }[]).map(c => c.name);
+  if (!poCols.includes('paid_amount'))    db.exec('ALTER TABLE purchase_orders ADD COLUMN paid_amount REAL DEFAULT 0');
+  if (!poCols.includes('payment_date'))   db.exec('ALTER TABLE purchase_orders ADD COLUMN payment_date TEXT');
+  if (!poCols.includes('payment_notes'))  db.exec('ALTER TABLE purchase_orders ADD COLUMN payment_notes TEXT');
+  if (!poCols.includes('receipt_path'))   db.exec('ALTER TABLE purchase_orders ADD COLUMN receipt_path TEXT');
 }
 
 function seedStatusesIfEmpty() {
