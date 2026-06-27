@@ -14,8 +14,14 @@ export async function GET(req: NextRequest) {
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id
     `;
-    if (lowStock) sql += ' WHERE COALESCE(i.quantity,0) <= p.reorder_point';
-    sql += ' ORDER BY p.sku';
+    if (lowStock) {
+      // Show critical (below reorder) + watch list (within 2x reorder), max 10, ordered by urgency
+      sql += ` WHERE COALESCE(i.quantity,0) <= (p.reorder_point * 2)
+               ORDER BY COALESCE(i.quantity,0) ASC
+               LIMIT 10`;
+    } else {
+      sql += ' ORDER BY p.sku';
+    }
 
     const rows = db.prepare(sql).all();
     return NextResponse.json(rows);

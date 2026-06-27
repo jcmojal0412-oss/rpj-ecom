@@ -156,28 +156,60 @@ export default function DashboardClient() {
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="text-red-600" size={20} />
           <h2 className="text-base font-semibold text-gray-900">
-            Low Stock Alerts
+            Stock Alerts
             <span className="ml-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold">
               {lowStock.length}
             </span>
           </h2>
+          <span className="text-xs text-gray-400 ml-1">Top 10 most urgent</span>
         </div>
         {lowStock.length === 0 ? (
-          <p className="text-sm text-gray-500">All products are at or above their reorder points.</p>
+          <p className="text-sm text-gray-500">✅ All products are at healthy stock levels.</p>
         ) : (
           <div className="space-y-2">
-            {lowStock.map(item => (
-              <div key={item.id} className="flex items-center justify-between border border-red-200 bg-red-50 rounded-lg px-4 py-3">
-                <div className="flex items-center gap-4">
-                  <span className="text-xs font-mono font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded">{item.sku}</span>
-                  <span className="text-sm font-medium text-gray-900">{item.name}</span>
+            {lowStock.map(item => {
+              const isCritical = item.quantity <= item.reorder_point;
+              const isOut      = item.quantity <= 0;
+              const pct        = item.reorder_point > 0 ? Math.min(100, (item.quantity / (item.reorder_point * 2)) * 100) : 0;
+
+              const borderColor = isOut ? 'border-red-400 bg-red-50'
+                : isCritical ? 'border-orange-300 bg-orange-50'
+                : 'border-amber-200 bg-amber-50';
+
+              const badge = isOut ? (
+                <span className="text-xs font-bold text-white bg-red-600 px-2 py-0.5 rounded-full">OUT</span>
+              ) : isCritical ? (
+                <span className="text-xs font-bold text-white bg-orange-500 px-2 py-0.5 rounded-full">LOW</span>
+              ) : (
+                <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">WATCH</span>
+              );
+
+              return (
+                <div key={item.id} className={`flex items-center justify-between border rounded-lg px-4 py-3 ${borderColor}`}>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-xs font-mono font-semibold text-gray-600 bg-white/70 px-2 py-0.5 rounded shrink-0">
+                      {item.sku}
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 truncate">{item.name}</span>
+                    {badge}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm shrink-0 ml-4">
+                    <div className="text-right">
+                      <p className={`font-bold ${isOut ? 'text-red-700' : isCritical ? 'text-orange-700' : 'text-amber-700'}`}>
+                        {item.quantity} units
+                      </p>
+                      <div className="w-20 bg-gray-200 rounded-full h-1.5 mt-1">
+                        <div
+                          className={`h-1.5 rounded-full ${isOut ? 'bg-red-500' : isCritical ? 'bg-orange-500' : 'bg-amber-400'}`}
+                          style={{ width: `${Math.max(0, pct)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-gray-400 text-xs">min: {item.reorder_point}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-6 text-sm">
-                  <span className="text-red-700 font-semibold">Current: {item.quantity}</span>
-                  <span className="text-gray-500">Reorder at: {item.reorder_point}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
