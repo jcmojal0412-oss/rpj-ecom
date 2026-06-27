@@ -26,14 +26,17 @@ interface SummaryRow {
 
 interface ChartItem { sku: string; name: string; total_out: number; }
 interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
+type DailyPeriod = 'today' | 'yesterday' | '7days';
 
 export default function DashboardClient() {
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [fast,     setFast]     = useState<ChartItem[]>([]);
-  const [slow,     setSlow]     = useState<ChartItem[]>([]);
-  const [dailyTop, setDailyTop] = useState<DailyItem[]>([]);
+  const [fast,        setFast]        = useState<ChartItem[]>([]);
+  const [slow,        setSlow]        = useState<ChartItem[]>([]);
+  const [dailyTop,    setDailyTop]    = useState<DailyItem[]>([]);
+  const [dailyLabel,  setDailyLabel]  = useState('');
+  const [dailyPeriod, setDailyPeriod] = useState<DailyPeriod>('today');
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -44,18 +47,30 @@ export default function DashboardClient() {
       fetch('/api/inventory/summary').then(r => r.json()),
       fetch('/api/dashboard/fast-moving').then(r => r.json()),
       fetch('/api/dashboard/slow-moving').then(r => r.json()),
-      fetch('/api/dashboard/daily-top').then(r => r.json()),
+      fetch(`/api/dashboard/daily-top?period=${dailyPeriod}`).then(r => r.json()),
     ]);
     setKpis(k);
     setLowStock(ls);
     setSummary(s);
     setFast(f);
     setSlow(sl);
-    setDailyTop(Array.isArray(dt) ? dt : []);
+    setDailyTop(dt.rows ?? []);
+    setDailyLabel(dt.label ?? '');
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const fetchDailyTop = useCallback(async (period: DailyPeriod) => {
+    const dt = await fetch(`/api/dashboard/daily-top?period=${period}`).then(r => r.json());
+    setDailyTop(dt.rows ?? []);
+    setDailyLabel(dt.label ?? '');
+  }, []);
+
+  const handlePeriodChange = (period: DailyPeriod) => {
+    setDailyPeriod(period);
+    fetchDailyTop(period);
+  };
 
   const exportCSV = () => {
     const headers = ['SKU', 'Product Name', 'COGS', 'Opening Stock', 'Stock In', 'Stock Out', 'Remaining', 'Inventory Value'];
@@ -123,7 +138,12 @@ export default function DashboardClient() {
       </div>
 
       {/* Daily Top 10 */}
-      <DailyTopSection data={dailyTop} />
+      <DailyTopSection
+        data={dailyTop}
+        label={dailyLabel}
+        period={dailyPeriod}
+        onPeriodChange={handlePeriodChange}
+      />
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -212,8 +232,18 @@ export default function DashboardClient() {
 
 const RANK_COLORS = ['#f97316','#fb923c','#fdba74','#3b82f6','#60a5fa','#93c5fd','#22c55e','#4ade80','#86efac','#d1d5db'];
 
-function DailyTopSection({ data }: { data: { sku: string; name: string; total_out: number; total_in: number }[] }) {
-  const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+const PERIOD_LABELS: Record<string, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  '7days': 'Last 7 Days',
+};
+
+function DailyTopSection({ data, label, period, onPeriodChange }: {
+  data: { sku: string; name: string; total_out: number; total_in: number }[];
+  label: string;
+  period: DailyPeriod;
+  onPeriodChange: (p: DailyPeriod) => void;
+}) {
   const chartData = data.map((d, i) => ({
     rank: `#${i + 1}`,
     name: d.name.length > 14 ? d.name.slice(0, 14) + '…' : d.name,
@@ -224,17 +254,35 @@ function DailyTopSection({ data }: { data: { sku: string; name: string; total_ou
 
   return (
     <div className="card">
-      <div className="flex items-center gap-2 mb-4">
-        <Trophy className="text-orange-500" size={20} />
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Daily Top 10 Products</h2>
-          <p className="text-xs text-gray-400">{today} — ranked by units sold out</p>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="text-orange-500" size={20} />
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Top 10 Products</h2>
+            <p className="text-xs text-gray-400">{label} — ranked by units sold out</p>
+          </div>
+        </div>
+        {/* Period filter buttons */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+          {(['today', 'yesterday', '7days'] as DailyPeriod[]).map(p => (
+            <button
+              key={p}
+              onClick={() => onPeriodChange(p)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                period === p
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
         </div>
       </div>
 
       {data.length === 0 ? (
         <div className="text-center py-10 text-gray-400 text-sm">
-          No stock movements recorded today yet.
+          No stock movements recorded for {PERIOD_LABELS[period].toLowerCase()} yet.
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
