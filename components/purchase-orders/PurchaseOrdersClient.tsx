@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -114,6 +114,13 @@ export default function PurchaseOrdersClient() {
                         <button onClick={() => setViewingId(po.id)}
                           className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="View">
                           <Eye size={15} />
+                        </button>
+                        <button
+                          onClick={() => window.open(`/purchase-orders/${po.id}/print`, '_blank')}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
+                          title="Print PO"
+                        >
+                          <Printer size={15} />
                         </button>
                         <button onClick={() => setPayingPO(po)}
                           className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Record Payment">

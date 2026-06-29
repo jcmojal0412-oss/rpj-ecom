@@ -18,8 +18,9 @@ export function todayISO(): string {
 }
 
 export function generatePONumber(): string {
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-  const seq = String(Math.floor(Math.random() * 900) + 100);
-  return `PO-${dateStr}-${seq}`;
+  // BNS series starting from BNS10001340
+  const base = 10001340;
+  const now   = Date.now();
+  const seq   = (now % 100000);
+  return `BNS${base + seq}`;
 }
