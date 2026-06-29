@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/utils';
 import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 
-type DatePeriod = 'today' | 'yesterday' | '7days' | 'this_month' | 'last_month' | 'lifetime';
+type DatePeriod = 'today' | 'yesterday' | '7days' | 'this_month' | 'last_month' | 'month' | 'lifetime';
 
 const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
   { key: 'today',      label: 'Today'       },
@@ -14,6 +14,7 @@ const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
   { key: '7days',      label: 'Last 7 Days' },
   { key: 'this_month', label: 'This Month'  },
   { key: 'last_month', label: 'Last Month'  },
+  { key: 'month',      label: 'Pick Month'  },
   { key: 'lifetime',   label: 'Lifetime'    },
 ];
 
@@ -27,7 +28,8 @@ interface SaleEntry {
 }
 
 export default function GrossSales() {
-  const [period, setPeriod]       = useState<DatePeriod>('this_month');
+  const [period, setPeriod]           = useState<DatePeriod>('this_month');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [rows, setRows]           = useState<SalesRow[]>([]);
   const [total, setTotal]         = useState(0);
   const [loading, setLoading]     = useState(true);
@@ -37,11 +39,13 @@ export default function GrossSales() {
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/partner-sales?period=${period}`).then(r => r.json());
+    const params = new URLSearchParams({ period });
+    if (period === 'month') params.set('month', selectedMonth);
+    const res = await fetch(`/api/partner-sales?${params}`).then(r => r.json());
     setRows(res.rows ?? []);
     setTotal(res.total ?? 0);
     setLoading(false);
-  }, [period]);
+  }, [period, selectedMonth]);
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
 
@@ -71,13 +75,21 @@ export default function GrossSales() {
           <TrendingUp className="text-orange-500" size={20} />
           <h2 className="text-base font-semibold text-gray-900">Gross Sales per Partner</h2>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {DATE_FILTERS.map(({ key, label }) => (
             <button key={key} onClick={() => setPeriod(key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 period === key ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>{label}</button>
           ))}
+          {period === 'month' && (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="form-input text-xs py-1.5 w-40"
+            />
+          )}
         </div>
       </div>
 

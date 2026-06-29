@@ -21,7 +21,7 @@ export interface Partner {
 
 const STATUS_FILTERS = ['ALL', 'DONE', 'PENDING', 'NO SHOW'];
 
-type DatePeriod = 'today' | 'yesterday' | '7days' | 'this_month' | 'last_month' | 'lifetime';
+type DatePeriod = 'today' | 'yesterday' | '7days' | 'this_month' | 'last_month' | 'month' | 'lifetime';
 
 const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
   { key: 'today',      label: 'Today'       },
@@ -29,10 +29,11 @@ const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
   { key: '7days',      label: 'Last 7 Days' },
   { key: 'this_month', label: 'This Month'  },
   { key: 'last_month', label: 'Last Month'  },
+  { key: 'month',      label: 'Pick Month'  },
   { key: 'lifetime',   label: 'Lifetime'    },
 ];
 
-function filterByPeriod(partners: Partner[], period: DatePeriod): Partner[] {
+function filterByPeriod(partners: Partner[], period: DatePeriod, selectedMonth?: string): Partner[] {
   if (period === 'lifetime') return partners;
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -42,9 +43,7 @@ function filterByPeriod(partners: Partner[], period: DatePeriod): Partner[] {
     if (!raw) return false;
     const d = new Date(raw);
 
-    if (period === 'today') {
-      return d >= today;
-    }
+    if (period === 'today')     return d >= today;
     if (period === 'yesterday') {
       const yest = new Date(today); yest.setDate(yest.getDate() - 1);
       return d >= yest && d < today;
@@ -59,6 +58,10 @@ function filterByPeriod(partners: Partner[], period: DatePeriod): Partner[] {
     if (period === 'last_month') {
       const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+    }
+    if (period === 'month' && selectedMonth) {
+      const [yr, mo] = selectedMonth.split('-').map(Number);
+      return d.getFullYear() === yr && d.getMonth() === mo - 1;
     }
     return true;
   });
@@ -82,7 +85,8 @@ export default function PartnersClient() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]       = useState('');
   const [filter, setFilter]       = useState('ALL');
-  const [datePeriod, setDatePeriod] = useState<DatePeriod>('lifetime');
+  const [datePeriod, setDatePeriod]     = useState<DatePeriod>('lifetime');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [showAdd, setShowAdd]   = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
@@ -109,7 +113,7 @@ export default function PartnersClient() {
   };
 
   // Apply date filter for KPIs
-  const filteredByDate = filterByPeriod(partners, datePeriod);
+  const filteredByDate = filterByPeriod(partners, datePeriod, selectedMonth);
 
   // KPIs
   const total      = filteredByDate.length;
@@ -138,7 +142,7 @@ export default function PartnersClient() {
       </div>
 
       {/* Date Period Filter */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
         {DATE_FILTERS.map(({ key, label }) => (
           <button
             key={key}
@@ -152,6 +156,15 @@ export default function PartnersClient() {
             {label}
           </button>
         ))}
+        {/* Month picker — shows when "Pick Month" is active */}
+        {datePeriod === 'month' && (
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="form-input text-xs py-1.5 w-40"
+          />
+        )}
       </div>
 
       {/* KPI Cards */}

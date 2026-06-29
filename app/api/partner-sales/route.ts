@@ -7,14 +7,16 @@ export async function GET(req: NextRequest) {
   try {
     const db        = getDb();
     const partnerId = req.nextUrl.searchParams.get('partner_id');
-    const period    = req.nextUrl.searchParams.get('period') ?? 'lifetime';
+    const period       = req.nextUrl.searchParams.get('period') ?? 'lifetime';
+    const monthParam   = req.nextUrl.searchParams.get('month') ?? '';
 
     let dateFilter = '';
-    if (period === 'today')      dateFilter = `AND date(ps.sale_date) = date('now')`;
+    if (period === 'today')          dateFilter = `AND date(ps.sale_date) = date('now')`;
     else if (period === 'yesterday') dateFilter = `AND date(ps.sale_date) = date('now', '-1 day')`;
-    else if (period === '7days') dateFilter = `AND ps.sale_date >= datetime('now', '-7 days')`;
-    else if (period === 'this_month')  dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now')`;
-    else if (period === 'last_month')  dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now', '-1 month')`;
+    else if (period === '7days')     dateFilter = `AND ps.sale_date >= datetime('now', '-7 days')`;
+    else if (period === 'this_month') dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now')`;
+    else if (period === 'last_month') dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now', '-1 month')`;
+    else if (period === 'month' && monthParam) dateFilter = `AND strftime('%Y-%m', ps.sale_date) = '${monthParam}'`;
 
     const partnerFilter = partnerId ? `AND ps.partner_id = ${parseInt(partnerId)}` : '';
 
