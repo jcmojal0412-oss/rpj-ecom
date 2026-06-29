@@ -39,21 +39,24 @@ export default function EcomCalculator() {
       return revenue - totalCost - platformFee;
     };
 
-    // Auto price points: break-even + 20%, +40%, +60%
-    const testPrice  = Math.ceil(breakEven * 1.15 / 10) * 10 - 1;
-    const sweetSpot  = Math.ceil(breakEven * 1.40 / 10) * 10 - 1;
-    const scalePrice = Math.ceil(breakEven * 1.65 / 10) * 10 - 1;
+    // Round to nearest 100 ending in 9 (e.g. 299, 399, 499, 699)
+    const to9 = (n: number) => Math.ceil(n / 100) * 100 - 1;
+    const testPrice  = to9(breakEven * 1.15);
+    const sweetSpot  = to9(breakEven * 1.40);
+    const scalePrice = to9(breakEven * 1.65);
 
     return { totalCost, breakEven, profitAt, testPrice, sweetSpot, scalePrice };
   }, [cogs, shipping, ads, rts, platform]);
 
   const srpPoints = useMemo(() => {
-    const base = Math.ceil(calc.breakEven / 100) * 100;
+    const base = Math.ceil(calc.breakEven / 100) * 100 - 1;
     const points = [];
-    for (let i = -100; i <= 600; i += 100) {
+    for (let i = -200; i <= 700; i += 100) {
       const srp = base + i;
-      if (srp > 0) points.push(srp);
+      if (srp > 0 && srp % 100 === 99) points.push(srp);
+      else if (srp > 0) points.push(Math.ceil(srp / 100) * 100 - 1);
     }
+    return [...new Set(points)].sort((a, b) => a - b);
     return points;
   }, [calc.breakEven]);
 
@@ -193,7 +196,7 @@ export default function EcomCalculator() {
             { label: 'Buy 3',  multiplier: 3,    discount: 0.10 },
           ].map(({ label, multiplier, discount }) => {
             const base        = calc.sweetSpot;
-            const bundlePrice = Math.ceil(base * multiplier * (1 - discount) / 10) * 10 - 1;
+            const bundlePrice = Math.ceil(base * multiplier * (1 - discount) / 100) * 100 - 1;
             const bundleCost  = calc.totalCost * multiplier;
             const successRate = 1 - (parseFloat(rts) / 100 || 0);
             const bundleRevenue = bundlePrice * successRate;
