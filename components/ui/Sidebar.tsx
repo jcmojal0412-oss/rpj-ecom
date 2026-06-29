@@ -6,7 +6,7 @@ import Image from 'next/image';
 import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
-  LogOut, Users, Wallet,
+  LogOut, Users, Wallet, Calculator,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -36,8 +36,14 @@ const NAV_GROUPS = [
   {
     label: 'REPORTS',
     items: [
-      { label: 'Reports',           href: '/reports',   icon: BarChart3, module: 'reports'          },
-      { label: 'Monthly Expenses',  href: '/expenses',  icon: Wallet,    module: 'purchase_orders'   },
+      { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'          },
+      { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'purchase_orders'  },
+    ],
+  },
+  {
+    label: 'TOOLS',
+    items: [
+      { label: 'Ecom Calculator',   href: '/calculator',  icon: Calculator, module: 'dashboard'        },
     ],
   },
 ];
