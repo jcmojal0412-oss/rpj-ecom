@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal';
 import PartnerForm from './PartnerForm';
 import Spinner from '@/components/ui/Spinner';
 import { formatCurrency } from '@/lib/utils';
+import GrossSales from './GrossSales';
 
 export interface Partner {
   id: number; name: string; contact: string | null; schedule: string | null;
@@ -278,6 +279,11 @@ export default function PartnersClient() {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Gross Sales Section */}
+      <div className="card">
+        <GrossSales />
       </div>
 
       {/* Add Modal */}

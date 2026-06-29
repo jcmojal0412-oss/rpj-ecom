@@ -124,6 +124,19 @@ function migrateSchema() {
   if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
   if (!cols.includes('promo'))               db.exec('ALTER TABLE product_research ADD COLUMN promo TEXT');
 
+  // Partner Sales table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS partner_sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      partner_id INTEGER REFERENCES partners(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      period_label TEXT,
+      sale_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
   // Partners table
   db.exec(`
     CREATE TABLE IF NOT EXISTS partners (
