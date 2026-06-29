@@ -39,7 +39,7 @@ function filterByPeriod(partners: Partner[], period: DatePeriod): Partner[] {
 
   return partners.filter(p => {
     const raw = p.schedule || p.created_at;
-    if (!raw) return period === 'lifetime';
+    if (!raw) return false;
     const d = new Date(raw);
 
     if (period === 'today') {
