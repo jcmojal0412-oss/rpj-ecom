@@ -18,6 +18,7 @@ export function getDb(): Database.Database {
     migrateSchema();
     seedStatusesIfEmpty();
     seedUsersIfEmpty();
+    seedPartnersIfEmpty();
     seedIfEmpty();
   }
   return db;
@@ -123,6 +124,32 @@ function migrateSchema() {
   if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
   if (!cols.includes('promo'))               db.exec('ALTER TABLE product_research ADD COLUMN promo TEXT');
 
+  // Partners table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS partners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      contact TEXT,
+      schedule TEXT,
+      remarks TEXT,
+      subscription TEXT,
+      price REAL DEFAULT 0,
+      assist_by TEXT,
+      commission TEXT,
+      referred_by TEXT,
+      contract_signing TEXT,
+      onboarding TEXT,
+      start_ads TEXT,
+      company_name TEXT,
+      email TEXT,
+      bank TEXT,
+      acct_name TEXT,
+      acct_number TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
   // Purchase order payment tracking
   const poCols = (db.prepare('PRAGMA table_info(purchase_orders)').all() as { name: string }[]).map(c => c.name);
   if (!poCols.includes('paid_amount'))    db.exec('ALTER TABLE purchase_orders ADD COLUMN paid_amount REAL DEFAULT 0');
@@ -165,6 +192,58 @@ function seedUsersIfEmpty() {
     const info = insertUser.run(s.name, s.username, hashPassword('staff123'), 'staff', s.color);
     for (const m of s.modules) insertPerm.run(info.lastInsertRowid, m);
   }
+}
+
+function seedPartnersIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM partners').get() as { c: number }).c;
+  if (count > 0) return;
+
+  const ins = db.prepare(`
+    INSERT INTO partners (name,contact,schedule,remarks,subscription,price,assist_by,commission,
+      referred_by,contract_signing,onboarding,start_ads,company_name,email,bank,acct_name,acct_number)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `);
+
+  type Row = (string | number | null)[];
+  const data: Row[] = [
+    ['NICA MARTINEZ','9974853842','2026-06-05 17:00:00','DONE','OLD PARTNER STARTER',0,'LHEN','NONE','OLD','DONE','DONE','START','LUVI HUB','luvimarketing.nica@gmail.com','Maribank','Alexander Munoz','14281580030'],
+    ['RYAN GUTIERREZ','639457401258','2026-06-08 15:40:00','PENDING','OLD PARTNER STARTER',0,'LHEN','NONE','OLD','DONE','DONE','PENDING','JUST FOR FAMILY',null,null,null,null],
+    ['CHRISTIAN NG','639484649396','2026-06-08 17:00:00','DONE','ELITE WV',2999,'LHEN','RECEIVED 06/16/26','NEW','DONE','DONE','START',"ENJI'S CORP",'christiananthonypuang@gmail.com','MariBank','Christian Anthony Pua Ng','12016806638'],
+    ['MARIA CHRISTZEL PADOLINA','0909-143-5794','2026-06-09 17:00:00','DONE','STARTER WV',999,'LHEN','RECEIVED 06/16/26','NEW','DONE','DONE','START','Maria Christzel Corp.','mariachristzelng@gmail.com','MariBank/SeaBank','Maria Christzel Ng Padulina','17396902489'],
+    ['JOSELITO BARCELONA','639655084182','2026-06-10 15:20:00','DONE','OLD PARTNER STARTER',0,'LHEN','NONE','OLD','DONE','DONE','PENDING','Smart Click PH','jojobarcelona1869@gmail.com','BDO','Joselito A. Barcelona','10800168186'],
+    ['YOLZ ANGEL GANDIA','9482805157','2026-06-17 13:00:00','DONE','STARTER WV',999,'LHEN','RECEIVED 06/26/26','NEW','DONE','DONE','PENDING','HEAVENLY ANGEL','yolandasamaniegogandia@gmail.com','BDO','Yolanda Gandia','1280696824'],
+    ['RHONA JOY NUNEZ','9952198565','2026-06-17 13:00:00','DONE','STARTER WV',999,'LHEN','RECEIVED 06/26/26','NEW','DONE','DONE','PENDING','Rhona Joy Hub','rhonajoynunez@gmail.com','GoTyme Bank','RHONA JOY PERMA NUNEZ','10530395667'],
+    ['CHERRIE FABILLARAN',null,'2026-06-24 00:00:00','DONE','STARTER WV',999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['CATHERINE M. BORNALES',null,'2026-06-24 00:00:00','DONE','STARTER WV',999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['ROBINJAMES ESPINA',null,'2026-06-24 00:00:00','DONE','ELITE WV',2999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['GERALD OJANOLA',null,'2026-06-24 00:00:00','DONE','STARTER WV',999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['SIDNEY UY',null,'2026-06-24 00:00:00','DONE','STARTER WV',999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['CHARLEMAGNE ALCALA',null,'2026-06-24 00:00:00','DONE','ELITE WV',2999,'LHEN',null,'NEW','DONE','DONE',null,null,null,null,null,null],
+    ['FEI RUEDAS GATRU','9390805985','2026-06-10 13:00:00','PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['JEZREEL LAGATA ABELO','9122755992','2026-06-10 17:01:00','PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['EMILY NUCUP MULLON',null,null,'DONE',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['SAM CUI NARRA',null,null,'DONE',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['RED CURIOSO MANLAPAZ',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['UBIE PANGALIMAN',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['ANDREI MANALO',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['NYL NORRAB',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['MARIA ROSIEL MARCAIDA / JO NILLIE',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['MARK JOHN ESPISUA',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['ELLZYJANE OLASIMAN ONGAY',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['MARICEL HERNANDEZ',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['MICHAEL ANGELO MAULION',null,null,'NO SHOW',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['LETT MENDOZA',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['SUZETTE RUEDAS BERMUDEZ',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['AYA EMZ',null,null,'NO SHOW',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['HAROLD ANONUEVO',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['RONALDO PORTUGAL',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['FERNANDO PALOMO',null,null,'DONE',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['VINCENT INDAC',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['DIEGO MORAL-LAMOR ZEG',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+    ['ROEL BAON',null,null,'PENDING',null,0,null,null,null,null,null,null,null,null,null,null,null],
+  ];
+
+  db.transaction(() => { for (const row of data) ins.run(...row); })();
 }
 
 function seedIfEmpty() {
