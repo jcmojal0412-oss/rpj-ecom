@@ -199,17 +199,36 @@ export default function POPrintPage() {
             </div>
 
             {/* Signatures */}
-            <div style={{ minWidth: '340px' }}>
-              <div style={{ display: 'flex', gap: '20px' }}>
+            <div style={{ minWidth: '360px' }}>
+              <div style={{ display: 'flex', gap: '24px' }}>
+                {/* John's signature */}
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ borderBottom: '1.5px solid #333', marginBottom: '6px', height: '50px' }}></div>
-                  <div style={{ fontSize: '11px', fontWeight: 700 }}>PREPARED BY: {COMPANY.preparedBy}</div>
-                  <div style={{ fontSize: '10px', color: '#555' }}>{COMPANY.preparedTitle}</div>
+                  <div style={{ height: '70px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', marginBottom: '0' }}>
+                    <img
+                      src="/sig-john.png"
+                      alt="Signature"
+                      style={{ maxHeight: '65px', maxWidth: '140px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+                    />
+                  </div>
+                  <div style={{ borderTop: '1.5px solid #333', paddingTop: '4px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700 }}>PREPARED BY: {COMPANY.preparedBy}</div>
+                    <div style={{ fontSize: '10px', color: '#555' }}>{COMPANY.preparedTitle}</div>
+                  </div>
                 </div>
+
+                {/* Rodelyn's signature */}
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ borderBottom: '1.5px solid #333', marginBottom: '6px', height: '50px' }}></div>
-                  <div style={{ fontSize: '11px', fontWeight: 700 }}>APPROVED BY {COMPANY.approvedBy}</div>
-                  <div style={{ fontSize: '10px', color: '#555' }}>{COMPANY.approvedTitle}</div>
+                  <div style={{ height: '70px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', marginBottom: '0' }}>
+                    <img
+                      src="/sig-rodelyn.png"
+                      alt="Signature"
+                      style={{ maxHeight: '65px', maxWidth: '140px', objectFit: 'contain', mixBlendMode: 'multiply' }}
+                    />
+                  </div>
+                  <div style={{ borderTop: '1.5px solid #333', paddingTop: '4px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700 }}>APPROVED BY: {COMPANY.approvedBy}</div>
+                    <div style={{ fontSize: '10px', color: '#555' }}>{COMPANY.approvedTitle}</div>
+                  </div>
                 </div>
               </div>
             </div>
