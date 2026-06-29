@@ -20,6 +20,49 @@ export interface Partner {
 
 const STATUS_FILTERS = ['ALL', 'DONE', 'PENDING', 'NO SHOW'];
 
+type DatePeriod = 'today' | 'yesterday' | '7days' | 'this_month' | 'last_month' | 'lifetime';
+
+const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
+  { key: 'today',      label: 'Today'       },
+  { key: 'yesterday',  label: 'Yesterday'   },
+  { key: '7days',      label: 'Last 7 Days' },
+  { key: 'this_month', label: 'This Month'  },
+  { key: 'last_month', label: 'Last Month'  },
+  { key: 'lifetime',   label: 'Lifetime'    },
+];
+
+function filterByPeriod(partners: Partner[], period: DatePeriod): Partner[] {
+  if (period === 'lifetime') return partners;
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  return partners.filter(p => {
+    const raw = p.schedule || p.created_at;
+    if (!raw) return period === 'lifetime';
+    const d = new Date(raw);
+
+    if (period === 'today') {
+      return d >= today;
+    }
+    if (period === 'yesterday') {
+      const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+      return d >= yest && d < today;
+    }
+    if (period === '7days') {
+      const week = new Date(today); week.setDate(week.getDate() - 7);
+      return d >= week;
+    }
+    if (period === 'this_month') {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (period === 'last_month') {
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+    }
+    return true;
+  });
+}
+
 const remarksBadge = (r: string | null) => {
   if (!r) return <span className="badge-gray">—</span>;
   if (r === 'DONE')    return <span className="badge-green">✓ DONE</span>;
@@ -36,8 +79,9 @@ const stageBadge = (v: string | null, labels: [string, string]) => {
 export default function PartnersClient() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
-  const [filter, setFilter]     = useState('ALL');
+  const [search, setSearch]       = useState('');
+  const [filter, setFilter]       = useState('ALL');
+  const [datePeriod, setDatePeriod] = useState<DatePeriod>('lifetime');
   const [showAdd, setShowAdd]   = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
@@ -63,11 +107,14 @@ export default function PartnersClient() {
     fetchPartners();
   };
 
+  // Apply date filter for KPIs
+  const filteredByDate = filterByPeriod(partners, datePeriod);
+
   // KPIs
-  const total      = partners.length;
-  const onboarded  = partners.filter(p => p.onboarding === 'DONE').length;
-  const adsRunning = partners.filter(p => p.start_ads === 'START').length;
-  const totalRev   = partners.reduce((s, p) => s + (p.price || 0), 0);
+  const total      = filteredByDate.length;
+  const onboarded  = filteredByDate.filter(p => p.onboarding === 'DONE').length;
+  const adsRunning = filteredByDate.filter(p => p.start_ads === 'START').length;
+  const totalRev   = filteredByDate.reduce((s, p) => s + (p.price || 0), 0);
 
   const subColors: Record<string, string> = {
     'ELITE WV':           'bg-purple-100 text-purple-700',
@@ -87,6 +134,23 @@ export default function PartnersClient() {
         <button onClick={() => setShowAdd(true)} className="btn-primary">
           <Plus size={16} /> Add Partner
         </button>
+      </div>
+
+      {/* Date Period Filter */}
+      <div className="flex flex-wrap gap-1.5">
+        {DATE_FILTERS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setDatePeriod(key)}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              datePeriod === key
+                ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* KPI Cards */}
