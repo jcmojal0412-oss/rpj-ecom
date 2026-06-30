@@ -44,6 +44,12 @@ export default function ProductCard({
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const style = DECISION_STYLE[product.decision] ?? DECISION_STYLE.TEST;
 
+  const effectiveCogs = details?.shopee_price ?? product.estimated_cogs;
+  const effectiveMargin = product.suggested_srp > 0
+    ? ((product.suggested_srp - effectiveCogs) / product.suggested_srp) * 100
+    : product.margin_percent;
+  const cogsFromShopee = details?.shopee_price != null;
+
   const toggleExpand = async () => {
     setExpanded(v => !v);
     if (details || loadingDetails) return;
@@ -79,8 +85,8 @@ export default function ProductCard({
 
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="bg-white rounded-lg p-2 border border-gray-100">
-          <p className="text-gray-400">COGS</p>
-          <p className="font-bold text-gray-800">₱{product.estimated_cogs}</p>
+          <p className="text-gray-400">COGS{cogsFromShopee && <span className="text-blue-500"> (Shopee)</span>}</p>
+          <p className="font-bold text-gray-800">₱{effectiveCogs}</p>
         </div>
         <div className="bg-white rounded-lg p-2 border border-gray-100">
           <p className="text-gray-400">SRP</p>
@@ -88,9 +94,12 @@ export default function ProductCard({
         </div>
         <div className="bg-white rounded-lg p-2 border border-gray-100">
           <p className="text-gray-400">Margin</p>
-          <p className="font-bold text-gray-800">{product.margin_percent}%</p>
+          <p className="font-bold text-gray-800">{effectiveMargin.toFixed(0)}%</p>
         </div>
       </div>
+      {cogsFromShopee && (
+        <p className="text-[10px] text-blue-500 -mt-2">COGS updated using the price found on the matched Shopee listing.</p>
+      )}
 
       <div className="text-xs text-gray-600 space-y-1">
         <p><span className="font-semibold text-gray-700">Problem solved:</span> {product.problem_solved}</p>
@@ -158,10 +167,15 @@ export default function ProductCard({
             <div className="bg-white rounded-lg p-2 border border-gray-100">
               <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><ShoppingBag size={12} /> Shopee Link</p>
               {details.shopee_link ? (
-                <a href={details.shopee_link} target="_blank" rel="noopener noreferrer"
-                   className="text-blue-600 hover:underline flex items-center gap-1 break-all">
-                  View listing <ExternalLink size={10} className="shrink-0" />
-                </a>
+                <>
+                  <a href={details.shopee_link} target="_blank" rel="noopener noreferrer"
+                     className="text-blue-600 hover:underline flex items-center gap-1 break-all">
+                    View listing <ExternalLink size={10} className="shrink-0" />
+                  </a>
+                  {details.shopee_price != null && (
+                    <p className="text-gray-500 mt-1">Listed at ₱{details.shopee_price}</p>
+                  )}
+                </>
               ) : <p className="text-gray-400">No confident match found</p>}
             </div>
             <div className="bg-white rounded-lg p-2 border border-gray-100">

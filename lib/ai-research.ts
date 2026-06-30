@@ -34,6 +34,7 @@ export interface ProductDetails {
   shopee_link: string | null;
   tiktok_link: string | null;
   product_image_url: string | null;
+  shopee_price: number | null;
 }
 
 const LIST_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce product researcher.
@@ -60,15 +61,17 @@ const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad crea
 
 Given a single product, use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok
 (tiktok.com) for a real, currently listed product or video closely matching it. While searching, also
-look for a direct image URL of the product (an actual image file URL ending in .jpg/.jpeg/.png/.webp,
-e.g. a Shopee listing photo or product thumbnail). Only use URLs that actually appear in your search
-results — never invent, guess, or construct a URL. If you can't find a confident real match for any
-field, use null for it.
+look for: (1) a direct image URL of the product (an actual image file URL ending in
+.jpg/.jpeg/.png/.webp, e.g. a Shopee listing photo or product thumbnail), and (2) the exact price (in
+PHP) shown on the matched Shopee listing — this will be used as the product's COGS. Only use URLs and
+prices that actually appear in your search results — never invent, guess, or construct a URL or price.
+If you can't find a confident real match for any field, use null for it.
 
 After searching, return ONLY valid JSON (no markdown fences, no prose) as your final message with
 exactly these keys:
 facebook_hooks (array of 5 short strings), shopee_link (string URL or null),
-tiktok_link (string URL or null), product_image_url (string URL or null).`;
+tiktok_link (string URL or null), product_image_url (string URL or null),
+shopee_price (number in PHP, the exact price from the matched Shopee listing, or null).`;
 
 export class AIResearchError extends Error {}
 

@@ -63,11 +63,19 @@ export default function ProductHunterClient() {
   const handleSave = async (product: ProductRecommendation, index: number, details: ProductDetails | null) => {
     setSavingIndex(index);
     try {
+      let productToSave: any = product;
+      if (details) {
+        const cogs = details.shopee_price ?? product.estimated_cogs;
+        const margin = product.suggested_srp > 0
+          ? Math.round(((product.suggested_srp - cogs) / product.suggested_srp) * 100)
+          : product.margin_percent;
+        productToSave = { ...product, ...details, estimated_cogs: cogs, margin_percent: margin };
+      }
       const res = await fetch('/api/ai-research/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          product: details ? { ...product, ...details } : product,
+          product: productToSave,
           category: criteria?.category,
           season: criteria?.season,
         }),
