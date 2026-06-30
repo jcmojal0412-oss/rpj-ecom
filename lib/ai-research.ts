@@ -31,14 +31,9 @@ export interface ProductRecommendation {
 
 export interface ProductDetails {
   facebook_hooks: string[];
-  tiktok_hooks: string[];
-  ugc_concepts: string[];
-  image_ad_concepts: string[];
-  suggested_offer: string;
-  suggested_audience: string;
-  suggested_pricing: string;
   shopee_link: string | null;
   tiktok_link: string | null;
+  product_image_url: string | null;
 }
 
 const LIST_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce product researcher.
@@ -64,16 +59,16 @@ Keep string fields short (1 sentence max) so the response stays fast to generate
 const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist with live web search access.
 
 Given a single product, use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok
-(tiktok.com) for a real, currently listed product or video closely matching it. Only use a URL that
-actually appears in your search results — never invent, guess, or construct a URL. If you can't find
-a confident real match on either platform, use null for that field.
+(tiktok.com) for a real, currently listed product or video closely matching it. While searching, also
+look for a direct image URL of the product (an actual image file URL ending in .jpg/.jpeg/.png/.webp,
+e.g. a Shopee listing photo or product thumbnail). Only use URLs that actually appear in your search
+results — never invent, guess, or construct a URL. If you can't find a confident real match for any
+field, use null for it.
 
 After searching, return ONLY valid JSON (no markdown fences, no prose) as your final message with
 exactly these keys:
-facebook_hooks (array of 5 short strings), tiktok_hooks (array of 5 short strings),
-ugc_concepts (array of 3 short strings), image_ad_concepts (array of 3 short strings),
-suggested_offer (string), suggested_audience (string), suggested_pricing (string),
-shopee_link (string URL or null), tiktok_link (string URL or null).`;
+facebook_hooks (array of 5 short strings), shopee_link (string URL or null),
+tiktok_link (string URL or null), product_image_url (string URL or null).`;
 
 export class AIResearchError extends Error {}
 

@@ -106,26 +106,35 @@ export default function ProductVaultClient() {
                         <td colSpan={8} className="px-4 py-4 text-xs text-gray-700 space-y-2">
                           <p className="whitespace-pre-line">{p.research_notes}</p>
                           {parsed && (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2">
-                              <p><b>Target Market:</b> {parsed.target_market}</p>
-                              <p><b>Suggested Offer:</b> {parsed.suggested_offer}</p>
-                              <p><b>Suggested Audience:</b> {parsed.suggested_audience}</p>
-                              <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>
-                              <p><b>RTS Risk:</b> {parsed.rts_risk}</p>
-                              <p><b>Perceived Value Score:</b> {p.perceived_value_score}</p>
-                              <p>
-                                <b>Shopee Link:</b>{' '}
-                                {parsed.shopee_link
-                                  ? <a href={parsed.shopee_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
-                                  : 'Not found'}
-                              </p>
-                              <p>
-                                <b>TikTok Link:</b>{' '}
-                                {parsed.tiktok_link
-                                  ? <a href={parsed.tiktok_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
-                                  : 'Not found'}
-                              </p>
-                            </div>
+                            <>
+                              {parsed.product_image_url && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={parsed.product_image_url}
+                                  alt={p.name}
+                                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              )}
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2">
+                                <p><b>Target Market:</b> {parsed.target_market}</p>
+                                <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>
+                                <p><b>RTS Risk:</b> {parsed.rts_risk}</p>
+                                <p><b>Perceived Value Score:</b> {p.perceived_value_score}</p>
+                                <p>
+                                  <b>Shopee Link:</b>{' '}
+                                  {parsed.shopee_link
+                                    ? <a href={parsed.shopee_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                                    : 'Not found'}
+                                </p>
+                                <p>
+                                  <b>TikTok Link:</b>{' '}
+                                  {parsed.tiktok_link
+                                    ? <a href={parsed.tiktok_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                                    : 'Not found'}
+                                </p>
+                              </div>
+                            </>
                           )}
                         </td>
                       </tr>

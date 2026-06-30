@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Save, TrendingUp, Shield, AlertTriangle,
-  Facebook, Music2, Camera, Tag, Users, DollarSign, Loader2, AlertCircle,
+  Facebook, Music2, Tag, Users, DollarSign, Loader2, AlertCircle,
   ShoppingBag, ExternalLink,
 } from 'lucide-react';
 import type { ProductRecommendation, ProductDetails, ResearchCriteria } from '@/lib/ai-research';
@@ -137,6 +137,20 @@ export default function ProductCard({
 
       {expanded && details && (
         <div className="space-y-3 text-xs border-t border-gray-200 pt-3">
+          {details.product_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={details.product_image_url}
+              alt={product.product_name}
+              className="w-full h-40 object-cover rounded-lg border border-gray-100"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="w-full h-24 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-gray-400">
+              No product image found
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-white rounded-lg p-2 border border-gray-100">
               <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><ShoppingBag size={12} /> Shopee Link</p>
@@ -157,34 +171,12 @@ export default function ProductCard({
               ) : <p className="text-gray-400">No confident match found</p>}
             </div>
           </div>
+
           <div>
             <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Facebook size={12} /> Facebook Hooks</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">
               {details.facebook_hooks?.map((h, i) => <li key={i}>{h}</li>)}
             </ul>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Music2 size={12} /> TikTok Hooks</p>
-            <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {details.tiktok_hooks?.map((h, i) => <li key={i}>{h}</li>)}
-            </ul>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1">UGC Concepts</p>
-            <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {details.ugc_concepts?.map((h, i) => <li key={i}>{h}</li>)}
-            </ul>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Camera size={12} /> Image Ad Concepts</p>
-            <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {details.image_ad_concepts?.map((h, i) => <li key={i}>{h}</li>)}
-            </ul>
-          </div>
-          <div className="grid grid-cols-1 gap-1 bg-blue-50 rounded-lg p-2 border border-blue-100">
-            <p><span className="font-semibold text-gray-700">Suggested Offer:</span> {details.suggested_offer}</p>
-            <p><span className="font-semibold text-gray-700">Suggested Audience:</span> {details.suggested_audience}</p>
-            <p><span className="font-semibold text-gray-700">Suggested Pricing:</span> {details.suggested_pricing}</p>
           </div>
         </div>
       )}
