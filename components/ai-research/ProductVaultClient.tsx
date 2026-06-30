@@ -116,6 +116,9 @@ export default function ProductVaultClient() {
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                 />
                               )}
+                              {(parsed.shopee_link || parsed.tiktok_link) && (
+                                <p className="text-gray-400 italic pt-2">⚠ AI-found links — please verify before use, some may be delisted or region-restricted.</p>
+                              )}
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2">
                                 <p><b>Target Market:</b> {parsed.target_market}</p>
                                 <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>

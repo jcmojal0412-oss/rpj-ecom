@@ -151,6 +151,9 @@ export default function ProductCard({
             </div>
           )}
 
+          {(details.shopee_link || details.tiktok_link) && (
+            <p className="text-gray-400 italic">⚠ AI-found links — please verify before use, some may be delisted or region-restricted.</p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-white rounded-lg p-2 border border-gray-100">
               <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><ShoppingBag size={12} /> Shopee Link</p>
