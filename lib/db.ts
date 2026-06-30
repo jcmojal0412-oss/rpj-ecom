@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { hashPassword } from './auth-helpers';
+import { hashPassword, MODULES } from './auth-helpers';
 
 const DB_PATH =
   process.env.DATABASE_PATH ||           // Railway volume (set in env vars)
@@ -163,12 +163,13 @@ function migrateSchema() {
     );
   `);
 
-  // Grant new modules (expenses, partners, calculator) to all existing owner accounts
-  const newModules = ['expenses', 'partners', 'calculator'];
+  // Auto-grant ALL current MODULES to every owner account.
+  // Whenever a new module/feature is added to MODULES in auth-helpers.ts,
+  // this keeps owner permissions in sync automatically — no manual migration needed.
   const owners = db.prepare("SELECT id FROM users WHERE role='owner'").all() as { id: number }[];
   const grantPerm = db.prepare('INSERT OR IGNORE INTO user_permissions (user_id, module) VALUES (?,?)');
   for (const o of owners) {
-    for (const m of newModules) grantPerm.run(o.id, m);
+    for (const m of MODULES) grantPerm.run(o.id, m.key);
   }
 
   // Partner active status column
@@ -200,12 +201,11 @@ function seedUsersIfEmpty() {
   const count = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
   if (count > 0) return;
 
-  const allModules = ['dashboard','products','inventory','purchase_orders','product_research','reports'];
   const insertUser = db.prepare('INSERT INTO users (name,username,password_hash,role,avatar_color) VALUES (?,?,?,?,?)');
   const insertPerm = db.prepare('INSERT INTO user_permissions (user_id,module) VALUES (?,?)');
 
   const owner = insertUser.run('Owner', 'owner', hashPassword('rpj2026'), 'owner', 'indigo');
-  for (const m of allModules) insertPerm.run(owner.lastInsertRowid, m);
+  for (const m of MODULES) insertPerm.run(owner.lastInsertRowid, m.key);
 
   const staff = [
     { name: 'Maria Santos',   username: 'maria', color: 'pink',   modules: ['inventory','dashboard'] },
