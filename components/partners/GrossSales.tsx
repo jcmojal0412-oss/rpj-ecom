@@ -120,12 +120,34 @@ export default function GrossSales() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => {
+              {rows.filter(r => r.active !== 0).length > 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-2 bg-green-50 text-xs font-bold text-green-700 uppercase tracking-wider border-y border-green-100">
+                    🟢 Active Partners — sorted highest to lowest
+                  </td>
+                </tr>
+              )}
+              {(() => {
+                const activeRows   = rows.filter(r => r.active !== 0);
+                const inactiveRows = rows.filter(r => r.active === 0);
+                const sorted = [...activeRows, ...inactiveRows];
+                let activeRank = 0;
+                return sorted.map((row, i) => {
                 const isActive = row.active !== 0;
-                const rankColors = ['text-yellow-500','text-gray-400','text-amber-600'];
-                const rankEmoji  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+                if (isActive) activeRank++;
+                const showDivider = !isActive && i > 0 && sorted[i-1].active !== 0;
+                const rankEmoji = isActive
+                  ? (activeRank === 1 ? '🥇' : activeRank === 2 ? '🥈' : activeRank === 3 ? '🥉' : `${activeRank}`)
+                  : '—';
                 return (
                 <>
+                  {showDivider && (
+                    <tr key={`divider-${row.id}`}>
+                      <td colSpan={7} className="px-4 py-2 bg-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider border-y border-gray-200">
+                        ⚫ Inactive Partners
+                      </td>
+                    </tr>
+                  )}
                   <tr key={row.id} className={`${!isActive ? 'opacity-50' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                     <td className="table-cell text-center font-bold text-gray-500">
                       <span className="text-base">{rankEmoji}</span>
@@ -208,7 +230,8 @@ export default function GrossSales() {
                   )}
                 </>
                 );
-              })}
+              });
+              })()}
               {rows.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No onboarded partners yet.</td></tr>
               )}
