@@ -85,23 +85,42 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
     throw new AIResearchError('ANTHROPIC_API_KEY is not configured on the server.');
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  const callStart = Date.now();
+
+  let res: Response;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    console.error(`[ai-research] fetch to Anthropic failed after ${Date.now() - callStart}ms:`, e);
+    if (e?.name === 'AbortError') {
+      throw new AIResearchError('Request to Anthropic API timed out after 25s.');
+    }
+    throw new AIResearchError(`Network error calling Anthropic API: ${e?.message || e}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  console.log(`[ai-research] Anthropic responded in ${Date.now() - callStart}ms with status ${res.status}`);
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
+    console.error(`[ai-research] Anthropic API error (${res.status}): ${detail.slice(0, 500)}`);
     throw new AIResearchError(`Anthropic API error (${res.status}): ${detail.slice(0, 300)}`);
   }
 
