@@ -75,10 +75,14 @@ export class AIResearchError extends Error {}
 function extractJson(text: string, kind: 'array' | 'object'): unknown {
   const pattern = kind === 'array' ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/;
   const match = text.match(pattern);
-  if (!match) throw new AIResearchError('AI response did not contain valid JSON.');
+  if (!match) {
+    console.error('[ai-research] no JSON found in response text:', text.slice(0, 1000));
+    throw new AIResearchError('AI response did not contain valid JSON.');
+  }
   try {
     return JSON.parse(match[0]);
-  } catch {
+  } catch (parseErr) {
+    console.error('[ai-research] JSON.parse failed:', parseErr, 'raw match:', match[0].slice(0, 1000));
     throw new AIResearchError('Failed to parse AI response as JSON.');
   }
 }
