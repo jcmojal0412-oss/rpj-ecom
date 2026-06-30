@@ -55,15 +55,21 @@ export default function ProductResearchClient() {
     fetchItems();
   };
 
-  const handleStatusChange = async (id: number, status: ResearchStatus) => {
+  const handleStatusChange = (id: number, status: ResearchStatus) => {
     const item = items.find(i => i.id === id);
-    if (!item) return;
-    await fetch(`/api/product-research/${id}`, {
+    if (!item || item.status === status) return;
+
+    // Optimistic update — move the card instantly, no waiting for the server
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+
+    // Sync to server in the background. On failure, revert + refetch to stay correct.
+    fetch(`/api/product-research/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...item, status }),
+    }).catch(() => {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i));
     });
-    fetchItems();
   };
 
   const firstStatus = statuses[0]?.name ?? 'For Research';
