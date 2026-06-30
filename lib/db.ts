@@ -163,6 +163,10 @@ function migrateSchema() {
     );
   `);
 
+  // Partner active status column
+  const partnerCols = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
+  if (!partnerCols.includes('active')) db.exec('ALTER TABLE partners ADD COLUMN active INTEGER DEFAULT 1');
+
   // Purchase order payment tracking
   const poCols = (db.prepare('PRAGMA table_info(purchase_orders)').all() as { name: string }[]).map(c => c.name);
   if (!poCols.includes('paid_amount'))    db.exec('ALTER TABLE purchase_orders ADD COLUMN paid_amount REAL DEFAULT 0');

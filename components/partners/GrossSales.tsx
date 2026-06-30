@@ -21,6 +21,7 @@ const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
 interface SalesRow {
   id: number; name: string; company_name: string | null;
   subscription: string | null; gross_sales: number; entry_count: number;
+  active: number;
 }
 interface SaleEntry {
   id: number; partner_id: number; amount: number;
@@ -109,19 +110,28 @@ export default function GrossSales() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="table-header w-10">#</th>
                 <th className="table-header">Partner</th>
                 <th className="table-header">Subscription</th>
                 <th className="table-header text-right">Gross Sales</th>
                 <th className="table-header text-center">Entries</th>
+                <th className="table-header text-center">Active</th>
                 <th className="table-header text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {rows.map((row, i) => {
+                const isActive = row.active !== 0;
+                const rankColors = ['text-yellow-500','text-gray-400','text-amber-600'];
+                const rankEmoji  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+                return (
                 <>
-                  <tr key={row.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={row.id} className={`${!isActive ? 'opacity-50' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <td className="table-cell text-center font-bold text-gray-500">
+                      <span className="text-base">{rankEmoji}</span>
+                    </td>
                     <td className="table-cell">
-                      <p className="font-semibold text-gray-900">{row.name}</p>
+                      <p className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{row.name}</p>
                       {row.company_name && <p className="text-xs text-gray-400">{row.company_name}</p>}
                     </td>
                     <td className="table-cell">
@@ -137,6 +147,21 @@ export default function GrossSales() {
                       </span>
                     </td>
                     <td className="table-cell text-center text-gray-500">{row.entry_count}</td>
+                    <td className="table-cell text-center">
+                      <button
+                        onClick={async () => {
+                          await fetch(`/api/partners/${row.id}/toggle`, { method: 'POST' });
+                          fetchSales();
+                        }}
+                        className={`relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${
+                          isActive ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                          isActive ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -160,7 +185,7 @@ export default function GrossSales() {
                   {/* Expanded entries */}
                   {expanded === row.id && (
                     <tr key={`exp-${row.id}`}>
-                      <td colSpan={5} className="bg-blue-50/40 px-6 py-3">
+                      <td colSpan={7} className="bg-blue-50/40 px-6 py-3">
                         <p className="text-xs font-semibold text-gray-500 mb-2">Sales History</p>
                         <div className="space-y-1.5">
                           {entries.map(e => (
@@ -182,9 +207,10 @@ export default function GrossSales() {
                     </tr>
                   )}
                 </>
-              ))}
+                );
+              })}
               {rows.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-400 text-sm">No onboarded partners yet.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No onboarded partners yet.</td></tr>
               )}
             </tbody>
           </table>

@@ -23,13 +23,14 @@ export async function GET(req: NextRequest) {
     const rows = db.prepare(`
       SELECT
         p.id, p.name, p.company_name, p.subscription,
+        COALESCE(p.active, 1) AS active,
         COALESCE(SUM(ps.amount), 0) AS gross_sales,
         COUNT(ps.id) AS entry_count
       FROM partners p
       LEFT JOIN partner_sales ps ON ps.partner_id = p.id ${dateFilter} ${partnerFilter}
       WHERE p.onboarding = 'DONE'
       GROUP BY p.id
-      ORDER BY gross_sales DESC
+      ORDER BY COALESCE(p.active, 1) DESC, gross_sales DESC
     `).all();
 
     const total = (rows as { gross_sales: number }[]).reduce((s, r) => s + r.gross_sales, 0);
