@@ -36,22 +36,22 @@ const NAV_GROUPS = [
   {
     label: 'REPORTS',
     items: [
-      { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'          },
-      { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'purchase_orders'  },
+      { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'   },
+      { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'expenses'  },
     ],
   },
   {
     label: 'PARTNERS',
     items: [
-      { label: 'Discovery Calls', href: '/discovery-calls', icon: PhoneCall,  module: 'dashboard' },
-      { label: 'SEDO Partners',   href: '/partners',         icon: Handshake,  module: 'dashboard' },
-      { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'dashboard' },
+      { label: 'Discovery Calls', href: '/discovery-calls', icon: PhoneCall,  module: 'partners' },
+      { label: 'SEDO Partners',   href: '/partners',         icon: Handshake,  module: 'partners' },
+      { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'partners' },
     ],
   },
   {
     label: 'TOOLS',
     items: [
-      { label: 'Ecom Calculator', href: '/calculator', icon: Calculator, module: 'dashboard' },
+      { label: 'Ecom Calculator', href: '/calculator', icon: Calculator, module: 'calculator' },
     ],
   },
 ];

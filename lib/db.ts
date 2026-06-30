@@ -163,6 +163,14 @@ function migrateSchema() {
     );
   `);
 
+  // Grant new modules (expenses, partners, calculator) to all existing owner accounts
+  const newModules = ['expenses', 'partners', 'calculator'];
+  const owners = db.prepare("SELECT id FROM users WHERE role='owner'").all() as { id: number }[];
+  const grantPerm = db.prepare('INSERT OR IGNORE INTO user_permissions (user_id, module) VALUES (?,?)');
+  for (const o of owners) {
+    for (const m of newModules) grantPerm.run(o.id, m);
+  }
+
   // Partner active status column
   const partnerCols = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
   if (!partnerCols.includes('active')) db.exec('ALTER TABLE partners ADD COLUMN active INTEGER DEFAULT 1');

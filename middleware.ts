@@ -11,6 +11,11 @@ const ROUTE_MODULES: [string, string][] = [
   ['/purchase-orders',  'purchase_orders'],
   ['/product-research', 'product_research'],
   ['/reports',          'reports'],
+  ['/expenses',         'expenses'],
+  ['/discovery-calls',  'partners'],
+  ['/partners',         'partners'],
+  ['/gross-sales',      'partners'],
+  ['/calculator',       'calculator'],
   ['/settings',         '_owner'], // owner-only flag
 ];
 
