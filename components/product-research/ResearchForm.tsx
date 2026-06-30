@@ -32,6 +32,12 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [status,            setStatus]            = useState<ResearchStatus>(initial?.status ?? defaultStatus ?? 'For Research');
   const [submitting,       setSubmitting]       = useState(false);
 
+  const cogsNum   = parseFloat(cogs) || 0;
+  const srpNum    = parseFloat(srp)  || 0;
+  const profit    = srpNum - cogsNum;
+  const margin    = srpNum > 0 ? (profit / srpNum * 100) : 0;
+  const hasValues = cogs !== '' && srp !== '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -79,17 +85,46 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             required placeholder="e.g. LED Strip Lights RGB" />
         </div>
 
-        {/* COGS & PROMO */}
+        {/* COGS, SRP & PROMO */}
         <div>
           <label className="form-label">COGS (₱)</label>
           <input type="number" step="0.01" className="form-input" value={cogs}
             onChange={e => setCogs(e.target.value)} placeholder="0.00" />
         </div>
         <div>
+          <label className="form-label">SRP / Selling Price (₱)</label>
+          <input type="number" step="0.01" className="form-input" value={srp}
+            onChange={e => setSrp(e.target.value)} placeholder="0.00" />
+        </div>
+
+        {/* Auto-computed Profit */}
+        <div className="col-span-2">
+          <div className={`rounded-xl px-4 py-3 flex items-center justify-between transition-colors ${
+            !hasValues ? 'bg-gray-50' : profit > 0 ? 'bg-green-50 border border-green-200' : profit < 0 ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700">💰 Profit per Unit</span>
+              {hasValues && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {margin.toFixed(1)}% margin
+                </span>
+              )}
+            </div>
+            <span className={`text-xl font-black ${
+              !hasValues ? 'text-gray-300' : profit > 0 ? 'text-green-700' : profit < 0 ? 'text-red-600' : 'text-gray-400'
+            }`}>
+              {hasValues ? `₱${profit.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}
+            </span>
+          </div>
+        </div>
+
+        <div className="col-span-2">
           <label className="form-label">Promo</label>
           <input
             className="form-input"
-            placeholder="e.g. SAVE20, BUY2GET1"
+            placeholder="e.g. BUY 1 - 399, B1T1 - 499"
             value={promo}
             onChange={e => setPromo(e.target.value)}
           />
