@@ -76,6 +76,16 @@ export default function ProductCard({
 
   return (
     <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
+      {details?.product_image_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={details.product_image_url}
+          alt={product.product_name}
+          className="w-full h-40 object-cover rounded-lg border border-gray-100 -mt-1"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-bold text-gray-900 leading-snug">{product.product_name}</h3>
         <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${style.badge}`}>
@@ -146,15 +156,7 @@ export default function ProductCard({
 
       {expanded && details && (
         <div className="space-y-3 text-xs border-t border-gray-200 pt-3">
-          {details.product_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={details.product_image_url}
-              alt={product.product_name}
-              className="w-full h-40 object-cover rounded-lg border border-gray-100"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          ) : (
+          {!details.product_image_url && (
             <div className="w-full h-24 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-gray-400">
               No product image found
             </div>
