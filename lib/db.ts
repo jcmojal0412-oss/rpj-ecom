@@ -190,6 +190,15 @@ function migrateSchema() {
   if (!poCols.includes('payment_date'))   db.exec('ALTER TABLE purchase_orders ADD COLUMN payment_date TEXT');
   if (!poCols.includes('payment_notes'))  db.exec('ALTER TABLE purchase_orders ADD COLUMN payment_notes TEXT');
   if (!poCols.includes('receipt_path'))   db.exec('ALTER TABLE purchase_orders ADD COLUMN receipt_path TEXT');
+
+  // AI Product Researcher fields on products
+  const prodCols = (db.prepare('PRAGMA table_info(products)').all() as { name: string }[]).map(c => c.name);
+  if (!prodCols.includes('ai_score'))                db.exec('ALTER TABLE products ADD COLUMN ai_score REAL');
+  if (!prodCols.includes('season'))                  db.exec('ALTER TABLE products ADD COLUMN season TEXT');
+  if (!prodCols.includes('research_notes'))          db.exec('ALTER TABLE products ADD COLUMN research_notes TEXT');
+  if (!prodCols.includes('decision'))                db.exec('ALTER TABLE products ADD COLUMN decision TEXT');
+  if (!prodCols.includes('perceived_value_score'))   db.exec('ALTER TABLE products ADD COLUMN perceived_value_score REAL');
+  if (!prodCols.includes('ai_research_json'))        db.exec('ALTER TABLE products ADD COLUMN ai_research_json TEXT');
 }
 
 function seedStatusesIfEmpty() {

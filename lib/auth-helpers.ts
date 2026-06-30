@@ -87,6 +87,7 @@ export const MODULES = [
   { key: 'expenses',         label: 'Monthly Expenses', icon: '💰' },
   { key: 'partners',         label: 'SEDO Partners',    icon: '🤝' },
   { key: 'calculator',       label: 'Ecom Calculator',  icon: '🧮' },
+  { key: 'ai_product_researcher', label: 'AI Product Researcher', icon: '🤖' },
 ] as const;
 
 export type ModuleKey = typeof MODULES[number]['key'];

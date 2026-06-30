@@ -17,6 +17,7 @@ const ROUTE_MODULES: [string, string][] = [
   ['/partners',         'partners'],
   ['/gross-sales',      'partners'],
   ['/calculator',       'calculator'],
+  ['/ai-product-researcher', 'ai_product_researcher'],
   ['/settings',         '_owner'], // owner-only flag
 ];
 

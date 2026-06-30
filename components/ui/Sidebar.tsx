@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
+  Sparkles, ShoppingBag, Music2, Vault, LineChart,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -46,6 +47,16 @@ const NAV_GROUPS = [
       { label: 'Discovery Calls', href: '/discovery-calls', icon: PhoneCall,  module: 'partners' },
       { label: 'SEDO Partners',   href: '/partners',         icon: Handshake,  module: 'partners' },
       { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'partners' },
+    ],
+  },
+  {
+    label: 'AI PRODUCT RESEARCHER',
+    items: [
+      { label: 'Product Hunter',  href: '/ai-product-researcher',         icon: Sparkles,    module: 'ai_product_researcher' },
+      { label: 'Shopee Research', href: '/ai-product-researcher/shopee',  icon: ShoppingBag, module: 'ai_product_researcher' },
+      { label: 'TikTok Research', href: '/ai-product-researcher/tiktok',  icon: Music2,      module: 'ai_product_researcher' },
+      { label: 'Product Vault',   href: '/ai-product-researcher/vault',   icon: Vault,       module: 'ai_product_researcher' },
+      { label: 'Trend Dashboard', href: '/ai-product-researcher/trends',  icon: LineChart,   module: 'ai_product_researcher' },
     ],
   },
   {
@@ -100,7 +111,9 @@ export default function Sidebar() {
                 const Icon   = item.icon;
                 const active = item.href === '/'
                   ? pathname === '/'
-                  : pathname.startsWith(item.href);
+                  : item.href === '/ai-product-researcher'
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}

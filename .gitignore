@@ -28,3 +28,4 @@ yarn-debug.log*
 # Editor
 .vscode/
 .idea/
+*.tsbuildinfo
