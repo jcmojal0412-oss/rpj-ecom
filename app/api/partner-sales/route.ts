@@ -5,20 +5,37 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const db        = getDb();
-    const partnerId = req.nextUrl.searchParams.get('partner_id');
-    const period       = req.nextUrl.searchParams.get('period') ?? 'lifetime';
-    const monthParam   = req.nextUrl.searchParams.get('month') ?? '';
+    const db         = getDb();
+    const partnerId  = req.nextUrl.searchParams.get('partner_id');
+    const period     = req.nextUrl.searchParams.get('period') ?? 'lifetime';
+    const monthParam = req.nextUrl.searchParams.get('month') ?? '';
 
     let dateFilter = '';
-    if (period === 'today')          dateFilter = `AND date(ps.sale_date) = date('now')`;
-    else if (period === 'yesterday') dateFilter = `AND date(ps.sale_date) = date('now', '-1 day')`;
-    else if (period === '7days')     dateFilter = `AND ps.sale_date >= datetime('now', '-7 days')`;
-    else if (period === 'this_month') dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now')`;
-    else if (period === 'last_month') dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now', '-1 month')`;
-    else if (period === 'month' && monthParam) dateFilter = `AND strftime('%Y-%m', ps.sale_date) = '${monthParam}'`;
+    const args: (string | number)[] = [];
 
-    const partnerFilter = partnerId ? `AND ps.partner_id = ${parseInt(partnerId)}` : '';
+    if (period === 'today') {
+      dateFilter = `AND date(ps.sale_date) = date('now')`;
+    } else if (period === 'yesterday') {
+      dateFilter = `AND date(ps.sale_date) = date('now', '-1 day')`;
+    } else if (period === '7days') {
+      dateFilter = `AND ps.sale_date >= datetime('now', '-7 days')`;
+    } else if (period === 'this_month') {
+      dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now')`;
+    } else if (period === 'last_month') {
+      dateFilter = `AND strftime('%Y-%m', ps.sale_date) = strftime('%Y-%m', 'now', '-1 month')`;
+    } else if (period === 'month' && /^\d{4}-\d{2}$/.test(monthParam)) {
+      dateFilter = `AND strftime('%Y-%m', ps.sale_date) = ?`;
+      args.push(monthParam);
+    }
+
+    let partnerFilter = '';
+    if (partnerId) {
+      const pid = parseInt(partnerId, 10);
+      if (!Number.isNaN(pid)) {
+        partnerFilter = `AND ps.partner_id = ?`;
+        args.push(pid);
+      }
+    }
 
     const rows = db.prepare(`
       SELECT
@@ -31,7 +48,7 @@ export async function GET(req: NextRequest) {
       WHERE p.onboarding = 'DONE'
       GROUP BY p.id
       ORDER BY COALESCE(p.active, 1) DESC, gross_sales DESC
-    `).all();
+    `).all(...args);
 
     const total = (rows as { gross_sales: number }[]).reduce((s, r) => s + r.gross_sales, 0);
     return NextResponse.json({ rows, total });

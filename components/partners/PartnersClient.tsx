@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 import { Plus, Search, Pencil, Trash2, Phone, Mail, Building2, Users } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -15,7 +15,7 @@ export interface Partner {
   contract_signing: string | null; onboarding: string | null; start_ads: string | null;
   company_name: string | null; email: string | null;
   bank: string | null; acct_name: string | null; acct_number: string | null;
-  notes: string | null; created_at: string;
+  notes: string | null; created_at: string; active?: number;
 }
 
 const STATUS_FILTERS = ['ALL', 'DONE', 'PENDING', 'NO SHOW'];
@@ -222,8 +222,8 @@ export default function PartnersClient() {
             </thead>
             <tbody>
               {partners.map((p, i) => (
-                <>
-                  <tr key={p.id}
+                <Fragment key={p.id}>
+                  <tr
                     className={`cursor-pointer transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50`}
                     onClick={() => setExpanded(expanded === p.id ? null : p.id)}
                   >
@@ -257,7 +257,7 @@ export default function PartnersClient() {
                   </tr>
                   {/* Expanded detail row */}
                   {expanded === p.id && (
-                    <tr key={`exp-${p.id}`} className="bg-blue-50/50">
+                    <tr className="bg-blue-50/50">
                       <td colSpan={9} className="px-6 py-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                           <div>
@@ -286,7 +286,7 @@ export default function PartnersClient() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

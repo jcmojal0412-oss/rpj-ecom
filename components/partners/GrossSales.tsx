@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import Modal from '@/components/ui/Modal';
@@ -140,7 +140,7 @@ export default function GrossSales() {
                   ? (activeRank === 1 ? '🥇' : activeRank === 2 ? '🥈' : activeRank === 3 ? '🥉' : `${activeRank}`)
                   : '—';
                 return (
-                <>
+                <Fragment key={row.id}>
                   {showDivider && (
                     <tr key={`divider-${row.id}`}>
                       <td colSpan={7} className="px-4 py-2 bg-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider border-y border-gray-200">
@@ -148,7 +148,7 @@ export default function GrossSales() {
                       </td>
                     </tr>
                   )}
-                  <tr key={row.id} className={`${!isActive ? 'opacity-50' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <tr className={`${!isActive ? 'opacity-50' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                     <td className="table-cell text-center font-bold text-gray-500">
                       <span className="text-base">{rankEmoji}</span>
                     </td>
@@ -206,7 +206,7 @@ export default function GrossSales() {
 
                   {/* Expanded entries */}
                   {expanded === row.id && (
-                    <tr key={`exp-${row.id}`}>
+                    <tr>
                       <td colSpan={7} className="bg-blue-50/40 px-6 py-3">
                         <p className="text-xs font-semibold text-gray-500 mb-2">Sales History</p>
                         <div className="space-y-1.5">
@@ -228,7 +228,7 @@ export default function GrossSales() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
                 );
               });
               })()}
