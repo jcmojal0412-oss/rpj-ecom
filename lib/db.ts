@@ -175,6 +175,11 @@ function migrateSchema() {
     for (const m of MODULES) grantPerm.run(o.id, m.key);
   }
 
+  // Login rate limiting columns
+  const userCols = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map(c => c.name);
+  if (!userCols.includes('failed_attempts')) db.exec('ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0');
+  if (!userCols.includes('locked_until'))    db.exec('ALTER TABLE users ADD COLUMN locked_until TEXT');
+
   // Partner active status column
   const partnerCols = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
   if (!partnerCols.includes('active')) db.exec('ALTER TABLE partners ADD COLUMN active INTEGER DEFAULT 1');
