@@ -86,7 +86,7 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), 90000);
   const callStart = Date.now();
 
   let res: Response;
