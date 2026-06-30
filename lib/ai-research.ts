@@ -236,6 +236,12 @@ Market: ${criteria.market}
 Return the ad creative JSON object now.`;
 
   const text = await callClaudeWithSearch(DETAILS_SYSTEM_PROMPT, userPrompt, 2000);
-  const parsed = extractJson(text, 'object');
-  return parsed as ProductDetails;
+  const parsed = extractJson(text, 'object') as ProductDetails;
+  console.log('[ai-research/details] parsed result:', {
+    shopee_link: parsed.shopee_link,
+    tiktok_link: parsed.tiktok_link,
+    product_image_url: parsed.product_image_url,
+    shopee_price: parsed.shopee_price,
+  });
+  return parsed;
 }

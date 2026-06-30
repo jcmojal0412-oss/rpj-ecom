@@ -42,6 +42,7 @@ export default function ProductCard({
   const [details, setDetails] = useState<ProductDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState(false);
   const style = DECISION_STYLE[product.decision] ?? DECISION_STYLE.TEST;
 
   const effectiveCogs = details?.shopee_price ?? product.estimated_cogs;
@@ -76,14 +77,24 @@ export default function ProductCard({
 
   return (
     <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
-      {details?.product_image_url && (
+      {details?.product_image_url && !imageFailed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={details.product_image_url}
           alt={product.product_name}
           className="w-full h-40 object-cover rounded-lg border border-gray-100 -mt-1"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          onError={() => setImageFailed(true)}
         />
+      )}
+      {details?.product_image_url && imageFailed && (
+        <a
+          href={details.product_image_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full h-10 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-blue-600 hover:underline -mt-1"
+        >
+          Image found but blocked from preview — open in new tab
+        </a>
       )}
 
       <div className="flex items-start justify-between gap-2">
