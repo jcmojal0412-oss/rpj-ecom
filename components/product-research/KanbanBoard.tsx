@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle, XCircle, ExternalLink, Pencil, Trash2, X } from 'lucide-react';
+import { CheckCircle, XCircle, ExternalLink, Pencil, Trash2, X, GripVertical } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { getStatusColor } from '@/lib/statusColors';
 import type { ResearchItem, ResearchStatus } from './ProductResearchClient';
@@ -32,7 +32,7 @@ export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, o
   const COLUMNS = statuses.map(s => s.name);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -87,12 +87,18 @@ export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, o
         ))}
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
         {activeItem ? (
-          <div className="bg-white rounded-lg p-3 shadow-2xl border border-gray-200 opacity-95 rotate-1 cursor-grabbing">
-            <p className="text-sm font-semibold text-gray-900">{activeItem.product_name}</p>
-            {activeItem.cogs && (
-              <p className="text-xs text-gray-500 mt-1">COGS: {formatCurrency(activeItem.cogs)}</p>
+          <div className="bg-white rounded-lg p-3 shadow-2xl border-2 border-orange-300 rotate-2 cursor-grabbing w-72">
+            <div className="flex items-center gap-1.5">
+              <GripVertical size={14} className="text-gray-300 shrink-0" />
+              <p className="text-sm font-semibold text-gray-900 truncate">{activeItem.product_name}</p>
+            </div>
+            {(activeItem.cogs || activeItem.srp) && (
+              <div className="flex items-center gap-2 text-xs text-gray-600 mt-1.5 ml-5">
+                {activeItem.cogs && <span>COGS: <span className="font-medium">{formatCurrency(activeItem.cogs)}</span></span>}
+                {activeItem.srp  && <span>SRP: <span className="font-medium text-green-700">{formatCurrency(activeItem.srp)}</span></span>}
+              </div>
             )}
           </div>
         ) : null}
@@ -264,7 +270,10 @@ function DraggableCard({ item, onEdit, onDelete }: {
   onEdit: (item: ResearchItem) => void;
   onDelete: (id: number) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    transition: { duration: 150, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+  });
 
   const style = { transform: CSS.Transform.toString(transform), transition };
 
@@ -272,23 +281,21 @@ function DraggableCard({ item, onEdit, onDelete }: {
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing select-none transition-shadow ${
-        isDragging ? 'opacity-40 shadow-lg' : 'hover:shadow-md'
+      className={`group bg-white rounded-lg shadow-sm border border-gray-100 select-none transition-all ${
+        isDragging ? 'opacity-30 shadow-xl scale-[1.02]' : 'hover:shadow-md hover:border-gray-200'
       }`}
       {...attributes}
       {...listeners}
     >
-      {/* Clickable card body — opens edit */}
-      <div
-        className="p-3 pb-1"
-        onPointerDown={e => e.stopPropagation()}
-        onClick={() => onEdit(item)}
-        style={{ cursor: 'pointer' }}
-      >
+      {/* Card body — draggable AND clickable to edit (dnd-kit distinguishes drag vs click by movement distance) */}
+      <div className="p-3 pb-1 cursor-grab active:cursor-grabbing" onClick={() => onEdit(item)}>
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-900 leading-tight hover:text-orange-600 transition-colors">
-            {item.product_name}
-          </h3>
+          <div className="flex items-start gap-1.5 flex-1 min-w-0">
+            <GripVertical size={14} className="text-gray-300 group-hover:text-gray-400 shrink-0 mt-0.5 transition-colors" />
+            <h3 className="text-sm font-semibold text-gray-900 leading-tight hover:text-orange-600 transition-colors">
+              {item.product_name}
+            </h3>
+          </div>
           <div title={item.image_ready ? 'Image ready' : 'No image yet'}>
             {item.image_ready
               ? <CheckCircle size={14} className="text-green-600 shrink-0" />
@@ -344,7 +351,7 @@ function DraggableCard({ item, onEdit, onDelete }: {
         >
           <Trash2 size={12} />
         </button>
-        <span className="text-xs text-gray-300 ml-auto">click card to edit</span>
+        <span className="text-xs text-gray-300 ml-auto">drag to move · click to edit</span>
       </div>
     </div>
   );
