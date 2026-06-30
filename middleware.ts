@@ -20,6 +20,14 @@ const ROUTE_MODULES: [string, string][] = [
   ['/settings',         '_owner'], // owner-only flag
 ];
 
+// Always returns a Uint8Array backed by a real ArrayBuffer (never SharedArrayBuffer),
+// which is what TypeScript's strict BufferSource typing for the Web Crypto API requires.
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buf = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buf).set(bytes);
+  return buf;
+}
+
 function base64urlToBytes(b64url: string): Uint8Array {
   const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
@@ -38,9 +46,11 @@ async function verifySession(token: string): Promise<{ role: string; permissions
   try {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
-      'raw', encoder.encode(APP_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+      'raw', toArrayBuffer(encoder.encode(APP_SECRET)), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
     );
-    const valid = await crypto.subtle.verify('HMAC', key, base64urlToBytes(signature), encoder.encode(payload));
+    const valid = await crypto.subtle.verify(
+      'HMAC', key, toArrayBuffer(base64urlToBytes(signature)), toArrayBuffer(encoder.encode(payload))
+    );
     if (!valid) return null;
 
     const jsonStr = new TextDecoder().decode(base64urlToBytes(payload));
