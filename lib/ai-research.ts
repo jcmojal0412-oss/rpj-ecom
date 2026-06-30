@@ -47,7 +47,7 @@ Score products from 0-100.
 70-84 = TEST
 Below 70 = REJECT
 
-Return ONLY valid JSON (no markdown fences, no prose) — an array of 10 to 20 product objects, each with exactly these keys:
+Return ONLY valid JSON (no markdown fences, no prose) — an array of exactly 8 product objects, each with exactly these keys:
 product_name (string), estimated_cogs (number, PHP), suggested_srp (number, PHP), margin_percent (number),
 problem_solved (string), target_market (string), why_it_sells_now (string),
 perceived_value_score (0-100), demand_score (0-100), competition_score (0-100),
@@ -76,7 +76,7 @@ Market: ${criteria.market}
 Desired Margin: ${criteria.margin}%
 Notes: ${criteria.notes || 'None'}
 
-Generate 10-20 winning product recommendations as a JSON array.`;
+Generate exactly 8 winning product recommendations as a JSON array.`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -87,7 +87,7 @@ Generate 10-20 winning product recommendations as a JSON array.`;
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 8000,
+      max_tokens: 4500,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     }),

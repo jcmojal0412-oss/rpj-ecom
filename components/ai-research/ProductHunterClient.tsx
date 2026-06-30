@@ -29,7 +29,16 @@ export default function ProductHunterClient() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(c),
       });
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 504 || res.status === 502
+            ? 'The AI took too long to respond (timeout). Try again — it usually works on a retry.'
+            : `Server returned an unexpected response (status ${res.status}).`
+        );
+      }
       if (!res.ok) throw new Error(data.error || 'Failed to generate recommendations.');
       setResults(data.recommendations || []);
     } catch (e: any) {
