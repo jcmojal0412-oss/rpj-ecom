@@ -19,15 +19,17 @@ export async function POST(req: NextRequest) {
     const {
       product_name, image_ready, google_link, drive_link, cogs, srp,
       fb_page_name, fb_page_admin, status, supplier_details, objectives,
-      webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo
+      webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
+      shipping_fee, ads_cost, rts_percent
     } = await req.json();
 
     const info = db.prepare(`
       INSERT INTO product_research
         (product_name, image_ready, google_link, drive_link, cogs, srp,
          fb_page_name, fb_page_admin, status, supplier_details, objectives,
-         webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
+         shipping_fee, ads_cost, rts_percent)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       product_name, image_ready ? 1 : 0,
       google_link ?? null, drive_link ?? null,
@@ -36,7 +38,8 @@ export async function POST(req: NextRequest) {
       status ?? 'For Research',
       supplier_details ?? null, objectives ?? null,
       webcake_warehouse ? 1 : 0, add_to_warehouse ? 1 : 0, gsheet_monitoring ? 1 : 0,
-      promo ?? null
+      promo ?? null,
+      shipping_fee ?? 0, ads_cost ?? 0, rts_percent ?? 0
     );
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });

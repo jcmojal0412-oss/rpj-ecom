@@ -20,6 +20,7 @@ export interface ResearchItem {
   supplier_details: string | null; objectives: string | null;
   webcake_warehouse: number; add_to_warehouse: number; gsheet_monitoring: number;
   promo: string | null;
+  shipping_fee: number | null; ads_cost: number | null; rts_percent: number | null;
   status: ResearchStatus; created_at: string;
 }
 

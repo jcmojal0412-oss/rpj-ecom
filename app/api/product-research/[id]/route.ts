@@ -20,14 +20,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const {
       product_name, image_ready, google_link, drive_link, cogs, srp,
       fb_page_name, fb_page_admin, status, supplier_details, objectives,
-      webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo
+      webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
+      shipping_fee, ads_cost, rts_percent
     } = await req.json();
 
     db.prepare(`
       UPDATE product_research SET
         product_name=?, image_ready=?, google_link=?, drive_link=?, cogs=?, srp=?,
         fb_page_name=?, fb_page_admin=?, status=?, supplier_details=?, objectives=?,
-        webcake_warehouse=?, add_to_warehouse=?, gsheet_monitoring=?, promo=?
+        webcake_warehouse=?, add_to_warehouse=?, gsheet_monitoring=?, promo=?,
+        shipping_fee=?, ads_cost=?, rts_percent=?
       WHERE id=?
     `).run(
       product_name, image_ready ? 1 : 0,
@@ -38,6 +40,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       supplier_details ?? null, objectives ?? null,
       webcake_warehouse ? 1 : 0, add_to_warehouse ? 1 : 0, gsheet_monitoring ? 1 : 0,
       promo ?? null,
+      shipping_fee ?? 0, ads_cost ?? 0, rts_percent ?? 0,
       params.id
     );
 

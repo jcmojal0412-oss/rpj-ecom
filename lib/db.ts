@@ -123,6 +123,9 @@ function migrateSchema() {
   if (!cols.includes('add_to_warehouse'))    db.exec('ALTER TABLE product_research ADD COLUMN add_to_warehouse INTEGER DEFAULT 0');
   if (!cols.includes('gsheet_monitoring'))   db.exec('ALTER TABLE product_research ADD COLUMN gsheet_monitoring INTEGER DEFAULT 0');
   if (!cols.includes('promo'))               db.exec('ALTER TABLE product_research ADD COLUMN promo TEXT');
+  if (!cols.includes('shipping_fee'))        db.exec('ALTER TABLE product_research ADD COLUMN shipping_fee REAL DEFAULT 0');
+  if (!cols.includes('ads_cost'))            db.exec('ALTER TABLE product_research ADD COLUMN ads_cost REAL DEFAULT 0');
+  if (!cols.includes('rts_percent'))         db.exec('ALTER TABLE product_research ADD COLUMN rts_percent REAL DEFAULT 0');
 
   // Partner Sales table
   db.exec(`

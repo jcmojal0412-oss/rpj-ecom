@@ -30,13 +30,24 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [addToWarehouse,    setAddToWarehouse]    = useState(!!initial?.add_to_warehouse);
   const [gsheetMonitoring,  setGsheetMonitoring]  = useState(!!initial?.gsheet_monitoring);
   const [status,            setStatus]            = useState<ResearchStatus>(initial?.status ?? defaultStatus ?? 'For Research');
+  const [shippingFee,      setShippingFee]      = useState(initial?.shipping_fee ? String(initial.shipping_fee) : '');
+  const [adsCost,          setAdsCost]          = useState(initial?.ads_cost ? String(initial.ads_cost) : '');
+  const [rtsPercent,       setRtsPercent]       = useState(initial?.rts_percent ? String(initial.rts_percent) : '');
   const [submitting,       setSubmitting]       = useState(false);
 
-  const cogsNum   = parseFloat(cogs) || 0;
-  const srpNum    = parseFloat(srp)  || 0;
-  const profit    = srpNum - cogsNum;
-  const margin    = srpNum > 0 ? (profit / srpNum * 100) : 0;
-  const hasValues = cogs !== '' && srp !== '';
+  const cogsNum     = parseFloat(cogs) || 0;
+  const srpNum      = parseFloat(srp)  || 0;
+  const shippingNum = parseFloat(shippingFee) || 0;
+  const adsNum      = parseFloat(adsCost) || 0;
+  const rtsNum      = (parseFloat(rtsPercent) || 0) / 100;
+
+  const totalCost   = cogsNum + shippingNum + adsNum;
+  const successRate = 1 - rtsNum;
+  const netRevenue   = srpNum * successRate;
+  const profit       = netRevenue - totalCost;
+  const margin        = srpNum > 0 ? (profit / srpNum * 100) : 0;
+  const breakEven      = successRate > 0 ? totalCost / successRate : 0;
+  const hasValues       = cogs !== '' && srp !== '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +64,9 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
       supplier_details:  supplierDetails || null,
       objectives:        objectives || null,
       promo:             promo || null,
+      shipping_fee:      shippingFee ? parseFloat(shippingFee) : 0,
+      ads_cost:          adsCost ? parseFloat(adsCost) : 0,
+      rts_percent:       rtsPercent ? parseFloat(rtsPercent) : 0,
       webcake_warehouse: webcakeWarehouse,
       add_to_warehouse:  addToWarehouse,
       gsheet_monitoring: gsheetMonitoring,
@@ -85,38 +99,65 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             required placeholder="e.g. LED Strip Lights RGB" />
         </div>
 
-        {/* COGS, SRP & PROMO */}
-        <div>
-          <label className="form-label">COGS (₱)</label>
-          <input type="number" step="0.01" className="form-input" value={cogs}
-            onChange={e => setCogs(e.target.value)} placeholder="0.00" />
-        </div>
-        <div>
-          <label className="form-label">SRP / Selling Price (₱)</label>
-          <input type="number" step="0.01" className="form-input" value={srp}
-            onChange={e => setSrp(e.target.value)} placeholder="0.00" />
-        </div>
-
-        {/* Auto-computed Profit */}
+        {/* Cost & Pricing Breakdown */}
         <div className="col-span-2">
-          <div className={`rounded-xl px-4 py-3 flex items-center justify-between transition-colors ${
-            !hasValues ? 'bg-gray-50' : profit > 0 ? 'bg-green-50 border border-green-200' : profit < 0 ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
-          }`}>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700">💰 Profit per Unit</span>
-              {hasValues && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+          <p className="form-label mb-2">Cost & Pricing</p>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500">COGS (₱)</label>
+                <input type="number" step="0.01" className="form-input" value={cogs}
+                  onChange={e => setCogs(e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500">SRP / Selling Price (₱)</label>
+                <input type="number" step="0.01" className="form-input" value={srp}
+                  onChange={e => setSrp(e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500">Shipping Fee (₱)</label>
+                <input type="number" step="0.01" className="form-input" value={shippingFee}
+                  onChange={e => setShippingFee(e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500">Ads Cost (₱)</label>
+                <input type="number" step="0.01" className="form-input" value={adsCost}
+                  onChange={e => setAdsCost(e.target.value)} placeholder="0.00" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-medium text-gray-500">RTS Rate (%)</label>
+                <input type="number" step="0.1" className="form-input" value={rtsPercent}
+                  onChange={e => setRtsPercent(e.target.value)} placeholder="0" />
+              </div>
+            </div>
+
+            {/* Auto-computed Profit */}
+            <div className={`rounded-xl px-4 py-3 transition-colors ${
+              !hasValues ? 'bg-white' : profit > 0 ? 'bg-green-50 border border-green-200' : profit < 0 ? 'bg-red-50 border border-red-200' : 'bg-white'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-700">💰 Profit per Unit</span>
+                  {hasValues && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {margin.toFixed(1)}% margin
+                    </span>
+                  )}
+                </div>
+                <span className={`text-xl font-black ${
+                  !hasValues ? 'text-gray-300' : profit > 0 ? 'text-green-700' : profit < 0 ? 'text-red-600' : 'text-gray-400'
                 }`}>
-                  {margin.toFixed(1)}% margin
+                  {hasValues ? `₱${profit.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}
                 </span>
+              </div>
+              {hasValues && (
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Break-even: ₱{breakEven.toLocaleString('en-PH', { minimumFractionDigits: 2 })} · Total Cost: ₱{totalCost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </p>
               )}
             </div>
-            <span className={`text-xl font-black ${
-              !hasValues ? 'text-gray-300' : profit > 0 ? 'text-green-700' : profit < 0 ? 'text-red-600' : 'text-gray-400'
-            }`}>
-              {hasValues ? `₱${profit.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}
-            </span>
           </div>
         </div>
 
