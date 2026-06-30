@@ -1,16 +1,19 @@
 'use client';
 
-import { Clock } from 'lucide-react';
+import { Clock, ShoppingBag, Music2, LineChart } from 'lucide-react';
+
+const ICONS = { shopee: ShoppingBag, tiktok: Music2, trends: LineChart } as const;
 
 export default function ComingSoon({
-  title, subtitle, icon: Icon, fields, buttonLabel,
+  title, subtitle, icon, fields, buttonLabel,
 }: {
   title: string;
   subtitle: string;
-  icon: any;
+  icon: keyof typeof ICONS;
   fields: string[];
   buttonLabel: string;
 }) {
+  const Icon = ICONS[icon];
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
