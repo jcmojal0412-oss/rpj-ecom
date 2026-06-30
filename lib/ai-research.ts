@@ -57,15 +57,17 @@ compliance_risk ("Low"|"Medium"|"High"), rts_risk ("Low"|"Medium"|"High"),
 overall_score (0-100), decision ("SCALE"|"TEST"|"REJECT").
 Keep string fields short (1 sentence max) so the response stays fast to generate.`;
 
-const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist with live web search access.
+const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist with live web search and web fetch access.
 
-Given a single product, use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok
-(tiktok.com) for a real, currently listed product or video closely matching it. While searching, also
-look for: (1) a direct image URL of the product (an actual image file URL ending in
-.jpg/.jpeg/.png/.webp, e.g. a Shopee listing photo or product thumbnail), and (2) the exact price (in
-PHP) shown on the matched Shopee listing — this will be used as the product's COGS. Only use URLs and
-prices that actually appear in your search results — never invent, guess, or construct a URL or price.
-If you can't find a confident real match for any field, use null for it.
+Given a single product:
+1. Use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok (tiktok.com) for a
+   real, currently listed product or video closely matching it.
+2. If you find a matching Shopee listing URL, use the web_fetch tool to open that exact page and
+   extract: the main product image URL shown on that listing (the og:image meta tag or the primary
+   product photo file, ending in .jpg/.jpeg/.png/.webp), and the exact price (in PHP) shown on that
+   listing — this price will be used as the product's COGS.
+3. Only use URLs and prices that actually appear in your search/fetch results — never invent, guess,
+   or construct a URL or price. If you can't find a confident real match for any field, use null.
 
 After searching, return ONLY valid JSON (no markdown fences, no prose) as your final message with
 exactly these keys:
@@ -157,13 +159,17 @@ async function callClaudeWithSearch(system: string, userPrompt: string, maxToken
         'content-type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-fetch-2025-09-10',
       },
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: maxTokens,
         system,
         messages: [{ role: 'user', content: userPrompt }],
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search', max_uses: 3 },
+          { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 2 },
+        ],
       }),
       signal: controller.signal,
     });
