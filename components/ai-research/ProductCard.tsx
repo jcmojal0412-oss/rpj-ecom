@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Save, TrendingUp, Shield, AlertTriangle,
-  Facebook, Music2, Camera, Tag, Users, DollarSign,
+  Facebook, Music2, Camera, Tag, Users, DollarSign, Loader2, AlertCircle,
 } from 'lucide-react';
-import type { ProductRecommendation } from '@/lib/ai-research';
+import type { ProductRecommendation, ProductDetails, ResearchCriteria } from '@/lib/ai-research';
 
 const DECISION_STYLE: Record<string, { border: string; badge: string; bg: string }> = {
   SCALE:  { border: 'border-green-300',  badge: 'bg-green-100 text-green-800',  bg: 'bg-green-50/40' },
@@ -29,15 +29,43 @@ function ScoreBar({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function ProductCard({
-  product, onSave, saving, saved,
+  product, criteria, onSave, saving, saved,
 }: {
   product: ProductRecommendation;
-  onSave: () => void;
+  criteria: ResearchCriteria;
+  onSave: (details: ProductDetails | null) => void;
   saving: boolean;
   saved: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [details, setDetails] = useState<ProductDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
   const style = DECISION_STYLE[product.decision] ?? DECISION_STYLE.TEST;
+
+  const toggleExpand = async () => {
+    setExpanded(v => !v);
+    if (details || loadingDetails) return;
+    setLoadingDetails(true);
+    setDetailsError(null);
+    try {
+      const res = await fetch('/api/ai-research/details', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ product, criteria }),
+      });
+      let data: any;
+      try { data = await res.json(); } catch {
+        throw new Error('Server returned an unexpected response.');
+      }
+      if (!res.ok) throw new Error(data.error || 'Failed to generate details.');
+      setDetails(data.details);
+    } catch (e: any) {
+      setDetailsError(e.message || String(e));
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   return (
     <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
@@ -88,48 +116,60 @@ export default function ProductCard({
       </div>
 
       <button
-        onClick={() => setExpanded(v => !v)}
+        onClick={toggleExpand}
         className="flex items-center justify-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 py-1"
       >
         {expanded ? <>Hide Details <ChevronUp size={14} /></> : <>Expand Details <ChevronDown size={14} /></>}
       </button>
 
-      {expanded && (
+      {expanded && loadingDetails && (
+        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 py-4 border-t border-gray-200">
+          <Loader2 size={14} className="animate-spin" /> Generating hooks &amp; ad concepts...
+        </div>
+      )}
+
+      {expanded && detailsError && (
+        <div className="flex items-start gap-2 text-xs text-red-600 py-2 border-t border-gray-200">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" /> {detailsError}
+        </div>
+      )}
+
+      {expanded && details && (
         <div className="space-y-3 text-xs border-t border-gray-200 pt-3">
           <div>
             <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Facebook size={12} /> Facebook Hooks</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {product.facebook_hooks?.map((h, i) => <li key={i}>{h}</li>)}
+              {details.facebook_hooks?.map((h, i) => <li key={i}>{h}</li>)}
             </ul>
           </div>
           <div>
             <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Music2 size={12} /> TikTok Hooks</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {product.tiktok_hooks?.map((h, i) => <li key={i}>{h}</li>)}
+              {details.tiktok_hooks?.map((h, i) => <li key={i}>{h}</li>)}
             </ul>
           </div>
           <div>
             <p className="font-semibold text-gray-700 mb-1">UGC Concepts</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {product.ugc_concepts?.map((h, i) => <li key={i}>{h}</li>)}
+              {details.ugc_concepts?.map((h, i) => <li key={i}>{h}</li>)}
             </ul>
           </div>
           <div>
             <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Camera size={12} /> Image Ad Concepts</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">
-              {product.image_ad_concepts?.map((h, i) => <li key={i}>{h}</li>)}
+              {details.image_ad_concepts?.map((h, i) => <li key={i}>{h}</li>)}
             </ul>
           </div>
           <div className="grid grid-cols-1 gap-1 bg-blue-50 rounded-lg p-2 border border-blue-100">
-            <p><span className="font-semibold text-gray-700">Suggested Offer:</span> {product.suggested_offer}</p>
-            <p><span className="font-semibold text-gray-700">Suggested Audience:</span> {product.suggested_audience}</p>
-            <p><span className="font-semibold text-gray-700">Suggested Pricing:</span> {product.suggested_pricing}</p>
+            <p><span className="font-semibold text-gray-700">Suggested Offer:</span> {details.suggested_offer}</p>
+            <p><span className="font-semibold text-gray-700">Suggested Audience:</span> {details.suggested_audience}</p>
+            <p><span className="font-semibold text-gray-700">Suggested Pricing:</span> {details.suggested_pricing}</p>
           </div>
         </div>
       )}
 
       <button
-        onClick={onSave}
+        onClick={() => onSave(details)}
         disabled={saving || saved}
         className="btn-primary justify-center mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
       >

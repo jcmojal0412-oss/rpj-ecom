@@ -6,7 +6,19 @@ import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
 import ProductHunterForm, { HunterCriteria } from './ProductHunterForm';
 import ProductCard from './ProductCard';
-import type { ProductRecommendation } from '@/lib/ai-research';
+import type { ProductRecommendation, ProductDetails, ResearchCriteria } from '@/lib/ai-research';
+
+function toResearchCriteria(c: HunterCriteria): ResearchCriteria {
+  return {
+    season: c.season,
+    cogs: Number(c.cogs) || 0,
+    srp: Number(c.srp) || 0,
+    category: c.category,
+    market: c.market,
+    margin: Number(c.margin) || 0,
+    notes: c.notes,
+  };
+}
 
 export default function ProductHunterClient() {
   const [results, setResults] = useState<ProductRecommendation[]>([]);
@@ -48,13 +60,17 @@ export default function ProductHunterClient() {
     }
   };
 
-  const handleSave = async (product: ProductRecommendation, index: number) => {
+  const handleSave = async (product: ProductRecommendation, index: number, details: ProductDetails | null) => {
     setSavingIndex(index);
     try {
       const res = await fetch('/api/ai-research/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ product, category: criteria?.category, season: criteria?.season }),
+        body: JSON.stringify({
+          product: details ? { ...product, ...details } : product,
+          category: criteria?.category,
+          season: criteria?.season,
+        }),
       });
       if (!res.ok) throw new Error('Failed to save.');
       setSavedIndexes(prev => new Set(prev).add(index));
@@ -107,7 +123,8 @@ export default function ProductHunterClient() {
               <ProductCard
                 key={i}
                 product={product}
-                onSave={() => handleSave(product, i)}
+                criteria={toResearchCriteria(criteria!)}
+                onSave={(details) => handleSave(product, i, details)}
                 saving={savingIndex === i}
                 saved={savedIndexes.has(i)}
               />
