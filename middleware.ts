@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const SESSION_COOKIE = 'rpj_session';
+const APP_SECRET = 'rpj-corp-ecom-2026-local'; // must match lib/auth-helpers.ts
 
 const PUBLIC = ['/login', '/api/auth/login'];
 
@@ -19,7 +20,37 @@ const ROUTE_MODULES: [string, string][] = [
   ['/settings',         '_owner'], // owner-only flag
 ];
 
-export function middleware(request: NextRequest) {
+function base64urlToBytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Verifies the HMAC signature (Edge-compatible, uses Web Crypto API) before trusting the payload.
+async function verifySession(token: string): Promise<{ role: string; permissions: string[] } | null> {
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
+
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(APP_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const valid = await crypto.subtle.verify('HMAC', key, base64urlToBytes(signature), encoder.encode(payload));
+    if (!valid) return null;
+
+    const jsonStr = new TextDecoder().decode(base64urlToBytes(payload));
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow public paths and static assets
@@ -40,14 +71,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Decode session (base64url JSON)
-  let user: { role: string; permissions: string[] } | null = null;
-  try {
-    user = JSON.parse(atob(token.replace(/-/g, '+').replace(/_/g, '/')));
-  } catch {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
+  const user = await verifySession(token);
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url));
   }

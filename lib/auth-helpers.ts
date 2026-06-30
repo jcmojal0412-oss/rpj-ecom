@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
 // Pure utilities — no next/headers import (safe to use anywhere including db.ts)
 
@@ -34,14 +34,27 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 // ── Session token ─────────────────────────────────────────────────────────────
+// Signed with HMAC-SHA256 to prevent forgery. Format: base64url(payload).base64url(signature)
+// Without this signature, anyone could craft their own cookie (e.g. role:"owner") and
+// bypass login entirely — the signature makes tampering cryptographically detectable.
 
 export function encodeSession(user: SessionUser): string {
-  return Buffer.from(JSON.stringify(user)).toString('base64url');
+  const payload   = Buffer.from(JSON.stringify(user)).toString('base64url');
+  const signature = createHmac('sha256', APP_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
 }
 
 export function decodeSession(token: string): SessionUser | null {
   try {
-    return JSON.parse(Buffer.from(token, 'base64url').toString('utf-8'));
+    const [payload, signature] = token.split('.');
+    if (!payload || !signature) return null;
+
+    const expected = createHmac('sha256', APP_SECRET).update(payload).digest('base64url');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null;
+
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
   } catch {
     return null;
   }
