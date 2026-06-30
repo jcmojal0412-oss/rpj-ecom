@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Save, TrendingUp, Shield, AlertTriangle,
   Facebook, Music2, Camera, Tag, Users, DollarSign, Loader2, AlertCircle,
+  ShoppingBag, ExternalLink,
 } from 'lucide-react';
 import type { ProductRecommendation, ProductDetails, ResearchCriteria } from '@/lib/ai-research';
 
@@ -136,6 +137,26 @@ export default function ProductCard({
 
       {expanded && details && (
         <div className="space-y-3 text-xs border-t border-gray-200 pt-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-lg p-2 border border-gray-100">
+              <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><ShoppingBag size={12} /> Shopee Link</p>
+              {details.shopee_link ? (
+                <a href={details.shopee_link} target="_blank" rel="noopener noreferrer"
+                   className="text-blue-600 hover:underline flex items-center gap-1 break-all">
+                  View listing <ExternalLink size={10} className="shrink-0" />
+                </a>
+              ) : <p className="text-gray-400">No confident match found</p>}
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-gray-100">
+              <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Music2 size={12} /> TikTok Link</p>
+              {details.tiktok_link ? (
+                <a href={details.tiktok_link} target="_blank" rel="noopener noreferrer"
+                   className="text-blue-600 hover:underline flex items-center gap-1 break-all">
+                  View video <ExternalLink size={10} className="shrink-0" />
+                </a>
+              ) : <p className="text-gray-400">No confident match found</p>}
+            </div>
+          </div>
           <div>
             <p className="font-semibold text-gray-700 mb-1 flex items-center gap-1"><Facebook size={12} /> Facebook Hooks</p>
             <ul className="list-disc list-inside text-gray-600 space-y-0.5">

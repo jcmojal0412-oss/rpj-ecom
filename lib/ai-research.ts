@@ -37,6 +37,8 @@ export interface ProductDetails {
   suggested_offer: string;
   suggested_audience: string;
   suggested_pricing: string;
+  shopee_link: string | null;
+  tiktok_link: string | null;
 }
 
 const LIST_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce product researcher.
@@ -59,12 +61,19 @@ compliance_risk ("Low"|"Medium"|"High"), rts_risk ("Low"|"Medium"|"High"),
 overall_score (0-100), decision ("SCALE"|"TEST"|"REJECT").
 Keep string fields short (1 sentence max) so the response stays fast to generate.`;
 
-const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist.
+const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist with live web search access.
 
-Given a single product, return ONLY valid JSON (no markdown fences, no prose) with exactly these keys:
+Given a single product, use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok
+(tiktok.com) for a real, currently listed product or video closely matching it. Only use a URL that
+actually appears in your search results — never invent, guess, or construct a URL. If you can't find
+a confident real match on either platform, use null for that field.
+
+After searching, return ONLY valid JSON (no markdown fences, no prose) as your final message with
+exactly these keys:
 facebook_hooks (array of 5 short strings), tiktok_hooks (array of 5 short strings),
 ugc_concepts (array of 3 short strings), image_ad_concepts (array of 3 short strings),
-suggested_offer (string), suggested_audience (string), suggested_pricing (string).`;
+suggested_offer (string), suggested_audience (string), suggested_pricing (string),
+shopee_link (string URL or null), tiktok_link (string URL or null).`;
 
 export class AIResearchError extends Error {}
 
@@ -128,6 +137,59 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
   return data?.content?.[0]?.text ?? '';
 }
 
+async function callClaudeWithSearch(system: string, userPrompt: string, maxTokens: number): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new AIResearchError('ANTHROPIC_API_KEY is not configured on the server.');
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90000);
+  const callStart = Date.now();
+
+  let res: Response;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: 'user', content: userPrompt }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    console.error(`[ai-research] web-search fetch failed after ${Date.now() - callStart}ms:`, e);
+    if (e?.name === 'AbortError') {
+      throw new AIResearchError('Request to Anthropic API (with web search) timed out after 90s.');
+    }
+    throw new AIResearchError(`Network error calling Anthropic API: ${e?.message || e}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  console.log(`[ai-research] web-search call responded in ${Date.now() - callStart}ms with status ${res.status}`);
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    console.error(`[ai-research] Anthropic API error (${res.status}): ${detail.slice(0, 500)}`);
+    throw new AIResearchError(`Anthropic API error (${res.status}): ${detail.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const textBlocks = (data?.content ?? [])
+    .filter((b: any) => b.type === 'text')
+    .map((b: any) => b.text);
+  return textBlocks.join('\n');
+}
+
 export async function generateProductRecommendations(
   criteria: ResearchCriteria
 ): Promise<ProductRecommendation[]> {
@@ -165,7 +227,7 @@ Market: ${criteria.market}
 
 Return the ad creative JSON object now.`;
 
-  const text = await callClaude(DETAILS_SYSTEM_PROMPT, userPrompt, 1500);
+  const text = await callClaudeWithSearch(DETAILS_SYSTEM_PROMPT, userPrompt, 2000);
   const parsed = extractJson(text, 'object');
   return parsed as ProductDetails;
 }

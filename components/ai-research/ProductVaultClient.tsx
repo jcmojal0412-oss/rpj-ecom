@@ -113,6 +113,18 @@ export default function ProductVaultClient() {
                               <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>
                               <p><b>RTS Risk:</b> {parsed.rts_risk}</p>
                               <p><b>Perceived Value Score:</b> {p.perceived_value_score}</p>
+                              <p>
+                                <b>Shopee Link:</b>{' '}
+                                {parsed.shopee_link
+                                  ? <a href={parsed.shopee_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                                  : 'Not found'}
+                              </p>
+                              <p>
+                                <b>TikTok Link:</b>{' '}
+                                {parsed.tiktok_link
+                                  ? <a href={parsed.tiktok_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                                  : 'Not found'}
+                              </p>
                             </div>
                           )}
                         </td>
