@@ -14,6 +14,29 @@ function ProfitBadge({ profit, breakEven }: { profit: number; breakEven: number 
   return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">🔥 Scale</span>;
 }
 
+const InputCard = ({ label, value, onChange, icon: Icon, color, suffix }: {
+  label: string; value: string; onChange: (v: string) => void;
+  icon: any; color: string; suffix?: string;
+}) => (
+  <div className="card">
+    <div className="flex items-center gap-2 mb-2">
+      <Icon size={16} className={color} />
+      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{label}</label>
+    </div>
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₱</span>
+      <input
+        type="number"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="form-input pl-7 text-lg font-bold"
+        placeholder="0"
+      />
+      {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
+    </div>
+  </div>
+);
+
 export default function EcomCalculator() {
   const [cogs,     setCogs]     = useState('220');
   const [shipping, setShipping] = useState('80');
@@ -61,29 +84,6 @@ export default function EcomCalculator() {
   }, [calc.breakEven]);
 
   const customProfit = customSrp ? calc.profitAt(parseFloat(customSrp)) : null;
-
-  const InputCard = ({ label, value, onChange, icon: Icon, color, suffix }: {
-    label: string; value: string; onChange: (v: string) => void;
-    icon: any; color: string; suffix?: string;
-  }) => (
-    <div className="card">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={16} className={color} />
-        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{label}</label>
-      </div>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₱</span>
-        <input
-          type="number"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="form-input pl-7 text-lg font-bold"
-          placeholder="0"
-        />
-        {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
-      </div>
-    </div>
-  );
 
   return (
     <div className="p-6 space-y-6">
