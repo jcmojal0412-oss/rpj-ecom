@@ -102,9 +102,7 @@ export default function Sidebar() {
                 const Icon   = item.icon;
                 const active = item.href === '/'
                   ? pathname === '/'
-                  : item.href === '/ai-product-researcher'
-                    ? pathname === item.href
-                    : pathname.startsWith(item.href);
+                  : pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}
