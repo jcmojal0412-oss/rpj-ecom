@@ -48,7 +48,7 @@ Score products from 0-100.
 70-84 = TEST
 Below 70 = REJECT
 
-Return ONLY valid JSON (no markdown fences, no prose) — an array of exactly 8 product objects, each with exactly these keys:
+Return ONLY valid JSON (no markdown fences, no prose) — an array of exactly 5 product objects, each with exactly these keys:
 product_name (string), estimated_cogs (number, PHP), suggested_srp (number, PHP), margin_percent (number),
 problem_solved (string), target_market (string), why_it_sells_now (string),
 perceived_value_score (0-100), demand_score (0-100), competition_score (0-100),
@@ -214,9 +214,9 @@ Market: ${criteria.market}
 Desired Margin: ${criteria.margin}%
 Notes: ${criteria.notes || 'None'}
 
-Generate exactly 8 winning product recommendations as a JSON array.`;
+Generate exactly 5 winning product recommendations as a JSON array.`;
 
-  const text = await callClaude(LIST_SYSTEM_PROMPT, userPrompt, 2500);
+  const text = await callClaude(LIST_SYSTEM_PROMPT, userPrompt, 1800);
   const parsed = extractJson(text, 'array');
 
   if (!Array.isArray(parsed)) {
