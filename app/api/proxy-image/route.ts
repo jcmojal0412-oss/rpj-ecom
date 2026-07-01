@@ -2,26 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_HOSTS = [
-  'down-ph.img.susercontent.com',
-  'down.img.susercontent.com',
-  'cf.shopee.ph',
-  'cf.shopee.sg',
-  'sg-live.slatic.net',
-  'ph-live.slatic.net',
-  'img.lazada.com.ph',
-  'laz-img-cdn.alicdn.com',
-  'ae01.alicdn.com',
-  'ae02.alicdn.com',
-  'ae03.alicdn.com',
-  'ae04.alicdn.com',
-  'm.media-amazon.com',
-  'images-na.ssl-images-amazon.com',
-  'i.tiktokcdn.com',
-  'p16-sign-sg.tiktokcdn.com',
-  'p77-sign-sg.tiktokcdn.com',
-  'p16-amd-va.tiktokcdn.com',
-];
+// Blocked internal/private IP ranges to prevent SSRF
+const BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal'];
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
@@ -36,8 +18,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
 
-  if (!ALLOWED_HOSTS.some(h => parsed.hostname.endsWith(h))) {
-    console.warn('[proxy-image] blocked host:', parsed.hostname);
+  if (parsed.protocol !== 'https:') {
+    return NextResponse.json({ error: 'Only HTTPS allowed' }, { status: 400 });
+  }
+
+  if (BLOCKED_HOSTNAMES.includes(parsed.hostname) || parsed.hostname.match(/^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./)) {
     return NextResponse.json({ error: 'Host not allowed' }, { status: 403 });
   }
 
@@ -51,11 +36,18 @@ export async function GET(req: NextRequest) {
     });
 
     if (!upstream.ok) {
+      console.warn(`[proxy-image] upstream ${upstream.status} for ${parsed.hostname}`);
       return NextResponse.json({ error: `Upstream ${upstream.status}` }, { status: 502 });
     }
 
-    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) {
+      console.warn('[proxy-image] non-image content-type:', contentType, 'from', parsed.hostname);
+      return NextResponse.json({ error: 'Not an image' }, { status: 422 });
+    }
+
     const buffer = await upstream.arrayBuffer();
+    console.log(`[proxy-image] ok ${parsed.hostname} (${buffer.byteLength}b)`);
 
     return new NextResponse(buffer, {
       status: 200,
