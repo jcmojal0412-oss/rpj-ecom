@@ -45,6 +45,10 @@ export default function ProductCard({
   const [imageFailed, setImageFailed] = useState(false);
   const style = DECISION_STYLE[product.decision] ?? DECISION_STYLE.TEST;
 
+  const proxiedImage = details?.product_image_url
+    ? `/api/proxy-image?url=${encodeURIComponent(details.product_image_url)}`
+    : null;
+
   const effectiveCogs = details?.shopee_price ?? product.estimated_cogs;
   const effectiveMargin = product.suggested_srp > 0
     ? ((product.suggested_srp - effectiveCogs) / product.suggested_srp) * 100
@@ -77,24 +81,14 @@ export default function ProductCard({
 
   return (
     <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
-      {details?.product_image_url && !imageFailed && (
+      {proxiedImage && !imageFailed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={details.product_image_url}
+          src={proxiedImage}
           alt={product.product_name}
           className="w-full h-40 object-cover rounded-lg border border-gray-100 -mt-1"
           onError={() => setImageFailed(true)}
         />
-      )}
-      {details?.product_image_url && imageFailed && (
-        <a
-          href={details.product_image_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full h-10 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-blue-600 hover:underline -mt-1"
-        >
-          Image found but blocked from preview — open in new tab
-        </a>
       )}
 
       <div className="flex items-start justify-between gap-2">
@@ -167,9 +161,9 @@ export default function ProductCard({
 
       {expanded && details && (
         <div className="space-y-3 text-xs border-t border-gray-200 pt-3">
-          {!details.product_image_url && (
-            <div className="w-full h-24 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-gray-400">
-              No product image found
+          {!details.product_image_url && imageFailed && (
+            <div className="w-full h-10 flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-gray-400 text-xs">
+              Product image not available
             </div>
           )}
 
