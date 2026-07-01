@@ -216,7 +216,7 @@ Notes: ${criteria.notes || 'None'}
 
 Generate exactly 5 winning product recommendations as a JSON array.`;
 
-  const text = await callClaude(LIST_SYSTEM_PROMPT, userPrompt, 1800);
+  const text = await callClaude(LIST_SYSTEM_PROMPT, userPrompt, 1200);
   const parsed = extractJson(text, 'array');
 
   if (!Array.isArray(parsed)) {
