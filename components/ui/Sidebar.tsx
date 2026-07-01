@@ -49,16 +49,7 @@ const NAV_GROUPS = [
       { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'partners' },
     ],
   },
-  {
-    label: 'AI PRODUCT RESEARCHER',
-    items: [
-      { label: 'Product Hunter',  href: '/ai-product-researcher',         icon: Sparkles,    module: 'ai_product_researcher' },
-      { label: 'Shopee Research', href: '/ai-product-researcher/shopee',  icon: ShoppingBag, module: 'ai_product_researcher' },
-      { label: 'TikTok Research', href: '/ai-product-researcher/tiktok',  icon: Music2,      module: 'ai_product_researcher' },
-      { label: 'Product Vault',   href: '/ai-product-researcher/vault',   icon: Vault,       module: 'ai_product_researcher' },
-      { label: 'Trend Dashboard', href: '/ai-product-researcher/trends',  icon: LineChart,   module: 'ai_product_researcher' },
-    ],
-  },
+  // AI PRODUCT RESEARCHER group hidden — re-add when ready
   {
     label: 'TOOLS',
     items: [
