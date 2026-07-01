@@ -4,14 +4,23 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_HOSTS = [
   'down-ph.img.susercontent.com',
+  'down.img.susercontent.com',
   'cf.shopee.ph',
   'cf.shopee.sg',
   'sg-live.slatic.net',
   'ph-live.slatic.net',
   'img.lazada.com.ph',
+  'laz-img-cdn.alicdn.com',
+  'ae01.alicdn.com',
+  'ae02.alicdn.com',
+  'ae03.alicdn.com',
+  'ae04.alicdn.com',
+  'm.media-amazon.com',
+  'images-na.ssl-images-amazon.com',
   'i.tiktokcdn.com',
   'p16-sign-sg.tiktokcdn.com',
   'p77-sign-sg.tiktokcdn.com',
+  'p16-amd-va.tiktokcdn.com',
 ];
 
 export async function GET(req: NextRequest) {

@@ -59,21 +59,26 @@ Keep string fields short (1 sentence max) so the response stays fast to generate
 
 const DETAILS_SYSTEM_PROMPT = `Act as an expert Philippine COD ecommerce ad creative strategist with live web search and web fetch access.
 
-Given a single product:
-1. Use the web_search tool to search Shopee Philippines (shopee.ph) and TikTok (tiktok.com) for a
-   real, currently listed product or video closely matching it.
-2. If you find a matching Shopee listing URL, use the web_fetch tool to open that exact page and
-   extract: the main product image URL shown on that listing (the og:image meta tag or the primary
-   product photo file, ending in .jpg/.jpeg/.png/.webp), and the exact price (in PHP) shown on that
-   listing — this price will be used as the product's COGS.
-3. Only use URLs and prices that actually appear in your search/fetch results — never invent, guess,
-   or construct a URL or price. If you can't find a confident real match for any field, use null.
+Given a single product, perform these steps:
 
-After searching, return ONLY valid JSON (no markdown fences, no prose) as your final message with
-exactly these keys:
+STEP 1 — Find a Shopee PH listing:
+Search for the product on Shopee Philippines using short, simple keywords (e.g. "magnetic seal strip shopee.ph" or "draft stopper shopee philippines"). Try 2 different search queries if the first yields nothing. If you find a shopee.ph product URL, use web_fetch to open it and extract: the og:image URL (the main product image) and the listed price in PHP.
+
+STEP 2 — Find a TikTok video:
+Search TikTok for a short video showcasing this product type. Return the direct video URL if found.
+
+STEP 3 — Find a product image (fallback if STEP 1 found no Shopee listing):
+Do a Google Image search or search Lazada/AliExpress/Amazon for a clear product photo. Return the first real image URL ending in .jpg, .jpeg, .png, or .webp as product_image_url.
+
+RULES:
+- Only use URLs that literally appear in your search/fetch results. Never invent or guess any URL.
+- If you truly cannot find a field after searching, use null.
+- shopee_price must be the actual numeric price in PHP from the listing, or null.
+
+After all steps, return ONLY valid JSON (no markdown fences, no prose) as your final message with exactly these keys:
 facebook_hooks (array of 5 short strings), shopee_link (string URL or null),
 tiktok_link (string URL or null), product_image_url (string URL or null),
-shopee_price (number in PHP, the exact price from the matched Shopee listing, or null).`;
+shopee_price (number in PHP or null).`;
 
 export class AIResearchError extends Error {}
 
@@ -167,8 +172,8 @@ async function callClaudeWithSearch(system: string, userPrompt: string, maxToken
         system,
         messages: [{ role: 'user', content: userPrompt }],
         tools: [
-          { type: 'web_search_20250305', name: 'web_search', max_uses: 3 },
-          { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 2 },
+          { type: 'web_search_20250305', name: 'web_search', max_uses: 6 },
+          { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 3 },
         ],
       }),
       signal: controller.signal,
@@ -235,7 +240,7 @@ Market: ${criteria.market}
 
 Return the ad creative JSON object now.`;
 
-  const text = await callClaudeWithSearch(DETAILS_SYSTEM_PROMPT, userPrompt, 2000);
+  const text = await callClaudeWithSearch(DETAILS_SYSTEM_PROMPT, userPrompt, 3000);
   const parsed = extractJson(text, 'object') as ProductDetails;
   console.log('[ai-research/details] parsed result:', {
     shopee_link: parsed.shopee_link,
