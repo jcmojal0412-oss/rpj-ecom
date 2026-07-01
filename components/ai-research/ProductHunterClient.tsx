@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sparkles, AlertCircle } from 'lucide-react';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -27,13 +27,41 @@ export default function ProductHunterClient() {
   const [error, setError] = useState<string | null>(null);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [savedIndexes, setSavedIndexes] = useState<Set<number>>(new Set());
+  const [cardImages, setCardImages] = useState<(string | null)[]>([]);
+  const fetchingRef = useRef(false);
   const { toast, showToast, clearToast } = useToast();
+
+  useEffect(() => {
+    if (!results.length || fetchingRef.current) return;
+    fetchingRef.current = true;
+    setCardImages(new Array(results.length).fill(null));
+    results.forEach((product, i) => {
+      fetch('/api/ai-research/image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ product_name: product.product_name }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.url) {
+            setCardImages(prev => {
+              const next = [...prev];
+              next[i] = `/api/proxy-image?url=${encodeURIComponent(data.url)}`;
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
+    });
+  }, [results]);
 
   const handleSearch = async (c: HunterCriteria) => {
     setLoading(true);
     setError(null);
     setResults([]);
     setSavedIndexes(new Set());
+    setCardImages([]);
+    fetchingRef.current = false;
     setCriteria(c);
     try {
       const res = await fetch('/api/ai-research', {
@@ -135,6 +163,7 @@ export default function ProductHunterClient() {
                 onSave={(details) => handleSave(product, i, details)}
                 saving={savingIndex === i}
                 saved={savedIndexes.has(i)}
+                imageUrl={cardImages[i] ?? null}
               />
             ))}
           </div>

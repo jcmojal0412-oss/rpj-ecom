@@ -30,13 +30,14 @@ function ScoreBar({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function ProductCard({
-  product, criteria, onSave, saving, saved,
+  product, criteria, onSave, saving, saved, imageUrl,
 }: {
   product: ProductRecommendation;
   criteria: ResearchCriteria;
   onSave: (details: ProductDetails | null) => void;
   saving: boolean;
   saved: boolean;
+  imageUrl?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [details, setDetails] = useState<ProductDetails | null>(null);
@@ -45,9 +46,7 @@ export default function ProductCard({
   const [imageFailed, setImageFailed] = useState(false);
   const style = DECISION_STYLE[product.decision] ?? DECISION_STYLE.TEST;
 
-  const proxiedImage = details?.product_image_url
-    ? `/api/proxy-image?url=${encodeURIComponent(details.product_image_url)}`
-    : null;
+  const displayImage = imageUrl ?? null;
 
   const effectiveCogs = details?.shopee_price ?? product.estimated_cogs;
   const effectiveMargin = product.suggested_srp > 0
@@ -81,10 +80,10 @@ export default function ProductCard({
 
   return (
     <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
-      {proxiedImage && !imageFailed && (
+      {displayImage && !imageFailed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={proxiedImage}
+          src={displayImage}
           alt={product.product_name}
           className="w-full h-40 object-cover rounded-lg border border-gray-100 -mt-1"
           onError={() => setImageFailed(true)}
