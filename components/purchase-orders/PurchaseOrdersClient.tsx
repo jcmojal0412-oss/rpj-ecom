@@ -26,6 +26,8 @@ export default function PurchaseOrdersClient() {
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [payingPO, setPayingPO] = useState<PurchaseOrder | null>(null);
   const [showBulkScan, setShowBulkScan] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo]     = useState('');
   const { toast, showToast, clearToast } = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -54,6 +56,13 @@ export default function PurchaseOrdersClient() {
     fetchOrders();
   };
 
+  const filtered = orders.filter(po => {
+    const d = po.ordered_at ? po.ordered_at.slice(0, 10) : '';
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo   && d > dateTo)   return false;
+    return true;
+  });
+
   const PO_HEADERS = ['PO #', 'Supplier', 'Items', 'Amount / Payment', 'Status', 'Ordered Date', 'Actions'];
 
   const statusBadge = (s: string) => {
@@ -81,6 +90,25 @@ export default function PurchaseOrdersClient() {
         </div>
       </div>
 
+      {/* Date filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm text-gray-500 font-medium">Filter by date:</span>
+        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateFrom}
+          onChange={e => setDateFrom(e.target.value)} placeholder="From" />
+        <span className="text-gray-400 text-sm">—</span>
+        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateTo}
+          onChange={e => setDateTo(e.target.value)} placeholder="To" />
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            Clear
+          </button>
+        )}
+        {(dateFrom || dateTo) && (
+          <span className="text-xs text-gray-400">{filtered.length} of {orders.length} POs</span>
+        )}
+      </div>
+
       <div className="card">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
@@ -102,7 +130,7 @@ export default function PurchaseOrdersClient() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((po, i) => {
+                {filtered.map((po, i) => {
                   const paid = po.paid_amount ?? 0;
                   const outstanding = po.total_amount - paid;
                   const payStatus = paid >= po.total_amount ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
