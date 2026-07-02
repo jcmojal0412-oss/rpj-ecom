@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Camera, Plus, Trash2, AlertCircle, Loader2, CheckCircle2, X, ChevronDown } from 'lucide-react';
-import { scanReceipt } from '@/lib/scan-receipt';
+import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
 interface MonthlyRow {
   month: string; order_count: number; total_ordered: number; total_paid: number; outstanding: number;
@@ -94,7 +94,7 @@ export default function ExpensesClient() {
         const e = await scanReceipt(item.file);
         updateItem(i, {
           status: 'done',
-          date:         e.date || new Date().toISOString().slice(0, 10),
+          date:         normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10),
           amount:       e.amount != null ? String(e.amount) : '',
           description:  e.description || '',
           category:     CATEGORIES.includes(e.category) ? e.category : 'Others',

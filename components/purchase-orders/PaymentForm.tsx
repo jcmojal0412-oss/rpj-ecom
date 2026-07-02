@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { X, FileImage, CheckCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { scanReceipt } from '@/lib/scan-receipt';
+import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
 interface Props {
   poId: number;
@@ -53,7 +53,8 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
     try {
       const e = await scanReceipt(file);
       if (e.amount != null)  setPaidAmount(String(e.amount));
-      if (e.date)            setPaymentDate(e.date);
+      const d = normalizeDateToISO(e.date);
+      if (d) setPaymentDate(d);
       if (e.reference_no)    setPaymentNotes(prev => prev || `Ref: ${e.reference_no}`);
       setScanDone(true);
     } catch (err: any) {

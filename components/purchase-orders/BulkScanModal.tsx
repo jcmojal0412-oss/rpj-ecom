@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, X, ChevronDown } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { scanReceipt } from '@/lib/scan-receipt';
+import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
 interface PO {
   id: number;
@@ -87,7 +87,7 @@ export default function BulkScanModal({
           extracted: e,
           matchedPoId: matched,
           amount: e.amount != null ? String(e.amount) : '',
-          date: e.date || new Date().toISOString().slice(0, 10),
+          date: normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10),
           notes: e.reference_no ? `Ref: ${e.reference_no}` : '',
         });
       } catch (err: any) {
