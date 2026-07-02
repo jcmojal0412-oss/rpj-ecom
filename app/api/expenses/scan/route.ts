@@ -4,18 +4,49 @@ export const dynamic = 'force-dynamic';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 
+const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+const PROMPT = `Extract payment information from this bank transfer or receipt screenshot.
+Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
+{
+  "date": "YYYY-MM-DD or null",
+  "amount": number in PHP or null,
+  "description": "brief description or null",
+  "category": one of ["Supplier Payment","Ads Budget","Shipping Fee","Utilities","Salary","Rent","Office Supplies","Others"],
+  "reference_no": "transaction/reference number or null",
+  "bank_from": "sender bank or account name or null",
+  "bank_to": "recipient bank or account name or null",
+  "supplier_name": "the name of the person or business being paid (recipient name) or null"
+}
+For amounts, extract the numeric value in PHP only. If unclear, use null.`;
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured.' }, { status: 500 });
 
   try {
-    const formData = await req.formData();
-    const file = formData.get('image') as File | null;
-    if (!file) return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
+    let base64: string;
+    let mediaType: string;
 
-    const buffer = await file.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-    const mediaType = (file.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+    const contentType = req.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      // iOS-safe path: client sends { base64, mediaType }
+      const body = await req.json();
+      base64 = body.base64;
+      mediaType = body.mediaType || 'image/jpeg';
+    } else {
+      // Fallback: multipart FormData (desktop browsers)
+      const formData = await req.formData();
+      const file = formData.get('image') as File | null;
+      if (!file) return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
+      const buffer = await file.arrayBuffer();
+      base64 = Buffer.from(buffer).toString('base64');
+      mediaType = file.type || 'image/jpeg';
+    }
+
+    // Normalize unsupported types (e.g. image/heic from iPhone) to jpeg
+    if (!SUPPORTED_TYPES.includes(mediaType)) mediaType = 'image/jpeg';
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -30,26 +61,8 @@ export async function POST(req: NextRequest) {
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64 },
-            },
-            {
-              type: 'text',
-              text: `Extract payment information from this bank transfer or receipt screenshot.
-Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
-{
-  "date": "YYYY-MM-DD or null",
-  "amount": number in PHP or null,
-  "description": "brief description or null",
-  "category": one of ["Supplier Payment","Ads Budget","Shipping Fee","Utilities","Salary","Rent","Office Supplies","Others"],
-  "reference_no": "transaction/reference number or null",
-  "bank_from": "sender bank or account name or null",
-  "bank_to": "recipient bank or account name or null",
-  "supplier_name": "the name of the person or business being paid (recipient name) or null"
-}
-For amounts, extract the numeric value in PHP only. If unclear, use null.`,
-            },
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: PROMPT },
           ],
         }],
       }),
@@ -62,7 +75,6 @@ For amounts, extract the numeric value in PHP only. If unclear, use null.`,
 
     const data = await res.json();
     const text: string = data?.content?.[0]?.text ?? '';
-
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return NextResponse.json({ error: 'Could not extract data from image.' }, { status: 422 });
 

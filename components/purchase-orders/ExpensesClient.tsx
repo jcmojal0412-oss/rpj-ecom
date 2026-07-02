@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Camera, Plus, Trash2, AlertCircle, Loader2, CheckCircle2, X, ChevronDown } from 'lucide-react';
+import { scanReceipt } from '@/lib/scan-receipt';
 
 interface MonthlyRow {
   month: string; order_count: number; total_ordered: number; total_paid: number; outstanding: number;
@@ -90,12 +91,7 @@ export default function ExpensesClient() {
     await Promise.all(newItems.map(async (item, j) => {
       const i = offset + j;
       try {
-        const fd = new FormData();
-        fd.append('image', item.file);
-        const res  = await fetch('/api/expenses/scan', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Scan failed');
-        const e = data.expense;
+        const e = await scanReceipt(item.file);
         updateItem(i, {
           status: 'done',
           date:         e.date || new Date().toISOString().slice(0, 10),

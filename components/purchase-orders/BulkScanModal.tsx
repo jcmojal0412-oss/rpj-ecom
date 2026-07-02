@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, X, ChevronDown } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { scanReceipt } from '@/lib/scan-receipt';
 
 interface PO {
   id: number;
@@ -79,12 +80,7 @@ export default function BulkScanModal({
     await Promise.all(newItems.map(async (item, j) => {
       const i = offset + j;
       try {
-        const fd = new FormData();
-        fd.append('image', item.file);
-        const res  = await fetch('/api/expenses/scan', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Scan failed');
-        const e = data.expense;
+        const e = await scanReceipt(item.file);
         const matched = bestMatch(e.supplier_name, pos);
         update(i, {
           status: 'done',

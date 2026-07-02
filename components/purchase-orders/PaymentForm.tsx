@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { X, FileImage, CheckCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { scanReceipt } from '@/lib/scan-receipt';
 
 interface Props {
   poId: number;
@@ -50,13 +51,7 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
     // 1. Scan with AI
     setScanning(true);
     try {
-      const fd = new FormData();
-      fd.append('image', file);
-      const res  = await fetch('/api/expenses/scan', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Scan failed.');
-
-      const e = data.expense;
+      const e = await scanReceipt(file);
       if (e.amount != null)  setPaidAmount(String(e.amount));
       if (e.date)            setPaymentDate(e.date);
       if (e.reference_no)    setPaymentNotes(prev => prev || `Ref: ${e.reference_no}`);
