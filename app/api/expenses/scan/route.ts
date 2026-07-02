@@ -36,18 +36,19 @@ export async function POST(req: NextRequest) {
             },
             {
               type: 'text',
-              text: `Extract expense information from this bank transfer or payment receipt screenshot.
+              text: `Extract payment information from this bank transfer or receipt screenshot.
 Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
 {
-  "date": "YYYY-MM-DD or null if not found",
+  "date": "YYYY-MM-DD or null",
   "amount": number in PHP or null,
-  "description": "brief description of the transaction or null",
-  "category": one of ["Supplier Payment","Ads Budget","Shipping Fee","Utilities","Salary","Rent","Office Supplies","Others"] or "Others",
-  "reference_no": "reference/transaction number or null",
-  "bank_from": "sender bank/account name or null",
-  "bank_to": "recipient bank/account name or null"
+  "description": "brief description or null",
+  "category": one of ["Supplier Payment","Ads Budget","Shipping Fee","Utilities","Salary","Rent","Office Supplies","Others"],
+  "reference_no": "transaction/reference number or null",
+  "bank_from": "sender bank or account name or null",
+  "bank_to": "recipient bank or account name or null",
+  "supplier_name": "the name of the person or business being paid (recipient name) or null"
 }
-For amounts, extract the numeric value in PHP only (e.g. 1500.00). If unclear, use null.`,
+For amounts, extract the numeric value in PHP only. If unclear, use null.`,
             },
           ],
         }],

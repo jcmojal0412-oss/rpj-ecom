@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer, Camera } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import CreatePOForm from './CreatePOForm';
 import PODetail from './PODetail';
 import PaymentForm from './PaymentForm';
+import BulkScanModal from './BulkScanModal';
 import Spinner from '@/components/ui/Spinner';
 
 interface PurchaseOrder {
@@ -24,6 +25,7 @@ export default function PurchaseOrdersClient() {
   const [showCreate, setShowCreate] = useState(false);
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [payingPO, setPayingPO] = useState<PurchaseOrder | null>(null);
+  const [showBulkScan, setShowBulkScan] = useState(false);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -62,9 +64,14 @@ export default function PurchaseOrdersClient() {
           <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
           <p className="text-sm text-gray-500 mt-1">Track and manage supplier orders</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary">
-          <Plus size={16} /> New PO
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowBulkScan(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100 text-sm font-semibold transition-colors">
+            <Camera size={16} /> Scan Receipts
+          </button>
+          <button onClick={() => setShowCreate(true)} className="btn-primary">
+            <Plus size={16} /> New PO
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -178,6 +185,15 @@ export default function PurchaseOrdersClient() {
           />
         </Modal>
       )}
+
+      {/* Bulk Scan Modal */}
+      <Modal open={showBulkScan} onClose={() => setShowBulkScan(false)} title="Scan Payment Receipts" size="lg">
+        <BulkScanModal
+          pos={orders.map(o => ({ id: o.id, po_number: o.po_number, supplier: o.supplier, total_amount: o.total_amount, paid_amount: o.paid_amount ?? 0 }))}
+          onClose={() => setShowBulkScan(false)}
+          onAllSaved={() => { setShowBulkScan(false); showToast('Payments recorded!'); fetchOrders(); }}
+        />
+      </Modal>
     </div>
   );
 }
