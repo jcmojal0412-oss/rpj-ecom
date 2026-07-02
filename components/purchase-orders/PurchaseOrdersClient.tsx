@@ -94,10 +94,10 @@ export default function PurchaseOrdersClient() {
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-gray-500 font-medium">Filter by date:</span>
         <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateFrom}
-          onChange={e => setDateFrom(e.target.value)} placeholder="From" />
+          onChange={e => setDateFrom(e.target.value)} />
         <span className="text-gray-400 text-sm">—</span>
         <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateTo}
-          onChange={e => setDateTo(e.target.value)} placeholder="To" />
+          onChange={e => setDateTo(e.target.value)} />
         {(dateFrom || dateTo) && (
           <button onClick={() => { setDateFrom(''); setDateTo(''); }}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium">
