@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer, Camera } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer, Camera, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -44,6 +44,13 @@ export default function PurchaseOrdersClient() {
       body: JSON.stringify({ status }),
     });
     showToast(`PO marked as ${status}`);
+    fetchOrders();
+  };
+
+  const deletePO = async (po: PurchaseOrder) => {
+    if (!confirm(`Delete ${po.po_number}? This cannot be undone.`)) return;
+    await fetch(`/api/purchase-orders/${po.id}`, { method: 'DELETE' });
+    showToast(`${po.po_number} deleted`);
     fetchOrders();
   };
 
@@ -145,6 +152,10 @@ export default function PurchaseOrdersClient() {
                             </button>
                           </>
                         )}
+                        <button onClick={() => deletePO(po)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete PO">
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </td>
                   </tr>

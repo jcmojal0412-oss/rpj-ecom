@@ -19,6 +19,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   }
 }
 
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const db = getDb();
+    db.prepare('DELETE FROM po_items WHERE po_id=?').run(params.id);
+    db.prepare('DELETE FROM purchase_orders WHERE id=?').run(params.id);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const db = getDb();
