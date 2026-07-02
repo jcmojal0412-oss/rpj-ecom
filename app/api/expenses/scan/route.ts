@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
-
 const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 const PROMPT = `Extract payment information from this bank transfer or receipt screenshot.
@@ -31,22 +31,21 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
-      // iOS-safe path: client sends { base64, mediaType }
       const body = await req.json();
-      base64 = body.base64;
+      base64    = body.base64;
       mediaType = body.mediaType || 'image/jpeg';
     } else {
-      // Fallback: multipart FormData (desktop browsers)
-      const formData = await req.formData();
-      const file = formData.get('image') as File | null;
-      if (!file) return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
-      const buffer = await file.arrayBuffer();
+      // Raw binary body (sent with x-file-type header or content-type = image/*)
+      const fileType = req.headers.get('x-file-type') || contentType || 'image/jpeg';
+      mediaType = fileType;
+      const buffer = await req.arrayBuffer();
       base64 = Buffer.from(buffer).toString('base64');
-      mediaType = file.type || 'image/jpeg';
     }
 
-    // Normalize unsupported types (e.g. image/heic from iPhone) to jpeg
     if (!SUPPORTED_TYPES.includes(mediaType)) mediaType = 'image/jpeg';
+    if (!base64) return NextResponse.json({ error: 'No image data received.' }, { status: 400 });
+
+    console.log(`[scan] mediaType=${mediaType} base64len=${base64.length}`);
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -70,7 +69,8 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const err = await res.text().catch(() => '');
-      return NextResponse.json({ error: `AI error: ${err.slice(0, 200)}` }, { status: 502 });
+      console.error('[scan] Anthropic error:', res.status, err.slice(0, 300));
+      return NextResponse.json({ error: `AI error (${res.status}): ${err.slice(0, 200)}` }, { status: 502 });
     }
 
     const data = await res.json();
@@ -79,10 +79,10 @@ export async function POST(req: NextRequest) {
     if (!match) return NextResponse.json({ error: 'Could not extract data from image.' }, { status: 422 });
 
     const parsed = JSON.parse(match[0]);
-    console.log('[expenses/scan] extracted:', parsed);
+    console.log('[scan] result:', parsed);
     return NextResponse.json({ expense: parsed });
   } catch (e: any) {
-    console.error('[expenses/scan] error:', e?.message);
+    console.error('[scan] error:', e?.message, e?.stack?.slice(0, 300));
     return NextResponse.json({ error: e?.message || 'Failed to scan image.' }, { status: 500 });
   }
 }
