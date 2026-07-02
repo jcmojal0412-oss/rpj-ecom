@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, FileImage, CheckCircle } from 'lucide-react';
+import { X, FileImage, CheckCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 interface Props {
@@ -19,9 +19,14 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
   const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().slice(0, 10));
   const [paymentNotes, setPaymentNotes] = useState('');
   const [receiptPath, setReceiptPath]   = useState(currentReceiptPath ?? '');
-  const [uploading, setUploading]       = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
-  const [error, setError]               = useState('');
+  const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
+
+  const [scanning, setScanning]   = useState(false);
+  const [scanDone, setScanDone]   = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const outstanding = totalAmount - (parseFloat(paidAmount) || 0);
@@ -37,16 +42,41 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
     ? 'text-amber-700 bg-amber-100'
     : 'text-red-700 bg-red-100';
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    setError('');
+  const handleFile = async (file: File) => {
+    setScanError('');
+    setScanDone(false);
+    setPreviewUrl(URL.createObjectURL(file));
+
+    // 1. Scan with AI
+    setScanning(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      const res  = await fetch('/api/upload/receipt', { method: 'POST', body: fd });
+      fd.append('image', file);
+      const res  = await fetch('/api/expenses/scan', { method: 'POST', body: fd });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Upload failed'); return; }
-      setReceiptPath(data.path);
+      if (!res.ok) throw new Error(data.error || 'Scan failed.');
+
+      const e = data.expense;
+      if (e.amount != null)  setPaidAmount(String(e.amount));
+      if (e.date)            setPaymentDate(e.date);
+      if (e.reference_no)    setPaymentNotes(prev => prev || `Ref: ${e.reference_no}`);
+      setScanDone(true);
+    } catch (err: any) {
+      setScanError(err.message || 'Could not read receipt. Please fill in manually.');
+    } finally {
+      setScanning(false);
+    }
+
+    // 2. Upload file for storage (parallel-safe, non-blocking display)
+    setUploading(true);
+    try {
+      const fd2 = new FormData();
+      fd2.append('file', file);
+      const res2  = await fetch('/api/upload/receipt', { method: 'POST', body: fd2 });
+      const data2 = await res2.json();
+      if (res2.ok) setReceiptPath(data2.path);
+    } catch {
+      // non-fatal — receipt path just won't be saved
     } finally {
       setUploading(false);
     }
@@ -98,11 +128,71 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
         </div>
       </div>
 
-      {/* Status badge */}
       <div className="flex justify-center">
         <span className={`px-4 py-1 rounded-full text-sm font-semibold ${statusColor}`}>
           {paymentStatus}
         </span>
+      </div>
+
+      {/* Receipt upload / scan zone */}
+      <div>
+        <label className="form-label">Receipt / Proof of Payment</label>
+
+        {!previewUrl ? (
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="border-2 border-dashed border-gray-300 rounded-xl px-4 py-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-colors"
+          >
+            <FileImage className="mx-auto text-gray-400 mb-2" size={28} />
+            <p className="text-sm font-semibold text-gray-700">Upload Payment Screenshot</p>
+            <p className="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+              <Sparkles size={11} className="text-orange-400" />
+              AI will auto-fill the amount, date &amp; reference
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Preview + scan status */}
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewUrl} alt="Receipt" className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+              <button
+                type="button"
+                onClick={() => { setPreviewUrl(null); setReceiptPath(''); setScanDone(false); setScanError(''); }}
+                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow text-gray-400 hover:text-red-500"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {scanning && (
+              <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+                <Loader2 size={14} className="animate-spin" />
+                AI is reading your receipt...
+              </div>
+            )}
+            {scanDone && !scanning && (
+              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                <CheckCircle size={14} />
+                Auto-filled from receipt — please verify below
+              </div>
+            )}
+            {scanError && (
+              <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                <AlertCircle size={14} />
+                {scanError}
+              </div>
+            )}
+          </div>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
+        />
       </div>
 
       {/* Amount paid */}
@@ -112,19 +202,15 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
           type="number"
           step="0.01"
           min="0"
-          max={totalAmount}
           className="form-input"
           placeholder="0.00"
           value={paidAmount}
           onChange={e => setPaidAmount(e.target.value)}
-          autoFocus
         />
-        <div className="flex gap-2 mt-1.5">
-          <button type="button" onClick={() => setPaidAmount(String(totalAmount))}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-            Mark as Fully Paid ({formatCurrency(totalAmount)})
-          </button>
-        </div>
+        <button type="button" onClick={() => setPaidAmount(String(totalAmount))}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1.5">
+          Mark as Fully Paid ({formatCurrency(totalAmount)})
+        </button>
       </div>
 
       {/* Payment date */}
@@ -134,63 +220,16 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
           onChange={e => setPaymentDate(e.target.value)} />
       </div>
 
-      {/* Payment notes */}
+      {/* Notes */}
       <div>
         <label className="form-label">Notes (optional)</label>
-        <input className="form-input" placeholder="e.g. Paid via bank transfer, GCash..."
+        <input className="form-input" placeholder="e.g. Paid via GCash, Ref: 12345..."
           value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} />
-      </div>
-
-      {/* Receipt upload */}
-      <div>
-        <label className="form-label">Receipt / Proof of Payment</label>
-        {receiptPath ? (
-          <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-            <CheckCircle size={18} className="text-green-600 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-green-800">Receipt uploaded</p>
-              <a href={receiptPath} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline">View receipt</a>
-            </div>
-            <button type="button" onClick={() => setReceiptPath('')}
-              className="text-gray-400 hover:text-red-500">
-              <X size={16} />
-            </button>
-          </div>
-        ) : (
-          <div
-            onClick={() => fileRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-xl px-4 py-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-colors"
-          >
-            {uploading ? (
-              <div className="flex items-center justify-center gap-2 text-orange-500">
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/>
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
-                </svg>
-                <span className="text-sm font-medium">Uploading...</span>
-              </div>
-            ) : (
-              <>
-                <FileImage className="mx-auto text-gray-400 mb-2" size={24} />
-                <p className="text-sm text-gray-600 font-medium">I-attach ang resibo</p>
-                <p className="text-xs text-gray-400 mt-1">JPG, PNG, PDF — max 5MB</p>
-              </>
-            )}
-          </div>
-        )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,.pdf"
-          className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }}
-        />
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+        <button type="submit" disabled={submitting || scanning || uploading} className="btn-primary disabled:opacity-50">
           {submitting ? 'Saving...' : 'Save Payment'}
         </button>
       </div>
