@@ -12,68 +12,45 @@ export function normalizeDateToISO(raw: string | null | undefined): string {
   return '';
 }
 
-/** Compress image to JPEG, max 1024px on longest side, quality stepped down until < maxBytes. */
-async function compressImage(file: File, maxBytes = 300_000): Promise<{ base64: string; mediaType: 'image/jpeg' }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const MAX_DIM = 1024;
-      let { width, height } = img;
-      if (width > MAX_DIM || height > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
-        width  = Math.round(width  * ratio);
-        height = Math.round(height * ratio);
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width  = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('Canvas context unavailable')); return; }
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Step quality down until we're under maxBytes
-      const qualities = [0.80, 0.65, 0.50, 0.35];
-      for (const q of qualities) {
-        const dataUrl = canvas.toDataURL('image/jpeg', q);
-        const b64 = dataUrl.split(',')[1];
-        if (b64.length * 0.75 <= maxBytes) {   // base64 → bytes approx
-          resolve({ base64: b64, mediaType: 'image/jpeg' });
-          return;
-        }
-      }
-      // Last resort: smallest quality
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.25);
-      resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
-    img.src = url;
-  });
-}
-
 export async function scanReceipt(file: File): Promise<any> {
-  // Compress before sending — Railway proxy rejects bodies > ~1MB
-  const { base64, mediaType } = await compressImage(file);
+  // Step 1: upload file as multipart FormData (no base64 body size issue)
+  const fd = new FormData();
+  fd.append('file', file);
 
-  let res: Response;
+  let uploadRes: Response;
   try {
-    res = await fetch('/api/expenses/scan', {
+    uploadRes = await fetch('/api/upload/receipt', { method: 'POST', body: fd });
+  } catch (e: any) {
+    throw new Error('Upload failed: ' + (e?.message ?? String(e)));
+  }
+
+  if (!uploadRes.ok) {
+    const d = await uploadRes.json().catch(() => ({}));
+    throw new Error(d.error || `Upload failed (${uploadRes.status})`);
+  }
+
+  const { filename } = await uploadRes.json();
+  if (!filename) throw new Error('Upload succeeded but no filename returned.');
+
+  // Step 2: ask server to scan the already-saved file (tiny JSON body)
+  let scanRes: Response;
+  try {
+    scanRes = await fetch('/api/expenses/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64, mediaType }),
+      body: JSON.stringify({ filename }),
     });
-  } catch (fetchErr: any) {
-    throw new Error('Network error: ' + (fetchErr?.message ?? String(fetchErr)));
+  } catch (e: any) {
+    throw new Error('Scan request failed: ' + (e?.message ?? String(e)));
   }
 
   let data: any;
   try {
-    data = await res.json();
-  } catch (jsonErr: any) {
-    throw new Error(`Server error (${res.status}): ${jsonErr?.message}`);
+    data = await scanRes.json();
+  } catch (e: any) {
+    throw new Error(`Server error (${scanRes.status}): ${e?.message}`);
   }
 
-  if (!res.ok) throw new Error(data.error || 'Scan failed');
+  if (!scanRes.ok) throw new Error(data.error || 'Scan failed');
   return data.expense;
 }

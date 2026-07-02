@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+// Mirror the same upload dir logic as /api/upload/receipt
+const UPLOAD_DIR = process.env.DATABASE_PATH
+  ? path.join(path.dirname(process.env.DATABASE_PATH), 'receipts')
+  : path.join(process.cwd(), 'public', 'receipts');
 
 const PROMPT = `Extract payment information from this bank transfer or receipt screenshot.
 Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
@@ -18,7 +25,8 @@ Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
   "bank_to": "recipient bank or account name or null",
   "supplier_name": "the name of the person or business being paid (recipient name) or null"
 }
-For amounts, extract the numeric value in PHP only. If unclear, use null.`;
+For amounts, extract the numeric value in PHP only. If unclear, use null.
+For dates, always output YYYY-MM-DD format.`;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -26,16 +34,32 @@ export async function POST(req: NextRequest) {
 
   try {
     let base64: string;
-    let mediaType: string;
+    let mediaType = 'image/jpeg';
 
     const contentType = req.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
       const body = await req.json();
-      base64    = body.base64;
-      mediaType = body.mediaType || 'image/jpeg';
+
+      if (body.filename) {
+        // Two-step flow: file was already uploaded, read from disk
+        const safeName = path.basename(body.filename); // prevent path traversal
+        const filePath = path.join(UPLOAD_DIR, safeName);
+        console.log(`[scan] reading file from disk: ${filePath}`);
+        const buf = await readFile(filePath);
+        base64 = buf.toString('base64');
+        // Detect type from extension
+        const ext = safeName.split('.').pop()?.toLowerCase();
+        if (ext === 'png') mediaType = 'image/png';
+        else if (ext === 'webp') mediaType = 'image/webp';
+        else mediaType = 'image/jpeg';
+      } else {
+        // Inline base64 (legacy / small images)
+        base64 = body.base64;
+        mediaType = body.mediaType || 'image/jpeg';
+      }
     } else {
-      // Raw binary body (sent with x-file-type header or content-type = image/*)
+      // Raw binary body
       const fileType = req.headers.get('x-file-type') || contentType || 'image/jpeg';
       mediaType = fileType;
       const buffer = await req.arrayBuffer();
