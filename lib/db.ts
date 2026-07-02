@@ -199,6 +199,21 @@ function migrateSchema() {
   if (!prodCols.includes('decision'))                db.exec('ALTER TABLE products ADD COLUMN decision TEXT');
   if (!prodCols.includes('perceived_value_score'))   db.exec('ALTER TABLE products ADD COLUMN perceived_value_score REAL');
   if (!prodCols.includes('ai_research_json'))        db.exec('ALTER TABLE products ADD COLUMN ai_research_json TEXT');
+
+  // Expenses table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      category TEXT,
+      reference_no TEXT,
+      bank_from TEXT,
+      bank_to TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 function seedStatusesIfEmpty() {
