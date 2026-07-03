@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     ).run(sku, name, category, cogs, srp, reorder_point ?? 10);
 
     db.prepare(
-      'INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime("now"))'
+      "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime('now'))"
     ).run(info.lastInsertRowid);
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });
