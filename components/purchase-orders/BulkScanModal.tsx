@@ -117,7 +117,7 @@ export default function BulkScanModal({
               paid_amount:  amount,
               payment_date: date || null,
               payment_notes: notes || null,
-              status: amount > 0 ? 'paid' : 'pending',
+              status: 'received',
               ordered_at: date,
             }),
           });
