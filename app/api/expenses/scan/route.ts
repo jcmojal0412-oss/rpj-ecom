@@ -5,7 +5,7 @@ import path from 'path';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
 const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 // Mirror the same upload dir logic as /api/upload/receipt
