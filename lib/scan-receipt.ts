@@ -12,11 +12,8 @@ export function normalizeDateToISO(raw: string | null | undefined): string {
   return '';
 }
 
-/**
- * Compress image via canvas to a JPEG Blob under targetBytes.
- * Targets small output so uploads stay lightweight.
- */
-function compressToBlob(file: File, targetBytes = 150_000): Promise<Blob> {
+/** Compress image to JPEG blob under targetBytes using canvas. */
+function compressToBlob(file: File, targetBytes = 120_000): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -31,64 +28,67 @@ function compressToBlob(file: File, targetBytes = 150_000): Promise<Blob> {
         h = Math.round(h * r);
       }
       const canvas = document.createElement('canvas');
-      canvas.width  = w;
-      canvas.height = h;
+      canvas.width  = w || 1;
+      canvas.height = h || 1;
       const ctx = canvas.getContext('2d');
       if (!ctx) { reject(new Error('Canvas unavailable')); return; }
       ctx.drawImage(img, 0, 0, w, h);
 
-      const tryQuality = (qualities: number[]): void => {
-        if (!qualities.length) {
-          // Last resort
-          canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/jpeg', 0.3);
-          return;
-        }
-        const [q, ...rest] = qualities;
+      const qualities = [0.8, 0.65, 0.5, 0.4, 0.3, 0.2];
+      const tryNext = (idx: number) => {
+        const q = qualities[idx] ?? 0.2;
         canvas.toBlob(b => {
           if (!b) { reject(new Error('toBlob failed')); return; }
-          if (b.size <= targetBytes || !rest.length) { resolve(b); }
-          else { tryQuality(rest); }
+          if (b.size <= targetBytes || idx >= qualities.length - 1) resolve(b);
+          else tryNext(idx + 1);
         }, 'image/jpeg', q);
       };
-      tryQuality([0.8, 0.65, 0.5, 0.4, 0.3]);
+      tryNext(0);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
     img.src = url;
   });
 }
 
-/** Upload a Blob via XHR and return the saved filename. */
-function xhrUpload(blob: Blob, originalName: string): Promise<string> {
+/** Read a Blob as base64 string (no data: prefix). */
+function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload/receipt');
-    xhr.timeout = 30_000;
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const d = JSON.parse(xhr.responseText);
-          if (d.filename) resolve(d.filename);
-          else reject(new Error('No filename in upload response: ' + xhr.responseText.slice(0, 100)));
-        } catch {
-          reject(new Error('Upload response not JSON (' + xhr.status + '): ' + xhr.responseText.slice(0, 100)));
-        }
-      } else {
-        reject(new Error('Upload failed (' + xhr.status + '): ' + xhr.responseText.slice(0, 100)));
-      }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
     };
-    xhr.onerror   = () => reject(new Error('Upload network error'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
-
-    const fd = new FormData();
-    fd.append('file', blob, originalName.replace(/\.[^.]+$/, '.jpg'));
-    xhr.send(fd);
+    reader.onerror = () => reject(new Error('FileReader error: ' + reader.error?.message));
+    reader.readAsDataURL(blob);
   });
 }
 
-/** Scan a receipt image: compress → upload → AI read → return extracted fields. */
+/** POST JSON via XHR — avoids iOS Safari fetch quirks. */
+function xhrPost(url: string, payload: object): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 60_000;
+
+    xhr.onload = () => {
+      try {
+        const d = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(d);
+        else reject(new Error((d.error || `HTTP ${xhr.status}`) + ' (' + xhr.status + ')'));
+      } catch {
+        reject(new Error(`Server error (${xhr.status}): ` + xhr.responseText.slice(0, 120)));
+      }
+    };
+    xhr.onerror   = () => reject(new Error('Network error'));
+    xhr.ontimeout = () => reject(new Error('Request timed out'));
+    xhr.send(JSON.stringify(payload));
+  });
+}
+
+/** Scan a receipt image: compress → base64 → AI extract → return fields. */
 export async function scanReceipt(file: File): Promise<any> {
-  // Compress to ~150KB before uploading — prevents crash on server
+  // Compress to ~120KB
   let blob: Blob;
   try {
     blob = await compressToBlob(file);
@@ -96,28 +96,15 @@ export async function scanReceipt(file: File): Promise<any> {
     throw new Error('Compress failed: ' + (e?.message ?? String(e)));
   }
 
-  // Upload the compressed file
-  const filename = await xhrUpload(blob, file.name);
-
-  // Ask server to scan the (small) saved file
-  let scanRes: Response;
+  // Convert to base64
+  let base64: string;
   try {
-    scanRes = await fetch('/api/expenses/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename }),
-    });
+    base64 = await blobToBase64(blob);
   } catch (e: any) {
-    throw new Error('Scan request failed: ' + (e?.message ?? String(e)));
+    throw new Error('Encode failed: ' + (e?.message ?? String(e)));
   }
 
-  let data: any;
-  try {
-    data = await scanRes.json();
-  } catch (e: any) {
-    throw new Error('Scan response error (' + scanRes.status + '): ' + (e?.message ?? 'not JSON'));
-  }
-
-  if (!scanRes.ok) throw new Error(data.error || 'Scan failed (' + scanRes.status + ')');
+  // Send directly to scan endpoint — no upload step, no file storage
+  const data = await xhrPost('/api/expenses/scan', { base64, mediaType: 'image/jpeg' });
   return data.expense;
 }
