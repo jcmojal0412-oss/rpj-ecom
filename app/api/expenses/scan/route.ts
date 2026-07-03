@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
   try {
     let base64: string;
     let mediaType = 'image/jpeg';
+    let filePath: string | null = null;
 
     const contentType = req.headers.get('content-type') || '';
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       if (body.filename) {
         // Two-step flow: file was already uploaded, read from disk
         const safeName = path.basename(body.filename); // prevent path traversal
-        const filePath = path.join(UPLOAD_DIR, safeName);
+        filePath = path.join(UPLOAD_DIR, safeName);
         console.log(`[scan] reading file from disk: ${filePath}`);
         const buf = await readFile(filePath);
         base64 = buf.toString('base64');
@@ -104,6 +105,10 @@ export async function POST(req: NextRequest) {
 
     const parsed = JSON.parse(match[0]);
     console.log('[scan] result:', parsed);
+
+    // Delete the temp file after extracting — no need to keep it
+    if (filePath) unlink(filePath).catch(() => {});
+
     return NextResponse.json({ expense: parsed });
   } catch (e: any) {
     console.error('[scan] error:', e?.message, e?.stack?.slice(0, 300));
