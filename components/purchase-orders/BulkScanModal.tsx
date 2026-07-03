@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Camera, Loader2, CheckCircle2, AlertCircle, X, ChevronDown } from 'lucide-react';
+import { Camera, Loader2, CheckCircle2, AlertCircle, X, Plus, Link } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
@@ -22,28 +22,36 @@ interface ScanResult {
     date: string | null;
     amount: number | null;
     reference_no: string | null;
-    bank_from: string | null;
-    bank_to: string | null;
     supplier_name: string | null;
     description: string | null;
   };
-  matchedPoId: number | '';
-  // editable fields
+  matchedPo?: PO;       // existing PO match
+  newPoId?: number;     // newly created PO id
+  poNumber?: string;    // PO number (new or matched)
   amount: string;
   date: string;
   notes: string;
   saved: boolean;
 }
 
-function bestMatch(supplierName: string | null, pos: PO[]): number | '' {
-  if (!supplierName || !pos.length) return '';
+function bestMatch(supplierName: string | null, pos: PO[]): PO | null {
+  if (!supplierName || !pos.length) return null;
   const needle = supplierName.toLowerCase();
   for (const po of pos) {
     if (po.supplier.toLowerCase().includes(needle) || needle.includes(po.supplier.toLowerCase())) {
-      return po.id;
+      return po;
     }
   }
-  return '';
+  return null;
+}
+
+function generatePoNumber(): string {
+  const now = new Date();
+  const y  = now.getFullYear().toString().slice(-2);
+  const m  = String(now.getMonth() + 1).padStart(2, '0');
+  const d  = String(now.getDate()).padStart(2, '0');
+  const rnd = Math.floor(Math.random() * 900 + 100);
+  return `PO-${y}${m}${d}-${rnd}`;
 }
 
 export default function BulkScanModal({
@@ -67,7 +75,6 @@ export default function BulkScanModal({
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'scanning',
-      matchedPoId: '',
       amount: '',
       date: new Date().toISOString().slice(0, 10),
       notes: '',
@@ -76,32 +83,74 @@ export default function BulkScanModal({
     setItems(prev => [...prev, ...newItems]);
     const offset = items.length;
 
-    // scan all in parallel
     await Promise.all(newItems.map(async (item, j) => {
       const i = offset + j;
       try {
         const e = await scanReceipt(item.file);
         const matched = bestMatch(e.supplier_name, pos);
-        update(i, {
-          status: 'done',
-          extracted: e,
-          matchedPoId: matched,
-          amount: e.amount != null ? String(e.amount) : '',
-          date: normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10),
-          notes: e.reference_no ? `Ref: ${e.reference_no}` : '',
-        });
+        const date = normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10);
+        const notes = e.reference_no ? `Ref: ${e.reference_no}` : '';
+
+        if (matched) {
+          update(i, {
+            status: 'done',
+            extracted: e,
+            matchedPo: matched,
+            poNumber: matched.po_number,
+            amount: e.amount != null ? String(e.amount) : '',
+            date,
+            notes,
+          });
+        } else {
+          // Auto-create a new PO
+          const po_number = generatePoNumber();
+          const supplier  = e.supplier_name || 'Unknown Supplier';
+          const amount    = e.amount ?? 0;
+
+          const res = await fetch('/api/purchase-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              po_number,
+              supplier,
+              total_amount: amount,
+              paid_amount:  amount,
+              payment_date: date || null,
+              payment_notes: notes || null,
+              status: amount > 0 ? 'paid' : 'pending',
+              ordered_at: date,
+            }),
+          });
+
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error('Auto-create PO failed: ' + (d.error || res.status));
+          }
+
+          const { id: newPoId } = await res.json();
+          update(i, {
+            status: 'done',
+            extracted: e,
+            newPoId,
+            poNumber: po_number,
+            amount: String(amount),
+            date,
+            notes,
+            saved: true, // already saved during creation
+          });
+        }
       } catch (err: any) {
         update(i, { status: 'error', error: err.message || 'Scan failed' });
       }
     }));
   };
 
-  const saveOne = async (i: number) => {
+  const saveMatched = async (i: number) => {
     const item = items[i];
-    if (!item.amount || !item.matchedPoId) return;
+    if (!item.matchedPo || !item.amount) return;
     setSaving(i);
     try {
-      const res = await fetch(`/api/purchase-orders/${item.matchedPoId}`, {
+      const res = await fetch(`/api/purchase-orders/${item.matchedPo.id}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -112,7 +161,10 @@ export default function BulkScanModal({
       });
       if (res.ok) {
         update(i, { saved: true });
-        if (items.every((it, idx) => idx === i || it.saved)) onAllSaved();
+        setItems(prev => {
+          if (prev.every((it, idx) => idx === i ? true : it.saved)) onAllSaved();
+          return prev;
+        });
       }
     } finally {
       setSaving(null);
@@ -121,14 +173,15 @@ export default function BulkScanModal({
 
   const saveAll = async () => {
     for (let i = 0; i < items.length; i++) {
-      if (!items[i].saved && items[i].status === 'done' && items[i].amount && items[i].matchedPoId) {
-        await saveOne(i);
+      const it = items[i];
+      if (!it.saved && it.status === 'done' && it.matchedPo && it.amount) {
+        await saveMatched(i);
       }
     }
     onAllSaved();
   };
 
-  const readyCount = items.filter(it => it.status === 'done' && it.amount && it.matchedPoId && !it.saved).length;
+  const pendingMatchCount = items.filter(it => it.status === 'done' && it.matchedPo && !it.saved).length;
 
   return (
     <div className="space-y-4">
@@ -154,42 +207,70 @@ export default function BulkScanModal({
       {items.length > 0 && (
         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
           {items.map((item, i) => (
-            <div key={i} className={`border rounded-xl p-3 space-y-3 ${item.saved ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-white'}`}>
+            <div key={i} className={`border rounded-xl p-3 space-y-2 ${
+              item.saved ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-white'
+            }`}>
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.previewUrl} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-600 truncate">{item.file.name}</p>
+
                   {item.status === 'scanning' && (
                     <div className="flex items-center gap-1.5 text-xs text-orange-500 mt-1">
                       <Loader2 size={12} className="animate-spin" /> Scanning...
                     </div>
                   )}
+
                   {item.status === 'error' && (
                     <div className="flex items-center gap-1.5 text-xs text-red-500 mt-1">
                       <AlertCircle size={12} /> {item.error}
                     </div>
                   )}
-                  {item.status === 'done' && item.extracted && (
-                    <div className="text-xs text-gray-500 mt-0.5 space-y-0.5">
-                      {item.extracted.supplier_name && <p>Recipient: <b className="text-gray-700">{item.extracted.supplier_name}</b></p>}
-                      {item.extracted.bank_from && <p>From: {item.extracted.bank_from}</p>}
+
+                  {item.status === 'done' && (
+                    <div className="text-xs mt-0.5 space-y-0.5">
+                      {item.extracted?.supplier_name && (
+                        <p className="text-gray-600">
+                          Supplier: <b className="text-gray-800">{item.extracted.supplier_name}</b>
+                        </p>
+                      )}
+                      {item.extracted?.amount != null && (
+                        <p className="text-gray-600">
+                          Amount: <b className="text-gray-800">{formatCurrency(item.extracted.amount)}</b>
+                        </p>
+                      )}
+                      {/* Match indicator */}
+                      {item.matchedPo && !item.saved && (
+                        <div className="flex items-center gap-1 text-blue-600 font-medium">
+                          <Link size={10} /> Matched to {item.matchedPo.po_number}
+                        </div>
+                      )}
+                      {item.newPoId && (
+                        <div className="flex items-center gap-1 text-green-600 font-medium">
+                          <Plus size={10} /> New PO created: {item.poNumber}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-                <button onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-400 shrink-0">
+
+                <button
+                  onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                  className="text-gray-300 hover:text-red-400 shrink-0"
+                >
                   <X size={14} />
                 </button>
               </div>
 
-              {item.status === 'done' && !item.saved && (
-                <div className="grid grid-cols-2 gap-2">
+              {/* Editable fields for matched PO (not yet saved) */}
+              {item.status === 'done' && item.matchedPo && !item.saved && (
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
                   <div>
                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount (₱)</label>
                     <input
                       type="number"
                       className="form-input text-sm py-1.5"
-                      placeholder="0.00"
                       value={item.amount}
                       onChange={e => update(i, { amount: e.target.value })}
                     />
@@ -204,49 +285,34 @@ export default function BulkScanModal({
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Match to PO</label>
-                    <div className="relative">
-                      <select
-                        className="form-input text-sm py-1.5 pr-8 appearance-none"
-                        value={item.matchedPoId}
-                        onChange={e => update(i, { matchedPoId: e.target.value ? Number(e.target.value) : '' })}
-                      >
-                        <option value="">— Select PO —</option>
-                        {pos.map(po => (
-                          <option key={po.id} value={po.id}>
-                            {po.po_number} · {po.supplier} · {formatCurrency(po.total_amount)}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  <div className="col-span-2">
                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Notes</label>
                     <input
                       type="text"
                       className="form-input text-sm py-1.5"
-                      placeholder="Ref number, bank, etc."
                       value={item.notes}
                       onChange={e => update(i, { notes: e.target.value })}
                     />
                   </div>
                   <div className="col-span-2 flex justify-end">
                     <button
-                      onClick={() => saveOne(i)}
-                      disabled={saving === i || !item.amount || !item.matchedPoId}
+                      onClick={() => saveMatched(i)}
+                      disabled={saving === i || !item.amount}
                       className="btn-primary text-xs py-1.5 disabled:opacity-50"
                     >
-                      {saving === i ? <Loader2 size={12} className="animate-spin" /> : null}
-                      {saving === i ? 'Saving...' : 'Save this payment'}
+                      {saving === i ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
+                      {saving === i ? 'Saving...' : 'Save Payment'}
                     </button>
                   </div>
                 </div>
               )}
 
               {item.saved && (
-                <div className="flex items-center gap-2 text-xs text-green-700">
-                  <CheckCircle2 size={14} /> Payment recorded — {formatCurrency(parseFloat(item.amount))}
+                <div className="flex items-center gap-2 text-xs text-green-700 pt-1 border-t border-green-100">
+                  <CheckCircle2 size={14} />
+                  {item.newPoId
+                    ? `New PO ${item.poNumber} created & paid — ${formatCurrency(parseFloat(item.amount || '0'))}`
+                    : `Payment saved to ${item.poNumber} — ${formatCurrency(parseFloat(item.amount || '0'))}`
+                  }
                 </div>
               )}
             </div>
@@ -254,10 +320,9 @@ export default function BulkScanModal({
         </div>
       )}
 
-      {/* Save all button */}
-      {readyCount > 1 && (
+      {pendingMatchCount > 1 && (
         <button onClick={saveAll} className="btn-primary w-full justify-center">
-          Save All {readyCount} Payments
+          Save All {pendingMatchCount} Payments
         </button>
       )}
 

@@ -21,22 +21,31 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const db = getDb();
-    const { po_number, supplier, notes, ordered_at, status, items } = await req.json();
+    const { po_number, supplier, notes, ordered_at, status, items,
+            total_amount, paid_amount, payment_date, payment_notes } = await req.json();
 
-    const total = (items as { quantity: number; unit_cost: number }[]).reduce(
-      (sum, i) => sum + i.quantity * i.unit_cost, 0
-    );
+    const itemList = (items ?? []) as { product_id: number; quantity: number; unit_cost: number }[];
+    const total = total_amount ?? itemList.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
 
     let newId: number;
 
     runTransaction(() => {
       const info = db.prepare(
-        'INSERT INTO purchase_orders (po_number, supplier, total_amount, status, ordered_at, notes) VALUES (?,?,?,?,?,?)'
-      ).run(po_number, supplier, total, status ?? 'pending', ordered_at, notes ?? '');
+        `INSERT INTO purchase_orders
+          (po_number, supplier, total_amount, status, ordered_at, notes, paid_amount, payment_date, payment_notes)
+         VALUES (?,?,?,?,?,?,?,?,?)`
+      ).run(
+        po_number, supplier, total, status ?? 'pending',
+        ordered_at ?? new Date().toISOString().slice(0, 10),
+        notes ?? '',
+        paid_amount ?? 0,
+        payment_date ?? null,
+        payment_notes ?? null,
+      );
 
       newId = Number(info.lastInsertRowid);
 
-      for (const item of items as { product_id: number; quantity: number; unit_cost: number }[]) {
+      for (const item of itemList) {
         db.prepare(
           'INSERT INTO po_items (po_id, product_id, quantity, unit_cost) VALUES (?,?,?,?)'
         ).run(newId, item.product_id, item.quantity, item.unit_cost);
