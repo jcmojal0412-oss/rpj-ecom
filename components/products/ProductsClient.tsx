@@ -306,6 +306,11 @@ export default function ProductsClient() {
       {/* Add Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New Product" size="md">
         <ProductForm
+          suggestedSku={(() => {
+            const nums = products.map(p => parseInt(p.sku.replace(/\D/g, ''), 10)).filter(n => !isNaN(n));
+            const next = nums.length ? Math.max(...nums) + 1 : 1;
+            return `RPJ${next}`;
+          })()}
           onSuccess={() => { setShowAdd(false); showToast('Product added!'); fetchProducts(); }}
           onCancel={() => setShowAdd(false)}
         />

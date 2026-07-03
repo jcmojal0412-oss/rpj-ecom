@@ -5,14 +5,15 @@ import type { Product } from './ProductsClient';
 
 interface Props {
   initial?: Product;
+  suggestedSku?: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
 const CATEGORIES = ['Electronics', 'Apparel', 'Home Goods', 'Beauty', 'Food & Beverage', 'Toys', 'Sports', 'Other'];
 
-export default function ProductForm({ initial, onSuccess, onCancel }: Props) {
-  const [sku, setSku] = useState(initial?.sku ?? '');
+export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel }: Props) {
+  const [sku, setSku] = useState(initial?.sku ?? suggestedSku ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
   const [customCategory, setCustomCategory] = useState('');

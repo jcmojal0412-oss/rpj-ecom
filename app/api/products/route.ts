@@ -28,7 +28,11 @@ export async function POST(req: NextRequest) {
     ).run(info.lastInsertRowid);
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (e: any) {
+    const msg = String(e);
+    if (msg.includes('UNIQUE constraint failed: products.sku')) {
+      return NextResponse.json({ error: 'SKU already exists. Please use a different SKU.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
