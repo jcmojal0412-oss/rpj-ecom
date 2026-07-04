@@ -24,7 +24,6 @@ const NAV_GROUPS = [
     label: 'CATALOG',
     items: [
       { label: 'Products',        href: '/products',         icon: Tag,           module: 'products'         },
-      { label: 'Product Research',href: '/product-research', icon: FlaskConical,  module: 'product_research' },
     ],
   },
   {
@@ -53,7 +52,8 @@ const NAV_GROUPS = [
   {
     label: 'TOOLS',
     items: [
-      { label: 'Ecom Calculator', href: '/calculator', icon: Calculator, module: 'calculator' },
+      { label: 'Ecom Calculator',  href: '/calculator',       icon: Calculator,   module: 'calculator'       },
+      { label: 'Product Research', href: '/product-research', icon: FlaskConical, module: 'product_research' },
     ],
   },
 ];
