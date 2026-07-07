@@ -11,6 +11,7 @@ interface PO {
   supplier: string;
   total_amount: number;
   paid_amount: number;
+  status: string;
 }
 
 interface ScanResult {
@@ -37,7 +38,11 @@ interface ScanResult {
 function bestMatch(supplierName: string | null, pos: PO[]): PO | null {
   if (!supplierName || !pos.length) return null;
   const needle = supplierName.toLowerCase();
-  for (const po of pos) {
+  // Only match POs that still have an outstanding balance — a fully paid or
+  // cancelled PO is a closed transaction, so a new receipt from the same
+  // supplier must start a new PO instead of overwriting the old payment.
+  const open = pos.filter(po => po.status !== 'cancelled' && po.paid_amount < po.total_amount);
+  for (const po of open) {
     if (po.supplier.toLowerCase().includes(needle) || needle.includes(po.supplier.toLowerCase())) {
       return po;
     }
@@ -154,7 +159,9 @@ export default function BulkScanModal({
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          paid_amount:   parseFloat(item.amount),
+          // Add to whatever was already paid — this receipt is one more
+          // payment toward the PO, not the PO's full paid total.
+          paid_amount:   item.matchedPo.paid_amount + parseFloat(item.amount),
           payment_date:  item.date || null,
           payment_notes: item.notes || null,
         }),

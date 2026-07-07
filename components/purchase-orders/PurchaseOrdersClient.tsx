@@ -265,7 +265,7 @@ export default function PurchaseOrdersClient() {
       {/* Bulk Scan Modal */}
       <Modal open={showBulkScan} onClose={() => setShowBulkScan(false)} title="Scan Payment Receipts" size="lg">
         <BulkScanModal
-          pos={orders.map(o => ({ id: o.id, po_number: o.po_number, supplier: o.supplier, total_amount: o.total_amount, paid_amount: o.paid_amount ?? 0 }))}
+          pos={orders.map(o => ({ id: o.id, po_number: o.po_number, supplier: o.supplier, total_amount: o.total_amount, paid_amount: o.paid_amount ?? 0, status: o.status }))}
           onClose={() => setShowBulkScan(false)}
           onAllSaved={() => { setShowBulkScan(false); showToast('Payments recorded!'); fetchOrders(); }}
         />
