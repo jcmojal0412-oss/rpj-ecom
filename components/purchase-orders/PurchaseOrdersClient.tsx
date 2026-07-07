@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer, Camera, Trash2 } from 'lucide-react';
+import { Plus, Eye, CheckCircle, XCircle, CreditCard, Printer, Camera, Trash2, CalendarDays } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -65,6 +65,35 @@ export default function PurchaseOrdersClient() {
 
   const PO_HEADERS = ['PO #', 'Supplier', 'Items', 'Amount / Payment', 'Status', 'Ordered Date', 'Actions'];
 
+  // PO totals summary: Today / Yesterday / This Week / This Month
+  const poTotals = (() => {
+    const now = new Date();
+    const toISO = (d: Date) => d.toISOString().slice(0, 10);
+
+    const todayStr = toISO(now);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = toISO(yesterday);
+
+    const dow = (now.getDay() + 6) % 7; // Monday = 0
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
+    const weekStartStr = toISO(weekStart);
+
+    const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+    const sumWhere = (pred: (d: string) => boolean) =>
+      orders.reduce((sum, po) => {
+        const d = po.ordered_at ? po.ordered_at.slice(0, 10) : '';
+        return d && pred(d) ? sum + po.total_amount : sum;
+      }, 0);
+
+    return {
+      today:     sumWhere(d => d === todayStr),
+      yesterday: sumWhere(d => d === yesterdayStr),
+      week:      sumWhere(d => d >= weekStartStr && d <= todayStr),
+      month:     sumWhere(d => d >= monthStartStr && d <= todayStr),
+    };
+  })();
+
   const statusBadge = (s: string) => {
     if (s === 'received') return <span className="badge-green">Received</span>;
     if (s === 'cancelled') return <span className="badge-gray">Cancelled</span>;
@@ -88,6 +117,14 @@ export default function PurchaseOrdersClient() {
             <Plus size={16} /> New PO
           </button>
         </div>
+      </div>
+
+      {/* PO totals summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <PoTotalCard label="Today" value={poTotals.today} />
+        <PoTotalCard label="Yesterday" value={poTotals.yesterday} />
+        <PoTotalCard label="This Week" value={poTotals.week} />
+        <PoTotalCard label="This Month" value={poTotals.month} />
       </div>
 
       {/* Date filter */}
@@ -233,6 +270,20 @@ export default function PurchaseOrdersClient() {
           onAllSaved={() => { setShowBulkScan(false); showToast('Payments recorded!'); fetchOrders(); }}
         />
       </Modal>
+    </div>
+  );
+}
+
+function PoTotalCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="card flex items-center gap-4">
+      <div className="p-3 rounded-xl bg-orange-50">
+        <CalendarDays className="text-orange-500" size={22} />
+      </div>
+      <div>
+        <p className="text-xs text-gray-500 font-medium">{label}</p>
+        <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(value)}</p>
+      </div>
     </div>
   );
 }
