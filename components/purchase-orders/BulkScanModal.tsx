@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Camera, Loader2, CheckCircle2, AlertCircle, X, Plus, Link } from 'lucide-react';
+import { Camera, Loader2, CheckCircle2, AlertCircle, AlertTriangle, X, Plus, Link } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
@@ -12,6 +12,7 @@ interface PO {
   total_amount: number;
   paid_amount: number;
   status: string;
+  payment_notes: string | null;
 }
 
 interface ScanResult {
@@ -29,10 +30,23 @@ interface ScanResult {
   matchedPo?: PO;       // existing PO match
   newPoId?: number;     // newly created PO id
   poNumber?: string;    // PO number (new or matched)
+  duplicateOf?: { po_number: string; amount: number }; // same reference no already recorded
   amount: string;
   date: string;
   notes: string;
   saved: boolean;
+}
+
+// Pulls the digits/code out of a "Ref: 123456" style note for comparison.
+function extractRefNo(notes: string | null): string | null {
+  if (!notes) return null;
+  const m = notes.match(/Ref:\s*(\S+)/i);
+  return m ? m[1].trim() : null;
+}
+
+function findDuplicateRef(refNo: string | null, pos: PO[]): PO | null {
+  if (!refNo) return null;
+  return pos.find(po => extractRefNo(po.payment_notes) === refNo) ?? null;
 }
 
 function bestMatch(supplierName: string | null, pos: PO[]): PO | null {
@@ -95,8 +109,22 @@ export default function BulkScanModal({
         const matched = bestMatch(e.supplier_name, pos);
         const date = normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10);
         const notes = e.reference_no ? `Ref: ${e.reference_no}` : '';
+        const dup = findDuplicateRef(e.reference_no, pos);
 
-        if (matched) {
+        if (dup) {
+          // Same reference number already recorded on another PO — flag it
+          // and let the user confirm instead of auto-saving/auto-creating.
+          update(i, {
+            status: 'done',
+            extracted: e,
+            matchedPo: matched ?? undefined,
+            duplicateOf: { po_number: dup.po_number, amount: dup.total_amount },
+            poNumber: matched?.po_number,
+            amount: e.amount != null ? String(e.amount) : '',
+            date,
+            notes,
+          });
+        } else if (matched) {
           update(i, {
             status: 'done',
             extracted: e,
@@ -150,6 +178,61 @@ export default function BulkScanModal({
     }));
   };
 
+  // User has reviewed a flagged duplicate-reference item and confirmed it's
+  // a genuine separate transaction — proceed with the normal save/create.
+  const saveDuplicateAnyway = async (i: number) => {
+    const item = items[i];
+    if (!item.amount) return;
+    setSaving(i);
+    try {
+      if (item.matchedPo) {
+        const res = await fetch(`/api/purchase-orders/${item.matchedPo.id}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            paid_amount:   item.matchedPo.paid_amount + parseFloat(item.amount),
+            payment_date:  item.date || null,
+            payment_notes: item.notes || null,
+          }),
+        });
+        if (res.ok) {
+          update(i, { saved: true });
+          setItems(prev => {
+            if (prev.every((it, idx) => idx === i ? true : it.saved)) onAllSaved();
+            return prev;
+          });
+        }
+      } else {
+        const po_number = generatePoNumber();
+        const amount = parseFloat(item.amount);
+        const res = await fetch('/api/purchase-orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            po_number,
+            supplier: item.extracted?.supplier_name || 'Unknown Supplier',
+            total_amount: amount,
+            paid_amount:  amount,
+            payment_date: item.date || null,
+            payment_notes: item.notes || null,
+            status: 'received',
+            ordered_at: item.date,
+          }),
+        });
+        if (res.ok) {
+          const { id: newPoId } = await res.json();
+          update(i, { newPoId, poNumber: po_number, saved: true });
+          setItems(prev => {
+            if (prev.every((it, idx) => idx === i ? true : it.saved)) onAllSaved();
+            return prev;
+          });
+        }
+      }
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const saveMatched = async (i: number) => {
     const item = items[i];
     if (!item.matchedPo || !item.amount) return;
@@ -181,14 +264,14 @@ export default function BulkScanModal({
   const saveAll = async () => {
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      if (!it.saved && it.status === 'done' && it.matchedPo && it.amount) {
+      if (!it.saved && it.status === 'done' && it.matchedPo && it.amount && !it.duplicateOf) {
         await saveMatched(i);
       }
     }
     onAllSaved();
   };
 
-  const pendingMatchCount = items.filter(it => it.status === 'done' && it.matchedPo && !it.saved).length;
+  const pendingMatchCount = items.filter(it => it.status === 'done' && it.matchedPo && !it.duplicateOf && !it.saved).length;
 
   return (
     <div className="space-y-4">
@@ -247,6 +330,12 @@ export default function BulkScanModal({
                           Amount: <b className="text-gray-800">{formatCurrency(item.extracted.amount)}</b>
                         </p>
                       )}
+                      {/* Duplicate reference warning */}
+                      {item.duplicateOf && !item.saved && (
+                        <div className="flex items-center gap-1 text-red-600 font-semibold">
+                          <AlertTriangle size={10} /> Possible duplicate — same Ref already on {item.duplicateOf.po_number} ({formatCurrency(item.duplicateOf.amount)})
+                        </div>
+                      )}
                       {/* Match indicator */}
                       {item.matchedPo && !item.saved && (
                         <div className="flex items-center gap-1 text-blue-600 font-medium">
@@ -270,8 +359,8 @@ export default function BulkScanModal({
                 </button>
               </div>
 
-              {/* Editable fields for matched PO (not yet saved) */}
-              {item.status === 'done' && item.matchedPo && !item.saved && (
+              {/* Editable fields for matched PO or flagged duplicate (not yet saved) */}
+              {item.status === 'done' && (item.matchedPo || item.duplicateOf) && !item.saved && (
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
                   <div>
                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount (₱)</label>
@@ -300,14 +389,23 @@ export default function BulkScanModal({
                       onChange={e => update(i, { notes: e.target.value })}
                     />
                   </div>
-                  <div className="col-span-2 flex justify-end">
+                  <div className="col-span-2 flex justify-end gap-2">
+                    {item.duplicateOf && (
+                      <button
+                        onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                        disabled={saving === i}
+                        className="btn-secondary text-xs py-1.5 disabled:opacity-50"
+                      >
+                        Discard (it's a duplicate)
+                      </button>
+                    )}
                     <button
-                      onClick={() => saveMatched(i)}
+                      onClick={() => item.duplicateOf ? saveDuplicateAnyway(i) : saveMatched(i)}
                       disabled={saving === i || !item.amount}
                       className="btn-primary text-xs py-1.5 disabled:opacity-50"
                     >
                       {saving === i ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
-                      {saving === i ? 'Saving...' : 'Save Payment'}
+                      {saving === i ? 'Saving...' : item.duplicateOf ? 'Not a duplicate — Save' : 'Save Payment'}
                     </button>
                   </div>
                 </div>

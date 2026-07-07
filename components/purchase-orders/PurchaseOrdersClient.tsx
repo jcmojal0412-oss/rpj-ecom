@@ -17,6 +17,7 @@ interface PurchaseOrder {
   ordered_at: string; received_at: string | null;
   item_count: number; notes: string;
   paid_amount: number; receipt_path: string | null;
+  payment_notes: string | null;
 }
 
 export default function PurchaseOrdersClient() {
@@ -265,7 +266,7 @@ export default function PurchaseOrdersClient() {
       {/* Bulk Scan Modal */}
       <Modal open={showBulkScan} onClose={() => setShowBulkScan(false)} title="Scan Payment Receipts" size="lg">
         <BulkScanModal
-          pos={orders.map(o => ({ id: o.id, po_number: o.po_number, supplier: o.supplier, total_amount: o.total_amount, paid_amount: o.paid_amount ?? 0, status: o.status }))}
+          pos={orders.map(o => ({ id: o.id, po_number: o.po_number, supplier: o.supplier, total_amount: o.total_amount, paid_amount: o.paid_amount ?? 0, status: o.status, payment_notes: o.payment_notes }))}
           onClose={() => setShowBulkScan(false)}
           onAllSaved={() => { setShowBulkScan(false); showToast('Payments recorded!'); fetchOrders(); }}
         />
