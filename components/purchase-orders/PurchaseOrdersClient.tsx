@@ -111,7 +111,7 @@ export default function PurchaseOrdersClient() {
           <p className="text-sm text-gray-500 mt-1">Track and manage supplier orders</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowBulkScan(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100 text-sm font-semibold transition-colors">
+          <button onClick={async () => { await fetchOrders(); setShowBulkScan(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100 text-sm font-semibold transition-colors">
             <Camera size={16} /> Scan Receipts
           </button>
           <button onClick={() => setShowCreate(true)} className="btn-primary">

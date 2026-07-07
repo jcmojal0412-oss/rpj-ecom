@@ -86,6 +86,12 @@ export default function BulkScanModal({
   const [items, setItems] = useState<ScanResult[]>([]);
   const [saving, setSaving] = useState<number | null>(null);
 
+  // Mutable, synchronously-updated mirror of `pos` — reading/writing this
+  // (instead of the `pos` prop) means two receipts scanned together in the
+  // same batch see each other's just-created/just-matched PO immediately,
+  // instead of racing against the same stale snapshot.
+  const posRef = useRef<PO[]>(pos);
+
   const update = (i: number, patch: Partial<ScanResult>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it));
 
@@ -106,10 +112,14 @@ export default function BulkScanModal({
       const i = offset + j;
       try {
         const e = await scanReceipt(item.file);
-        const matched = bestMatch(e.supplier_name, pos);
         const date = normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10);
         const notes = e.reference_no ? `Ref: ${e.reference_no}` : '';
-        const dup = findDuplicateRef(e.reference_no, pos);
+
+        // Everything from here to the point we claim/create is synchronous —
+        // no `await` runs in between — so a second receipt in the same batch
+        // can't interleave and miss what this one is about to do.
+        const dup = findDuplicateRef(e.reference_no, posRef.current);
+        const matched = !dup ? bestMatch(e.supplier_name, posRef.current) : null;
 
         if (dup) {
           // Same reference number already recorded on another PO — flag it
@@ -135,10 +145,18 @@ export default function BulkScanModal({
             notes,
           });
         } else {
-          // Auto-create a new PO
+          // Auto-create a new PO. Claim the reference number in posRef
+          // synchronously, before the network call, so a duplicate receipt
+          // scanned in the same batch sees this one and gets flagged
+          // instead of also auto-creating.
           const po_number = generatePoNumber();
           const supplier  = e.supplier_name || 'Unknown Supplier';
           const amount    = e.amount ?? 0;
+          const claim: PO = {
+            id: -1, po_number, supplier, total_amount: amount, paid_amount: amount,
+            status: 'received', payment_notes: notes || null,
+          };
+          posRef.current = [...posRef.current, claim];
 
           const res = await fetch('/api/purchase-orders', {
             method: 'POST',
@@ -161,6 +179,7 @@ export default function BulkScanModal({
           }
 
           const { id: newPoId } = await res.json();
+          posRef.current = posRef.current.map(p => p === claim ? { ...p, id: newPoId } : p);
           update(i, {
             status: 'done',
             extracted: e,
