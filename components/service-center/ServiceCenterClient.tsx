@@ -7,6 +7,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
+import PendingPayout from './PendingPayout';
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -148,6 +149,8 @@ export default function ServiceCenterClient() {
           </div>
         </div>
       )}
+
+      <PendingPayout repairs={repairs} onPaid={fetchData} />
 
       {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
