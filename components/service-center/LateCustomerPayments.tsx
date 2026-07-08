@@ -98,6 +98,10 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
                     <span className="font-semibold text-red-700 shrink-0 ml-3">{formatCurrency(r.cs_payment)}</span>
                   </div>
                 ))}
+                <div className="flex items-center justify-between text-xs px-3 pt-2 mt-1 border-t border-red-200">
+                  <span className="font-semibold text-gray-700">Total</span>
+                  <span className="font-bold text-red-800">{formatCurrency(subtotal)}</span>
+                </div>
               </div>
             </div>
           );

@@ -98,6 +98,10 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
                     <span className="font-semibold text-amber-700 shrink-0 ml-3">{formatCurrency(r.gerald_share)}</span>
                   </div>
                 ))}
+                <div className="flex items-center justify-between text-xs px-3 pt-2 mt-1 border-t border-amber-200">
+                  <span className="font-semibold text-gray-700">Total</span>
+                  <span className="font-bold text-amber-800">{formatCurrency(subtotal)}</span>
+                </div>
               </div>
             </div>
           );
