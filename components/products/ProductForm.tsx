@@ -10,7 +10,7 @@ interface Props {
   onCancel: () => void;
 }
 
-const CATEGORIES = ['Electronics', 'Apparel', 'Home Goods', 'Beauty', 'Food & Beverage', 'Toys', 'Sports', 'Other'];
+const CATEGORIES = ['General Merchandise', 'Electronics', 'Apparel', 'Home Goods', 'Beauty', 'Food & Beverage', 'Toys', 'Sports', 'Other'];
 
 export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel }: Props) {
   const [sku, setSku] = useState(initial?.sku ?? suggestedSku ?? '');
