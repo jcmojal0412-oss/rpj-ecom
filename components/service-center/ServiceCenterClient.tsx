@@ -9,10 +9,13 @@ import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
 import PendingPayout from './PendingPayout';
 import LateCustomerPayments from './LateCustomerPayments';
-import { toLocalISO } from './weekUtils';
+import { toLocalISO, weekStart } from './weekUtils';
 
 const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
 type DatePreset = typeof DATE_PRESETS[number];
+
+const SUMMARY_PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
+type SummaryPeriod = typeof SUMMARY_PERIODS[number];
 
 export interface Repair {
   id: number; repair_date: string; repair_details: string | null; unit_model: string | null;
@@ -21,21 +24,15 @@ export interface Repair {
   status: 'ONGOING' | 'CUSTOMER PAID'; paid_to_tech: number; tech_paid_date: string | null;
 }
 
-interface Totals {
-  total_cs_payment: number; total_cogs: number; total_labor: number;
-  total_bns: number; total_gerald: number; total_dp: number;
-  ongoing_count: number; gerald_unpaid: number;
-}
-
 export default function ServiceCenterClient() {
   const [repairs, setRepairs] = useState<Repair[]>([]);
-  const [totals, setTotals]   = useState<Totals | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState<Repair | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo]     = useState('');
   const [activePreset, setActivePreset] = useState<DatePreset | null>(null);
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('Weekly');
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const { toast, showToast, clearToast } = useToast();
@@ -44,11 +41,38 @@ export default function ServiceCenterClient() {
     setLoading(true);
     const data = await fetch('/api/service-repairs').then(r => r.json());
     setRepairs(data.rows ?? []);
-    setTotals(data.totals ?? null);
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const summaryRange = (() => {
+    const now = new Date();
+    const today = toLocalISO(now);
+    if (summaryPeriod === 'Daily') return { from: today, to: today };
+    if (summaryPeriod === 'Weekly') {
+      const monday = weekStart(today);
+      const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+      return { from: toLocalISO(monday), to: toLocalISO(sunday) };
+    }
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: toLocalISO(from), to: toLocalISO(to) };
+  })();
+
+  const summaryRepairs = repairs.filter(r => {
+    const d = r.repair_date ? r.repair_date.slice(0, 10) : '';
+    return d >= summaryRange.from && d <= summaryRange.to;
+  });
+
+  const totals = {
+    total_cs_payment: summaryRepairs.reduce((s, r) => s + r.cs_payment, 0),
+    total_labor:      summaryRepairs.reduce((s, r) => s + r.labor_amount, 0),
+    total_bns:        summaryRepairs.reduce((s, r) => s + r.bns_share, 0),
+    total_gerald:     summaryRepairs.reduce((s, r) => s + r.gerald_share, 0),
+    ongoing_count:    summaryRepairs.filter(r => r.status === 'ONGOING').length,
+    gerald_unpaid:    summaryRepairs.filter(r => !r.paid_to_tech).reduce((s, r) => s + r.gerald_share, 0),
+  };
 
   const filtered = repairs.filter(r => {
     const d = r.repair_date ? r.repair_date.slice(0, 10) : '';
@@ -112,38 +136,54 @@ export default function ServiceCenterClient() {
       </div>
 
       {/* Summary cards */}
-      {totals && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="card flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-50"><Banknote className="text-blue-500" size={22} /></div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Total CS Payment</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_cs_payment)}</p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-green-50"><PiggyBank className="text-green-600" size={22} /></div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Total Labor Amount</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_labor)}</p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">BNS / Technician Share</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)} / {formatCurrency(totals.total_gerald)}</p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-red-50"><Wrench className="text-red-500" size={22} /></div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Ongoing / Unpaid to Tech</p>
-              <p className="text-lg font-bold text-gray-900 mt-0.5">{totals.ongoing_count} jobs · {formatCurrency(totals.gerald_unpaid)}</p>
-            </div>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <p className="text-sm font-semibold text-gray-700">Summary</p>
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+          {SUMMARY_PERIODS.map(p => (
+            <button
+              key={p}
+              onClick={() => setSummaryPeriod(p)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                summaryPeriod === p
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-blue-50"><Banknote className="text-blue-500" size={22} /></div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Total CS Payment</p>
+            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_cs_payment)}</p>
           </div>
         </div>
-      )}
+        <div className="card flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-green-50"><PiggyBank className="text-green-600" size={22} /></div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Total Labor Amount</p>
+            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_labor)}</p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">BNS / Technician Share</p>
+            <p className="text-lg font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)} / {formatCurrency(totals.total_gerald)}</p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-red-50"><Wrench className="text-red-500" size={22} /></div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Ongoing / Unpaid to Tech</p>
+            <p className="text-lg font-bold text-gray-900 mt-0.5">{totals.ongoing_count} jobs · {formatCurrency(totals.gerald_unpaid)}</p>
+          </div>
+        </div>
+      </div>
 
       <LateCustomerPayments repairs={repairs} onSettled={fetchData} />
 
