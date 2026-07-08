@@ -154,7 +154,7 @@ export default function ServiceCenterClient() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="card flex items-center gap-4">
           <div className="p-3 rounded-xl bg-blue-50"><Banknote className="text-blue-500" size={22} /></div>
           <div>
@@ -172,8 +172,15 @@ export default function ServiceCenterClient() {
         <div className="card flex items-center gap-4">
           <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">BNS / Technician Share</p>
-            <p className="text-lg font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)} / {formatCurrency(totals.total_gerald)}</p>
+            <p className="text-xs text-gray-500 font-medium">BNS Share</p>
+            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)}</p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Technician Share</p>
+            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_gerald)}</p>
           </div>
         </div>
         <div className="card flex items-center gap-4">
