@@ -216,6 +216,26 @@ function migrateSchema() {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Service Center Monitoring — repair job tracking with revenue split
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_repairs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repair_date TEXT NOT NULL,
+      repair_details TEXT,
+      unit_model TEXT,
+      cs_payment REAL DEFAULT 0,
+      cogs REAL DEFAULT 0,
+      labor_amount REAL DEFAULT 0,
+      bns_share REAL DEFAULT 0,
+      gerald_share REAL DEFAULT 0,
+      dp REAL DEFAULT 0,
+      status TEXT DEFAULT 'ONGOING',
+      paid_to_tech INTEGER DEFAULT 0,
+      tech_paid_date TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
 function seedStatusesIfEmpty() {

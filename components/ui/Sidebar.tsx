@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
-  Sparkles, ShoppingBag, Music2, Vault, LineChart,
+  Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -38,6 +38,12 @@ const NAV_GROUPS = [
     items: [
       { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'   },
       { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'expenses'  },
+    ],
+  },
+  {
+    label: 'SERVICE CENTER',
+    items: [
+      { label: 'Repair Monitoring', href: '/service-center', icon: Wrench, module: 'service_center' },
     ],
   },
   {
