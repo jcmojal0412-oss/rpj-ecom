@@ -13,8 +13,13 @@ export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// Returns today's date in Philippine time (UTC+8, no DST) as YYYY-MM-DD,
+// regardless of the runtime's local timezone. Server containers typically
+// run UTC, and .toISOString() alone is 8 hours (and sometimes a calendar
+// day) behind PH local time between midnight and 8am — this shift avoids
+// that by reading the UTC calendar date of the PH-shifted instant.
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 export function generatePONumber(): string {

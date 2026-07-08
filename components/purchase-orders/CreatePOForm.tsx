@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { formatCurrency, generatePONumber } from '@/lib/utils';
+import { formatCurrency, generatePONumber, todayISO } from '@/lib/utils';
 
 interface Product { id: number; sku: string; name: string; cogs: number; }
 interface LineItem { product_id: string; quantity: string; unit_cost: string; productSearch: string; }
@@ -17,7 +17,7 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
   const [poNumber, setPoNumber] = useState(generatePONumber());
   const [supplier, setSupplier] = useState('');
   const [notes, setNotes] = useState('');
-  const [orderedAt, setOrderedAt] = useState(new Date().toISOString().slice(0, 10));
+  const [orderedAt, setOrderedAt] = useState(todayISO());
   const [status, setStatus] = useState('pending');
   const [items, setItems] = useState<LineItem[]>([
     { product_id: '', quantity: '', unit_cost: '', productSearch: '' }

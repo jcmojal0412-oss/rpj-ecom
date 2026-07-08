@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle2, Loader2, Wallet } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import type { Repair } from './ServiceCenterClient';
 import { toLocalISO, weekStart, weekLabel } from './weekUtils';
 
@@ -28,7 +28,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
   const payWeek = async (key: string, items: Repair[]) => {
     setPayingWeek(key);
     try {
-      const today = toLocalISO(new Date());
+      const today = todayISO();
       for (const r of items) {
         await fetch(`/api/service-repairs/${r.id}`, {
           method: 'PUT',

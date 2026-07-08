@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { todayISO } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     const db = getDb();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
 
     // current_qty already includes all movements (inventory is updated on every movement insert).
     // opening_stock = what was on hand at start of today = current - today_in + today_out

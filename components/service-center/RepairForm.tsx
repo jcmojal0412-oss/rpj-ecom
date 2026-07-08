@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import type { Repair } from './ServiceCenterClient';
-import { toLocalISO } from './weekUtils';
 
 interface Props {
   initial?: Repair;
@@ -15,7 +14,7 @@ const SPLIT_BNS = 0.6;
 const SPLIT_GERALD = 0.4;
 
 export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
-  const [repairDate,    setRepairDate]    = useState(initial?.repair_date?.slice(0, 10) ?? toLocalISO(new Date()));
+  const [repairDate,    setRepairDate]    = useState(initial?.repair_date?.slice(0, 10) ?? todayISO());
   const [repairDetails, setRepairDetails] = useState(initial?.repair_details ?? '');
   const [unitModel,     setUnitModel]     = useState(initial?.unit_model ?? '');
   const [csPayment,     setCsPayment]     = useState(initial?.cs_payment ? String(initial.cs_payment) : '');

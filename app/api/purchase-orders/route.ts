@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
+import { todayISO } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
          VALUES (?,?,?,?,?,?,?,?,?)`
       ).run(
         po_number, supplier, total, status ?? 'pending',
-        ordered_at ?? new Date().toISOString().slice(0, 10),
+        ordered_at ?? todayISO(),
         notes ?? '',
         paid_amount ?? 0,
         payment_date ?? null,

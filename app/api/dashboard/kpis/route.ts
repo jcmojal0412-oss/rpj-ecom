@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { todayISO } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     const db = getDb();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
 
     const inventoryValue = (db.prepare(`
       SELECT COALESCE(SUM(i.quantity * p.cogs), 0) as value

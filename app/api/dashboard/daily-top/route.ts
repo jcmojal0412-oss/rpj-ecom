@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { todayISO } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,22 +8,23 @@ export async function GET(req: NextRequest) {
   try {
     const db     = getDb();
     const period = req.nextUrl.searchParams.get('period') ?? 'today';
+    const today  = todayISO();
 
     let dateFilter: string;
     let label: string;
 
     if (period === 'yesterday') {
-      const y = new Date();
-      y.setDate(y.getDate() - 1);
-      dateFilter = `date(sm.moved_at) = '${y.toISOString().slice(0, 10)}'`;
-      label = y.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+      const y = new Date(today + 'T00:00:00Z');
+      y.setUTCDate(y.getUTCDate() - 1);
+      const yStr = y.toISOString().slice(0, 10);
+      dateFilter = `date(sm.moved_at) = '${yStr}'`;
+      label = y.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     } else if (period === '7days') {
       dateFilter = `sm.moved_at >= datetime('now', '-7 days')`;
       label = 'Last 7 Days';
     } else {
-      const today = new Date().toISOString().slice(0, 10);
       dateFilter = `date(sm.moved_at) = '${today}'`;
-      label = new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+      label = new Date(today + 'T00:00:00Z').toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     }
 
     const rows = db.prepare(`

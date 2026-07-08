@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { X, FileImage, CheckCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
 
 export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, currentReceiptPath, onSuccess, onCancel }: Props) {
   const [paidAmount, setPaidAmount]     = useState(currentPaid ? String(currentPaid) : '');
-  const [paymentDate, setPaymentDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate]   = useState(todayISO());
   const [paymentNotes, setPaymentNotes] = useState('');
   const [receiptPath, setReceiptPath]   = useState(currentReceiptPath ?? '');
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);

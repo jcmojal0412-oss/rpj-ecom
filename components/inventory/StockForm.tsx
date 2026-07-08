@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { todayISO } from '@/lib/utils';
 
 interface Product { id: number; sku: string; name: string; }
 
@@ -17,7 +18,7 @@ export default function StockForm({ products, onSuccess }: Props) {
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayISO());
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -45,7 +46,7 @@ export default function StockForm({ products, onSuccess }: Props) {
         }),
       });
       setProductId(''); setQty(''); setNote(''); setSearch('');
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(todayISO());
       onSuccess();
     } finally {
       setSubmitting(false);

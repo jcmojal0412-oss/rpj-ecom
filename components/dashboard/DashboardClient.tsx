@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Package, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Download, Trophy } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import MovingChart from './MovingChart';
 import Spinner from '@/components/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -88,7 +88,7 @@ export default function DashboardClient() {
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `rpj-summary-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `rpj-summary-${todayISO()}.csv`;
     a.click();
   };
 

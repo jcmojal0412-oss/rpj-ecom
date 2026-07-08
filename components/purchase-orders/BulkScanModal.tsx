@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, AlertTriangle, X, Plus, Link } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import { scanReceipt, normalizeDateToISO } from '@/lib/scan-receipt';
 
 interface PO {
@@ -101,7 +101,7 @@ export default function BulkScanModal({
       previewUrl: URL.createObjectURL(file),
       status: 'scanning',
       amount: '',
-      date: new Date().toISOString().slice(0, 10),
+      date: todayISO(),
       notes: '',
       saved: false,
     }));
@@ -112,7 +112,7 @@ export default function BulkScanModal({
       const i = offset + j;
       try {
         const e = await scanReceipt(item.file);
-        const date = normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10);
+        const date = normalizeDateToISO(e.date) || todayISO();
         const notes = e.reference_no ? `Ref: ${e.reference_no}` : '';
 
         // Everything from here to the point we claim/create is synchronous —

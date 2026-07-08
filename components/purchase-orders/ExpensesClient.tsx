@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Camera, Plus, Trash2, AlertCircle, Loader2, CheckCircle2, X, ChevronDown } from 'lucide-react';
@@ -81,7 +81,7 @@ export default function ExpensesClient() {
   const handleFiles = async (files: FileList) => {
     const newItems: ScanItem[] = Array.from(files).map(file => ({
       file, previewUrl: URL.createObjectURL(file),
-      status: 'scanning', date: new Date().toISOString().slice(0, 10),
+      status: 'scanning', date: todayISO(),
       amount: '', description: '', category: 'Others', reference_no: '', bank_from: '', bank_to: '',
       saved: false,
     }));
@@ -94,7 +94,7 @@ export default function ExpensesClient() {
         const e = await scanReceipt(item.file);
         updateItem(i, {
           status: 'done',
-          date:         normalizeDateToISO(e.date) || new Date().toISOString().slice(0, 10),
+          date:         normalizeDateToISO(e.date) || todayISO(),
           amount:       e.amount != null ? String(e.amount) : '',
           description:  e.description || '',
           category:     CATEGORIES.includes(e.category) ? e.category : 'Others',

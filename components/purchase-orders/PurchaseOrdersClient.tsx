@@ -69,7 +69,10 @@ export default function PurchaseOrdersClient() {
   // PO totals summary: Today / Yesterday / This Week / This Month
   const poTotals = (() => {
     const now = new Date();
-    const toISO = (d: Date) => d.toISOString().slice(0, 10);
+    // Local (not UTC) date formatting — .toISOString() shifts to UTC and can
+    // land on the wrong calendar day during PH early morning hours (UTC+8).
+    const toISO = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     const todayStr = toISO(now);
     const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);

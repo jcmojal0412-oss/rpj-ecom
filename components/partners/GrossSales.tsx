@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 
@@ -30,7 +30,7 @@ interface SaleEntry {
 
 export default function GrossSales() {
   const [period, setPeriod]           = useState<DatePeriod>('this_month');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7));
   const [rows, setRows]           = useState<SalesRow[]>([]);
   const [total, setTotal]         = useState(0);
   const [loading, setLoading]     = useState(true);
@@ -259,7 +259,7 @@ function AddSalesForm({ partner, onSuccess, onCancel }: {
 }) {
   const [amount,  setAmount]  = useState('');
   const [label,   setLabel]   = useState('');
-  const [date,    setDate]    = useState(new Date().toISOString().slice(0, 10));
+  const [date,    setDate]    = useState(todayISO());
   const [notes,   setNotes]   = useState('');
   const [saving,  setSaving]  = useState(false);
 

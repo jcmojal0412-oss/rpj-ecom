@@ -6,7 +6,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from './PartnerForm';
 import Spinner from '@/components/ui/Spinner';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayISO } from '@/lib/utils';
 
 export interface Partner {
   id: number; name: string; contact: string | null; schedule: string | null;
@@ -85,7 +85,7 @@ export default function PartnersClient() {
   const [search, setSearch]       = useState('');
   const [filter, setFilter]       = useState('ALL');
   const [datePeriod, setDatePeriod]     = useState<DatePeriod>('lifetime');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7)); // YYYY-MM
   const [showAdd, setShowAdd]   = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
