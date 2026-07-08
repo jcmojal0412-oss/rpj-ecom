@@ -8,6 +8,16 @@ import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
 
+function toLocalISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
+type DatePreset = typeof DATE_PRESETS[number];
+
 export interface Repair {
   id: number; repair_date: string; repair_details: string | null; unit_model: string | null;
   cs_payment: number; cogs: number; labor_amount: number;
@@ -29,6 +39,7 @@ export default function ServiceCenterClient() {
   const [editing, setEditing]   = useState<Repair | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo]     = useState('');
+  const [activePreset, setActivePreset] = useState<DatePreset | null>(null);
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const { toast, showToast, clearToast } = useToast();
@@ -51,6 +62,29 @@ export default function ServiceCenterClient() {
   });
 
   useEffect(() => { setPage(1); }, [dateFrom, dateTo, pageSize]);
+
+  const applyPreset = (preset: DatePreset) => {
+    const now = new Date();
+    const today = toLocalISO(now);
+    if (preset === 'Today') {
+      setDateFrom(today); setDateTo(today);
+    } else if (preset === 'Yesterday') {
+      const y = new Date(now); y.setDate(now.getDate() - 1);
+      const ys = toLocalISO(y);
+      setDateFrom(ys); setDateTo(ys);
+    } else if (preset === 'Last 7 Days') {
+      const from = new Date(now); from.setDate(now.getDate() - 6);
+      setDateFrom(toLocalISO(from)); setDateTo(today);
+    } else if (preset === 'This Month') {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      setDateFrom(toLocalISO(from)); setDateTo(today);
+    } else if (preset === 'Last Month') {
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const to   = new Date(now.getFullYear(), now.getMonth(), 0);
+      setDateFrom(toLocalISO(from)); setDateTo(toLocalISO(to));
+    }
+    setActivePreset(preset);
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -118,13 +152,28 @@ export default function ServiceCenterClient() {
       {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-gray-500 font-medium">Filter by date:</span>
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+          {DATE_PRESETS.map(p => (
+            <button
+              key={p}
+              onClick={() => applyPreset(p)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                activePreset === p
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
         <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateFrom}
-          onChange={e => setDateFrom(e.target.value)} />
+          onChange={e => { setDateFrom(e.target.value); setActivePreset(null); }} />
         <span className="text-gray-400 text-sm">—</span>
         <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateTo}
-          onChange={e => setDateTo(e.target.value)} />
+          onChange={e => { setDateTo(e.target.value); setActivePreset(null); }} />
         {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+          <button onClick={() => { setDateFrom(''); setDateTo(''); setActivePreset(null); }}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium">
             Clear
           </button>
