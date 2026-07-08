@@ -100,7 +100,7 @@ export default function ServiceCenterClient() {
   const statusBadge = (s: string) =>
     s === 'CUSTOMER PAID' ? <span className="badge-green">Customer Paid</span> : <span className="badge-amber">Ongoing</span>;
 
-  const HEADERS = ['Date', 'Repair Details', 'Unit/Model', 'CS Payment', 'COGS', 'Labor', 'BNS', 'Gerald', 'DP', 'Status', 'Tech Paid', 'Actions'];
+  const HEADERS = ['Date', 'Repair Details', 'Unit/Model', 'CS Payment', 'COGS', 'Labor', 'BNS', 'Technician', 'DP', 'Status', 'Tech Paid', 'Actions'];
 
   return (
     <div className="p-6 space-y-6">
@@ -136,7 +136,7 @@ export default function ServiceCenterClient() {
           <div className="card flex items-center gap-4">
             <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
             <div>
-              <p className="text-xs text-gray-500 font-medium">BNS / Gerald Share</p>
+              <p className="text-xs text-gray-500 font-medium">BNS / Technician Share</p>
               <p className="text-lg font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)} / {formatCurrency(totals.total_gerald)}</p>
             </div>
           </div>

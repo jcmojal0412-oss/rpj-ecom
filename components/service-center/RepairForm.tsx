@@ -95,7 +95,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
             <span className="font-bold text-blue-700">{hasValues ? formatCurrency(bns) : '—'}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-amber-600">Gerald Share (40%)</span>
+            <span className="text-amber-600">Technician Share (40%)</span>
             <span className="font-bold text-amber-700">{hasValues ? formatCurrency(gerald) : '—'}</span>
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
             onChange={e => setPaidToTech(e.target.checked)}
             className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400"
           />
-          <label htmlFor="paidToTech" className="text-sm font-medium text-gray-700 flex-1">Paid to Tech (Gerald)</label>
+          <label htmlFor="paidToTech" className="text-sm font-medium text-gray-700 flex-1">Paid to Technician</label>
           {paidToTech && (
             <input type="date" className="form-input py-1.5 text-sm w-auto" value={techPaidDate}
               onChange={e => setTechPaidDate(e.target.value)} />

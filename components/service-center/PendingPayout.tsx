@@ -76,7 +76,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
           <Wallet className="text-amber-500" size={20} />
           <h2 className="text-base font-semibold text-gray-900">Pending Payout to Tech</h2>
         </div>
-        <p className="text-sm text-gray-400 py-4">Nothing pending — all customer-paid jobs are settled with Gerald.</p>
+        <p className="text-sm text-gray-400 py-4">Nothing pending — all customer-paid jobs are settled with the technician.</p>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
         <Wallet className="text-amber-500" size={20} />
         <div>
           <h2 className="text-base font-semibold text-gray-900">Pending Payout to Tech</h2>
-          <p className="text-xs text-gray-400">Customer-paid jobs not yet settled with Gerald — cutoff Monday to Sunday</p>
+          <p className="text-xs text-gray-400">Customer-paid jobs not yet settled with the technician — cutoff Monday to Sunday</p>
         </div>
       </div>
 
