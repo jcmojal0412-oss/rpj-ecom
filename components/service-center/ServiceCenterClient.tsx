@@ -8,13 +8,8 @@ import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
 import PendingPayout from './PendingPayout';
-
-function toLocalISO(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import LateCustomerPayments from './LateCustomerPayments';
+import { toLocalISO } from './weekUtils';
 
 const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
 type DatePreset = typeof DATE_PRESETS[number];
@@ -149,6 +144,8 @@ export default function ServiceCenterClient() {
           </div>
         </div>
       )}
+
+      <LateCustomerPayments repairs={repairs} onSettled={fetchData} />
 
       <PendingPayout repairs={repairs} onPaid={fetchData} />
 
