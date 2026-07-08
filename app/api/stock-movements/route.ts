@@ -44,9 +44,17 @@ export async function POST(req: NextRequest) {
       db.prepare(
         'INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?,?,?,?,?)'
       ).run(product_id, type, quantity, note ?? '', moved_at ?? new Date().toISOString());
-      db.prepare(
-        `UPDATE inventory SET quantity = quantity + ?, last_updated = datetime('now') WHERE product_id = ?`
-      ).run(delta, product_id);
+      // Upsert: a plain UPDATE silently affects zero rows if a product is
+      // somehow missing its inventory row, logging the movement but never
+      // creating the actual stock count. INSERT..ON CONFLICT guarantees the
+      // row exists either way.
+      db.prepare(`
+        INSERT INTO inventory (product_id, quantity, last_updated)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(product_id) DO UPDATE SET
+          quantity = quantity + excluded.quantity,
+          last_updated = datetime('now')
+      `).run(product_id, delta);
     });
 
     return NextResponse.json({ ok: true }, { status: 201 });
