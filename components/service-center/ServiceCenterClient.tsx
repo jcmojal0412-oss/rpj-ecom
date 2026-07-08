@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Wrench, Banknote, PiggyBank, Users2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wrench, Banknote, PiggyBank, Users2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -29,6 +29,8 @@ export default function ServiceCenterClient() {
   const [editing, setEditing]   = useState<Repair | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo]     = useState('');
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchData = useCallback(async () => {
@@ -47,6 +49,11 @@ export default function ServiceCenterClient() {
     if (dateTo   && d > dateTo)   return false;
     return true;
   });
+
+  useEffect(() => { setPage(1); }, [dateFrom, dateTo, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleDelete = async (r: Repair) => {
     if (!confirm(`Delete repair entry "${r.repair_details ?? r.unit_model}"? This cannot be undone.`)) return;
@@ -125,6 +132,16 @@ export default function ServiceCenterClient() {
         {(dateFrom || dateTo) && (
           <span className="text-xs text-gray-400">{filtered.length} of {repairs.length} entries</span>
         )}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-gray-500 font-medium">Per page:</span>
+          <select
+            className="form-input py-1.5 text-sm w-auto"
+            value={pageSize}
+            onChange={e => setPageSize(Number(e.target.value))}
+          >
+            {[5, 8, 10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="card">
@@ -147,7 +164,7 @@ export default function ServiceCenterClient() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => (
+                {paged.map((r, i) => (
                   <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="table-cell text-gray-500 whitespace-nowrap">{r.repair_date ? formatDate(r.repair_date) : '—'}</td>
                     <td className="table-cell font-medium">{r.repair_details || '—'}</td>
@@ -178,6 +195,25 @@ export default function ServiceCenterClient() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+            <span className="text-xs text-gray-500">
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm px-2">{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         )}
       </div>
