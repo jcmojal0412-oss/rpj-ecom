@@ -24,6 +24,8 @@ export default function InventoryClient() {
   const [loading, setLoading] = useState(true);
   const [editingReorder, setEditingReorder] = useState<number | null>(null);
   const [reorderVal, setReorderVal] = useState('');
+  const [editingStock, setEditingStock] = useState<number | null>(null);
+  const [stockVal, setStockVal] = useState('');
   const { toast, showToast, clearToast } = useToast();
 
   const fetchInventory = useCallback(async () => {
@@ -56,6 +58,19 @@ export default function InventoryClient() {
     });
     setEditingReorder(null);
     showToast('Reorder point updated');
+    fetchInventory();
+  };
+
+  const saveStock = async (id: number) => {
+    const quantity = parseInt(stockVal);
+    if (isNaN(quantity) || quantity < 0) return;
+    await fetch('/api/inventory', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: id, quantity }),
+    });
+    setEditingStock(null);
+    showToast('Stock updated');
     fetchInventory();
   };
 
@@ -119,7 +134,22 @@ export default function InventoryClient() {
                       <td className="table-cell text-gray-500">{item.category}</td>
                       <td className="table-cell">{formatCurrency(item.cogs)}</td>
                       <td className="table-cell">{formatCurrency(item.srp)}</td>
-                      <td className="table-cell font-semibold text-right">{item.quantity}</td>
+                      <td className="table-cell text-right">
+                        {editingStock === item.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              className="w-20 form-input py-1 text-xs"
+                              value={stockVal}
+                              onChange={e => setStockVal(e.target.value)}
+                              autoFocus
+                            />
+                            <button onClick={() => saveStock(item.id)} className="text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
+                            <button onClick={() => setEditingStock(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                          </div>
+                        ) : <span className="font-semibold">{item.quantity}</span>}
+                      </td>
                       <td className="table-cell text-right">
                         {editingReorder === item.id ? (
                           <div className="flex items-center gap-1">
@@ -137,12 +167,20 @@ export default function InventoryClient() {
                       </td>
                       <td className="table-cell">{statusBadge(item.quantity, item.reorder_point)}</td>
                       <td className="table-cell">
-                        <button
-                          onClick={() => { setEditingReorder(item.id); setReorderVal(String(item.reorder_point)); }}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Edit Reorder
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setEditingStock(item.id); setStockVal(String(item.quantity)); }}
+                            className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+                          >
+                            Edit Stock
+                          </button>
+                          <button
+                            onClick={() => { setEditingReorder(item.id); setReorderVal(String(item.reorder_point)); }}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Edit Reorder
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
