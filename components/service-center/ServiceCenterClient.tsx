@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Eye, Trash2, Wrench, Banknote, PiggyBank, Users2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wrench, Banknote, PiggyBank, Users2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -142,7 +142,8 @@ export default function ServiceCenterClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {HEADERS.map(h => <th key={h} className="table-header">{h}</th>)}
+                  {HEADERS.slice(0, -1).map(h => <th key={h} className="table-header">{h}</th>)}
+                  <th className="table-header sticky right-0 bg-white">{HEADERS[HEADERS.length - 1]}</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,11 +162,11 @@ export default function ServiceCenterClient() {
                     <td className="table-cell">
                       {r.paid_to_tech ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}
                     </td>
-                    <td className="table-cell">
+                    <td className={`table-cell sticky right-0 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                       <div className="flex items-center gap-1">
                         <button onClick={() => { setEditing(r); setShowForm(true); }}
                           className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
-                          <Eye size={15} />
+                          <Pencil size={15} />
                         </button>
                         <button onClick={() => handleDelete(r)}
                           className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete">
