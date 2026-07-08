@@ -29,6 +29,8 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [webcakeWarehouse,  setWebcakeWarehouse]  = useState(!!initial?.webcake_warehouse);
   const [addToWarehouse,    setAddToWarehouse]    = useState(!!initial?.add_to_warehouse);
   const [gsheetMonitoring,  setGsheetMonitoring]  = useState(!!initial?.gsheet_monitoring);
+  const [doneBotcake,      setDoneBotcake]      = useState(!!initial?.done_botcake);
+  const [doneWebcake,      setDoneWebcake]      = useState(!!initial?.done_webcake);
   const [status,            setStatus]            = useState<ResearchStatus>(initial?.status ?? defaultStatus ?? 'For Research');
   const [shippingFee,      setShippingFee]      = useState(initial?.shipping_fee ? String(initial.shipping_fee) : '');
   const [adsCost,          setAdsCost]          = useState(initial?.ads_cost ? String(initial.ads_cost) : '');
@@ -70,6 +72,8 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
       webcake_warehouse: webcakeWarehouse,
       add_to_warehouse:  addToWarehouse,
       gsheet_monitoring: gsheetMonitoring,
+      done_botcake:      doneBotcake,
+      done_webcake:      doneWebcake,
       status,
     };
     try {
@@ -232,6 +236,8 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
               { id: 'webcakeWarehouse', label: 'Change Webcake Warehouse',   checked: webcakeWarehouse, onChange: setWebcakeWarehouse },
               { id: 'addToWarehouse',   label: 'Add to Warehouse',           checked: addToWarehouse,   onChange: setAddToWarehouse },
               { id: 'gsheetMonitor',    label: 'Add to GSheet Monitoring',   checked: gsheetMonitoring, onChange: setGsheetMonitoring },
+              { id: 'doneBotcake',      label: 'Done Botcake',               checked: doneBotcake,      onChange: setDoneBotcake },
+              { id: 'doneWebcake',      label: 'Done Webcake',               checked: doneWebcake,      onChange: setDoneWebcake },
             ].map(item => (
               <div key={item.id} className="flex items-center gap-3">
                 <input
