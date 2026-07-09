@@ -9,7 +9,8 @@ import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
 import PendingPayout from './PendingPayout';
 import LateCustomerPayments from './LateCustomerPayments';
-import { toLocalISO, weekStart } from './weekUtils';
+import { toLocalISO, weekStart, weekLabel } from './weekUtils';
+import { todayISO } from '@/lib/utils';
 
 const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
 type DatePreset = typeof DATE_PRESETS[number];
@@ -33,6 +34,7 @@ export default function ServiceCenterClient() {
   const [dateTo, setDateTo]     = useState('');
   const [activePreset, setActivePreset] = useState<DatePreset | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('Weekly');
+  const [summaryAnchor, setSummaryAnchor] = useState(todayISO());
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const { toast, showToast, clearToast } = useToast();
@@ -46,19 +48,36 @@ export default function ServiceCenterClient() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const anchor = new Date(summaryAnchor + 'T00:00:00');
+
   const summaryRange = (() => {
-    const now = new Date();
-    const today = toLocalISO(now);
-    if (summaryPeriod === 'Daily') return { from: today, to: today };
+    if (summaryPeriod === 'Daily') return { from: summaryAnchor, to: summaryAnchor };
     if (summaryPeriod === 'Weekly') {
-      const monday = weekStart(today);
+      const monday = weekStart(summaryAnchor);
       const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
       return { from: toLocalISO(monday), to: toLocalISO(sunday) };
     }
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const to   = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
     return { from: toLocalISO(from), to: toLocalISO(to) };
   })();
+
+  const summaryLabel = (() => {
+    if (summaryPeriod === 'Daily') return formatDate(summaryAnchor);
+    if (summaryPeriod === 'Weekly') return weekLabel(weekStart(summaryAnchor));
+    return anchor.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+  })();
+
+  const isCurrentPeriod = summaryAnchor === todayISO() ||
+    (summaryPeriod !== 'Daily' && summaryRange.from <= todayISO() && todayISO() <= summaryRange.to);
+
+  const shiftSummaryPeriod = (dir: 1 | -1) => {
+    const d = new Date(summaryAnchor + 'T00:00:00');
+    if (summaryPeriod === 'Daily') d.setDate(d.getDate() + dir);
+    else if (summaryPeriod === 'Weekly') d.setDate(d.getDate() + dir * 7);
+    else d.setMonth(d.getMonth() + dir);
+    setSummaryAnchor(toLocalISO(d));
+  };
 
   const summaryRepairs = repairs.filter(r => {
     const d = r.repair_date ? r.repair_date.slice(0, 10) : '';
@@ -142,7 +161,7 @@ export default function ServiceCenterClient() {
           {SUMMARY_PERIODS.map(p => (
             <button
               key={p}
-              onClick={() => setSummaryPeriod(p)}
+              onClick={() => { setSummaryPeriod(p); setSummaryAnchor(todayISO()); }}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 summaryPeriod === p
                   ? 'bg-orange-500 text-white shadow-sm'
@@ -153,6 +172,33 @@ export default function ServiceCenterClient() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Period navigation */}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-sm font-semibold text-gray-800 min-w-[180px] text-center">{summaryLabel}</span>
+        <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+          <ChevronRight size={16} />
+        </button>
+        {!isCurrentPeriod && (
+          <button
+            onClick={() => setSummaryAnchor(todayISO())}
+            className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+          >
+            Back to Today
+          </button>
+        )}
+        {summaryPeriod === 'Monthly' && (
+          <input
+            type="month"
+            className="form-input py-1 text-xs w-auto ml-2"
+            value={summaryAnchor.slice(0, 7)}
+            onChange={e => setSummaryAnchor(`${e.target.value}-01`)}
+          />
+        )}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="card flex items-center gap-4">
