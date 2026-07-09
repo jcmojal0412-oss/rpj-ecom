@@ -175,14 +175,31 @@ export default function ServiceCenterClient() {
       </div>
 
       {/* Period navigation */}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+      <div className="flex items-center justify-center flex-wrap gap-3">
+        <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
           <ChevronLeft size={16} />
         </button>
-        <span className="text-sm font-semibold text-gray-800 min-w-[180px] text-center">{summaryLabel}</span>
-        <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+        <span className="text-sm font-semibold text-gray-800 text-center">{summaryLabel}</span>
+        <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
           <ChevronRight size={16} />
         </button>
+
+        {summaryPeriod === 'Monthly' ? (
+          <input
+            type="month"
+            className="form-input py-1.5 text-sm w-auto"
+            value={summaryAnchor.slice(0, 7)}
+            onChange={e => e.target.value && setSummaryAnchor(`${e.target.value}-01`)}
+          />
+        ) : (
+          <input
+            type="date"
+            className="form-input py-1.5 text-sm w-auto"
+            value={summaryAnchor}
+            onChange={e => e.target.value && setSummaryAnchor(e.target.value)}
+          />
+        )}
+
         {!isCurrentPeriod && (
           <button
             onClick={() => setSummaryAnchor(todayISO())}
@@ -190,14 +207,6 @@ export default function ServiceCenterClient() {
           >
             Back to Today
           </button>
-        )}
-        {summaryPeriod === 'Monthly' && (
-          <input
-            type="month"
-            className="form-input py-1 text-xs w-auto ml-2"
-            value={summaryAnchor.slice(0, 7)}
-            onChange={e => setSummaryAnchor(`${e.target.value}-01`)}
-          />
         )}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
