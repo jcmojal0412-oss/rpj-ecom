@@ -71,8 +71,8 @@ export async function middleware(request: NextRequest) {
     PUBLIC.some(p => pathname.startsWith(p)) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
-    pathname === '/logo.png' ||
-    pathname === '/favicon.ico'
+    pathname === '/favicon.ico' ||
+    /\.(png|jpg|jpeg|svg|webp|gif|ico)$/i.test(pathname) // static images at the root (logos, etc.)
   ) {
     return NextResponse.next();
   }

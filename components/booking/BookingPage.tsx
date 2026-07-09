@@ -113,9 +113,7 @@ export default function BookingPage() {
 
   const Sidebar = () => (
     <div className="w-full md:w-64 shrink-0 p-6 md:border-r border-gray-100 space-y-4">
-      <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center overflow-hidden">
-        <Image src="/logo.png" alt="SEDO" width={40} height={40} className="object-contain" priority />
-      </div>
+      <Image src="/sedo-logo.png" alt="SEDO" width={160} height={160} className="object-contain -my-6" priority />
       <div>
         <p className="text-xs font-medium text-gray-400">SEDO Official</p>
         <h1 className="text-lg font-bold text-gray-900 mt-0.5">SEDO Discovery Call</h1>
