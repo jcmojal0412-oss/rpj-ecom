@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const SESSION_COOKIE = 'rpj_session';
 const APP_SECRET = 'rpj-corp-ecom-2026-local'; // must match lib/auth-helpers.ts
 
-const PUBLIC = ['/login', '/api/auth/login'];
+const PUBLIC = ['/login', '/api/auth/login', '/book', '/api/public'];
 
 // Route → required module permission
 const ROUTE_MODULES: [string, string][] = [
@@ -20,6 +20,7 @@ const ROUTE_MODULES: [string, string][] = [
   ['/service-center',   'service_center'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
 ['/settings',         '_owner'], // owner-only flag
+['/api/settings',     '_owner'], // owner-only flag
 ];
 
 // Always returns a Uint8Array backed by a real ArrayBuffer (never SharedArrayBuffer),

@@ -236,6 +236,33 @@ function migrateSchema() {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Public discovery-call booking page — weekly availability schedule
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS booking_availability (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      day_of_week INTEGER UNIQUE NOT NULL, -- 0=Sun..6=Sat
+      start_time TEXT NOT NULL,            -- "09:00"
+      end_time TEXT NOT NULL,              -- "17:00"
+      enabled INTEGER DEFAULT 1
+    );
+  `);
+  seedBookingAvailabilityIfEmpty();
+}
+
+function seedBookingAvailabilityIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM booking_availability').get() as { c: number }).c;
+  if (count > 0) return;
+  const insert = db.prepare(
+    'INSERT INTO booking_availability (day_of_week, start_time, end_time, enabled) VALUES (?,?,?,?)'
+  );
+  // Default: Mon(1)-Fri(5) 9am-5pm enabled, Sat/Sun disabled
+  for (let dow = 0; dow <= 6; dow++) {
+    const enabled = dow >= 1 && dow <= 5 ? 1 : 0;
+    insert.run(dow, '09:00', '17:00', enabled);
+  }
+  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('booking_duration_minutes', '60')").run();
+  db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('booking_min_notice_hours', '2')").run();
 }
 
 function seedStatusesIfEmpty() {

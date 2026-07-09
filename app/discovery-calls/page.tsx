@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Calendar } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Calendar, Settings } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from '@/components/partners/PartnerForm';
 import Spinner from '@/components/ui/Spinner';
+import AvailabilitySettings from '@/components/booking/AvailabilitySettings';
 import type { Partner } from '@/components/partners/PartnersClient';
 
 const STATUS_FILTERS = ['ALL', 'DONE', 'PENDING', 'NO SHOW'];
@@ -23,6 +24,7 @@ export default function DiscoveryCallsPage() {
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('ALL');
   const [showAdd, setShowAdd]   = useState(false);
+  const [showAvailability, setShowAvailability] = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
   const { toast, showToast, clearToast } = useToast();
@@ -65,9 +67,14 @@ export default function DiscoveryCallsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Discovery Calls</h1>
           <p className="text-sm text-gray-500 mt-1">Prospects and scheduled discovery calls</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">
-          <Plus size={16} /> Add Lead
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAvailability(true)} className="btn-secondary">
+            <Settings size={16} /> Booking Availability
+          </button>
+          <button onClick={() => setShowAdd(true)} className="btn-primary">
+            <Plus size={16} /> Add Lead
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -175,6 +182,11 @@ export default function DiscoveryCallsPage() {
           </table>
         )}
       </div>
+
+      {/* Availability Settings Modal */}
+      <Modal open={showAvailability} onClose={() => setShowAvailability(false)} title="Booking Availability" size="lg">
+        <AvailabilitySettings onClose={() => setShowAvailability(false)} />
+      </Modal>
 
       {/* Add Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Lead" size="lg">
