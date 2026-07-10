@@ -248,6 +248,11 @@ function migrateSchema() {
     );
   `);
   seedBookingAvailabilityIfEmpty();
+
+  // Booking reminder tracking (24h-before and 1h-before emails)
+  const partnerCols2 = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
+  if (!partnerCols2.includes('reminder_24h_sent')) db.exec('ALTER TABLE partners ADD COLUMN reminder_24h_sent INTEGER DEFAULT 0');
+  if (!partnerCols2.includes('reminder_1h_sent'))  db.exec('ALTER TABLE partners ADD COLUMN reminder_1h_sent INTEGER DEFAULT 0');
 }
 
 function seedBookingAvailabilityIfEmpty() {
