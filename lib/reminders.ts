@@ -1,38 +1,6 @@
 import { getDb } from './db';
 import { sendEmail } from './email';
-
-function formatDateLabel(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
-}
-
-function formatTimeLabel(time: string) {
-  const [h, m] = time.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-}
-
-function reminderEmailHtml(name: string, date: string, time: string, zoomLink: string, headline: string) {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1f2937;">
-      <div style="text-align: center; padding: 24px 0;">
-        <h1 style="font-size: 18px; margin: 0;">SEDO Discovery Call</h1>
-      </div>
-      <div style="background: #f9fafb; border-radius: 12px; padding: 24px;">
-        <p style="margin: 0 0 12px; font-weight: bold; color: #f97316;">${headline}</p>
-        <p style="margin: 0 0 12px;">Hi ${name},</p>
-        <p style="margin: 0 0 4px;"><strong>Date:</strong> ${formatDateLabel(date)}</p>
-        <p style="margin: 0 0 16px;"><strong>Time:</strong> ${formatTimeLabel(time)} (Philippines Time, GMT+8)</p>
-        ${zoomLink
-          ? `<a href="${zoomLink}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: bold;">Join Zoom Meeting</a>`
-          : `<p style="margin: 0; color: #6b7280;">We'll send the meeting link separately before the call.</p>`}
-        <p style="margin: 20px 0 0; font-size: 13px; color: #6b7280;">See you then!</p>
-      </div>
-    </div>
-  `;
-}
+import { discoveryCallEmailHtml } from './email-templates';
 
 interface Booking {
   id: number;
@@ -77,7 +45,16 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
     const diffHours = (meetingMs - now) / 3_600_000;
 
     if (!b.reminder_24h_sent && diffHours <= 24 && diffHours > 23) {
-      const html = reminderEmailHtml(b.name, date, timeHHMM, zoomLink, "Reminder: your call is tomorrow!");
+      const html = discoveryCallEmailHtml({
+        name: b.name,
+        date,
+        time: timeHHMM,
+        zoomLink,
+        badgeText: '&#8987; REMINDER: TOMORROW',
+        headline: 'Your SEDO Discovery Call is Tomorrow!',
+        subtext: "your discovery call is coming up tomorrow — we can't wait to meet you.",
+        activeStep: 'call',
+      });
       const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call is Tomorrow', html);
       if (result.sent) {
         db.prepare('UPDATE partners SET reminder_24h_sent=1 WHERE id=?').run(b.id);
@@ -86,7 +63,16 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
     }
 
     if (!b.reminder_1h_sent && diffHours <= 1 && diffHours > 0.5) {
-      const html = reminderEmailHtml(b.name, date, timeHHMM, zoomLink, "Reminder: your call starts in 1 hour!");
+      const html = discoveryCallEmailHtml({
+        name: b.name,
+        date,
+        time: timeHHMM,
+        zoomLink,
+        badgeText: '&#128308; STARTING SOON',
+        headline: 'Your SEDO Discovery Call Starts in 1 Hour!',
+        subtext: 'your discovery call starts soon — grab your questions and get ready to join.',
+        activeStep: 'call',
+      });
       const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call Starts Soon', html);
       if (result.sent) {
         db.prepare('UPDATE partners SET reminder_1h_sent=1 WHERE id=?').run(b.id);
