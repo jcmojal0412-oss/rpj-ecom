@@ -46,6 +46,7 @@ export default function BookingPage() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [confirmedZoomLink, setConfirmedZoomLink] = useState('');
 
   const fetchMonth = useCallback((y: number, m: number) => {
     setLoadingMonth(true);
@@ -99,6 +100,7 @@ export default function BookingPage() {
         }
         return;
       }
+      setConfirmedZoomLink(data.zoomLink || '');
       setView('confirmed');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -147,6 +149,12 @@ export default function BookingPage() {
               <p className="text-sm text-gray-600">
                 {selectedDate && formatDateLabel(selectedDate)} at {selectedSlot && formatSlotLabel(selectedSlot, use24h)}
               </p>
+              {confirmedZoomLink && (
+                <a href={confirmedZoomLink} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors">
+                  <Video size={15} /> Join Zoom Meeting
+                </a>
+              )}
               <p className="text-xs text-gray-400 mt-2">We'll reach out to {email} to confirm the meeting details.</p>
             </div>
           ) : view === 'form' ? (

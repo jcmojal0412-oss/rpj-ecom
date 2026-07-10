@@ -34,7 +34,9 @@ export async function POST(req: NextRequest) {
       bookingId = Number(info.lastInsertRowid);
     });
 
-    return NextResponse.json({ id: bookingId, schedule }, { status: 201 });
+    const zoomLink = (db.prepare("SELECT value FROM app_settings WHERE key='zoom_link'").get() as { value: string } | undefined)?.value ?? '';
+
+    return NextResponse.json({ id: bookingId, schedule, zoomLink }, { status: 201 });
   } catch (e: any) {
     if (e.message === 'SLOT_TAKEN') {
       return NextResponse.json({ error: 'That time slot was just booked by someone else. Please pick another.' }, { status: 409 });

@@ -16,6 +16,7 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
   const [days, setDays] = useState<DayRow[]>([]);
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [minNoticeHours, setMinNoticeHours] = useState(2);
+  const [zoomLink, setZoomLink] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -26,6 +27,7 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
       setDays(d.days ?? []);
       setDurationMinutes(d.durationMinutes ?? 60);
       setMinNoticeHours(d.minNoticeHours ?? 2);
+      setZoomLink(d.zoomLink ?? '');
       setLoading(false);
     });
   }, []);
@@ -40,7 +42,7 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
       await fetch('/api/settings/availability', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days, durationMinutes, minNoticeHours }),
+        body: JSON.stringify({ days, durationMinutes, minNoticeHours, zoomLink }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -72,6 +74,13 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied ? 'Copied' : 'Copy'}
         </button>
+      </div>
+
+      <div>
+        <label className="form-label">Zoom Meeting Link</label>
+        <input type="url" className="form-input" placeholder="https://zoom.us/j/..."
+          value={zoomLink} onChange={e => setZoomLink(e.target.value)} />
+        <p className="text-xs text-gray-400 mt-1">Shown to the customer right after they book.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
