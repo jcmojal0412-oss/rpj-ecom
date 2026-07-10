@@ -3,10 +3,16 @@ import { exchangeCodeForTokens, saveGoogleCalendarConnection } from '@/lib/googl
 
 export const dynamic = 'force-dynamic';
 
+// Railway's internal request URL reports the container's local address
+// (e.g. http://localhost:8080), not the public domain — building redirects
+// from req.url sends the browser to an unreachable address. Use the known
+// public site origin instead (same fallback as GOOGLE_REDIRECT_URI).
+const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://rpjcorp.com';
+
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
   const error = req.nextUrl.searchParams.get('error');
-  const redirectTo = new URL('/sedo-bookings', req.url);
+  const redirectTo = new URL('/sedo-bookings', SITE_ORIGIN);
 
   if (error || !code) {
     redirectTo.searchParams.set('gcal', 'error');
