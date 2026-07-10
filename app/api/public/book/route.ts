@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
-import { discoveryCallEmailHtml } from '@/lib/email-templates';
+import { discoveryCallEmailHtml, bookingNotificationEmailHtml } from '@/lib/email-templates';
+import { createCalendarEvent } from '@/lib/google-calendar';
 
 export const dynamic = 'force-dynamic';
+
+const NOTIFICATION_EMAIL = 'sedo.officialph@gmail.com';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,8 +33,12 @@ export async function POST(req: NextRequest) {
     });
 
     const zoomLink = (db.prepare("SELECT value FROM app_settings WHERE key='zoom_link'").get() as { value: string } | undefined)?.value ?? '';
+    const durationMinutes = parseInt(
+      (db.prepare("SELECT value FROM app_settings WHERE key='booking_duration_minutes'").get() as { value: string } | undefined)?.value ?? '60',
+      10
+    );
 
-    // Fire-and-forget — don't block the booking confirmation on email delivery.
+    // Fire-and-forget — don't block the booking confirmation on email/calendar delivery.
     sendEmail(
       email.trim(),
       'Your SEDO Discovery Call is Confirmed',
@@ -46,6 +53,34 @@ export async function POST(req: NextRequest) {
         activeStep: 'booking',
       })
     ).catch(() => {});
+
+    sendEmail(
+      NOTIFICATION_EMAIL,
+      `New Discovery Call Booking — ${name.trim()}`,
+      bookingNotificationEmailHtml({
+        name: name.trim(),
+        email: email.trim(),
+        contact: contact?.trim() || '',
+        date,
+        time,
+        notes: notes?.trim() || '',
+      })
+    ).catch(() => {});
+
+    createCalendarEvent({
+      date,
+      time,
+      durationMinutes,
+      summary: `SEDO Discovery Call — ${name.trim()}`,
+      description: [
+        `Customer: ${name.trim()}`,
+        `Email: ${email.trim()}`,
+        contact?.trim() ? `Mobile: ${contact.trim()}` : null,
+        notes?.trim() ? `Notes: ${notes.trim()}` : null,
+        zoomLink ? `Zoom: ${zoomLink}` : null,
+      ].filter(Boolean).join('\n'),
+      zoomLink,
+    }).catch(() => {});
 
     return NextResponse.json({ id: bookingId, schedule, zoomLink }, { status: 201 });
   } catch (e: any) {

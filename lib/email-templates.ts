@@ -14,6 +14,17 @@ export function formatTimeLabel(time: string) {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
+// These templates interpolate values submitted through the public booking
+// form, so escape before embedding in HTML.
+export function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 interface DiscoveryCallEmailOptions {
   name: string;
   date: string;
@@ -36,7 +47,8 @@ function stepStyle(step: 'booking' | 'call' | 'launch', active: 'booking' | 'cal
 }
 
 export function discoveryCallEmailHtml(opts: DiscoveryCallEmailOptions) {
-  const { name, date, time, zoomLink, badgeText, headline, subtext, activeStep } = opts;
+  const { name: rawName, date, time, zoomLink, badgeText, headline, subtext, activeStep } = opts;
+  const name = escapeHtml(rawName);
   const dateLabel = formatDateLabel(date);
   const timeLabel = formatTimeLabel(time);
   const logoUrl = 'https://rpjcorp.com/sedo-logo.png';
@@ -223,6 +235,75 @@ export function discoveryCallEmailHtml(opts: DiscoveryCallEmailOptions) {
             </td>
           </tr>
 
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+interface BookingNotificationOptions {
+  name: string;
+  email: string;
+  contact: string;
+  date: string;
+  time: string;
+  notes: string;
+}
+
+// Internal notification sent to the SEDO team whenever a new discovery call
+// is booked — separate from the customer-facing confirmation email.
+export function bookingNotificationEmailHtml(opts: BookingNotificationOptions) {
+  const name = escapeHtml(opts.name);
+  const email = escapeHtml(opts.email);
+  const contact = escapeHtml(opts.contact);
+  const notes = escapeHtml(opts.notes);
+  const dateLabel = formatDateLabel(opts.date);
+  const timeLabel = formatTimeLabel(opts.time);
+
+  const rows = [
+    ['Name', name],
+    ['Email', email],
+    ['Mobile', contact || '—'],
+    ['Date', dateLabel],
+    ['Time', `${timeLabel} (Philippines Time, GMT+8)`],
+  ];
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Discovery Call Booking</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9; padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px; max-width:560px; background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(0,87,184,0.08);">
+          <tr>
+            <td style="background-color:#0057B8; padding:24px 32px;">
+              <p style="margin:0; color:#cfe0f7; font-size:12px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;">New Booking</p>
+              <h1 style="margin:6px 0 0; color:#ffffff; font-size:20px; font-weight:700;">SEDO Discovery Call</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${rows.map(([label, value]) => `
+                <tr>
+                  <td style="padding:8px 0; font-size:12px; color:#8a94a6; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; vertical-align:top; width:100px;">${label}</td>
+                  <td style="padding:8px 0; font-size:14px; color:#1f2937; font-weight:600;">${value}</td>
+                </tr>`).join('')}
+              </table>
+              ${notes ? `
+              <div style="margin-top:16px; padding-top:16px; border-top:1px solid #eef1f6;">
+                <p style="margin:0 0 6px; font-size:12px; color:#8a94a6; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Notes</p>
+                <p style="margin:0; font-size:14px; color:#333d4d; white-space:pre-line;">${notes}</p>
+              </div>` : ''}
+            </td>
+          </tr>
         </table>
       </td>
     </tr>

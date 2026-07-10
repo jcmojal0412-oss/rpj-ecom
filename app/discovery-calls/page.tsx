@@ -46,6 +46,18 @@ export default function DiscoveryCallsPage() {
 
   useEffect(() => { fetchCalls(); }, [fetchCalls]);
 
+  // Land here after the Google Calendar OAuth redirect (?gcal=connected|error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gcal = params.get('gcal');
+    if (!gcal) return;
+    setShowAvailability(true);
+    if (gcal === 'connected') showToast('Google Calendar connected!');
+    else if (gcal === 'error') showToast('Failed to connect Google Calendar. Please try again.', 'error');
+    window.history.replaceState({}, '', '/discovery-calls');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDelete = async (p: Partner) => {
     await fetch(`/api/partners/${p.id}`, { method: 'DELETE' });
     setDeleting(null);

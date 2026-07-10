@@ -1,13 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Copy, Check } from 'lucide-react';
+import { Loader2, Copy, Check, Calendar, ExternalLink } from 'lucide-react';
 
 interface DayRow {
   day_of_week: number;
   start_time: string;
   end_time: string;
   enabled: number;
+}
+
+interface GoogleCalendarStatus {
+  configured: boolean;
+  connected: boolean;
+  email: string | null;
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -22,6 +28,13 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const loadGcalStatus = () => {
+    fetch('/api/settings/google-calendar/status').then(r => r.json()).then(setGcalStatus);
+  };
+
   useEffect(() => {
     fetch('/api/settings/availability').then(r => r.json()).then(d => {
       setDays(d.days ?? []);
@@ -30,7 +43,18 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
       setZoomLink(d.zoomLink ?? '');
       setLoading(false);
     });
+    loadGcalStatus();
   }, []);
+
+  const handleDisconnectGcal = async () => {
+    setDisconnecting(true);
+    try {
+      await fetch('/api/settings/google-calendar/disconnect', { method: 'POST' });
+      loadGcalStatus();
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   const updateDay = (dow: number, patch: Partial<DayRow>) =>
     setDays(prev => prev.map(d => d.day_of_week === dow ? { ...d, ...patch } : d));
@@ -74,6 +98,36 @@ export default function AvailabilitySettings({ onClose }: { onClose: () => void 
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied ? 'Copied' : 'Copy'}
         </button>
+      </div>
+
+      <div className="bg-gray-50 rounded-xl p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500 flex items-center gap-1.5"><Calendar size={13} /> Google Calendar</p>
+            {!gcalStatus ? (
+              <p className="text-sm text-gray-400 mt-0.5">Checking...</p>
+            ) : !gcalStatus.configured ? (
+              <p className="text-sm text-gray-400 mt-0.5">Not set up yet — needs Google API credentials.</p>
+            ) : gcalStatus.connected ? (
+              <p className="text-sm text-gray-800 mt-0.5 truncate">Connected as {gcalStatus.email}</p>
+            ) : (
+              <p className="text-sm text-gray-400 mt-0.5">Not connected — bookings won't sync to a calendar.</p>
+            )}
+          </div>
+          {gcalStatus?.configured && (
+            gcalStatus.connected ? (
+              <button onClick={handleDisconnectGcal} disabled={disconnecting} className="btn-secondary text-xs py-1.5 shrink-0 disabled:opacity-50">
+                {disconnecting ? <Loader2 size={13} className="animate-spin" /> : null}
+                Disconnect
+              </button>
+            ) : (
+              <a href="/api/settings/google-calendar/connect" className="btn-primary text-xs py-1.5 shrink-0">
+                <ExternalLink size={13} /> Connect
+              </a>
+            )
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Every new booking is automatically added to this calendar.</p>
       </div>
 
       <div>
