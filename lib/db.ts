@@ -249,6 +249,23 @@ function migrateSchema() {
   `);
   seedBookingAvailabilityIfEmpty();
 
+  // Multi-range weekly availability (supersedes booking_availability's
+  // 1-range-per-day limit — day_of_week is UNIQUE there so ALTER TABLE can't
+  // lift it). booking_availability is left in place, untouched, as a safe
+  // rollback point.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS booking_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      day_of_week INTEGER NOT NULL, -- 0=Sun..6=Sat, no UNIQUE — multiple ranges/day allowed
+      start_time TEXT NOT NULL,     -- "09:00"
+      end_time TEXT NOT NULL,       -- "12:00"
+      enabled INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0  -- preserves range display order within a day
+    );
+    CREATE INDEX IF NOT EXISTS idx_booking_slots_dow ON booking_slots(day_of_week);
+  `);
+  seedBookingSlotsFromAvailabilityIfEmpty();
+
   // Booking reminder tracking (24h-before and 1h-before emails)
   const partnerCols2 = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
   if (!partnerCols2.includes('reminder_24h_sent')) db.exec('ALTER TABLE partners ADD COLUMN reminder_24h_sent INTEGER DEFAULT 0');
@@ -268,6 +285,20 @@ function seedBookingAvailabilityIfEmpty() {
   }
   db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('booking_duration_minutes', '60')").run();
   db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('booking_min_notice_hours', '2')").run();
+}
+
+function seedBookingSlotsFromAvailabilityIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM booking_slots').get() as { c: number }).c;
+  if (count > 0) return; // already migrated (or edited since) — never overwrite
+  const oldRows = db.prepare(
+    'SELECT day_of_week, start_time, end_time, enabled FROM booking_availability'
+  ).all() as { day_of_week: number; start_time: string; end_time: string; enabled: number }[];
+  const insert = db.prepare(
+    'INSERT INTO booking_slots (day_of_week, start_time, end_time, enabled, sort_order) VALUES (?,?,?,?,0)'
+  );
+  db.transaction(() => {
+    for (const r of oldRows) insert.run(r.day_of_week, r.start_time, r.end_time, r.enabled);
+  })();
 }
 
 function seedStatusesIfEmpty() {

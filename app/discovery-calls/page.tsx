@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Calendar, Settings } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Calendar } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from '@/components/partners/PartnerForm';
 import Spinner from '@/components/ui/Spinner';
-import AvailabilitySettings from '@/components/booking/AvailabilitySettings';
 import type { Partner } from '@/components/partners/PartnersClient';
 
 const STATUS_FILTERS = ['ALL', 'DONE', 'PENDING', 'NO SHOW'];
@@ -24,7 +23,6 @@ export default function DiscoveryCallsPage() {
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('ALL');
   const [showAdd, setShowAdd]   = useState(false);
-  const [showAvailability, setShowAvailability] = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
   const { toast, showToast, clearToast } = useToast();
@@ -45,18 +43,6 @@ export default function DiscoveryCallsPage() {
   }, [search, filter]);
 
   useEffect(() => { fetchCalls(); }, [fetchCalls]);
-
-  // Land here after the Google Calendar OAuth redirect (?gcal=connected|error)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const gcal = params.get('gcal');
-    if (!gcal) return;
-    setShowAvailability(true);
-    if (gcal === 'connected') showToast('Google Calendar connected!');
-    else if (gcal === 'error') showToast('Failed to connect Google Calendar. Please try again.', 'error');
-    window.history.replaceState({}, '', '/discovery-calls');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleDelete = async (p: Partner) => {
     await fetch(`/api/partners/${p.id}`, { method: 'DELETE' });
@@ -80,9 +66,6 @@ export default function DiscoveryCallsPage() {
           <p className="text-sm text-gray-500 mt-1">Prospects and scheduled discovery calls</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowAvailability(true)} className="btn-secondary">
-            <Settings size={16} /> Booking Availability
-          </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
             <Plus size={16} /> Add Lead
           </button>
@@ -194,11 +177,6 @@ export default function DiscoveryCallsPage() {
           </table>
         )}
       </div>
-
-      {/* Availability Settings Modal */}
-      <Modal open={showAvailability} onClose={() => setShowAvailability(false)} title="Booking Availability" size="lg">
-        <AvailabilitySettings onClose={() => setShowAvailability(false)} />
-      </Modal>
 
       {/* Add Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Lead" size="lg">

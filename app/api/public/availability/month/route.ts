@@ -22,9 +22,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'year and month are required' }, { status: 400 });
     }
 
-    const availRows = db.prepare('SELECT * FROM booking_availability').all() as
-      { day_of_week: number; start_time: string; end_time: string; enabled: number }[];
-    const availByDow = new Map(availRows.map(r => [r.day_of_week, r]));
+    const slotRows = db.prepare(
+      'SELECT day_of_week, start_time, end_time FROM booking_slots WHERE enabled=1'
+    ).all() as { day_of_week: number; start_time: string; end_time: string }[];
+    const rangesByDow = new Map<number, { start_time: string; end_time: string }[]>();
+    for (const r of slotRows) {
+      if (!rangesByDow.has(r.day_of_week)) rangesByDow.set(r.day_of_week, []);
+      rangesByDow.get(r.day_of_week)!.push(r);
+    }
 
     const durationMin = parseInt(getSetting(db, 'booking_duration_minutes', '60'), 10);
     const minNoticeHours = parseFloat(getSetting(db, 'booking_min_notice_hours', '2'));
@@ -42,22 +47,26 @@ export async function GET(req: NextRequest) {
       if (dateStr < todayStr) continue; // past date
 
       const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay();
-      const avail = availByDow.get(dow);
-      if (!avail || !avail.enabled) continue;
+      const ranges = rangesByDow.get(dow);
+      if (!ranges || ranges.length === 0) continue;
 
-      const [startH, startM] = avail.start_time.split(':').map(Number);
-      const [endH, endM] = avail.end_time.split(':').map(Number);
-      const startMinutes = startH * 60 + startM;
-      const endMinutes = endH * 60 + endM;
       const isToday = dateStr === todayStr;
 
       // Slots allow multiple bookings, so a day is available as long as it
-      // has configured hours — no need to check existing bookings.
+      // has configured hours — no need to check existing bookings. A day can
+      // have several ranges — a match in any range makes the day available.
       let hasSlot = false;
-      for (let m = startMinutes; m + durationMin <= endMinutes; m += durationMin) {
-        if (isToday && m < nowMinutesToday + minNoticeMinutes) continue;
-        hasSlot = true;
-        break;
+      for (const r of ranges) {
+        const [startH, startM] = r.start_time.split(':').map(Number);
+        const [endH, endM] = r.end_time.split(':').map(Number);
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+        for (let m = startMinutes; m + durationMin <= endMinutes; m += durationMin) {
+          if (isToday && m < nowMinutesToday + minNoticeMinutes) continue;
+          hasSlot = true;
+          break;
+        }
+        if (hasSlot) break;
       }
       if (hasSlot) availableDays.push(day);
     }

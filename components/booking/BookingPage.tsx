@@ -55,6 +55,13 @@ function buildGoogleCalendarLink(date: string, time: string, zoomLink: string) {
 }
 
 type View = 'calendar' | 'form' | 'confirmed';
+type FieldMode = 'required' | 'optional' | 'hidden';
+interface BookingFieldConfig {
+  contact: FieldMode;
+  experience: FieldMode;
+  goal: FieldMode;
+}
+const DEFAULT_FIELD_CONFIG: BookingFieldConfig = { contact: 'optional', experience: 'optional', goal: 'optional' };
 
 export default function BookingPage() {
   const today = todayISO();
@@ -80,6 +87,7 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [confirmedZoomLink, setConfirmedZoomLink] = useState('');
+  const [fieldConfig, setFieldConfig] = useState<BookingFieldConfig>(DEFAULT_FIELD_CONFIG);
 
   const fetchMonth = useCallback((y: number, m: number) => {
     setLoadingMonth(true);
@@ -90,6 +98,17 @@ export default function BookingPage() {
   }, []);
 
   useEffect(() => { fetchMonth(year, month); }, [year, month, fetchMonth]);
+
+  useEffect(() => {
+    fetch('/api/public/booking-fields')
+      .then(r => r.json())
+      .then(d => setFieldConfig({
+        contact: d.contact ?? 'optional',
+        experience: d.experience ?? 'optional',
+        goal: d.goal ?? 'optional',
+      }))
+      .catch(() => {});
+  }, []);
 
   const isPastMonth = year === todayY && month === todayM;
 
@@ -112,9 +131,14 @@ export default function BookingPage() {
       .finally(() => setLoadingSlots(false));
   };
 
+  const isFieldSatisfied = (mode: FieldMode, value: string) => mode !== 'required' || value.trim().length > 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot || !selectedDate || !name.trim() || !email.trim()) return;
+    if (!isFieldSatisfied(fieldConfig.contact, contact)) return;
+    if (!isFieldSatisfied(fieldConfig.experience, businessExperience)) return;
+    if (!isFieldSatisfied(fieldConfig.goal, mainGoal)) return;
     setSubmitting(true);
     setError('');
     // Fold the two SEDO-specific prompts into the existing free-text `notes`
@@ -356,42 +380,62 @@ export default function BookingPage() {
                   required
                 />
               </div>
-              <div>
-                <label htmlFor="booking-contact" className="block text-sm font-semibold text-[#0F2747] mb-1.5">Mobile Number</label>
-                <input
-                  id="booking-contact"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
-                  value={contact}
-                  onChange={e => setContact(e.target.value)}
-                  placeholder="09XX XXX XXXX (optional)"
-                />
-              </div>
-              <div>
-                <label htmlFor="booking-experience" className="block text-sm font-semibold text-[#0F2747] mb-1.5">Current Business / Experience</label>
-                <textarea
-                  id="booking-experience"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
-                  rows={2}
-                  value={businessExperience}
-                  onChange={e => setBusinessExperience(e.target.value)}
-                  placeholder="e.g. New to ecommerce, or currently running a small online shop (optional)"
-                />
-              </div>
-              <div>
-                <label htmlFor="booking-goal" className="block text-sm font-semibold text-[#0F2747] mb-1.5">Main Goal for Joining</label>
-                <textarea
-                  id="booking-goal"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
-                  rows={2}
-                  value={mainGoal}
-                  onChange={e => setMainGoal(e.target.value)}
-                  placeholder="What are you hoping to achieve from this call? (optional)"
-                />
-              </div>
+              {fieldConfig.contact !== 'hidden' && (
+                <div>
+                  <label htmlFor="booking-contact" className="block text-sm font-semibold text-[#0F2747] mb-1.5">
+                    Mobile Number{fieldConfig.contact === 'required' ? ' *' : ''}
+                  </label>
+                  <input
+                    id="booking-contact"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
+                    value={contact}
+                    onChange={e => setContact(e.target.value)}
+                    placeholder={fieldConfig.contact === 'required' ? '09XX XXX XXXX' : '09XX XXX XXXX (optional)'}
+                    required={fieldConfig.contact === 'required'}
+                  />
+                </div>
+              )}
+              {fieldConfig.experience !== 'hidden' && (
+                <div>
+                  <label htmlFor="booking-experience" className="block text-sm font-semibold text-[#0F2747] mb-1.5">
+                    Current Business / Experience{fieldConfig.experience === 'required' ? ' *' : ''}
+                  </label>
+                  <textarea
+                    id="booking-experience"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
+                    rows={2}
+                    value={businessExperience}
+                    onChange={e => setBusinessExperience(e.target.value)}
+                    placeholder={fieldConfig.experience === 'required' ? 'e.g. New to ecommerce, or currently running a small online shop' : 'e.g. New to ecommerce, or currently running a small online shop (optional)'}
+                    required={fieldConfig.experience === 'required'}
+                  />
+                </div>
+              )}
+              {fieldConfig.goal !== 'hidden' && (
+                <div>
+                  <label htmlFor="booking-goal" className="block text-sm font-semibold text-[#0F2747] mb-1.5">
+                    Main Goal for Joining{fieldConfig.goal === 'required' ? ' *' : ''}
+                  </label>
+                  <textarea
+                    id="booking-goal"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
+                    rows={2}
+                    value={mainGoal}
+                    onChange={e => setMainGoal(e.target.value)}
+                    placeholder={fieldConfig.goal === 'required' ? 'What are you hoping to achieve from this call?' : 'What are you hoping to achieve from this call? (optional)'}
+                    required={fieldConfig.goal === 'required'}
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
-                disabled={submitting || !name.trim() || !email.trim()}
+                disabled={
+                  submitting || !name.trim() || !email.trim() ||
+                  !isFieldSatisfied(fieldConfig.contact, contact) ||
+                  !isFieldSatisfied(fieldConfig.experience, businessExperience) ||
+                  !isFieldSatisfied(fieldConfig.goal, mainGoal)
+                }
                 className="w-full inline-flex items-center justify-center gap-2 bg-[#0057B8] text-white text-sm font-bold rounded-xl px-6 py-3.5 hover:bg-[#004a9c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#0057B8]/25"
               >
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : null}

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
   const error = req.nextUrl.searchParams.get('error');
-  const redirectTo = new URL('/discovery-calls', req.url);
+  const redirectTo = new URL('/sedo-bookings', req.url);
 
   if (error || !code) {
     redirectTo.searchParams.set('gcal', 'error');

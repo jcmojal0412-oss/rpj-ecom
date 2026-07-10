@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
-  Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench,
+  Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -50,6 +50,7 @@ const NAV_GROUPS = [
     label: 'PARTNERS',
     items: [
       { label: 'Discovery Calls', href: '/discovery-calls', icon: PhoneCall,  module: 'partners' },
+      { label: 'SEDO Bookings',   href: '/sedo-bookings',   icon: CalendarClock, module: 'partners' },
       { label: 'SEDO Partners',   href: '/partners',         icon: Handshake,  module: 'partners' },
       { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'partners' },
     ],

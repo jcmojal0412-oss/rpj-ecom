@@ -14,11 +14,18 @@ const ROUTE_MODULES: [string, string][] = [
   ['/reports',          'reports'],
   ['/expenses',         'expenses'],
   ['/discovery-calls',  'partners'],
+  ['/sedo-bookings',    'partners'],
   ['/partners',         'partners'],
   ['/gross-sales',      'partners'],
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
+  // Booking-settings APIs are partners-gated (same population as Discovery
+  // Calls), so these must come before the generic '/api/settings' owner-only
+  // catch-all below — first startsWith match wins.
+  ['/api/settings/availability',    'partners'],
+  ['/api/settings/booking-fields',  'partners'],
+  ['/api/settings/google-calendar', 'partners'],
 ['/settings',         '_owner'], // owner-only flag
 ['/api/settings',     '_owner'], // owner-only flag
 ];
