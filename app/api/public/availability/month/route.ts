@@ -34,20 +34,6 @@ export async function GET(req: NextRequest) {
     const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
     const nowMinutesToday = now.getUTCHours() * 60 + now.getUTCMinutes();
 
-    // All bookings in this month, grouped by date -> set of booked start-minutes
-    const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
-    const booked = db.prepare(`
-      SELECT schedule FROM partners WHERE schedule IS NOT NULL AND substr(schedule, 1, 7) = ?
-    `).all(monthPrefix) as { schedule: string }[];
-    const bookedByDate = new Map<string, Set<number>>();
-    for (const b of booked) {
-      const d = b.schedule.slice(0, 10);
-      const t = b.schedule.slice(11, 16);
-      const [h, m] = t.split(':').map(Number);
-      if (!bookedByDate.has(d)) bookedByDate.set(d, new Set());
-      bookedByDate.get(d)!.add(h * 60 + m);
-    }
-
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const availableDays: number[] = [];
 
@@ -63,12 +49,12 @@ export async function GET(req: NextRequest) {
       const [endH, endM] = avail.end_time.split(':').map(Number);
       const startMinutes = startH * 60 + startM;
       const endMinutes = endH * 60 + endM;
-      const bookedSet = bookedByDate.get(dateStr) ?? new Set<number>();
       const isToday = dateStr === todayStr;
 
+      // Slots allow multiple bookings, so a day is available as long as it
+      // has configured hours — no need to check existing bookings.
       let hasSlot = false;
       for (let m = startMinutes; m + durationMin <= endMinutes; m += durationMin) {
-        if (bookedSet.has(m)) continue;
         if (isToday && m < nowMinutesToday + minNoticeMinutes) continue;
         hasSlot = true;
         break;

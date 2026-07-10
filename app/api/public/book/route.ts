@@ -20,15 +20,8 @@ export async function POST(req: NextRequest) {
     const schedule = `${date} ${time}:00`;
     let bookingId: number | undefined;
 
-    // Re-check the slot is still free at the moment of booking (race-condition guard
-    // for two people booking the same slot at nearly the same time).
+    // Slots allow multiple bookings — no clash check against existing rows.
     runTransaction(() => {
-      const clash = db.prepare(`
-        SELECT id FROM partners WHERE schedule = ?
-      `).get(schedule);
-      if (clash) {
-        throw new Error('SLOT_TAKEN');
-      }
       const info = db.prepare(`
         INSERT INTO partners (name, contact, schedule, remarks, email, notes)
         VALUES (?, ?, ?, 'PENDING', ?, ?)
@@ -56,9 +49,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ id: bookingId, schedule, zoomLink }, { status: 201 });
   } catch (e: any) {
-    if (e.message === 'SLOT_TAKEN') {
-      return NextResponse.json({ error: 'That time slot was just booked by someone else. Please pick another.' }, { status: 409 });
-    }
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

@@ -37,27 +37,15 @@ export async function GET(req: NextRequest) {
     const startMinutes = startH * 60 + startM;
     const endMinutes = endH * 60 + endM;
 
-    // Existing bookings that day (stored as "YYYY-MM-DD HH:MM" or ISO in partners.schedule)
-    const booked = db.prepare(`
-      SELECT schedule FROM partners
-      WHERE schedule IS NOT NULL AND substr(schedule, 1, 10) = ?
-    `).all(date) as { schedule: string }[];
-    const bookedMinutes = new Set(
-      booked.map(b => {
-        const t = b.schedule.slice(11, 16); // "HH:MM"
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-      })
-    );
-
     const now = nowPH();
     const isToday = date === `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
     const nowMinutesToday = now.getUTCHours() * 60 + now.getUTCMinutes();
     const minNoticeMinutes = minNoticeHours * 60;
 
+    // Slots allow multiple bookings, so a slot stays listed as available
+    // regardless of how many people have already booked it.
     const slots: string[] = [];
     for (let m = startMinutes; m + durationMin <= endMinutes; m += durationMin) {
-      if (bookedMinutes.has(m)) continue;
       if (isToday && m < nowMinutesToday + minNoticeMinutes) continue;
       const h = Math.floor(m / 60);
       const mm = m % 60;
