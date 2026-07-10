@@ -23,9 +23,10 @@ const ROUTE_MODULES: [string, string][] = [
   // Booking-settings APIs are partners-gated (same population as Discovery
   // Calls), so these must come before the generic '/api/settings' owner-only
   // catch-all below — first startsWith match wins.
-  ['/api/settings/availability',    'partners'],
-  ['/api/settings/booking-fields',  'partners'],
-  ['/api/settings/google-calendar', 'partners'],
+  ['/api/settings/availability',      'partners'],
+  ['/api/settings/booking-fields',    'partners'],
+  ['/api/settings/google-calendar',   'partners'],
+  ['/api/settings/bookings-overview', 'partners'],
 ['/settings',         '_owner'], // owner-only flag
 ['/api/settings',     '_owner'], // owner-only flag
 ];

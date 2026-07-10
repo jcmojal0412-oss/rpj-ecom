@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Copy, Check, Calendar, ExternalLink, Plus, X } from 'lucide-react';
+import { Loader2, Copy, Check, Calendar, ExternalLink, Plus, X, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 
 interface Range {
@@ -43,9 +43,53 @@ function groupRanges(rows: RangeRow[]): Record<number, Range[]> {
   return byDay;
 }
 
+interface Attendee {
+  id: number;
+  name: string;
+  contact: string | null;
+  email: string | null;
+  remarks: string | null;
+}
+
+interface ScheduleGroup {
+  schedule: string;
+  count: number;
+  attendees: Attendee[];
+}
+
+interface BookingsOverview {
+  today: ScheduleGroup[];
+  upcoming: ScheduleGroup[];
+  past: ScheduleGroup[];
+}
+
+function formatScheduleLabel(schedule: string) {
+  const [date, time] = schedule.split(' ');
+  const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-PH', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
+  const [h, m] = time.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${dateLabel}, ${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function remarksBadgeClass(r: string | null) {
+  if (r === 'DONE') return 'badge-green';
+  if (r === 'NO SHOW') return 'badge-red';
+  if (r === 'PENDING') return 'badge-amber';
+  return 'badge-gray';
+}
+
 export default function BookingSettingsPage() {
-  const [tab, setTab] = useState<'availability' | 'experience'>('availability');
+  const [tab, setTab] = useState<'bookings' | 'availability' | 'experience'>('bookings');
   const { toast, showToast, clearToast } = useToast();
+
+  // Bookings tab
+  const [overview, setOverview] = useState<BookingsOverview | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showPast, setShowPast] = useState(false);
 
   // Booking Availability tab
   const [rangesByDay, setRangesByDay] = useState<Record<number, Range[]>>({});
@@ -63,6 +107,22 @@ export default function BookingSettingsPage() {
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>({ contact: 'optional', experience: 'optional', goal: 'optional' });
   const [loadingFields, setLoadingFields] = useState(true);
   const [savingFields, setSavingFields] = useState(false);
+
+  const loadOverview = () => {
+    setLoadingOverview(true);
+    fetch('/api/settings/bookings-overview').then(r => r.json()).then(d => {
+      setOverview(d);
+      setLoadingOverview(false);
+    });
+  };
+
+  const toggleExpanded = (schedule: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(schedule)) next.delete(schedule); else next.add(schedule);
+      return next;
+    });
+  };
 
   const loadAvailability = () => {
     setLoadingAvailability(true);
@@ -92,6 +152,7 @@ export default function BookingSettingsPage() {
   };
 
   useEffect(() => {
+    loadOverview();
     loadAvailability();
     loadGcalStatus();
     loadFields();
@@ -190,7 +251,7 @@ export default function BookingSettingsPage() {
       </div>
 
       <div className="flex gap-1">
-        {(['availability', 'experience'] as const).map(t => (
+        {(['bookings', 'availability', 'experience'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -198,12 +259,106 @@ export default function BookingSettingsPage() {
               tab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {t === 'availability' ? 'Booking Availability' : 'Booking Experience'}
+            {t === 'bookings' ? 'Bookings' : t === 'availability' ? 'Booking Availability' : 'Booking Experience'}
           </button>
         ))}
       </div>
 
-      {tab === 'availability' ? (
+      {tab === 'bookings' ? (
+        loadingOverview || !overview ? (
+          <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+        ) : (
+          <div className="space-y-6">
+            {([
+              { key: 'today' as const, label: 'Today' },
+              { key: 'upcoming' as const, label: 'Upcoming' },
+            ]).map(({ key, label }) => (
+              overview[key].length > 0 && (
+                <div key={key}>
+                  <p className="form-label mb-2">{label}</p>
+                  <div className="space-y-2">
+                    {overview[key].map(group => (
+                      <div key={group.schedule} className="card p-0 overflow-hidden">
+                        <button
+                          onClick={() => toggleExpanded(group.schedule)}
+                          className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="text-sm font-medium text-gray-800">{formatScheduleLabel(group.schedule)}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
+                              <Users size={12} /> {group.count} booked
+                            </span>
+                            {expanded.has(group.schedule) ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                          </div>
+                        </button>
+                        {expanded.has(group.schedule) && (
+                          <div className="border-t border-gray-100 divide-y divide-gray-50">
+                            {group.attendees.map(a => (
+                              <div key={a.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{a.name}</p>
+                                  <p className="text-xs text-gray-400 truncate">{[a.contact, a.email].filter(Boolean).join(' · ') || '—'}</p>
+                                </div>
+                                <span className={`${remarksBadgeClass(a.remarks)} shrink-0`}>{a.remarks || 'PENDING'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ))}
+
+            {overview.today.length === 0 && overview.upcoming.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-8">No upcoming bookings.</p>
+            )}
+
+            {overview.past.length > 0 && (
+              <div>
+                <button onClick={() => setShowPast(p => !p)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-2">
+                  {showPast ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  Past ({overview.past.length})
+                </button>
+                {showPast && (
+                  <div className="space-y-2">
+                    {overview.past.map(group => (
+                      <div key={group.schedule} className="card p-0 overflow-hidden opacity-70">
+                        <button
+                          onClick={() => toggleExpanded(group.schedule)}
+                          className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="text-sm font-medium text-gray-800">{formatScheduleLabel(group.schedule)}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">
+                              <Users size={12} /> {group.count} booked
+                            </span>
+                            {expanded.has(group.schedule) ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                          </div>
+                        </button>
+                        {expanded.has(group.schedule) && (
+                          <div className="border-t border-gray-100 divide-y divide-gray-50">
+                            {group.attendees.map(a => (
+                              <div key={a.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{a.name}</p>
+                                  <p className="text-xs text-gray-400 truncate">{[a.contact, a.email].filter(Boolean).join(' · ') || '—'}</p>
+                                </div>
+                                <span className={`${remarksBadgeClass(a.remarks)} shrink-0`}>{a.remarks || 'PENDING'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      ) : tab === 'availability' ? (
         loadingAvailability ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : (
