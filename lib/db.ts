@@ -270,6 +270,12 @@ function migrateSchema() {
   const partnerCols2 = (db.prepare('PRAGMA table_info(partners)').all() as { name: string }[]).map(c => c.name);
   if (!partnerCols2.includes('reminder_24h_sent')) db.exec('ALTER TABLE partners ADD COLUMN reminder_24h_sent INTEGER DEFAULT 0');
   if (!partnerCols2.includes('reminder_1h_sent'))  db.exec('ALTER TABLE partners ADD COLUMN reminder_1h_sent INTEGER DEFAULT 0');
+
+  // Same, but for SMS reminders — tracked separately since a booking may
+  // have email delivery succeed while SMS fails (or vice versa, e.g. no
+  // contact number on file).
+  if (!partnerCols2.includes('sms_24h_sent')) db.exec('ALTER TABLE partners ADD COLUMN sms_24h_sent INTEGER DEFAULT 0');
+  if (!partnerCols2.includes('sms_1h_sent'))  db.exec('ALTER TABLE partners ADD COLUMN sms_1h_sent INTEGER DEFAULT 0');
 }
 
 function seedBookingAvailabilityIfEmpty() {

@@ -6,19 +6,19 @@ export const dynamic = 'force-dynamic';
 type FieldMode = 'required' | 'optional' | 'hidden';
 const VALID_MODES: FieldMode[] = ['required', 'optional', 'hidden'];
 
-function getField(db: ReturnType<typeof getDb>, key: string): FieldMode {
+function getField(db: ReturnType<typeof getDb>, key: string, fallback: FieldMode): FieldMode {
   const row = db.prepare('SELECT value FROM app_settings WHERE key=?').get(key) as { value: string } | undefined;
   const value = row?.value;
-  return (VALID_MODES as string[]).includes(value ?? '') ? (value as FieldMode) : 'optional';
+  return (VALID_MODES as string[]).includes(value ?? '') ? (value as FieldMode) : fallback;
 }
 
 export async function GET() {
   try {
     const db = getDb();
     return NextResponse.json({
-      contact: getField(db, 'booking_field_contact'),
-      experience: getField(db, 'booking_field_experience'),
-      goal: getField(db, 'booking_field_goal'),
+      contact: getField(db, 'booking_field_contact', 'required'),
+      experience: getField(db, 'booking_field_experience', 'optional'),
+      goal: getField(db, 'booking_field_goal', 'optional'),
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

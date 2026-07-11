@@ -61,7 +61,7 @@ interface BookingFieldConfig {
   experience: FieldMode;
   goal: FieldMode;
 }
-const DEFAULT_FIELD_CONFIG: BookingFieldConfig = { contact: 'optional', experience: 'optional', goal: 'optional' };
+const DEFAULT_FIELD_CONFIG: BookingFieldConfig = { contact: 'required', experience: 'optional', goal: 'optional' };
 
 export default function BookingPage() {
   const today = todayISO();
@@ -103,7 +103,7 @@ export default function BookingPage() {
     fetch('/api/public/booking-fields')
       .then(r => r.json())
       .then(d => setFieldConfig({
-        contact: d.contact ?? 'optional',
+        contact: d.contact ?? 'required',
         experience: d.experience ?? 'optional',
         goal: d.goal ?? 'optional',
       }))

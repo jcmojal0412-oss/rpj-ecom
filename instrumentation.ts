@@ -8,9 +8,9 @@ export async function register() {
 
   const runCheck = () => {
     checkAndSendReminders()
-      .then(({ sent24h, sent1h }) => {
-        if (sent24h || sent1h) {
-          console.log(`[reminders] sent ${sent24h} 24h-reminders, ${sent1h} 1h-reminders`);
+      .then(({ sent24h, sent1h, sms24h, sms1h }) => {
+        if (sent24h || sent1h || sms24h || sms1h) {
+          console.log(`[reminders] sent ${sent24h} 24h-emails, ${sent1h} 1h-emails, ${sms24h} 24h-sms, ${sms1h} 1h-sms`);
         }
       })
       .catch(err => console.error('[reminders] check failed:', err));
