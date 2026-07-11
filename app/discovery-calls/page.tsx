@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Calendar, MessageSquare } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Calendar, MessageSquare, X } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from '@/components/partners/PartnerForm';
 import SendSmsModal from '@/components/partners/SendSmsModal';
+import BulkSmsModal from '@/components/partners/BulkSmsModal';
 import Spinner from '@/components/ui/Spinner';
 import type { Partner } from '@/components/partners/PartnersClient';
 
@@ -27,7 +28,21 @@ export default function DiscoveryCallsPage() {
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
   const [smsTarget, setSmsTarget] = useState<Partner | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBulkSms, setShowBulkSms] = useState(false);
   const { toast, showToast, clearToast } = useToast();
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => prev.size === partners.length ? new Set() : new Set(partners.map(p => p.id)));
+  };
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
@@ -112,6 +127,21 @@ export default function DiscoveryCallsPage() {
         <span className="text-xs text-gray-400">{partners.length} leads</span>
       </div>
 
+      {/* Bulk selection bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+          <span className="text-sm font-medium text-blue-800">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-1.5">
+              <MessageSquare size={13} /> Send SMS
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded hover:bg-blue-100 text-blue-600">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-x-auto">
         {loading ? (
@@ -128,6 +158,11 @@ export default function DiscoveryCallsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="table-header w-8">
+                  <input type="checkbox" className="rounded border-gray-300"
+                    checked={partners.length > 0 && selectedIds.size === partners.length}
+                    onChange={toggleSelectAll} />
+                </th>
                 {['Name','Contact','Schedule','Status','Subscription','Actions'].map(h => (
                   <th key={h} className="table-header">{h}</th>
                 ))}
@@ -136,6 +171,10 @@ export default function DiscoveryCallsPage() {
             <tbody>
               {partners.map((p, i) => (
                 <tr key={p.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="table-cell">
+                    <input type="checkbox" className="rounded border-gray-300"
+                      checked={selectedIds.has(p.id)} onChange={() => toggleSelected(p.id)} />
+                  </td>
                   <td className="table-cell">
                     <p className="font-semibold text-gray-900">{p.name}</p>
                     {p.company_name && <p className="text-xs text-gray-400">{p.company_name}</p>}
@@ -209,6 +248,15 @@ export default function DiscoveryCallsPage() {
           recipient={smsTarget}
           onClose={() => setSmsTarget(null)}
           onSent={() => { setSmsTarget(null); showToast('SMS sent!'); }}
+        />
+      )}
+
+      {/* Bulk Send SMS */}
+      {showBulkSms && (
+        <BulkSmsModal
+          recipients={partners.filter(p => selectedIds.has(p.id))}
+          onClose={() => setShowBulkSms(false)}
+          onSent={() => setSelectedIds(new Set())}
         />
       )}
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment, useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Mail, Building2, Users, MessageSquare } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Mail, Building2, Users, MessageSquare, X } from 'lucide-react';
 import SendSmsModal from '@/components/partners/SendSmsModal';
+import BulkSmsModal from '@/components/partners/BulkSmsModal';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from './PartnerForm';
@@ -92,7 +93,21 @@ export default function PartnersClient() {
   const [deleting, setDeleting] = useState<Partner | null>(null);
   const [smsTarget, setSmsTarget] = useState<Partner | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBulkSms, setShowBulkSms] = useState(false);
   const { toast, showToast, clearToast } = useToast();
+
+  const toggleSelected = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => prev.size === partners.length ? new Set() : new Set(partners.map(p => p.id)));
+  };
 
   const fetchPartners = useCallback(async () => {
     setLoading(true);
@@ -207,6 +222,21 @@ export default function PartnersClient() {
         <span className="text-xs text-gray-400">{partners.length} records</span>
       </div>
 
+      {/* Bulk selection bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+          <span className="text-sm font-medium text-blue-800">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-1.5">
+              <MessageSquare size={13} /> Send SMS
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded hover:bg-blue-100 text-blue-600">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Partners Table */}
       <div className="card overflow-x-auto">
         {loading ? (
@@ -217,6 +247,11 @@ export default function PartnersClient() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="table-header w-8">
+                  <input type="checkbox" className="rounded border-gray-300"
+                    checked={partners.length > 0 && selectedIds.size === partners.length}
+                    onChange={toggleSelectAll} />
+                </th>
                 {['Name / Company','Contact','Subscription','Call','Contract','Onboard','Ads','Commission','Actions'].map(h => (
                   <th key={h} className="table-header">{h}</th>
                 ))}
@@ -229,6 +264,10 @@ export default function PartnersClient() {
                     className={`cursor-pointer transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-orange-50`}
                     onClick={() => setExpanded(expanded === p.id ? null : p.id)}
                   >
+                    <td className="table-cell" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="rounded border-gray-300"
+                        checked={selectedIds.has(p.id)} onChange={() => toggleSelected(p.id)} />
+                    </td>
                     <td className="table-cell">
                       <p className="font-semibold text-gray-900">{p.name}</p>
                       {p.company_name && <p className="text-xs text-gray-500">{p.company_name}</p>}
@@ -263,7 +302,7 @@ export default function PartnersClient() {
                   {/* Expanded detail row */}
                   {expanded === p.id && (
                     <tr className="bg-blue-50/50">
-                      <td colSpan={9} className="px-6 py-4">
+                      <td colSpan={10} className="px-6 py-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                           <div>
                             <p className="font-semibold text-gray-500 mb-1">CONTACT</p>
@@ -316,6 +355,15 @@ export default function PartnersClient() {
           recipient={smsTarget}
           onClose={() => setSmsTarget(null)}
           onSent={() => { setSmsTarget(null); showToast('SMS sent!'); }}
+        />
+      )}
+
+      {/* Bulk Send SMS */}
+      {showBulkSms && (
+        <BulkSmsModal
+          recipients={partners.filter(p => selectedIds.has(p.id))}
+          onClose={() => setShowBulkSms(false)}
+          onSent={() => setSelectedIds(new Set())}
         />
       )}
 
