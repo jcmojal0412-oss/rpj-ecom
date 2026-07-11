@@ -32,6 +32,9 @@ export async function sendSms(number: string, message: string) {
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       console.error('[sms] send failed:', res.status, body);
+      if (body.includes('No active sender name found')) {
+        return { sent: false, error: 'SMS sending is not active yet — your Semaphore sender name is still pending approval.' };
+      }
       return { sent: false, error: `${res.status} ${body}` };
     }
 
