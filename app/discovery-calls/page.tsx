@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Calendar } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Calendar, MessageSquare } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from '@/components/partners/PartnerForm';
+import SendSmsModal from '@/components/partners/SendSmsModal';
 import Spinner from '@/components/ui/Spinner';
 import type { Partner } from '@/components/partners/PartnersClient';
 
@@ -25,6 +26,7 @@ export default function DiscoveryCallsPage() {
   const [showAdd, setShowAdd]   = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
+  const [smsTarget, setSmsTarget] = useState<Partner | null>(null);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchCalls = useCallback(async () => {
@@ -161,6 +163,10 @@ export default function DiscoveryCallsPage() {
                   </td>
                   <td className="table-cell">
                     <div className="flex gap-1">
+                      <button onClick={() => setSmsTarget(p)}
+                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500">
+                        <MessageSquare size={13} />
+                      </button>
                       <button onClick={() => setEditing(p)}
                         className="p-1.5 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500">
                         <Pencil size={13} />
@@ -195,6 +201,15 @@ export default function DiscoveryCallsPage() {
             onCancel={() => setEditing(null)}
           />
         </Modal>
+      )}
+
+      {/* Send SMS */}
+      {smsTarget && (
+        <SendSmsModal
+          recipient={smsTarget}
+          onClose={() => setSmsTarget(null)}
+          onSent={() => { setSmsTarget(null); showToast('SMS sent!'); }}
+        />
       )}
 
       {/* Delete confirm */}

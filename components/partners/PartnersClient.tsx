@@ -1,7 +1,8 @@
 'use client';
 
 import { Fragment, useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, Phone, Mail, Building2, Users } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Phone, Mail, Building2, Users, MessageSquare } from 'lucide-react';
+import SendSmsModal from '@/components/partners/SendSmsModal';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PartnerForm from './PartnerForm';
@@ -89,6 +90,7 @@ export default function PartnersClient() {
   const [showAdd, setShowAdd]   = useState(false);
   const [editing, setEditing]   = useState<Partner | null>(null);
   const [deleting, setDeleting] = useState<Partner | null>(null);
+  const [smsTarget, setSmsTarget] = useState<Partner | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const { toast, showToast, clearToast } = useToast();
 
@@ -246,6 +248,9 @@ export default function PartnersClient() {
                     <td className="table-cell text-xs text-gray-600">{p.commission ?? '—'}</td>
                     <td className="table-cell">
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setSmsTarget(p)} className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500">
+                          <MessageSquare size={13} />
+                        </button>
                         <button onClick={() => setEditing(p)} className="p-1.5 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500">
                           <Pencil size={13} />
                         </button>
@@ -303,6 +308,15 @@ export default function PartnersClient() {
         <Modal open={!!editing} onClose={() => setEditing(null)} title="Edit Partner" size="lg">
           <PartnerForm initial={editing} onSuccess={() => { setEditing(null); showToast('Partner updated!'); fetchPartners(); }} onCancel={() => setEditing(null)} />
         </Modal>
+      )}
+
+      {/* Send SMS */}
+      {smsTarget && (
+        <SendSmsModal
+          recipient={smsTarget}
+          onClose={() => setSmsTarget(null)}
+          onSent={() => { setSmsTarget(null); showToast('SMS sent!'); }}
+        />
       )}
 
       {/* Delete confirm */}
