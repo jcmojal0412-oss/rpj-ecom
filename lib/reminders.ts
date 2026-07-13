@@ -3,6 +3,10 @@ import { sendEmail } from './email';
 import { sendSms } from './sms';
 import { discoveryCallEmailHtml, formatDateLabel, formatTimeLabel } from './email-templates';
 
+// bookings@rpjcorp.com (the "from" address) has no mail hosting behind it —
+// replies there would bounce. Point Reply-To at a real inbox instead.
+const REPLY_TO_EMAIL = 'sedo.officialph@gmail.com';
+
 interface Booking {
   id: number;
   name: string;
@@ -67,7 +71,7 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
           subtext: "your discovery call is coming up tomorrow — we can't wait to meet you.",
           activeStep: 'call',
         });
-        const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call is Tomorrow', html);
+        const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call is Tomorrow', html, REPLY_TO_EMAIL);
         if (result.sent) {
           db.prepare('UPDATE partners SET reminder_24h_sent=1 WHERE id=?').run(b.id);
           sent24h++;
@@ -95,7 +99,7 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
           subtext: 'your discovery call starts soon — grab your questions and get ready to join.',
           activeStep: 'call',
         });
-        const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call Starts Soon', html);
+        const result = await sendEmail(b.email!, 'Reminder: Your SEDO Discovery Call Starts Soon', html, REPLY_TO_EMAIL);
         if (result.sent) {
           db.prepare('UPDATE partners SET reminder_1h_sent=1 WHERE id=?').run(b.id);
           sent1h++;

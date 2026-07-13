@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     );
 
     // Fire-and-forget — don't block the booking confirmation on email/calendar delivery.
+    // reply_to points at a real inbox — bookings@rpjcorp.com (the "from"
+    // address) has no mail hosting behind it, so replies there would bounce.
     sendEmail(
       email.trim(),
       'Your SEDO Discovery Call is Confirmed',
@@ -51,7 +53,8 @@ export async function POST(req: NextRequest) {
         headline: 'Your SEDO Discovery Call is Confirmed',
         subtext: "we're excited to show you how to start your online store.",
         activeStep: 'booking',
-      })
+      }),
+      NOTIFICATION_EMAIL
     ).catch(() => {});
 
     sendEmail(
