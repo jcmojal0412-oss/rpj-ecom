@@ -8,6 +8,20 @@ const STATUSES = ['PENDING', 'DONE', 'NO SHOW'];
 const STAGES  = ['PENDING', 'DONE'];
 const ADS_STAGES = ['PENDING', 'START'];
 
+// Defined at module scope (not inside PartnerForm) so they keep a stable
+// component identity across renders — nesting them inside the form
+// component recreated them on every keystroke, which made React remount the
+// underlying <input>/<select> DOM nodes and drop focus after each character.
+const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div><label className="form-label">{label}</label>{children}</div>
+);
+const S = ({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) => (
+  <select className="form-input" value={value} onChange={e => onChange(e.target.value)}>
+    <option value="">— Select —</option>
+    {options.map(o => <option key={o} value={o}>{o}</option>)}
+  </select>
+);
+
 interface Props { initial?: Partner; onSuccess: () => void; onCancel: () => void; }
 
 export default function PartnerForm({ initial, onSuccess, onCancel }: Props) {
@@ -51,16 +65,6 @@ export default function PartnerForm({ initial, onSuccess, onCancel }: Props) {
       onSuccess();
     } finally { setSubmitting(false); }
   };
-
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div><label className="form-label">{label}</label>{children}</div>
-  );
-  const S = ({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) => (
-    <select className="form-input" value={value} onChange={e => onChange(e.target.value)}>
-      <option value="">— Select —</option>
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
