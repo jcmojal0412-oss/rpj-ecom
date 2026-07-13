@@ -193,11 +193,13 @@ export function discoveryCallEmailHtml(opts: DiscoveryCallEmailOptions) {
             <td class="sedo-px" style="padding:24px 40px 8px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f7ff; border-radius:14px; border:1px solid #dbe9fb;">
                 <tr><td style="padding:20px 24px;">
-                  <h2 style="margin:0 0 12px; font-size:15px; color:#0057B8; font-weight:700;">Before You Join</h2>
-                  <div style="font-size:14px; color:#333d4d; line-height:2;">
-                    <div>&#9989; &nbsp;Join 5 minutes early</div>
-                    <div>&#9989; &nbsp;Stable internet connection</div>
-                    <div>&#9989; &nbsp;Prepare your questions</div>
+                  <h2 style="margin:0 0 10px; font-size:15px; color:#0057B8; font-weight:700;">Before You Join</h2>
+                  <p style="margin:0 0 14px; font-size:13px; color:#5b6472; line-height:1.5;">To ensure a smooth and productive Zoom Discovery Call, please take note of the following:</p>
+                  <div style="font-size:14px; color:#333d4d; line-height:1.6;">
+                    <p style="margin:0 0 10px;">&#9989; &nbsp;Join the meeting 10 to 15 minutes early to test your internet connection, microphone, and audio.</p>
+                    <p style="margin:0 0 10px;">&#9989; &nbsp;Use a stable internet connection to avoid interruptions during the session.</p>
+                    <p style="margin:0 0 10px;">&#9989; &nbsp;Join from a quiet, distraction-free environment so you can fully participate and get the most value from the discussion.</p>
+                    <p style="margin:0;">&#9989; &nbsp;Please keep your camera turned on throughout the meeting to create a more engaging and interactive session.</p>
                   </div>
                 </td></tr>
               </table>
