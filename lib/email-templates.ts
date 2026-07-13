@@ -231,9 +231,16 @@ export function discoveryCallEmailHtml(opts: DiscoveryCallEmailOptions) {
 
           <!-- Footer -->
           <tr>
-            <td class="sedo-px" style="padding:32px 40px 40px; text-align:center; border-top:1px solid #eef1f6;">
-              <p style="margin:24px 0 4px; font-size:13px; color:#8a94a6;">See you at the call — we're excited to help you start your online store!</p>
-              <p style="margin:0; font-size:12px; color:#b0b8c4;">SEDO — Build Your Online Store in 24 Hours</p>
+            <td class="sedo-px" style="padding:32px 40px 40px; text-align:left; border-top:1px solid #eef1f6;">
+              <p style="margin:24px 0 12px; font-size:13px; color:#5b6472; line-height:1.6;">We're excited to meet you at our Discovery Call and show you how SEDO can help you start and grow your ecommerce business with the right system, products, and support.</p>
+              <p style="margin:0 0 12px; font-size:13px; color:#5b6472; line-height:1.6;">If you have any questions or experience any technical issues before the session, simply reply to this email and our team will be happy to assist you.</p>
+              <p style="margin:0 0 20px; font-size:13px; color:#5b6472; line-height:1.6;">See you soon, and thank you for considering SEDO as your partner in building your ecommerce journey.</p>
+              <p style="margin:0 0 2px; font-size:13px; color:#333d4d; font-weight:600;">Best regards,</p>
+              <p style="margin:0; font-size:13px; color:#333d4d; line-height:1.6;">
+                The SEDO Team<br />
+                Start Ecom Day One<br />
+                <a href="https://www.sedoph.com" style="color:#0057B8; text-decoration:none;">www.sedoph.com</a>
+              </p>
             </td>
           </tr>
 
