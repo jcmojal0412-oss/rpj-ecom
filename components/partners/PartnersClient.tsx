@@ -115,7 +115,13 @@ export default function PartnersClient() {
     if (search) params.set('q', search);
     if (filter !== 'ALL') params.set('status', filter);
     const data = await fetch(`/api/partners?${params}`).then(r => r.json());
-    setPartners(Array.isArray(data) ? data : []);
+    // Discovery Calls and SEDO Partners share the same partners table — only
+    // show fully onboarded partners here; not-yet-onboarded leads (raw
+    // bookings, in-progress discovery calls) stay on the Discovery Calls page.
+    const onboarded = (Array.isArray(data) ? data : []).filter(
+      (p: Partner) => p.onboarding === 'DONE'
+    );
+    setPartners(onboarded);
     setLoading(false);
   }, [search, filter]);
 
