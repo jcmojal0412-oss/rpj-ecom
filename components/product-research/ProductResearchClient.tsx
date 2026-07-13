@@ -22,6 +22,7 @@ export interface ResearchItem {
   done_botcake: number; done_webcake: number;
   promo: string | null;
   shipping_fee: number | null; ads_cost: number | null; rts_percent: number | null;
+  bundle_price: number | null;
   status: ResearchStatus; created_at: string;
 }
 

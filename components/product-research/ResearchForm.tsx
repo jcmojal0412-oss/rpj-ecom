@@ -35,6 +35,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const [shippingFee,      setShippingFee]      = useState(initial?.shipping_fee ? String(initial.shipping_fee) : '');
   const [adsCost,          setAdsCost]          = useState(initial?.ads_cost ? String(initial.ads_cost) : '');
   const [rtsPercent,       setRtsPercent]       = useState(initial?.rts_percent ? String(initial.rts_percent) : '');
+  const [bundlePrice,      setBundlePrice]      = useState(initial?.bundle_price ? String(initial.bundle_price) : '');
   const [submitting,       setSubmitting]       = useState(false);
 
   const cogsNum     = parseFloat(cogs) || 0;
@@ -50,6 +51,16 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
   const margin        = srpNum > 0 ? (profit / srpNum * 100) : 0;
   const breakEven      = successRate > 0 ? totalCost / successRate : 0;
   const hasValues       = cogs !== '' && srp !== '';
+
+  // Buy 1 Take 1 / Bundle of 2 — COGS doubles (2 units), but shipping and
+  // ads stay the same since it's still one order/one shipment.
+  const bundlePriceNum = parseFloat(bundlePrice) || 0;
+  const bundleTotalCost = (cogsNum * 2) + shippingNum + adsNum;
+  const bundleNetRevenue = bundlePriceNum * successRate;
+  const bundleProfit = bundleNetRevenue - bundleTotalCost;
+  const bundleMargin = bundlePriceNum > 0 ? (bundleProfit / bundlePriceNum * 100) : 0;
+  const bundleBreakEven = successRate > 0 ? bundleTotalCost / successRate : 0;
+  const hasBundleValues = cogs !== '' && bundlePrice !== '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +80,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
       shipping_fee:      shippingFee ? parseFloat(shippingFee) : 0,
       ads_cost:          adsCost ? parseFloat(adsCost) : 0,
       rts_percent:       rtsPercent ? parseFloat(rtsPercent) : 0,
+      bundle_price:      bundlePrice ? parseFloat(bundlePrice) : null,
       webcake_warehouse: webcakeWarehouse,
       add_to_warehouse:  addToWarehouse,
       gsheet_monitoring: gsheetMonitoring,
@@ -162,6 +174,43 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
                 </p>
               )}
             </div>
+
+            {/* Buy 1 Take 1 / Bundle of 2 */}
+            <div className="pt-1">
+              <label className="text-xs font-medium text-gray-500">Bundle Price — Buy 1 Take 1 / Bundle of 2 (₱)</label>
+              <input type="number" step="0.01" className="form-input" value={bundlePrice}
+                onChange={e => setBundlePrice(e.target.value)} placeholder="e.g. 999 for 2 units (optional)" />
+              <p className="text-[11px] text-gray-400 mt-1">Assumes COGS ×2 but same shipping &amp; ads cost (one order, one shipment).</p>
+            </div>
+
+            {bundlePrice !== '' && (
+              <div className={`rounded-xl px-4 py-3 transition-colors ${
+                !hasBundleValues ? 'bg-white' : bundleProfit > 0 ? 'bg-green-50 border border-green-200' : bundleProfit < 0 ? 'bg-red-50 border border-red-200' : 'bg-white'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-700">🎁 Bundle Profit (2 units)</span>
+                    {hasBundleValues && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        bundleMargin >= 30 ? 'bg-green-100 text-green-700' : bundleMargin >= 15 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {bundleMargin.toFixed(1)}% margin
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-xl font-black ${
+                    !hasBundleValues ? 'text-gray-300' : bundleProfit > 0 ? 'text-green-700' : bundleProfit < 0 ? 'text-red-600' : 'text-gray-400'
+                  }`}>
+                    {hasBundleValues ? `₱${bundleProfit.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}
+                  </span>
+                </div>
+                {hasBundleValues && (
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Break-even: ₱{bundleBreakEven.toLocaleString('en-PH', { minimumFractionDigits: 2 })} · Total Cost: ₱{bundleTotalCost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

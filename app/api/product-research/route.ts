@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
       product_name, image_ready, google_link, drive_link, cogs, srp,
       fb_page_name, fb_page_admin, status, supplier_details, objectives,
       webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
-      shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake
+      shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake,
+      bundle_price
     } = await req.json();
 
     const info = db.prepare(`
@@ -28,8 +29,9 @@ export async function POST(req: NextRequest) {
         (product_name, image_ready, google_link, drive_link, cogs, srp,
          fb_page_name, fb_page_admin, status, supplier_details, objectives,
          webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
-         shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake,
+         bundle_price)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       product_name, image_ready ? 1 : 0,
       google_link ?? null, drive_link ?? null,
@@ -40,7 +42,8 @@ export async function POST(req: NextRequest) {
       webcake_warehouse ? 1 : 0, add_to_warehouse ? 1 : 0, gsheet_monitoring ? 1 : 0,
       promo ?? null,
       shipping_fee ?? 0, ads_cost ?? 0, rts_percent ?? 0,
-      done_botcake ? 1 : 0, done_webcake ? 1 : 0
+      done_botcake ? 1 : 0, done_webcake ? 1 : 0,
+      bundle_price ?? null
     );
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });

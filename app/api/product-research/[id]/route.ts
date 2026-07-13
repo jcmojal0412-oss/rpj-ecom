@@ -21,7 +21,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       product_name, image_ready, google_link, drive_link, cogs, srp,
       fb_page_name, fb_page_admin, status, supplier_details, objectives,
       webcake_warehouse, add_to_warehouse, gsheet_monitoring, promo,
-      shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake
+      shipping_fee, ads_cost, rts_percent, done_botcake, done_webcake,
+      bundle_price
     } = await req.json();
 
     db.prepare(`
@@ -29,7 +30,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         product_name=?, image_ready=?, google_link=?, drive_link=?, cogs=?, srp=?,
         fb_page_name=?, fb_page_admin=?, status=?, supplier_details=?, objectives=?,
         webcake_warehouse=?, add_to_warehouse=?, gsheet_monitoring=?, promo=?,
-        shipping_fee=?, ads_cost=?, rts_percent=?, done_botcake=?, done_webcake=?
+        shipping_fee=?, ads_cost=?, rts_percent=?, done_botcake=?, done_webcake=?,
+        bundle_price=?
       WHERE id=?
     `).run(
       product_name, image_ready ? 1 : 0,
@@ -42,6 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       promo ?? null,
       shipping_fee ?? 0, ads_cost ?? 0, rts_percent ?? 0,
       done_botcake ? 1 : 0, done_webcake ? 1 : 0,
+      bundle_price ?? null,
       params.id
     );
 

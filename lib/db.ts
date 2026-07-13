@@ -128,6 +128,7 @@ function migrateSchema() {
   if (!cols.includes('rts_percent'))         db.exec('ALTER TABLE product_research ADD COLUMN rts_percent REAL DEFAULT 0');
   if (!cols.includes('done_botcake'))        db.exec('ALTER TABLE product_research ADD COLUMN done_botcake INTEGER DEFAULT 0');
   if (!cols.includes('done_webcake'))        db.exec('ALTER TABLE product_research ADD COLUMN done_webcake INTEGER DEFAULT 0');
+  if (!cols.includes('bundle_price'))        db.exec('ALTER TABLE product_research ADD COLUMN bundle_price REAL');
 
   // Partner Sales table
   db.exec(`
