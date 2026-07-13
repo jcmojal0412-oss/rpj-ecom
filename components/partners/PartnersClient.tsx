@@ -345,7 +345,7 @@ export default function PartnersClient() {
 
       {/* Add Modal */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Partner" size="lg">
-        <PartnerForm onSuccess={() => { setShowAdd(false); showToast('Partner added!'); fetchPartners(); }} onCancel={() => setShowAdd(false)} />
+        <PartnerForm defaultOnboarding="DONE" onSuccess={() => { setShowAdd(false); showToast('Partner added!'); fetchPartners(); }} onCancel={() => setShowAdd(false)} />
       </Modal>
 
       {/* Edit Modal */}

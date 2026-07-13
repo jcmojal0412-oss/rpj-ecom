@@ -22,9 +22,14 @@ const S = ({ value, onChange, options }: { value: string; onChange: (v: string) 
   </select>
 );
 
-interface Props { initial?: Partner; onSuccess: () => void; onCancel: () => void; }
+// defaultOnboarding lets the SEDO Partners page's "Add Partner" button
+// default Onboarding to 'DONE' — Discovery Calls and SEDO Partners share the
+// same partners table, filtered client-side by onboarding status, so a new
+// row created without this would silently stay invisible on the Partners
+// page until someone manually flipped Onboarding to DONE.
+interface Props { initial?: Partner; defaultOnboarding?: string; onSuccess: () => void; onCancel: () => void; }
 
-export default function PartnerForm({ initial, onSuccess, onCancel }: Props) {
+export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onCancel }: Props) {
   const [name,             setName]            = useState(initial?.name ?? '');
   const [contact,          setContact]         = useState(initial?.contact ?? '');
   const [schedule,         setSchedule]        = useState(initial?.schedule?.slice(0,16) ?? '');
@@ -35,7 +40,7 @@ export default function PartnerForm({ initial, onSuccess, onCancel }: Props) {
   const [commission,       setCommission]      = useState(initial?.commission ?? '');
   const [referredBy,       setReferredBy]      = useState(initial?.referred_by ?? '');
   const [contractSigning,  setContractSigning] = useState(initial?.contract_signing ?? '');
-  const [onboarding,       setOnboarding]      = useState(initial?.onboarding ?? '');
+  const [onboarding,       setOnboarding]      = useState(initial?.onboarding ?? defaultOnboarding ?? '');
   const [startAds,         setStartAds]        = useState(initial?.start_ads ?? '');
   const [companyName,      setCompanyName]     = useState(initial?.company_name ?? '');
   const [email,            setEmail]           = useState(initial?.email ?? '');
