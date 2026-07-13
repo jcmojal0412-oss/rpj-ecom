@@ -314,7 +314,7 @@ export default function BookingPage() {
                 </p>
               </div>
 
-              <p className="text-xs font-semibold text-[#0057B8] mt-4">Please join 5 minutes before your scheduled session.</p>
+              <p className="text-xs font-semibold text-[#0057B8] mt-4">Please join 10 to 15 minutes before your scheduled session.</p>
 
               <div className="flex flex-col sm:flex-row gap-2.5 mt-6 w-full sm:w-auto">
                 <a
