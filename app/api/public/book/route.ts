@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
-import { discoveryCallEmailHtml, bookingNotificationEmailHtml } from '@/lib/email-templates';
+import { sendSms } from '@/lib/sms';
+import { discoveryCallEmailHtml, bookingNotificationEmailHtml, formatDateLabel, formatTimeLabel } from '@/lib/email-templates';
 import { createCalendarEvent } from '@/lib/google-calendar';
 
 export const dynamic = 'force-dynamic';
@@ -69,6 +70,11 @@ export async function POST(req: NextRequest) {
         notes: notes?.trim() || '',
       })
     ).catch(() => {});
+
+    if (contact?.trim()) {
+      const smsMessage = `SEDO: Hi ${name.trim()}! Your Discovery Call is confirmed for ${formatDateLabel(date)} at ${formatTimeLabel(time)} (GMT+8).${zoomLink ? ` Zoom: ${zoomLink}` : ''}`;
+      sendSms(contact.trim(), smsMessage).catch(() => {});
+    }
 
     createCalendarEvent({
       date,
