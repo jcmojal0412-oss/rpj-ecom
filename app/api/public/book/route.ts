@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
         date,
         time,
         notes: notes?.trim() || '',
-      })
+      }),
+      email.trim()
     ).catch(() => {});
 
     if (contact?.trim()) {
