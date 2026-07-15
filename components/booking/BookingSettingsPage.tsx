@@ -64,7 +64,13 @@ interface BookingsOverview {
 }
 
 function formatScheduleLabel(schedule: string) {
-  const [date, time] = schedule.split(' ');
+  // schedule has been written in a few different formats over time
+  // ("YYYY-MM-DD HH:MM:SS", "...T HH:MM" with no seconds, etc.) —
+  // normalize before parsing so one bad row can't crash the whole page.
+  const normalized = schedule.trim().replace('T', ' ');
+  const [date, timeRaw] = normalized.split(' ');
+  if (!date || !timeRaw) return schedule;
+  const time = timeRaw.slice(0, 5);
   const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-PH', {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
   });
