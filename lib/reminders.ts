@@ -80,7 +80,7 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
       if (!b.sms_24h_sent && hasContact) {
         // No raw link — Smart (and sometimes Globe) silently drops SMS
         // containing URLs from senders without a link whitelist.
-        const message = `SEDO: Hi ${b.name}! Reminder: your Discovery Call is tomorrow, ${formatDateLabel(date)} at ${formatTimeLabel(timeHHMM)} (GMT+8). Pls msg our FB page or check your email for the Zoom link.`;
+        const message = `SEDO: Hi ${b.name}! Reminder: your Discovery Call is tomorrow, ${formatDateLabel(date)} at ${formatTimeLabel(timeHHMM)} (GMT+8). Check email or FB page for Zoom link.`;
         const result = await sendSms(b.contact!, message);
         if (result.sent) {
           db.prepare('UPDATE partners SET sms_24h_sent=1 WHERE id=?').run(b.id);
@@ -110,7 +110,7 @@ export async function checkAndSendReminders(): Promise<{ sent24h: number; sent1h
       if (!b.sms_1h_sent && hasContact) {
         // No raw link — Smart (and sometimes Globe) silently drops SMS
         // containing URLs from senders without a link whitelist.
-        const message = `SEDO: Hi ${b.name}! Your Discovery Call starts in 1 hour, ${formatTimeLabel(timeHHMM)} (GMT+8). Pls msg our FB page or check your email for the Zoom link.`;
+        const message = `SEDO: Hi ${b.name}! Your Discovery Call starts in 1 hour, ${formatTimeLabel(timeHHMM)} (GMT+8). Check email or FB page for Zoom link.`;
         const result = await sendSms(b.contact!, message);
         if (result.sent) {
           db.prepare('UPDATE partners SET sms_1h_sent=1 WHERE id=?').run(b.id);
