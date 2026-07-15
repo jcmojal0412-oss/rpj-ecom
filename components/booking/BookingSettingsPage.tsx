@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Copy, Check, Calendar, ExternalLink, Plus, X, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { Loader2, Copy, Check, Calendar, ExternalLink, Plus, X, ChevronDown, ChevronUp, Users, Video } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 
 interface Range {
@@ -99,6 +99,7 @@ export default function BookingSettingsPage() {
   const [loadingAvailability, setLoadingAvailability] = useState(true);
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedZoom, setCopiedZoom] = useState(false);
 
   const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -241,6 +242,12 @@ export default function BookingSettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyZoomLink = () => {
+    navigator.clipboard.writeText(zoomLink);
+    setCopiedZoom(true);
+    setTimeout(() => setCopiedZoom(false), 2000);
+  };
+
   return (
     <div className="p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
@@ -269,6 +276,23 @@ export default function BookingSettingsPage() {
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : (
           <div className="space-y-6">
+            {!loadingAvailability && (
+              <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex items-center gap-2">
+                  <Video size={16} className="text-gray-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-500">Zoom Link (used for all bookings)</p>
+                    <p className="text-sm text-gray-800 truncate">{zoomLink || 'No Zoom link set — add one in Booking Availability'}</p>
+                  </div>
+                </div>
+                {zoomLink && (
+                  <button onClick={copyZoomLink} className="btn-secondary text-xs py-1.5 shrink-0">
+                    {copiedZoom ? <Check size={13} /> : <Copy size={13} />}
+                    {copiedZoom ? 'Copied' : 'Copy'}
+                  </button>
+                )}
+              </div>
+            )}
             {([
               { key: 'today' as const, label: 'Today' },
               { key: 'upcoming' as const, label: 'Upcoming' },
