@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       // No raw link in the SMS body — Smart (and sometimes Globe) silently
       // drops messages containing URLs from senders without a link
       // whitelist, even though the gateway reports them as "Sent".
-      const smsMessage = `SEDO: Hi ${name.trim()}! Your Discovery Call is confirmed for ${formatDateLabel(date)} at ${formatTimeLabel(time)} (GMT+8). Check your email for the Zoom link.`;
+      const smsMessage = `SEDO: Hi ${name.trim()}! Your Discovery Call is confirmed for ${formatDateLabel(date)} at ${formatTimeLabel(time)} (GMT+8). Pls msg our FB page or check your email for the Zoom link.`;
       sendSms(contact.trim(), smsMessage).catch(() => {});
     }
 
