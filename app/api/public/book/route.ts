@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
       return NextResponse.json({ error: 'Invalid date/time format' }, { status: 400 });
     }
+    if (contact?.trim() && !/^(?:\+63|0)9\d{9}$/.test(contact.trim().replace(/[\s-]/g, ''))) {
+      return NextResponse.json({ error: 'Please enter a valid PH mobile number (e.g. 09171234567).' }, { status: 400 });
+    }
 
     const schedule = `${date} ${time}:00`;
     let bookingId: number | undefined;

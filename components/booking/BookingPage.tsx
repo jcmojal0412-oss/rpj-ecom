@@ -133,10 +133,19 @@ export default function BookingPage() {
 
   const isFieldSatisfied = (mode: FieldMode, value: string) => mode !== 'required' || value.trim().length > 0;
 
+  // Accepts 09XXXXXXXXX, +639XXXXXXXXX, or 639XXXXXXXXX, with optional
+  // spaces/dashes — rejects free text like "Zoom please" or "Messenger please"
+  // that would otherwise silently break the SMS confirmation/reminders.
+  const isValidContact = (value: string) => /^(?:\+63|0)9\d{9}$/.test(value.replace(/[\s-]/g, ''));
+  const contactError = fieldConfig.contact !== 'hidden' && contact.trim() && !isValidContact(contact)
+    ? 'Please enter a valid PH mobile number (e.g. 09171234567).'
+    : '';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot || !selectedDate || !name.trim() || !email.trim()) return;
     if (!isFieldSatisfied(fieldConfig.contact, contact)) return;
+    if (contact.trim() && !isValidContact(contact)) return;
     if (!isFieldSatisfied(fieldConfig.experience, businessExperience)) return;
     if (!isFieldSatisfied(fieldConfig.goal, mainGoal)) return;
     setSubmitting(true);
@@ -387,12 +396,15 @@ export default function BookingPage() {
                   </label>
                   <input
                     id="booking-contact"
+                    type="tel"
+                    inputMode="tel"
                     className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
                     value={contact}
                     onChange={e => setContact(e.target.value)}
                     placeholder={fieldConfig.contact === 'required' ? '09XX XXX XXXX' : '09XX XXX XXXX (optional)'}
                     required={fieldConfig.contact === 'required'}
                   />
+                  {contactError && <p className="text-xs text-red-500 mt-1.5">{contactError}</p>}
                 </div>
               )}
               {fieldConfig.experience !== 'hidden' && (
@@ -433,6 +445,7 @@ export default function BookingPage() {
                 disabled={
                   submitting || !name.trim() || !email.trim() ||
                   !isFieldSatisfied(fieldConfig.contact, contact) ||
+                  !!contactError ||
                   !isFieldSatisfied(fieldConfig.experience, businessExperience) ||
                   !isFieldSatisfied(fieldConfig.goal, mainGoal)
                 }
