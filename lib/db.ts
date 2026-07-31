@@ -277,6 +277,23 @@ function migrateSchema() {
   // contact number on file).
   if (!partnerCols2.includes('sms_24h_sent')) db.exec('ALTER TABLE partners ADD COLUMN sms_24h_sent INTEGER DEFAULT 0');
   if (!partnerCols2.includes('sms_1h_sent'))  db.exec('ALTER TABLE partners ADD COLUMN sms_1h_sent INTEGER DEFAULT 0');
+
+  // Financing-provider sales log — populated by AI-scanned screenshots
+  // (Skyro/Billease/Salmon/Home Credit/POS Terminal) or manual entry.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS financing_sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      amount REAL NOT NULL,
+      sale_date TEXT,
+      customer_name TEXT,
+      reference_no TEXT,
+      notes TEXT,
+      screenshot_path TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_financing_sales_provider ON financing_sales(provider);
+  `);
 }
 
 function seedBookingAvailabilityIfEmpty() {

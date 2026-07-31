@@ -86,8 +86,8 @@ function xhrPost(url: string, payload: object): Promise<any> {
   });
 }
 
-/** Scan a receipt image: compress → base64 → AI extract → return fields. */
-export async function scanReceipt(file: File): Promise<any> {
+/** Compress → base64 → POST to an AI-scan endpoint → return the extracted-fields payload. */
+async function scanImage(file: File, endpoint: string, resultKey: string): Promise<any> {
   // Compress to ~120KB
   let blob: Blob;
   try {
@@ -105,6 +105,16 @@ export async function scanReceipt(file: File): Promise<any> {
   }
 
   // Send directly to scan endpoint — no upload step, no file storage
-  const data = await xhrPost('/api/expenses/scan', { base64, mediaType: 'image/jpeg' });
-  return data.expense;
+  const data = await xhrPost(endpoint, { base64, mediaType: 'image/jpeg' });
+  return data[resultKey];
+}
+
+/** Scan a payment receipt image: compress → base64 → AI extract → return fields. */
+export async function scanReceipt(file: File): Promise<any> {
+  return scanImage(file, '/api/expenses/scan', 'expense');
+}
+
+/** Scan a financing-provider sale screenshot (Skyro/Billease/Salmon/Home Credit/POS Terminal). */
+export async function scanFinancingSale(file: File): Promise<any> {
+  return scanImage(file, '/api/financing-sales/scan', 'sale');
 }

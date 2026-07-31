@@ -17,6 +17,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/sedo-bookings',    'partners'],
   ['/partners',         'partners'],
   ['/gross-sales',      'partners'],
+  ['/financing-sales',       'financing'],
+  ['/api/financing-sales',   'financing'],
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
