@@ -54,11 +54,11 @@ interface Sale {
 }
 
 const PROVIDER_BADGE: Record<string, string> = {
-  SKYRO: 'bg-purple-100 text-purple-700',
-  BILLEASE: 'bg-blue-100 text-blue-700',
+  SKYRO: 'bg-sky-100 text-sky-700',
+  BILLEASE: 'bg-blue-700 text-white',
   SALMON: 'bg-pink-100 text-pink-700',
   'HOME CREDIT': 'bg-red-100 text-red-700',
-  'POS TERMINAL': 'bg-gray-100 text-gray-700',
+  'POS TERMINAL': 'bg-yellow-100 text-yellow-800',
 };
 
 export default function FinancingSalesClient() {
