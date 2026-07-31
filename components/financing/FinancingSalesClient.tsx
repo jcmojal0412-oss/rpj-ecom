@@ -2,13 +2,46 @@
 
 import { useEffect, useState } from 'react';
 import { Camera, Landmark, Loader2, Pencil, Trash2 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import FinancingScanModal from './FinancingScanModal';
 
 const PROVIDERS = ['SKYRO', 'BILLEASE', 'SALMON', 'HOME CREDIT', 'POS TERMINAL'];
 const FILTERS = ['ALL', ...PROVIDERS];
+
+type DatePeriod = 'today' | '1week' | '15days' | 'this_month' | 'last_month' | '3months' | 'all';
+
+const DATE_FILTERS: { key: DatePeriod; label: string }[] = [
+  { key: 'today',      label: 'Today' },
+  { key: '1week',      label: '1 Week' },
+  { key: '15days',     label: '15 Days' },
+  { key: 'this_month', label: 'This Month' },
+  { key: 'last_month', label: 'Last Month' },
+  { key: '3months',    label: 'Last 3 Months' },
+  { key: 'all',        label: 'All Time' },
+];
+
+function inPeriod(dateStr: string | null, period: DatePeriod): boolean {
+  if (period === 'all') return true;
+  if (!dateStr) return false;
+  const today = todayISO();
+  const diffDays = Math.round((new Date(today + 'T00:00:00').getTime() - new Date(dateStr + 'T00:00:00').getTime()) / 86_400_000);
+
+  switch (period) {
+    case 'today':      return dateStr === today;
+    case '1week':      return diffDays >= 0 && diffDays < 7;
+    case '15days':     return diffDays >= 0 && diffDays < 15;
+    case '3months':    return diffDays >= 0 && diffDays < 92;
+    case 'this_month': return dateStr.slice(0, 7) === today.slice(0, 7);
+    case 'last_month': {
+      const [y, m] = today.split('-').map(Number);
+      const lm = new Date(y, m - 2, 1);
+      const lmKey = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
+      return dateStr.slice(0, 7) === lmKey;
+    }
+  }
+}
 
 interface Sale {
   id: number;
@@ -33,6 +66,7 @@ export default function FinancingSalesClient() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
+  const [period, setPeriod] = useState<DatePeriod>('this_month');
   const [showScan, setShowScan] = useState(false);
   const [editing, setEditing] = useState<Sale | null>(null);
   const [deleting, setDeleting] = useState<Sale | null>(null);
@@ -47,13 +81,15 @@ export default function FinancingSalesClient() {
 
   useEffect(fetchSales, []);
 
+  const inRange = sales.filter(s => inPeriod(s.sale_date, period));
+
   const totals = PROVIDERS.reduce<Record<string, number>>((acc, p) => {
-    acc[p] = sales.filter(s => s.provider === p).reduce((sum, s) => sum + s.amount, 0);
+    acc[p] = inRange.filter(s => s.provider === p).reduce((sum, s) => sum + s.amount, 0);
     return acc;
   }, {});
-  const grandTotal = sales.reduce((sum, s) => sum + s.amount, 0);
+  const grandTotal = inRange.reduce((sum, s) => sum + s.amount, 0);
 
-  const visible = filter === 'ALL' ? sales : sales.filter(s => s.provider === filter);
+  const visible = filter === 'ALL' ? inRange : inRange.filter(s => s.provider === filter);
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -105,7 +141,22 @@ export default function FinancingSalesClient() {
         ))}
       </div>
 
-      {/* Filter tabs */}
+      {/* Date range filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {DATE_FILTERS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setPeriod(key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              period === key ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Provider filter tabs */}
       <div className="flex gap-1.5 flex-wrap">
         {FILTERS.map(f => (
           <button
