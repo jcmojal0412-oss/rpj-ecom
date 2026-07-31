@@ -7,18 +7,22 @@ import { scanFinancingSale, normalizeDateToISO } from '@/lib/scan-receipt';
 
 const PROVIDERS = ['SKYRO', 'BILLEASE', 'SALMON', 'HOME CREDIT', 'POS TERMINAL'];
 
-interface ScanItem {
-  file: File;
-  previewUrl: string;
-  status: 'scanning' | 'done' | 'error';
-  error?: string;
+interface SaleRow {
   provider: string;
   amount: string;
   date: string;
   customerName: string;
   referenceNo: string;
-  screenshotPath: string | null;
   saved: boolean;
+}
+
+interface ScanItem {
+  file: File;
+  previewUrl: string;
+  status: 'scanning' | 'done' | 'error';
+  error?: string;
+  screenshotPath: string | null;
+  rows: SaleRow[];
 }
 
 export default function FinancingScanModal({
@@ -30,23 +34,24 @@ export default function FinancingScanModal({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<ScanItem[]>([]);
-  const [saving, setSaving] = useState<number | null>(null);
+  const [saving, setSaving] = useState<string | null>(null); // `${itemIndex}-${rowIndex}`
 
-  const update = (i: number, patch: Partial<ScanItem>) =>
+  const updateItem = (i: number, patch: Partial<ScanItem>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+
+  const updateRow = (i: number, r: number, patch: Partial<SaleRow>) =>
+    setItems(prev => prev.map((it, idx) => idx === i
+      ? { ...it, rows: it.rows.map((row, ridx) => ridx === r ? { ...row, ...patch } : row) }
+      : it
+    ));
 
   const handleFiles = async (files: FileList | File[]) => {
     const newItems: ScanItem[] = Array.from(files).map(file => ({
       file,
       previewUrl: URL.createObjectURL(file),
       status: 'scanning',
-      provider: 'POS TERMINAL',
-      amount: '',
-      date: todayISO(),
-      customerName: '',
-      referenceNo: '',
       screenshotPath: null,
-      saved: false,
+      rows: [],
     }));
     setItems(prev => [...prev, ...newItems]);
     const offset = items.length;
@@ -59,21 +64,24 @@ export default function FinancingScanModal({
       fd.append('file', item.file);
       fetch('/api/upload/receipt', { method: 'POST', body: fd })
         .then(r => r.json())
-        .then(d => { if (d.path) update(i, { screenshotPath: d.path }); })
+        .then(d => { if (d.path) updateItem(i, { screenshotPath: d.path }); })
         .catch(() => {});
 
       try {
-        const s = await scanFinancingSale(item.file);
-        update(i, {
-          status: 'done',
+        // One screenshot can contain multiple sales — e.g. a cashier's chat
+        // summary listing several financing providers at once.
+        const sales = await scanFinancingSale(item.file);
+        const rows: SaleRow[] = sales.map((s: any) => ({
           provider: PROVIDERS.includes(s.provider) ? s.provider : 'POS TERMINAL',
           amount: s.amount != null ? String(s.amount) : '',
           date: normalizeDateToISO(s.date) || todayISO(),
           customerName: s.customer_name || '',
           referenceNo: s.reference_no || '',
-        });
+          saved: false,
+        }));
+        updateItem(i, { status: 'done', rows });
       } catch (err: any) {
-        update(i, { status: 'error', error: err.message || 'Scan failed' });
+        updateItem(i, { status: 'error', error: err.message || 'Scan failed' });
       }
     }));
   };
@@ -91,28 +99,35 @@ export default function FinancingScanModal({
     return () => window.removeEventListener('paste', onPaste);
   }, [items]);
 
-  const saveItem = async (i: number) => {
-    const item = items[i];
-    if (!item.amount) return;
-    setSaving(i);
+  const allSettled = () =>
+    items.every(it => it.status === 'error' || (it.status === 'done' && it.rows.every(r => r.saved)));
+
+  const saveRow = async (i: number, r: number) => {
+    const row = items[i]?.rows[r];
+    if (!row || !row.amount) return;
+    const key = `${i}-${r}`;
+    setSaving(key);
     try {
       const res = await fetch('/api/financing-sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider: item.provider,
-          amount: parseFloat(item.amount),
-          sale_date: item.date || null,
-          customer_name: item.customerName || null,
-          reference_no: item.referenceNo || null,
-          screenshot_path: item.screenshotPath,
+          provider: row.provider,
+          amount: parseFloat(row.amount),
+          sale_date: row.date || null,
+          customer_name: row.customerName || null,
+          reference_no: row.referenceNo || null,
+          screenshot_path: items[i].screenshotPath,
         }),
       });
       if (res.ok) {
-        update(i, { saved: true });
         setItems(prev => {
-          if (prev.every((it, idx) => idx === i ? true : it.saved || it.status === 'error')) onSaved();
-          return prev;
+          const next = prev.map((it, idx) => idx === i
+            ? { ...it, rows: it.rows.map((row2, ridx) => ridx === r ? { ...row2, saved: true } : row2) }
+            : it
+          );
+          if (next.every(it => it.status === 'error' || (it.status === 'done' && it.rows.every(row2 => row2.saved)))) onSaved();
+          return next;
         });
       }
     } finally {
@@ -123,12 +138,16 @@ export default function FinancingScanModal({
   const saveAll = async () => {
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      if (!it.saved && it.status === 'done' && it.amount) await saveItem(i);
+      if (it.status !== 'done') continue;
+      for (let r = 0; r < it.rows.length; r++) {
+        if (!it.rows[r].saved && it.rows[r].amount) await saveRow(i, r);
+      }
     }
-    onSaved();
+    if (allSettled()) onSaved();
   };
 
-  const pendingCount = items.filter(it => it.status === 'done' && it.amount && !it.saved).length;
+  const pendingCount = items.reduce((sum, it) =>
+    sum + (it.status === 'done' ? it.rows.filter(r => !r.saved && r.amount).length : 0), 0);
 
   return (
     <div className="space-y-4">
@@ -139,7 +158,9 @@ export default function FinancingScanModal({
       >
         <Camera className="mx-auto text-orange-400 mb-2" size={28} />
         <p className="text-sm font-semibold text-gray-700">Upload Sale Screenshots</p>
-        <p className="text-xs text-gray-400 mt-1">Skyro, Billease, Salmon, Home Credit, o POS terminal — pwedeng multiple</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Skyro, Billease, Salmon, Home Credit, POS terminal, o kahit chat summary na naglilista ng ilang sales — pwedeng multiple
+        </p>
         <p className="text-xs text-orange-500 mt-1 font-medium">Pwede ring i-paste (Ctrl+V) ang copied screenshot</p>
         <input
           ref={fileRef}
@@ -154,111 +175,116 @@ export default function FinancingScanModal({
       {/* Results */}
       {items.length > 0 && (
         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-          {items.map((item, i) => (
-            <div key={i} className={`border rounded-xl p-3 space-y-2 ${
-              item.saved ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-white'
-            }`}>
-              <div className="flex items-start gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.previewUrl} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-600 truncate">{item.file.name}</p>
+          {items.map((item, i) => {
+            const allRowsSaved = item.status === 'done' && item.rows.length > 0 && item.rows.every(r => r.saved);
+            return (
+              <div key={i} className={`border rounded-xl p-3 space-y-2 ${
+                allRowsSaved ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-white'
+              }`}>
+                <div className="flex items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.previewUrl} alt="" className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-600 truncate">{item.file.name}</p>
 
-                  {item.status === 'scanning' && (
-                    <div className="flex items-center gap-1.5 text-xs text-orange-500 mt-1">
-                      <Loader2 size={12} className="animate-spin" /> Scanning...
-                    </div>
-                  )}
+                    {item.status === 'scanning' && (
+                      <div className="flex items-center gap-1.5 text-xs text-orange-500 mt-1">
+                        <Loader2 size={12} className="animate-spin" /> Scanning...
+                      </div>
+                    )}
 
-                  {item.status === 'error' && (
-                    <div className="flex items-center gap-1.5 text-xs text-red-500 mt-1">
-                      <AlertCircle size={12} /> {item.error}
-                    </div>
-                  )}
+                    {item.status === 'error' && (
+                      <div className="flex items-center gap-1.5 text-xs text-red-500 mt-1">
+                        <AlertCircle size={12} /> {item.error}
+                      </div>
+                    )}
 
-                  {item.status === 'done' && !item.saved && (
-                    <p className="text-xs text-gray-500 mt-0.5">Review the detected details below, then save.</p>
-                  )}
+                    {item.status === 'done' && !allRowsSaved && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {item.rows.length > 1 ? `${item.rows.length} sales detected — review each below.` : 'Review the detected details below, then save.'}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-gray-300 hover:text-red-400 shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                  className="text-gray-300 hover:text-red-400 shrink-0"
-                >
-                  <X size={14} />
-                </button>
+                {/* One editable card per detected sale row */}
+                {item.status === 'done' && item.rows.map((row, r) => (
+                  row.saved ? (
+                    <div key={r} className="flex items-center gap-2 text-xs text-green-700 pt-1 border-t border-green-100">
+                      <CheckCircle2 size={14} />
+                      {row.provider} sale saved — {formatCurrency(parseFloat(row.amount || '0'))}
+                    </div>
+                  ) : (
+                    <div key={r} className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Financing Provider</label>
+                        <select
+                          className="form-input text-sm py-1.5"
+                          value={row.provider}
+                          onChange={e => updateRow(i, r, { provider: e.target.value })}
+                        >
+                          {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount (₱)</label>
+                        <input
+                          type="number"
+                          className="form-input text-sm py-1.5"
+                          value={row.amount}
+                          onChange={e => updateRow(i, r, { amount: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Date</label>
+                        <input
+                          type="date"
+                          className="form-input text-sm py-1.5"
+                          value={row.date}
+                          onChange={e => updateRow(i, r, { date: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Customer Name</label>
+                        <input
+                          type="text"
+                          className="form-input text-sm py-1.5"
+                          value={row.customerName}
+                          onChange={e => updateRow(i, r, { customerName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Reference No.</label>
+                        <input
+                          type="text"
+                          className="form-input text-sm py-1.5"
+                          value={row.referenceNo}
+                          onChange={e => updateRow(i, r, { referenceNo: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <button
+                          onClick={() => saveRow(i, r)}
+                          disabled={saving === `${i}-${r}` || !row.amount}
+                          className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                        >
+                          {saving === `${i}-${r}` ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
+                          {saving === `${i}-${r}` ? 'Saving...' : 'Save Sale'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                ))}
               </div>
-
-              {/* Editable confirm fields */}
-              {item.status === 'done' && !item.saved && (
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Financing Provider</label>
-                    <select
-                      className="form-input text-sm py-1.5"
-                      value={item.provider}
-                      onChange={e => update(i, { provider: e.target.value })}
-                    >
-                      {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount (₱)</label>
-                    <input
-                      type="number"
-                      className="form-input text-sm py-1.5"
-                      value={item.amount}
-                      onChange={e => update(i, { amount: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Date</label>
-                    <input
-                      type="date"
-                      className="form-input text-sm py-1.5"
-                      value={item.date}
-                      onChange={e => update(i, { date: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Customer Name</label>
-                    <input
-                      type="text"
-                      className="form-input text-sm py-1.5"
-                      value={item.customerName}
-                      onChange={e => update(i, { customerName: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Reference No.</label>
-                    <input
-                      type="text"
-                      className="form-input text-sm py-1.5"
-                      value={item.referenceNo}
-                      onChange={e => update(i, { referenceNo: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2 flex justify-end">
-                    <button
-                      onClick={() => saveItem(i)}
-                      disabled={saving === i || !item.amount}
-                      className="btn-primary text-xs py-1.5 disabled:opacity-50"
-                    >
-                      {saving === i ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
-                      {saving === i ? 'Saving...' : 'Save Sale'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {item.saved && (
-                <div className="flex items-center gap-2 text-xs text-green-700 pt-1 border-t border-green-100">
-                  <CheckCircle2 size={14} />
-                  {item.provider} sale saved — {formatCurrency(parseFloat(item.amount || '0'))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

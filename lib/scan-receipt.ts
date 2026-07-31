@@ -114,7 +114,11 @@ export async function scanReceipt(file: File): Promise<any> {
   return scanImage(file, '/api/expenses/scan', 'expense');
 }
 
-/** Scan a financing-provider sale screenshot (Skyro/Billease/Salmon/Home Credit/POS Terminal). */
-export async function scanFinancingSale(file: File): Promise<any> {
-  return scanImage(file, '/api/financing-sales/scan', 'sale');
+/**
+ * Scan a financing-provider sale screenshot (Skyro/Billease/Salmon/Home Credit/
+ * POS Terminal). Returns an array — one screenshot can contain multiple sales
+ * (e.g. a cashier's chat summary listing several providers at once).
+ */
+export async function scanFinancingSale(file: File): Promise<any[]> {
+  return scanImage(file, '/api/financing-sales/scan', 'sales');
 }
