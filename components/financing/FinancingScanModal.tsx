@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { formatCurrency, todayISO } from '@/lib/utils';
 import { scanFinancingSale, normalizeDateToISO } from '@/lib/scan-receipt';
@@ -35,7 +35,7 @@ export default function FinancingScanModal({
   const update = (i: number, patch: Partial<ScanItem>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it));
 
-  const handleFiles = async (files: FileList) => {
+  const handleFiles = async (files: FileList | File[]) => {
     const newItems: ScanItem[] = Array.from(files).map(file => ({
       file,
       previewUrl: URL.createObjectURL(file),
@@ -77,6 +77,19 @@ export default function FinancingScanModal({
       }
     }));
   };
+
+  // Ctrl+V a screenshot straight in — no need to save the file first.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.items ?? [])
+        .filter(it => it.type.startsWith('image/'))
+        .map(it => it.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (files.length) handleFiles(files);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [items]);
 
   const saveItem = async (i: number) => {
     const item = items[i];
@@ -127,6 +140,7 @@ export default function FinancingScanModal({
         <Camera className="mx-auto text-orange-400 mb-2" size={28} />
         <p className="text-sm font-semibold text-gray-700">Upload Sale Screenshots</p>
         <p className="text-xs text-gray-400 mt-1">Skyro, Billease, Salmon, Home Credit, o POS terminal — pwedeng multiple</p>
+        <p className="text-xs text-orange-500 mt-1 font-medium">Pwede ring i-paste (Ctrl+V) ang copied screenshot</p>
         <input
           ref={fileRef}
           type="file"
