@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { computeDaySummary, isTodayFinalized, isConfiguredWorkDay, todayISO, type AttendanceEvent } from '@/lib/attendance';
+import { computeDaySummary, isTodayFinalized, todayISO, type AttendanceEvent } from '@/lib/attendance';
 import { resolveAttendanceSettings, type Employee } from '@/lib/attendance-shifts';
+import { resolveAttendanceException, applyAttendanceException } from '@/lib/attendance-exceptions';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,20 +62,39 @@ export async function GET(req: NextRequest) {
   const rows: any[] = [];
 
   for (const employee of employees) {
-    // work_days is per-employee now, so the date filter runs per employee,
-    // not once for the whole range.
-    const dates = allDates.filter(d => isConfiguredWorkDay(d, { work_days: employee.work_days.split(',').filter(Boolean).map(Number) }));
-    for (const date of dates) {
+    // Every calendar date in range gets a row now (not just configured work
+    // days) — a rest day, holiday, or approved-leave day is a real,
+    // payroll-relevant status of its own (see lib/attendance-exceptions.ts),
+    // not something to silently skip.
+    for (const date of allDates) {
+      const exception = resolveAttendanceException(db, employee, date);
+
       // History-aware: resolves whichever shift this employee was actually
       // assigned to on THIS date, not their current shift — so a shift
-      // change never rewrites how past dates are computed.
+      // change never rewrites how past dates are computed. A non-work day
+      // may have no shift assignment resolvable at all (e.g. before hire),
+      // in which case we still want to surface the exception (rest day /
+      // holiday / leave) rather than silently dropping the row.
       const resolved = resolveAttendanceSettings(db, employee.id, date);
-      if (!resolved) continue; // no shift assignment covering this date — nothing to compute
-
       const events = eventsByEmployeeDate.get(`${employee.id}|${date}`) ?? [];
+
+      if (!resolved) {
+        if (!exception) continue; // no shift AND no exception — genuinely nothing to show
+        rows.push({
+          employee_id: employee.id, name: employee.full_name, date, shift_name: null,
+          status: exception.status, paid: exception.paid, exceptionLabel: exception.label,
+          totalWorkMinutes: 0, breakMinutes: 0, excessBreakMinutes: 0, potentialOtMinutes: 0, lateMinutes: 0, undertimeMinutes: 0,
+        });
+        continue;
+      }
+
       const isFinalized = date < today || (date === today && isTodayFinalized(resolved.settings));
-      const summary = computeDaySummary(events, resolved.settings, isFinalized);
-      rows.push({ employee_id: employee.id, name: employee.full_name, date, shift_name: resolved.shift.name, ...summary });
+      const rawSummary = computeDaySummary(events, resolved.settings, isFinalized);
+      const { status, paid, exceptionLabel } = applyAttendanceException(rawSummary, exception);
+      rows.push({
+        employee_id: employee.id, name: employee.full_name, date, shift_name: resolved.shift.name,
+        ...rawSummary, status, paid, exceptionLabel,
+      });
     }
   }
 

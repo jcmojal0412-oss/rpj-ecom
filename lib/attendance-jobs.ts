@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import { computeDaySummary, isTodayFinalized, isConfiguredWorkDay, type AttendanceEvent } from './attendance';
 import { resolveAttendanceSettings, type Employee } from './attendance-shifts';
+import { resolveAttendanceException } from './attendance-exceptions';
 
 function phDateNDaysAgo(n: number): string {
   const d = new Date(Date.now() + 8 * 3600 * 1000 - n * 86_400_000);
@@ -102,6 +103,13 @@ export function markAbsentees(): number {
       LIMIT 1
     `).get(employee.id, today);
     if (hasTimeIn) continue;
+
+    // Before flagging: an approved leave, an admin-recorded exception
+    // (Official Business / Authorized Absence / Company Event), or a
+    // non-working holiday all mean this is NOT an unexplained no-show —
+    // never write an auto_absent audit row for a day that's already
+    // accounted for.
+    if (resolveAttendanceException(db, employee, today)) continue;
 
     const info = db.prepare(`
       INSERT OR IGNORE INTO attendance_audit_log (actor_user_id, action, employee_id, event_date, details)

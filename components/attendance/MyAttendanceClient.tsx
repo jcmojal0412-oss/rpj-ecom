@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Clock, Coffee, Utensils, LogIn, LogOut, Camera, FileEdit, Loader2 } from 'lucide-react';
+import { Clock, Coffee, Utensils, LogIn, LogOut, Camera, FileEdit, Loader2, Palmtree, Paperclip } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import SelfieCaptureModal from './SelfieCaptureModal';
@@ -136,6 +136,8 @@ export default function MyAttendanceClient() {
   const [selfieFor, setSelfieFor] = useState<EventType | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Ticks every second so the live break timer stays accurate — purely a
@@ -161,10 +163,15 @@ export default function MyAttendanceClient() {
     fetch('/api/attendance/corrections?self=1').then(r => r.json()).then(d => setCorrections(Array.isArray(d) ? d : []));
   };
 
+  const fetchLeaveRequests = () => {
+    fetch('/api/leave-requests?self=1').then(r => r.json()).then(d => setLeaveRequests(Array.isArray(d) ? d : []));
+  };
+
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUserName(u.name); });
     fetchToday();
     fetchCorrections();
+    fetchLeaveRequests();
   }, []);
 
   const submitClock = async (eventType: EventType, photoPath?: string) => {
@@ -345,6 +352,33 @@ export default function MyAttendanceClient() {
         </div>
       )}
 
+      {/* Leave request */}
+      <button onClick={() => setShowLeaveForm(true)} className="btn-secondary w-full justify-center">
+        <Palmtree size={15} /> Request Leave
+      </button>
+
+      {leaveRequests.length > 0 && (
+        <div className="card space-y-2">
+          <p className="text-sm font-semibold text-gray-700">My Leave Requests</p>
+          {leaveRequests.map(l => (
+            <div key={l.id} className="flex items-center justify-between text-xs border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+              <div>
+                <p className="text-gray-700 font-medium">
+                  {l.leave_type_name} — {l.from_date}{l.from_date !== l.to_date ? ` to ${l.to_date}` : ''}
+                  {l.attachment_path && <Paperclip size={11} className="inline ml-1 text-gray-400" />}
+                </p>
+                <p className="text-gray-400">{l.reason}</p>
+              </div>
+              <span className={
+                l.status === 'approved' ? 'badge-green' : l.status === 'rejected' ? 'badge-red' : 'badge-amber'
+              }>
+                {l.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {selfieFor && (
         <Modal open={!!selfieFor} onClose={() => setSelfieFor(null)} title={`Selfie for ${EVENT_LABELS[selfieFor]}`} size="sm">
           <SelfieCaptureModal
@@ -359,6 +393,15 @@ export default function MyAttendanceClient() {
           <CorrectionForm
             onCancel={() => setShowCorrectionForm(false)}
             onSubmitted={() => { setShowCorrectionForm(false); showToast('Correction request submitted!'); fetchCorrections(); }}
+          />
+        </Modal>
+      )}
+
+      {showLeaveForm && (
+        <Modal open={showLeaveForm} onClose={() => setShowLeaveForm(false)} title="Request Leave" size="sm">
+          <LeaveRequestForm
+            onCancel={() => setShowLeaveForm(false)}
+            onSubmitted={() => { setShowLeaveForm(false); showToast('Leave request submitted!'); fetchLeaveRequests(); }}
           />
         </Modal>
       )}
@@ -412,6 +455,98 @@ function CorrectionForm({ onCancel, onSubmitted }: { onCancel: () => void; onSub
       <div>
         <label className="form-label">Reason</label>
         <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Forgot to clock out, phone battery died" />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={submit} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Submitting...' : 'Submit Request'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LeaveRequestForm({ onCancel, onSubmitted }: { onCancel: () => void; onSubmitted: () => void }) {
+  const [leaveTypes, setLeaveTypes] = useState<{ id: number; name: string; paid: number }[]>([]);
+  const [leaveTypeId, setLeaveTypeId] = useState('');
+  const [fromDate, setFromDate] = useState(() => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10));
+  const [dayType, setDayType] = useState<'full' | 'half'>('full');
+  const [reason, setReason] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/leave-types').then(r => r.json()).then(d => {
+      const list = Array.isArray(d) ? d : [];
+      setLeaveTypes(list);
+      if (list.length) setLeaveTypeId(String(list[0].id));
+    });
+  }, []);
+
+  const submit = async () => {
+    if (!leaveTypeId) { setError('Select a leave type.'); return; }
+    if (!reason.trim()) { setError('Please provide a reason.'); return; }
+    if (toDate < fromDate) { setError('To Date cannot be before From Date.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      let attachmentPath: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const uploadRes = await fetch('/api/leave-requests/upload-attachment', { method: 'POST', body: fd });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) { setError(uploadData.error || 'Failed to upload attachment.'); return; }
+        attachmentPath = uploadData.path;
+      }
+      const res = await fetch('/api/leave-requests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leave_type_id: Number(leaveTypeId), from_date: fromDate, to_date: toDate, day_type: dayType, reason: reason.trim(), attachment_path: attachmentPath }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to submit.'); return; }
+      onSubmitted();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Leave Type</label>
+        <select className="form-input" value={leaveTypeId} onChange={e => setLeaveTypeId(e.target.value)}>
+          {leaveTypes.map(t => <option key={t.id} value={t.id}>{t.name}{t.paid ? '' : ' (Unpaid)'}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="form-label">From Date</label>
+          <input type="date" className="form-input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">To Date</label>
+          <input type="date" className="form-input" value={toDate} onChange={e => setToDate(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Day Type</label>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setDayType('full')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${dayType === 'full' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Full Day</button>
+          <button type="button" onClick={() => setDayType('half')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${dayType === 'half' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Half Day</button>
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Reason</label>
+        <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Family emergency, medical appointment" />
+      </div>
+      <div>
+        <label className="form-label">Attachment (optional)</label>
+        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="form-input" onChange={e => setFile(e.target.files?.[0] ?? null)} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">

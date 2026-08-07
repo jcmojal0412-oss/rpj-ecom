@@ -495,6 +495,68 @@ function migrateSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_shift_overrides_employee_date ON attendance_shift_overrides(employee_id, override_date);
   `);
+
+  // Attendance Exceptions / Leave Management V1 — makes attendance
+  // payroll-ready by distinguishing a genuine no-show (Absent) from an
+  // approved non-working day (Rest Day, approved Leave, Official Business /
+  // Authorized Absence / Company Event, or a non-working Holiday). None of
+  // this touches the pure computation engine in lib/attendance.ts — it's a
+  // resolution layer (see lib/attendance-exceptions.ts) that runs AFTER
+  // computeDaySummary() and only ever overrides an 'absent' or (on a rest
+  // day) 'not_started' result, exactly the same "push identity/scoping
+  // resolution into a separate DB-touching layer" pattern used for shifts.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leave_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      paid INTEGER NOT NULL DEFAULT 1,
+      active INTEGER NOT NULL DEFAULT 1,
+      annual_credits REAL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id),
+      leave_type_id INTEGER NOT NULL REFERENCES leave_types(id),
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      day_type TEXT NOT NULL CHECK(day_type IN ('full','half')) DEFAULT 'full',
+      reason TEXT NOT NULL,
+      attachment_path TEXT,
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+      remarks TEXT,
+      reviewed_by INTEGER REFERENCES users(id),
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_leave_requests_employee_range ON leave_requests(employee_id, from_date, to_date);
+    CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON leave_requests(status);
+
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      holiday_type TEXT NOT NULL DEFAULT 'Regular Holiday',
+      is_working INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
+
+    CREATE TABLE IF NOT EXISTS attendance_exceptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id),
+      exception_type TEXT NOT NULL CHECK(exception_type IN ('official_business','authorized_absence','company_event')),
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      paid INTEGER NOT NULL DEFAULT 1,
+      reason TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_exceptions_employee_range ON attendance_exceptions(employee_id, from_date, to_date);
+  `);
+  seedLeaveTypesIfEmpty();
 }
 
 // One-time backfill: every existing users row becomes a linked, active,
@@ -539,6 +601,18 @@ function seedShiftsIfEmpty() {
   const users = db.prepare('SELECT id FROM users').all() as { id: number }[];
   const assign = db.prepare('INSERT INTO attendance_shift_assignments (user_id, shift_id, effective_from) VALUES (?, ?, ?)');
   for (const u of users) assign.run(u.id, shiftA.lastInsertRowid, '2000-01-01');
+}
+
+function seedLeaveTypesIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM leave_types').get() as { c: number }).c;
+  if (count > 0) return;
+
+  const insert = db.prepare('INSERT INTO leave_types (name, paid, active, annual_credits) VALUES (?,?,1,?)');
+  insert.run('Vacation Leave', 1, 15);
+  insert.run('Sick Leave', 1, 15);
+  insert.run('Emergency Leave', 1, 5);
+  insert.run('Unpaid Leave', 0, null);
+  insert.run('Other Leave', 1, null);
 }
 
 // V1 ships one global shift/rules config (read via app_settings, no scoping

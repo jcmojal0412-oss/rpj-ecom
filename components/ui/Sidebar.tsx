@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  Clock, ClipboardCheck, Contact, Banknote, Receipt,
+  Clock, ClipboardCheck, Contact, Banknote, Receipt, Palmtree,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -68,6 +68,7 @@ const NAV_GROUPS = [
       { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
       { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
       { label: 'Attendance Admin', href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
+      { label: 'Leave Management', href: '/leave-management', icon: Palmtree,   module: 'leave_management' },
       { label: 'Payroll',          href: '#',              icon: Banknote,       module: 'employees', disabled: true },
       { label: 'Payslips',         href: '#',              icon: Receipt,        module: 'employees', disabled: true },
     ],

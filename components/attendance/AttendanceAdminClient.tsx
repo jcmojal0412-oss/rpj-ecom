@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus, Pencil } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus, Pencil, Palmtree, PartyPopper, Briefcase, BedDouble } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -19,22 +19,32 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'test', label: 'Test Mode' },
 ];
 
-const STATUS_BADGE: Record<AttendanceStatus, string> = {
+type ExtendedStatus = AttendanceStatus | 'rest_day' | 'on_leave' | 'holiday' | 'official_business';
+
+const STATUS_BADGE: Record<ExtendedStatus, string> = {
   not_started: 'badge-gray',
   present: 'badge-green',
   late: 'badge-amber',
   absent: 'badge-red',
   half_day: 'badge-amber',
   undertime: 'badge-amber',
+  rest_day: 'badge-gray',
+  on_leave: 'badge-blue',
+  holiday: 'badge-blue',
+  official_business: 'badge-blue',
 };
 
-const STATUS_LABEL: Record<AttendanceStatus, string> = {
+const STATUS_LABEL: Record<ExtendedStatus, string> = {
   not_started: 'Not Clocked In',
   present: 'Present',
   late: 'Late',
   absent: 'Absent',
   half_day: 'Half Day',
   undertime: 'Undertime',
+  rest_day: 'Rest Day',
+  on_leave: 'On Leave',
+  holiday: 'Holiday',
+  official_business: 'Official Business',
 };
 
 const EVENT_LABELS: Record<EventType, string> = {
@@ -98,7 +108,11 @@ const DASHBOARD_REFRESH_MS = 45_000;
 function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [counts, setCounts] = useState({ present: 0, late: 0, undertime: 0, halfDay: 0, absent: 0, notStarted: 0, pendingOt: 0, pendingCorrections: 0 });
+  const [counts, setCounts] = useState({
+    present: 0, late: 0, undertime: 0, halfDay: 0, absent: 0, notStarted: 0,
+    onLeave: 0, holiday: 0, officialBusiness: 0, restDay: 0,
+    pendingOt: 0, pendingCorrections: 0, pendingLeave: 0,
+  });
   // Live "what's happening right now" counts — a separate axis from the
   // shift-status counts above. Each employee's dayState.state is a single
   // value, so an employee is counted in exactly one of working/onBreak/
@@ -113,7 +127,8 @@ function DashboardTab() {
       fetch('/api/attendance/ot-requests?status=pending').then(r => r.json()),
       fetch('/api/attendance/corrections?status=pending').then(r => r.json()),
       fetch('/api/attendance/live-status').then(r => r.json()),
-    ]).then(([records, ot, corrections, live]) => {
+      fetch('/api/leave-requests?status=pending').then(r => r.json()),
+    ]).then(([records, ot, corrections, live, leave]) => {
       const rows = Array.isArray(records) ? records : [];
       setCounts({
         present: rows.filter((r: any) => r.status === 'present').length,
@@ -122,8 +137,13 @@ function DashboardTab() {
         halfDay: rows.filter((r: any) => r.status === 'half_day').length,
         absent: rows.filter((r: any) => r.status === 'absent').length,
         notStarted: rows.filter((r: any) => r.status === 'not_started').length,
+        onLeave: rows.filter((r: any) => r.status === 'on_leave').length,
+        holiday: rows.filter((r: any) => r.status === 'holiday').length,
+        officialBusiness: rows.filter((r: any) => r.status === 'official_business').length,
+        restDay: rows.filter((r: any) => r.status === 'rest_day').length,
         pendingOt: Array.isArray(ot) ? ot.length : 0,
         pendingCorrections: Array.isArray(corrections) ? corrections.length : 0,
+        pendingLeave: Array.isArray(leave) ? leave.length : 0,
       });
       if (live?.counts) setLiveCounts({ working: live.counts.working, onBreak: live.counts.onBreak, clockedOut: live.counts.clockedOut });
       setLastUpdated(new Date());
@@ -146,8 +166,13 @@ function DashboardTab() {
     { label: 'Half Day Today', value: counts.halfDay, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
     { label: 'Absent Today', value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
     { label: 'Not Clocked In Yet', value: counts.notStarted, icon: CalendarClock, color: 'text-gray-500 bg-gray-50' },
+    { label: 'On Leave Today', value: counts.onLeave, icon: Palmtree, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Holiday Today', value: counts.holiday, icon: PartyPopper, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Official Business Today', value: counts.officialBusiness, icon: Briefcase, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Rest Day Today', value: counts.restDay, icon: BedDouble, color: 'text-gray-500 bg-gray-50' },
     { label: 'Pending OT Requests', value: counts.pendingOt, icon: Clock3, color: 'text-orange-600 bg-orange-50' },
     { label: 'Pending Corrections', value: counts.pendingCorrections, icon: FileEdit, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Pending Leave Requests', value: counts.pendingLeave, icon: Palmtree, color: 'text-orange-600 bg-orange-50' },
   ];
 
   const liveCards = [
@@ -384,8 +409,11 @@ function RecordsTab() {
                   <tr key={i} className="hover:bg-gray-50/60">
                     <td className="table-cell">{formatDate(r.date)}</td>
                     <td className="table-cell">{r.name}</td>
-                    <td className="table-cell text-gray-500 text-xs">{r.shift_name}</td>
-                    <td className="table-cell"><span className={STATUS_BADGE[r.status as AttendanceStatus]}>{STATUS_LABEL[r.status as AttendanceStatus]}</span></td>
+                    <td className="table-cell text-gray-500 text-xs">{r.shift_name || '—'}</td>
+                    <td className="table-cell">
+                      <span className={STATUS_BADGE[r.status as ExtendedStatus]}>{STATUS_LABEL[r.status as ExtendedStatus]}</span>
+                      {r.exceptionLabel && <span className="text-xs text-gray-400 ml-1.5">{r.exceptionLabel}</span>}
+                    </td>
                     <td className="table-cell">{fmtMinutes(r.totalWorkMinutes)}</td>
                     <td className="table-cell">{fmtMinutes(r.breakMinutes)}</td>
                     <td className="table-cell">{r.excessBreakMinutes > 0 ? fmtMinutes(r.excessBreakMinutes) : '—'}</td>

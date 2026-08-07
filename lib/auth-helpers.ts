@@ -89,6 +89,7 @@ export const MODULES = [
   { key: 'financing',        label: 'Financing Sales',  icon: '🏦' },
   { key: 'attendance',       label: 'Employee Attendance', icon: '⏱️' },
   { key: 'employees',        label: 'Employees (201 File)', icon: '🪪' },
+  { key: 'leave_management', label: 'Leave Management', icon: '🌴' },
   { key: 'calculator',       label: 'Ecom Calculator',  icon: '🧮' },
   { key: 'ai_product_researcher', label: 'AI Product Researcher', icon: '🤖' },
   { key: 'service_center',   label: 'Service Center',   icon: '🔧' },
