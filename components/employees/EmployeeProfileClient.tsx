@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft, FileText, Briefcase, Banknote, CalendarClock as CalendarIcon, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowLeft, FileText, Briefcase, Banknote, Receipt, Wallet, CalendarClock as CalendarIcon, ShieldAlert } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 
-type Tab = 'overview' | 'attendance' | 'documents' | 'history' | 'payroll' | 'leave' | 'disciplinary';
+type Tab = 'overview' | 'attendance' | 'documents' | 'history' | 'payroll' | 'payslips' | 'loans' | 'leave' | 'disciplinary';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -15,6 +15,8 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'documents', label: 'Documents' },
   { key: 'history', label: 'Employment History' },
   { key: 'payroll', label: 'Payroll' },
+  { key: 'payslips', label: 'Payslips' },
+  { key: 'loans', label: 'Loans / Cash Advances' },
   { key: 'leave', label: 'Leave' },
   { key: 'disciplinary', label: 'Disciplinary' },
 ];
@@ -113,7 +115,9 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
       {tab === 'attendance' && <AttendanceTab employeeId={employee.id} />}
       {tab === 'documents' && <ComingSoon icon={FileText} label="Documents" description="Upload and manage 201-file documents (IDs, contracts, certificates) here in a future update." />}
       {tab === 'history' && <ComingSoon icon={Briefcase} label="Employment History" description="Track promotions, transfers, and role changes here in a future update." />}
-      {tab === 'payroll' && <ComingSoon icon={Banknote} label="Payroll" description="Payroll computation and payslip generation — not built yet, coming after Attendance V1 is finalized." />}
+      {tab === 'payroll' && <ComingSoon icon={Banknote} label="Payroll" description="Payroll computation — not built yet, coming after Attendance V1 is finalized." />}
+      {tab === 'payslips' && <ComingSoon icon={Receipt} label="Payslips" description="Generated payslips will be viewable and downloadable here once Payroll is built." />}
+      {tab === 'loans' && <ComingSoon icon={Wallet} label="Loans / Cash Advances" description="Loan and cash advance requests, balances, and deduction schedules will live here in a future update." />}
       {tab === 'leave' && <ComingSoon icon={CalendarIcon} label="Leave" description="Leave requests, balances, and approvals will live here in a future update." />}
       {tab === 'disciplinary' && <ComingSoon icon={ShieldAlert} label="Disciplinary" description="Disciplinary records and case history will live here in a future update." />}
     </div>

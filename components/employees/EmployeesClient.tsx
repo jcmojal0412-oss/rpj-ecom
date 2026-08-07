@@ -13,9 +13,18 @@ interface Employee {
   full_name: string;
   position: string | null;
   department: string | null;
+  branch: string | null;
   employment_type: string;
   employment_status: 'Active' | 'Inactive' | 'Resigned' | 'Terminated';
   attendance_enabled: number;
+  default_shift: { id: number; name: string; start_time: string; end_time: string } | null;
+}
+
+function fmtShiftTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 const STATUS_FILTERS = ['All', 'Active', 'Inactive', 'Resigned', 'Terminated'];
@@ -33,6 +42,9 @@ export default function EmployeesClient() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [facets, setFacets] = useState<{ branches: string[]; departments: string[] }>({ branches: [], departments: [] });
   const [q, setQ] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
@@ -42,6 +54,8 @@ export default function EmployeesClient() {
     setLoading(true);
     const params = new URLSearchParams();
     if (statusFilter !== 'All') params.set('status', statusFilter);
+    if (branchFilter) params.set('branch', branchFilter);
+    if (departmentFilter) params.set('department', departmentFilter);
     if (q) params.set('q', q);
     fetch(`/api/employees?${params}`).then(r => r.json()).then(d => {
       setEmployees(Array.isArray(d) ? d : []);
@@ -50,7 +64,10 @@ export default function EmployeesClient() {
     });
   };
 
-  useEffect(fetchEmployees, [statusFilter, q]);
+  useEffect(fetchEmployees, [statusFilter, branchFilter, departmentFilter, q]);
+  useEffect(() => {
+    fetch('/api/employees/facets').then(r => r.json()).then(d => setFacets({ branches: d.branches ?? [], departments: d.departments ?? [] }));
+  }, []);
 
   const toggleSelected = (id: number) => {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -87,6 +104,14 @@ export default function EmployeesClient() {
             </button>
           ))}
         </div>
+        <select className="form-input py-1.5 text-sm w-auto" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
+          <option value="">All Branches</option>
+          {facets.branches.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <select className="form-input py-1.5 text-sm w-auto" value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)}>
+          <option value="">All Departments</option>
+          {facets.departments.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
           <input
@@ -123,12 +148,13 @@ export default function EmployeesClient() {
                     <input type="checkbox" checked={selected.length === employees.length} onChange={toggleSelectAll} />
                   </th>
                   <th className="table-header">Employee ID</th>
-                  <th className="table-header">Full Name</th>
+                  <th className="table-header">Employee Name</th>
                   <th className="table-header">Position</th>
                   <th className="table-header">Department</th>
-                  <th className="table-header">Type</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header">Attendance</th>
+                  <th className="table-header">Branch</th>
+                  <th className="table-header">Default Shift</th>
+                  <th className="table-header">Employment Status</th>
+                  <th className="table-header">Attendance Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -141,7 +167,10 @@ export default function EmployeesClient() {
                     <td className="table-cell font-medium text-gray-900" onClick={() => router.push(`/employees/${e.id}`)}>{e.full_name}</td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.position || '—'}</td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.department || '—'}</td>
-                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.employment_type}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.branch || '—'}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>
+                      {e.default_shift ? `${e.default_shift.name} (${fmtShiftTime(e.default_shift.start_time)}–${fmtShiftTime(e.default_shift.end_time)})` : <span className="text-gray-400">Not assigned</span>}
+                    </td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}><span className={STATUS_BADGE[e.employment_status]}>{e.employment_status}</span></td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
                   </tr>
@@ -172,13 +201,6 @@ export default function EmployeesClient() {
       )}
     </div>
   );
-}
-
-function fmtShiftTime(t: string) {
-  const [h, m] = t.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 function BulkAssignShiftForm({ employeeIds, onCancel, onSaved }: { employeeIds: number[]; onCancel: () => void; onSaved: () => void }) {

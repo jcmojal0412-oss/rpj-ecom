@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/attendance';
+import { getShiftForEmployeeOnDate } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,16 +25,25 @@ export async function GET(req: NextRequest) {
 
   const db = getDb();
   const status = req.nextUrl.searchParams.get('status');
+  const branch = req.nextUrl.searchParams.get('branch');
+  const department = req.nextUrl.searchParams.get('department');
   const q = req.nextUrl.searchParams.get('q');
 
   let sql = 'SELECT * FROM employees WHERE 1=1';
   const params: any[] = [];
   if (status) { sql += ' AND employment_status = ?'; params.push(status); }
+  if (branch) { sql += ' AND branch = ?'; params.push(branch); }
+  if (department) { sql += ' AND department = ?'; params.push(department); }
   if (q) { sql += ' AND (full_name LIKE ? OR position LIKE ? OR department LIKE ?)'; params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   sql += ' ORDER BY full_name ASC';
 
   const rows = db.prepare(sql).all(...params) as any[];
-  const withCode = rows.map(r => ({ ...r, employee_code: employeeCode(r.id) }));
+  const today = todayISO();
+  const withCode = rows.map(r => ({
+    ...r,
+    employee_code: employeeCode(r.id),
+    default_shift: getShiftForEmployeeOnDate(db, r.id, today),
+  }));
   return NextResponse.json(withCode);
 }
 
