@@ -294,6 +294,100 @@ function migrateSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_financing_sales_provider ON financing_sales(provider);
   `);
+
+  // Employee Attendance Module V1 — event-sourced (append-only) attendance
+  // log, plus OT-approval and correction-request review queues. Corrections
+  // never mutate an existing event: approving one INSERTs a new row (source
+  // = 'correction') and marks the old row's superseded_by, so the full
+  // history stays intact for audit purposes.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      event_date TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK(event_type IN ('TIME_IN','COFFEE_OUT','COFFEE_IN','LUNCH_OUT','LUNCH_IN','TIME_OUT')),
+      event_time TEXT NOT NULL,
+      photo_path TEXT,
+      source TEXT NOT NULL DEFAULT 'clock' CHECK(source IN ('clock','correction','system')),
+      correction_id INTEGER REFERENCES attendance_corrections(id),
+      superseded_by INTEGER REFERENCES attendance_events(id),
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_events_user_date ON attendance_events(user_id, event_date);
+    CREATE INDEX IF NOT EXISTS idx_attendance_events_date ON attendance_events(event_date);
+
+    CREATE TABLE IF NOT EXISTS attendance_ot_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      event_date TEXT NOT NULL,
+      time_out_event_id INTEGER REFERENCES attendance_events(id),
+      excess_minutes INTEGER NOT NULL,
+      approved_minutes INTEGER,
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+      remarks TEXT,
+      reviewed_by INTEGER REFERENCES users(id),
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, event_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_ot_status ON attendance_ot_requests(status);
+
+    CREATE TABLE IF NOT EXISTS attendance_corrections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      event_date TEXT NOT NULL,
+      original_event_id INTEGER REFERENCES attendance_events(id),
+      requested_event_type TEXT NOT NULL CHECK(requested_event_type IN ('TIME_IN','COFFEE_OUT','COFFEE_IN','LUNCH_OUT','LUNCH_IN','TIME_OUT')),
+      requested_time TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+      remarks TEXT,
+      new_event_id INTEGER REFERENCES attendance_events(id),
+      reviewed_by INTEGER REFERENCES users(id),
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_corrections_user_date ON attendance_corrections(user_id, event_date);
+    CREATE INDEX IF NOT EXISTS idx_attendance_corrections_status ON attendance_corrections(status);
+
+    CREATE TABLE IF NOT EXISTS attendance_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER REFERENCES users(id),
+      action TEXT NOT NULL,
+      target_user_id INTEGER REFERENCES users(id),
+      event_date TEXT,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_attendance_audit_target ON attendance_audit_log(target_user_id, event_date);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_audit_auto_absent
+      ON attendance_audit_log(target_user_id, event_date, action) WHERE action = 'auto_absent';
+  `);
+  seedAttendanceSettingsIfEmpty();
+}
+
+// V1 ships one global shift/rules config (read via app_settings, no scoping
+// column). The settings loader already takes an optional userId so a future
+// per-employee/per-branch/multi-shift version can branch on it (e.g. join
+// against a new attendance_shifts table) without changing attendance_events
+// or any of the review-queue tables — those only ever reference user_id.
+function seedAttendanceSettingsIfEmpty() {
+  const defaults: [string, string][] = [
+    ['attendance_work_start', '09:00'],
+    ['attendance_work_end', '18:00'],
+    ['attendance_grace_period_minutes', '15'],
+    ['attendance_lunch_break_minutes', '60'],
+    ['attendance_coffee_break_minutes', '10'],
+    ['attendance_coffee_breaks_allowed', '2'],
+    ['attendance_lunch_break_paid', '0'],
+    ['attendance_coffee_break_paid', '0'],
+    ['attendance_min_minutes_before_ot', '30'],
+    ['attendance_selfie_required', '1'],
+    ['attendance_work_days', '1,2,3,4,5'],
+  ];
+  const insert = db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)');
+  for (const [k, v] of defaults) insert.run(k, v);
 }
 
 function seedBookingAvailabilityIfEmpty() {

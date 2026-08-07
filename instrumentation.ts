@@ -18,4 +18,19 @@ export async function register() {
 
   setInterval(runCheck, 15 * 60 * 1000); // every 15 minutes
   setTimeout(runCheck, 30_000); // also run shortly after startup
+
+  const { runAttendanceJobs } = await import('./lib/attendance-jobs');
+
+  const runAttendance = () => {
+    runAttendanceJobs()
+      .then(({ otFlagged, absencesFlagged }) => {
+        if (otFlagged || absencesFlagged) {
+          console.log(`[attendance] flagged ${otFlagged} OT request(s), ${absencesFlagged} absence(s)`);
+        }
+      })
+      .catch(err => console.error('[attendance] job failed:', err));
+  };
+
+  setInterval(runAttendance, 15 * 60 * 1000); // every 15 minutes
+  setTimeout(runAttendance, 45_000); // offset from the reminders job so they don't both hit the DB on the same tick
 }

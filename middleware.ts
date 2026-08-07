@@ -19,6 +19,14 @@ const ROUTE_MODULES: [string, string][] = [
   ['/gross-sales',      'partners'],
   ['/financing-sales',       'financing'],
   ['/api/financing-sales',   'financing'],
+  ['/attendance',            'attendance'],
+  // /my-attendance intentionally NOT listed — any logged-in user can clock
+  // in regardless of granted modules, so it falls through unmatched (same
+  // as any other route not in this list: valid session required, no
+  // specific module). /api/attendance/* is also intentionally NOT listed —
+  // that prefix mixes self-service and admin-only endpoints that a single
+  // [prefix, module] rule can't distinguish by HTTP method, so every route
+  // under it calls getSession() itself and does its own check.
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready

@@ -8,6 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
+  Clock, ClipboardCheck,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -61,6 +62,13 @@ const NAV_GROUPS = [
       { label: 'Financing Sales', href: '/financing-sales', icon: Landmark, module: 'financing' },
     ],
   },
+  {
+    label: 'ATTENDANCE',
+    items: [
+      { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
+      { label: 'Attendance Admin', href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
+    ],
+  },
   // AI PRODUCT RESEARCHER group hidden — re-add when ready
   {
     label: 'TOOLS',
@@ -91,7 +99,7 @@ export default function Sidebar() {
   };
 
   const hasAccess = (module: string) =>
-    !user || user.role === 'owner' || user.permissions.includes(module);
+    module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
