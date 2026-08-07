@@ -5,10 +5,11 @@ import { loadGlobalBreakSettings } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
-// work_start/work_end/grace_period_minutes are no longer part of this —
-// they're resolved per-employee from their assigned shift (see the Shifts
-// tab / /api/attendance/shifts). This route only ever reads/writes the
-// remaining global settings (breaks, OT threshold, selfie, work days).
+// work_start/work_end/grace_period_minutes are resolved per-employee from
+// their assigned shift (see the Shifts tab), and work_days is now a
+// per-employee field (see the Employees page). This route only ever
+// reads/writes the remaining truly-global settings: breaks, OT threshold,
+// selfie requirement.
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -34,7 +35,6 @@ export async function PUT(req: NextRequest) {
       ['attendance_coffee_break_paid', body.coffee_break_paid ? '1' : '0'],
       ['attendance_min_minutes_before_ot', String(body.min_minutes_before_ot)],
       ['attendance_selfie_required', body.selfie_required ? '1' : '0'],
-      ['attendance_work_days', (body.work_days as number[]).join(',')],
     ];
 
     const db = getDb();

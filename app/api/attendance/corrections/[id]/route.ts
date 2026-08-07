@@ -23,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const db = getDb();
     const correction = db.prepare('SELECT * FROM attendance_corrections WHERE id = ?').get(params.id) as
-      | { id: number; user_id: number; event_date: string; original_event_id: number | null; requested_event_type: string; requested_time: string; status: string }
+      | { id: number; employee_id: number; event_date: string; original_event_id: number | null; requested_event_type: string; requested_time: string; status: string }
       | undefined;
     if (!correction) return NextResponse.json({ error: 'Correction request not found' }, { status: 404 });
     if (correction.status !== 'pending') return NextResponse.json({ error: 'This request was already reviewed' }, { status: 409 });
@@ -36,19 +36,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           UPDATE attendance_corrections SET status='rejected', remarks=?, reviewed_by=?, reviewed_at=? WHERE id=?
         `).run(remarks, session!.id, now, correction.id);
         db.prepare(`
-          INSERT INTO attendance_audit_log (actor_user_id, action, target_user_id, event_date, details)
+          INSERT INTO attendance_audit_log (actor_user_id, action, employee_id, event_date, details)
           VALUES (?, 'correction_rejected', ?, ?, ?)
-        `).run(session!.id, correction.user_id, correction.event_date, remarks || '');
+        `).run(session!.id, correction.employee_id, correction.event_date, remarks || '');
       });
       return NextResponse.json({ ok: true });
     }
 
     if (action === 'approve') {
+      const employee = db.prepare('SELECT linked_user_id FROM employees WHERE id = ?').get(correction.employee_id) as { linked_user_id: number | null } | undefined;
+      // user_id is a legacy NOT NULL column nothing reads anymore — falls
+      // back to a per-employee-unique negative sentinel when there's no
+      // linked user (see lib/attendance-jobs.ts for the same pattern).
+      const legacyUserId = employee?.linked_user_id ?? -correction.employee_id;
+
       runTransaction(() => {
         const info = db.prepare(`
-          INSERT INTO attendance_events (user_id, event_date, event_type, event_time, source, correction_id, created_by)
-          VALUES (?, ?, ?, ?, 'correction', ?, ?)
-        `).run(correction.user_id, correction.event_date, correction.requested_event_type, correction.requested_time, correction.id, session!.id);
+          INSERT INTO attendance_events (employee_id, user_id, event_date, event_type, event_time, source, correction_id, created_by)
+          VALUES (?, ?, ?, ?, ?, 'correction', ?, ?)
+        `).run(correction.employee_id, legacyUserId, correction.event_date, correction.requested_event_type, correction.requested_time, correction.id, session!.id);
         const newEventId = Number(info.lastInsertRowid);
 
         if (correction.original_event_id) {
@@ -60,9 +66,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         `).run(remarks, newEventId, session!.id, now, correction.id);
 
         db.prepare(`
-          INSERT INTO attendance_audit_log (actor_user_id, action, target_user_id, event_date, details)
+          INSERT INTO attendance_audit_log (actor_user_id, action, employee_id, event_date, details)
           VALUES (?, 'correction_approved', ?, ?, ?)
-        `).run(session!.id, correction.user_id, correction.event_date,
+        `).run(session!.id, correction.employee_id, correction.event_date,
           `${correction.requested_event_type} -> ${correction.requested_time}${remarks ? `, remarks: ${remarks}` : ''}`);
       });
       return NextResponse.json({ ok: true });

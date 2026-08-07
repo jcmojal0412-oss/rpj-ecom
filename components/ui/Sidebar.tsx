@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  Clock, ClipboardCheck,
+  Clock, ClipboardCheck, Contact, Banknote, Receipt,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -63,10 +63,13 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'ATTENDANCE',
+    label: 'HR & PAYROLL',
     items: [
+      { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
       { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
       { label: 'Attendance Admin', href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
+      { label: 'Payroll',          href: '#',              icon: Banknote,       module: 'employees', disabled: true },
+      { label: 'Payslips',         href: '#',              icon: Receipt,        module: 'employees', disabled: true },
     ],
   },
   // AI PRODUCT RESEARCHER group hidden — re-add when ready
@@ -123,7 +126,24 @@ export default function Sidebar() {
                 const Icon   = item.icon;
                 const active = item.href === '/'
                   ? pathname === '/'
-                  : pathname.startsWith(item.href);
+                  : item.href !== '#' && pathname.startsWith(item.href);
+
+                if ((item as any).disabled) {
+                  return (
+                    <div
+                      key={item.label}
+                      title="Coming soon"
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 text-gray-300 cursor-not-allowed"
+                    >
+                      <span className="flex items-center gap-3">
+                        <Icon size={17} className="text-gray-300" />
+                        {item.label}
+                      </span>
+                      <span className="text-[9px] font-bold tracking-wide bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">SOON</span>
+                    </div>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.href}

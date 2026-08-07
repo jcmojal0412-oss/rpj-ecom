@@ -411,6 +411,96 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_shift_assignments_user ON attendance_shift_assignments(user_id, effective_from);
   `);
   seedShiftsIfEmpty();
+
+  // Employee / 201-File Module — separates HR employee records from
+  // `users` (system login accounts). Not every system user is an actual
+  // employee, and not every employee needs a system login (linked_user_id
+  // is optional). employee_id is derived at read time as
+  // "RPJ-" + id padded to 4 digits — never stored, so it can't drift from
+  // the row's real id.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name TEXT NOT NULL,
+      mobile_number TEXT,
+      email TEXT,
+      address TEXT,
+      birthday TEXT,
+      emergency_contact_name TEXT,
+      emergency_contact_number TEXT,
+      position TEXT,
+      department TEXT,
+      branch TEXT,
+      date_hired TEXT,
+      employment_type TEXT NOT NULL CHECK(employment_type IN ('Regular','Probationary','Contractual')) DEFAULT 'Probationary',
+      employment_status TEXT NOT NULL CHECK(employment_status IN ('Active','Inactive','Resigned','Terminated')) DEFAULT 'Active',
+      work_days TEXT NOT NULL DEFAULT '1,2,3,4,5',
+      rest_day INTEGER,
+      attendance_enabled INTEGER NOT NULL DEFAULT 1,
+      linked_user_id INTEGER REFERENCES users(id),
+      salary_type TEXT NOT NULL CHECK(salary_type IN ('Monthly','Daily')) DEFAULT 'Monthly',
+      basic_rate REAL NOT NULL DEFAULT 0,
+      allowance REAL NOT NULL DEFAULT 0,
+      ot_eligible INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_linked_user ON employees(linked_user_id) WHERE linked_user_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(employment_status, attendance_enabled);
+  `);
+
+  // Attendance identity migrates from user_id to employee_id — added
+  // alongside the existing user_id columns (left in place, unread, as a
+  // safe rollback point) rather than replacing them, since SQLite can't
+  // cleanly redefine a column's meaning in place.
+  const addColIfMissing = (table: string, col: string, ddl: string) => {
+    const cols = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name);
+    if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  };
+  addColIfMissing('attendance_events', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
+  addColIfMissing('attendance_ot_requests', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
+  addColIfMissing('attendance_corrections', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
+  addColIfMissing('attendance_shift_assignments', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
+  addColIfMissing('attendance_audit_log', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
+
+  // markAbsentees' idempotency guard now keys off employee_id (new rows no
+  // longer populate the legacy target_user_id column, which would make
+  // the old target_user_id-based unique index useless — NULL != NULL for
+  // SQLite uniqueness purposes, so every new row would look distinct).
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_audit_auto_absent_employee
+      ON attendance_audit_log(employee_id, event_date, action) WHERE action = 'auto_absent';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_ot_employee_date
+      ON attendance_ot_requests(employee_id, event_date) WHERE employee_id IS NOT NULL;
+  `);
+
+  seedEmployeesFromUsersIfEmpty();
+}
+
+// One-time backfill: every existing users row becomes a linked, active,
+// attendance-enabled employee (preserves "existing functionality keeps
+// working" through this migration), and every historical attendance row
+// gets its employee_id filled in from that link. Only runs once — new
+// system users created AFTER this migration do NOT automatically become
+// employees; that's now a conscious admin action via the Employees page,
+// which is the entire point of this separation.
+function seedEmployeesFromUsersIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM employees').get() as { c: number }).c;
+  if (count > 0) return;
+
+  const users = db.prepare('SELECT id, name FROM users').all() as { id: number; name: string }[];
+  const insert = db.prepare(`
+    INSERT INTO employees (full_name, employment_status, attendance_enabled, linked_user_id, work_days)
+    VALUES (?, 'Active', 1, ?, '1,2,3,4,5')
+  `);
+  for (const u of users) insert.run(u.name, u.id);
+
+  db.exec(`
+    UPDATE attendance_events SET employee_id = (SELECT id FROM employees WHERE linked_user_id = attendance_events.user_id) WHERE employee_id IS NULL;
+    UPDATE attendance_ot_requests SET employee_id = (SELECT id FROM employees WHERE linked_user_id = attendance_ot_requests.user_id) WHERE employee_id IS NULL;
+    UPDATE attendance_corrections SET employee_id = (SELECT id FROM employees WHERE linked_user_id = attendance_corrections.user_id) WHERE employee_id IS NULL;
+    UPDATE attendance_shift_assignments SET employee_id = (SELECT id FROM employees WHERE linked_user_id = attendance_shift_assignments.user_id) WHERE employee_id IS NULL;
+    UPDATE attendance_audit_log SET employee_id = (SELECT id FROM employees WHERE linked_user_id = attendance_audit_log.target_user_id) WHERE employee_id IS NULL AND target_user_id IS NOT NULL;
+  `);
 }
 
 function seedShiftsIfEmpty() {

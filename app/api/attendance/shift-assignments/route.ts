@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/attendance';
-import { getShiftForUserOnDate } from '@/lib/attendance-shifts';
+import { getShiftForEmployeeOnDate } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +17,8 @@ function requireAdmin(session: Awaited<ReturnType<typeof getSession>>) {
 // Each active employee's shift AS OF TODAY — for display/management only.
 // Attendance calculations never call this directly; they always resolve
 // the shift that was in effect on the SPECIFIC date being computed (see
-// lib/attendance-shifts.ts's getShiftForUserOnDate), which may differ from
-// today's assignment for past dates.
+// lib/attendance-shifts.ts's getShiftForEmployeeOnDate), which may differ
+// from today's assignment for past dates.
 export async function GET() {
   const session = await getSession();
   const denied = requireAdmin(session);
@@ -26,12 +26,14 @@ export async function GET() {
 
   const db = getDb();
   const today = todayISO();
-  const users = db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY name ASC').all() as { id: number; name: string }[];
+  const employees = db.prepare(
+    "SELECT id, full_name FROM employees WHERE employment_status = 'Active' ORDER BY full_name ASC"
+  ).all() as { id: number; full_name: string }[];
 
-  const assignments = users.map(u => ({
-    user_id: u.id,
-    name: u.name,
-    shift: getShiftForUserOnDate(db, u.id, today),
+  const assignments = employees.map(e => ({
+    employee_id: e.id,
+    name: e.full_name,
+    shift: getShiftForEmployeeOnDate(db, e.id, today),
   }));
 
   return NextResponse.json(assignments);
@@ -48,27 +50,32 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   try {
-    const { user_id, shift_id, effective_from } = await req.json();
-    if (!user_id || !shift_id || !effective_from) {
-      return NextResponse.json({ error: 'user_id, shift_id, and effective_from are required' }, { status: 400 });
+    const { employee_id, shift_id, effective_from } = await req.json();
+    if (!employee_id || !shift_id || !effective_from) {
+      return NextResponse.json({ error: 'employee_id, shift_id, and effective_from are required' }, { status: 400 });
     }
 
     const db = getDb();
     const shift = db.prepare('SELECT id FROM attendance_shifts WHERE id = ?').get(shift_id);
     if (!shift) return NextResponse.json({ error: 'Shift template not found' }, { status: 404 });
 
+    const employee = db.prepare('SELECT id, linked_user_id FROM employees WHERE id = ?').get(employee_id) as { id: number; linked_user_id: number | null } | undefined;
+    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+
     const dayBefore = new Date(new Date(effective_from + 'T00:00:00').getTime() - 86_400_000).toISOString().slice(0, 10);
+    // user_id is a legacy NOT NULL column nothing reads anymore.
+    const legacyUserId = employee.linked_user_id ?? -employee.id;
 
     runTransaction(() => {
       db.prepare(`
         UPDATE attendance_shift_assignments SET effective_to = ?
-        WHERE user_id = ? AND effective_to IS NULL
-      `).run(dayBefore, user_id);
+        WHERE employee_id = ? AND effective_to IS NULL
+      `).run(dayBefore, employee_id);
 
       db.prepare(`
-        INSERT INTO attendance_shift_assignments (user_id, shift_id, effective_from, created_by)
-        VALUES (?, ?, ?, ?)
-      `).run(user_id, shift_id, effective_from, session!.id);
+        INSERT INTO attendance_shift_assignments (employee_id, user_id, shift_id, effective_from, created_by)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(employee_id, legacyUserId, shift_id, effective_from, session!.id);
     });
 
     return NextResponse.json({ ok: true }, { status: 201 });

@@ -5,7 +5,7 @@ import {
   getEmployeeDayState, eventRequiresSelfie, todayISO,
   type AttendanceEvent, type EventType,
 } from '@/lib/attendance';
-import { resolveAttendanceSettings } from '@/lib/attendance-shifts';
+import { resolveAttendanceSettings, getActiveEmployeeForUser } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +34,13 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    const today = todayISO();
+    const employee = getActiveEmployeeForUser(db, session.id);
+    if (!employee) {
+      return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
+    }
 
-    const resolved = resolveAttendanceSettings(db, session.id, today);
+    const today = todayISO();
+    const resolved = resolveAttendanceSettings(db, employee.id, today);
     if (!resolved) return NextResponse.json({ error: 'No shift assigned. Please contact an administrator.' }, { status: 409 });
     const { settings } = resolved;
 
@@ -46,9 +50,9 @@ export async function POST(req: NextRequest) {
 
     const events = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events
-      WHERE user_id = ? AND event_date = ? AND is_test = 0
+      WHERE employee_id = ? AND event_date = ? AND is_test = 0
       ORDER BY event_time ASC
-    `).all(session.id, today) as AttendanceEvent[];
+    `).all(employee.id, today) as AttendanceEvent[];
 
     // Re-derive server-side — never trust the client's idea of what state
     // it's in. This is what rejects duplicate/out-of-sequence actions
@@ -61,15 +65,15 @@ export async function POST(req: NextRequest) {
 
     const eventTime = new Date().toISOString();
     db.prepare(`
-      INSERT INTO attendance_events (user_id, event_date, event_type, event_time, photo_path, source, created_by)
-      VALUES (?, ?, ?, ?, ?, 'clock', ?)
-    `).run(session.id, today, eventType, eventTime, photoPath, session.id);
+      INSERT INTO attendance_events (employee_id, user_id, event_date, event_type, event_time, photo_path, source, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'clock', ?)
+    `).run(employee.id, session.id, today, eventType, eventTime, photoPath, session.id);
 
     const updatedEvents = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events
-      WHERE user_id = ? AND event_date = ? AND is_test = 0
+      WHERE employee_id = ? AND event_date = ? AND is_test = 0
       ORDER BY event_time ASC
-    `).all(session.id, today) as AttendanceEvent[];
+    `).all(employee.id, today) as AttendanceEvent[];
 
     return NextResponse.json({ ok: true, dayState: getEmployeeDayState(updatedEvents, settings), events: updatedEvents });
   } catch (e: any) {

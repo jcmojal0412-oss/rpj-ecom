@@ -15,13 +15,13 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status');
   const rows = status
     ? db.prepare(`
-        SELECT o.*, u.name AS employee_name FROM attendance_ot_requests o
-        JOIN users u ON u.id = o.user_id
+        SELECT o.*, e.full_name AS employee_name FROM attendance_ot_requests o
+        JOIN employees e ON e.id = o.employee_id
         WHERE o.status = ? ORDER BY o.event_date DESC
       `).all(status)
     : db.prepare(`
-        SELECT o.*, u.name AS employee_name FROM attendance_ot_requests o
-        JOIN users u ON u.id = o.user_id
+        SELECT o.*, e.full_name AS employee_name FROM attendance_ot_requests o
+        JOIN employees e ON e.id = o.employee_id
         ORDER BY o.event_date DESC
       `).all();
 

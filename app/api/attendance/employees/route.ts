@@ -4,6 +4,10 @@ import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// Minimal active-employee list for admin attendance filters/dropdowns
+// (Daily Records, Test Mode). Only Active + Attendance Enabled employees —
+// deliberately NOT the users table, since a system login no longer implies
+// attendance tracking.
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -12,6 +16,10 @@ export async function GET() {
   }
 
   const db = getDb();
-  const rows = db.prepare('SELECT id, name, avatar_color FROM users WHERE active = 1 ORDER BY name ASC').all();
+  const rows = db.prepare(`
+    SELECT id, full_name AS name FROM employees
+    WHERE employment_status = 'Active' AND attendance_enabled = 1
+    ORDER BY full_name ASC
+  `).all();
   return NextResponse.json(rows);
 }

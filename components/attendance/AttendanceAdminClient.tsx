@@ -329,7 +329,7 @@ function RecordsTab() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({ from, to });
-    if (userId) params.set('user_id', userId);
+    if (userId) params.set('employee_id', userId);
     fetch(`/api/attendance/records?${params}`).then(r => r.json()).then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); });
   }, [from, to, userId]);
 
@@ -670,8 +670,8 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     setLoading(true);
     const shiftParam = shiftId ? `&shift_id=${shiftId}` : '';
     Promise.all([
-      fetch(`/api/attendance/test/events?user_id=${userId}&date=${date}`).then(r => r.json()),
-      fetch(`/api/attendance/test/summary?user_id=${userId}&date=${date}${shiftParam}`).then(r => r.json()),
+      fetch(`/api/attendance/test/events?employee_id=${userId}&date=${date}`).then(r => r.json()),
+      fetch(`/api/attendance/test/summary?employee_id=${userId}&date=${date}${shiftParam}`).then(r => r.json()),
     ]).then(([evs, summaryResp]) => {
       setEvents(Array.isArray(evs) ? evs : []);
       setSummary(summaryResp.summary ?? null);
@@ -689,7 +689,7 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       const res = await fetch('/api/attendance/test/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: Number(userId), event_date: date, event_type: eventType, time, shift_id: shiftId ? Number(shiftId) : undefined }),
+        body: JSON.stringify({ employee_id: Number(userId), event_date: date, event_type: eventType, time, shift_id: shiftId ? Number(shiftId) : undefined }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to add simulated event.', 'error'); return; }
@@ -702,7 +702,7 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
   const clearDay = async () => {
     if (!userId || !confirm('Clear all simulated events for this employee/date?')) return;
-    await fetch(`/api/attendance/test/events?user_id=${userId}&date=${date}`, { method: 'DELETE' });
+    await fetch(`/api/attendance/test/events?employee_id=${userId}&date=${date}`, { method: 'DELETE' });
     showToast('Test data cleared for this employee/date.');
     fetchAll();
   };
@@ -840,12 +840,6 @@ interface ShiftTemplate {
   active: number;
 }
 
-interface ShiftAssignmentRow {
-  user_id: number;
-  name: string;
-  shift: ShiftTemplate | null;
-}
-
 function fmtShiftTime(t: string) {
   const [h, m] = t.split(':').map(Number);
   const period = h >= 12 ? 'PM' : 'AM';
@@ -855,19 +849,13 @@ function fmtShiftTime(t: string) {
 
 function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
-  const [assignments, setAssignments] = useState<ShiftAssignmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingShift, setEditingShift] = useState<ShiftTemplate | 'new' | null>(null);
-  const [reassigning, setReassigning] = useState<ShiftAssignmentRow | null>(null);
 
   const fetchAll = () => {
     setLoading(true);
-    Promise.all([
-      fetch('/api/attendance/shifts').then(r => r.json()),
-      fetch('/api/attendance/shift-assignments').then(r => r.json()),
-    ]).then(([s, a]) => {
+    fetch('/api/attendance/shifts').then(r => r.json()).then(s => {
       setShifts(Array.isArray(s) ? s : []);
-      setAssignments(Array.isArray(a) ? a : []);
       setLoading(false);
     });
   };
@@ -878,6 +866,10 @@ function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'erro
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-xs text-blue-700">
+        Assigning an employee to a shift now happens on their profile — see <b>Employees</b> in the sidebar.
+      </div>
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-semibold text-gray-700">Shift Templates</p>
@@ -919,51 +911,12 @@ function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'erro
         </div>
       </div>
 
-      <div>
-        <p className="text-sm font-semibold text-gray-700 mb-2">Employee Shift Assignments</p>
-        <div className="card p-0 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="table-header">Employee</th>
-                <th className="table-header">Current Shift</th>
-                <th className="table-header"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {assignments.map(a => (
-                <tr key={a.user_id} className="hover:bg-gray-50/60">
-                  <td className="table-cell font-medium text-gray-900">{a.name}</td>
-                  <td className="table-cell">
-                    {a.shift ? `${a.shift.name} (${fmtShiftTime(a.shift.start_time)}–${fmtShiftTime(a.shift.end_time)})` : <span className="text-red-500">No shift assigned</span>}
-                  </td>
-                  <td className="table-cell text-right">
-                    <button onClick={() => setReassigning(a)} className="btn-secondary text-xs py-1.5">Change Shift</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {editingShift && (
         <Modal open={!!editingShift} onClose={() => setEditingShift(null)} title={editingShift === 'new' ? 'Add Shift Template' : 'Edit Shift Template'} size="sm">
           <ShiftTemplateForm
             shift={editingShift === 'new' ? null : editingShift}
             onCancel={() => setEditingShift(null)}
             onSaved={() => { setEditingShift(null); showToast('Shift template saved!'); fetchAll(); }}
-          />
-        </Modal>
-      )}
-
-      {reassigning && (
-        <Modal open={!!reassigning} onClose={() => setReassigning(null)} title={`Change Shift — ${reassigning.name}`} size="sm">
-          <ReassignShiftForm
-            assignment={reassigning}
-            shifts={shifts.filter(s => s.active)}
-            onCancel={() => setReassigning(null)}
-            onSaved={() => { setReassigning(null); showToast('Shift reassigned!'); fetchAll(); }}
           />
         </Modal>
       )}
@@ -1040,50 +993,3 @@ function ShiftTemplateForm({ shift, onCancel, onSaved }: { shift: ShiftTemplate 
   );
 }
 
-function ReassignShiftForm({ assignment, shifts, onCancel, onSaved }: { assignment: ShiftAssignmentRow; shifts: ShiftTemplate[]; onCancel: () => void; onSaved: () => void }) {
-  const [shiftId, setShiftId] = useState(String(assignment.shift?.id ?? shifts[0]?.id ?? ''));
-  const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const save = async () => {
-    if (!shiftId) { setError('Select a shift.'); return; }
-    setSaving(true);
-    setError('');
-    try {
-      const res = await fetch('/api/attendance/shift-assignments', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: assignment.user_id, shift_id: Number(shiftId), effective_from: effectiveFrom }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Failed to reassign.'); return; }
-      onSaved();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <label className="form-label">New Shift</label>
-        <select className="form-input" value={shiftId} onChange={e => setShiftId(e.target.value)}>
-          {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="form-label">Effective From</label>
-        <input type="date" className="form-input" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
-        <p className="text-xs text-gray-400 mt-1">Attendance before this date keeps using the previous shift — past records are never recalculated.</p>
-      </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-          {saving ? 'Saving...' : 'Reassign'}
-        </button>
-      </div>
-    </div>
-  );
-}

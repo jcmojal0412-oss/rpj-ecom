@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
 import type { EventType } from '@/lib/attendance';
 
 export const dynamic = 'force-dynamic';
@@ -11,33 +12,41 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
+  const db = getDb();
   const selfOnly = req.nextUrl.searchParams.get('self') === '1';
   const isAdmin = !selfOnly && (session.role === 'owner' || session.permissions.includes('attendance'));
-  const db = getDb();
 
   if (isAdmin) {
     const status = req.nextUrl.searchParams.get('status');
     const rows = status
       ? db.prepare(`
-          SELECT c.*, u.name AS employee_name FROM attendance_corrections c
-          JOIN users u ON u.id = c.user_id
+          SELECT c.*, e.full_name AS employee_name FROM attendance_corrections c
+          JOIN employees e ON e.id = c.employee_id
           WHERE c.status = ? ORDER BY c.created_at DESC
         `).all(status)
       : db.prepare(`
-          SELECT c.*, u.name AS employee_name FROM attendance_corrections c
-          JOIN users u ON u.id = c.user_id
+          SELECT c.*, e.full_name AS employee_name FROM attendance_corrections c
+          JOIN employees e ON e.id = c.employee_id
           ORDER BY c.created_at DESC
         `).all();
     return NextResponse.json(rows);
   }
 
-  const rows = db.prepare('SELECT * FROM attendance_corrections WHERE user_id = ? ORDER BY created_at DESC').all(session.id);
+  const employee = getActiveEmployeeForUser(db, session.id);
+  if (!employee) return NextResponse.json([]);
+  const rows = db.prepare('SELECT * FROM attendance_corrections WHERE employee_id = ? ORDER BY created_at DESC').all(employee.id);
   return NextResponse.json(rows);
 }
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  const db = getDb();
+  const employee = getActiveEmployeeForUser(db, session.id);
+  if (!employee) {
+    return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
+  }
 
   try {
     const body = await req.json();
@@ -50,11 +59,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid requested_event_type' }, { status: 400 });
     }
 
-    const db = getDb();
     const info = db.prepare(`
-      INSERT INTO attendance_corrections (user_id, event_date, original_event_id, requested_event_type, requested_time, reason)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(session.id, event_date, original_event_id || null, requested_event_type, requested_time, reason.trim());
+      INSERT INTO attendance_corrections (employee_id, user_id, event_date, original_event_id, requested_event_type, requested_time, reason)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(employee.id, session.id, event_date, original_event_id || null, requested_event_type, requested_time, reason.trim());
 
     return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
   } catch (e: any) {

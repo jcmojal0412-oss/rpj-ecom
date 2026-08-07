@@ -92,7 +92,7 @@ function activeEvents(events: AttendanceEvent[]): AttendanceEvent[] {
   return events.filter(e => e.superseded_by === null).sort((a, b) => a.event_time.localeCompare(b.event_time));
 }
 
-export function isConfiguredWorkDay(dateStr: string, settings: AttendanceSettings): boolean {
+export function isConfiguredWorkDay(dateStr: string, settings: { work_days: number[] }): boolean {
   const dow = new Date(dateStr + 'T00:00:00').getDay();
   return settings.work_days.includes(dow);
 }

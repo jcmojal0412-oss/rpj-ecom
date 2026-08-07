@@ -20,6 +20,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/financing-sales',       'financing'],
   ['/api/financing-sales',   'financing'],
   ['/attendance',            'attendance'],
+  ['/employees',             'employees'],
+  ['/api/employees',         'employees'],
   // /my-attendance intentionally NOT listed — any logged-in user can clock
   // in regardless of granted modules, so it falls through unmatched (same
   // as any other route not in this list: valid session required, no

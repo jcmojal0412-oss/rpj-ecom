@@ -41,15 +41,10 @@ export async function POST(req: NextRequest) {
       for (const m of permissions) insertPerm.run(uid, m);
     }
 
-    // Every user needs a shift assignment for attendance calculations to
-    // resolve — default new accounts to the first active shift template.
-    const defaultShift = db.prepare('SELECT id FROM attendance_shifts WHERE active = 1 ORDER BY id ASC LIMIT 1').get() as { id: number } | undefined;
-    if (defaultShift) {
-      const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-      db.prepare('INSERT INTO attendance_shift_assignments (user_id, shift_id, effective_from, created_by) VALUES (?, ?, ?, ?)')
-        .run(uid, defaultShift.id, today, session.id);
-    }
-
+    // Not every system user is an employee — creating a login here does
+    // NOT create an Employee/attendance record. If this person needs
+    // attendance tracking, create (or link) an Employee record for them
+    // via the Employees page.
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getEmployeeDayState, type AttendanceEvent, type EventType } from '@/lib/attendance';
-import { loadGlobalBreakSettings, mergeShiftIntoSettings, getShiftForUserOnDate, type ShiftTemplate } from '@/lib/attendance-shifts';
+import { loadGlobalBreakSettings, mergeIntoSettings, getShiftForEmployeeOnDate, getEmployeeById, type ShiftTemplate } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,16 +35,16 @@ export async function GET(req: NextRequest) {
   const denied = requireAdmin(session);
   if (denied) return denied;
 
-  const userId = req.nextUrl.searchParams.get('user_id');
+  const employeeId = req.nextUrl.searchParams.get('employee_id');
   const date = req.nextUrl.searchParams.get('date');
-  if (!userId || !date) return NextResponse.json({ error: 'user_id and date are required' }, { status: 400 });
+  if (!employeeId || !date) return NextResponse.json({ error: 'employee_id and date are required' }, { status: 400 });
 
   const db = getDb();
   const events = db.prepare(`
     SELECT id, event_type, event_time, superseded_by FROM attendance_events
-    WHERE user_id = ? AND event_date = ? AND is_test = 1
+    WHERE employee_id = ? AND event_date = ? AND is_test = 1
     ORDER BY event_time ASC
-  `).all(userId, date);
+  `).all(employeeId, date);
 
   return NextResponse.json(events);
 }
@@ -56,17 +56,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const userId: number = Number(body.user_id);
+    const employeeId: number = Number(body.employee_id);
     const eventDate: string = body.event_date;
     const eventType: EventType = body.event_type;
     const time: string = body.time; // "HH:MM", PH-local
     const shiftId: number | undefined = body.shift_id ? Number(body.shift_id) : undefined;
 
-    if (!userId || !eventDate || !VALID_TYPES.includes(eventType) || !/^\d{2}:\d{2}$/.test(time || '')) {
-      return NextResponse.json({ error: 'user_id, event_date, event_type, and time (HH:MM) are required' }, { status: 400 });
+    if (!employeeId || !eventDate || !VALID_TYPES.includes(eventType) || !/^\d{2}:\d{2}$/.test(time || '')) {
+      return NextResponse.json({ error: 'employee_id, event_date, event_type, and time (HH:MM) are required' }, { status: 400 });
     }
 
     const db = getDb();
+    if (!getEmployeeById(db, employeeId)) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
 
     // Simulating against a chosen shift template (any shift, not just the
     // employee's real assignment) is the whole point of Test Mode — falls
@@ -74,16 +75,17 @@ export async function POST(req: NextRequest) {
     // was explicitly picked.
     const shift: ShiftTemplate | null = shiftId
       ? (db.prepare('SELECT * FROM attendance_shifts WHERE id = ?').get(shiftId) as ShiftTemplate | undefined) ?? null
-      : getShiftForUserOnDate(db, userId, eventDate);
+      : getShiftForEmployeeOnDate(db, employeeId, eventDate);
     if (!shift) return NextResponse.json({ error: 'No shift selected and the employee has no assigned shift for this date.' }, { status: 400 });
 
-    const settings = mergeShiftIntoSettings(loadGlobalBreakSettings(db), shift);
+    const employee = getEmployeeById(db, employeeId)!;
+    const settings = mergeIntoSettings(loadGlobalBreakSettings(db), shift, employee.work_days);
 
     const existing = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events
-      WHERE user_id = ? AND event_date = ? AND is_test = 1
+      WHERE employee_id = ? AND event_date = ? AND is_test = 1
       ORDER BY event_time ASC
-    `).all(userId, eventDate) as AttendanceEvent[];
+    `).all(employeeId, eventDate) as AttendanceEvent[];
 
     // Same validation the real clock endpoint uses — simulated sequences
     // must follow the same state machine, so Test Mode actually exercises
@@ -95,15 +97,15 @@ export async function POST(req: NextRequest) {
 
     const eventTime = new Date(`${eventDate}T${time}:00+08:00`).toISOString();
     db.prepare(`
-      INSERT INTO attendance_events (user_id, event_date, event_type, event_time, source, created_by, is_test)
-      VALUES (?, ?, ?, ?, 'clock', ?, 1)
-    `).run(userId, eventDate, eventType, eventTime, session!.id);
+      INSERT INTO attendance_events (employee_id, user_id, event_date, event_type, event_time, source, created_by, is_test)
+      VALUES (?, ?, ?, ?, ?, 'clock', ?, 1)
+    `).run(employeeId, employee.linked_user_id ?? -employeeId, eventDate, eventType, eventTime, session!.id);
 
     const updated = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events
-      WHERE user_id = ? AND event_date = ? AND is_test = 1
+      WHERE employee_id = ? AND event_date = ? AND is_test = 1
       ORDER BY event_time ASC
-    `).all(userId, eventDate) as AttendanceEvent[];
+    `).all(employeeId, eventDate) as AttendanceEvent[];
 
     return NextResponse.json({ ok: true, events: updated, dayState: getEmployeeDayState(updated, settings) }, { status: 201 });
   } catch (e: any) {
@@ -118,7 +120,7 @@ export async function DELETE(req: NextRequest) {
   const denied = requireAdmin(session);
   if (denied) return denied;
 
-  const userId = req.nextUrl.searchParams.get('user_id');
+  const employeeId = req.nextUrl.searchParams.get('employee_id');
   const date = req.nextUrl.searchParams.get('date');
   const all = req.nextUrl.searchParams.get('all') === '1';
 
@@ -126,10 +128,10 @@ export async function DELETE(req: NextRequest) {
   let result;
   if (all) {
     result = db.prepare('DELETE FROM attendance_events WHERE is_test = 1').run();
-  } else if (userId && date) {
-    result = db.prepare('DELETE FROM attendance_events WHERE is_test = 1 AND user_id = ? AND event_date = ?').run(userId, date);
+  } else if (employeeId && date) {
+    result = db.prepare('DELETE FROM attendance_events WHERE is_test = 1 AND employee_id = ? AND event_date = ?').run(employeeId, date);
   } else {
-    return NextResponse.json({ error: 'Provide user_id and date, or all=1' }, { status: 400 });
+    return NextResponse.json({ error: 'Provide employee_id and date, or all=1' }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, deleted: result.changes });

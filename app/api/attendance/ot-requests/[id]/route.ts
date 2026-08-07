@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const db = getDb();
     const request = db.prepare('SELECT * FROM attendance_ot_requests WHERE id = ?').get(params.id) as
-      { id: number; user_id: number; event_date: string; excess_minutes: number } | undefined;
+      { id: number; employee_id: number; event_date: string; excess_minutes: number } | undefined;
     if (!request) return NextResponse.json({ error: 'OT request not found' }, { status: 404 });
 
     let approvedMinutes: number;
@@ -60,9 +60,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       `).run(status, approvedMinutes, remarks, session!.id, now, request.id);
 
       db.prepare(`
-        INSERT INTO attendance_audit_log (actor_user_id, action, target_user_id, event_date, details)
+        INSERT INTO attendance_audit_log (actor_user_id, action, employee_id, event_date, details)
         VALUES (?, ?, ?, ?, ?)
-      `).run(session!.id, auditAction, request.user_id, request.event_date,
+      `).run(session!.id, auditAction, request.employee_id, request.event_date,
         `excess=${request.excess_minutes}min, approved=${approvedMinutes}min${remarks ? `, remarks: ${remarks}` : ''}`);
     });
     tx();

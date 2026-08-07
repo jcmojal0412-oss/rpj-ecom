@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +14,11 @@ export async function GET(_: NextRequest, { params }: { params: { filename: stri
   const filename = params.filename.replace(/[^a-zA-Z0-9.\-_]/g, '');
 
   const db = getDb();
-  const owner = db.prepare('SELECT user_id FROM attendance_events WHERE photo_path = ?').get(filename) as { user_id: number } | undefined;
+  const owner = db.prepare('SELECT employee_id FROM attendance_events WHERE photo_path = ?').get(filename) as { employee_id: number | null } | undefined;
 
   const isAdmin = session.role === 'owner' || session.permissions.includes('attendance');
-  const isOwnPhoto = owner && owner.user_id === session.id;
+  const callerEmployee = isAdmin ? null : getActiveEmployeeForUser(db, session.id);
+  const isOwnPhoto = !!owner?.employee_id && callerEmployee?.id === owner.employee_id;
   if (!owner || (!isOwnPhoto && !isAdmin)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
