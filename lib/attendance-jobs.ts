@@ -40,7 +40,7 @@ export function flagPotentialOvertime(): number {
 
     const usersWithTimeOut = db.prepare(`
       SELECT DISTINCT user_id FROM attendance_events
-      WHERE event_date = ? AND event_type = 'TIME_OUT' AND superseded_by IS NULL
+      WHERE event_date = ? AND event_type = 'TIME_OUT' AND superseded_by IS NULL AND is_test = 0
     `).all(date) as { user_id: number }[];
 
     for (const { user_id } of usersWithTimeOut) {
@@ -49,7 +49,7 @@ export function flagPotentialOvertime(): number {
 
       const events = db.prepare(`
         SELECT id, event_type, event_time, superseded_by FROM attendance_events
-        WHERE user_id = ? AND event_date = ? ORDER BY event_time ASC
+        WHERE user_id = ? AND event_date = ? AND is_test = 0 ORDER BY event_time ASC
       `).all(user_id, date) as AttendanceEvent[];
 
       const summary = computeDaySummary(events, settings, true);
@@ -86,7 +86,7 @@ export function markAbsentees(): number {
   for (const { id: userId } of activeUsers) {
     const hasTimeIn = db.prepare(`
       SELECT 1 FROM attendance_events
-      WHERE user_id = ? AND event_date = ? AND event_type = 'TIME_IN' AND superseded_by IS NULL
+      WHERE user_id = ? AND event_date = ? AND event_type = 'TIME_IN' AND superseded_by IS NULL AND is_test = 0
       LIMIT 1
     `).get(userId, today);
     if (hasTimeIn) continue;

@@ -28,7 +28,7 @@ export async function GET() {
   const today = todayISO();
   const events = db.prepare(`
     SELECT id, event_type, event_time, superseded_by FROM attendance_events
-    WHERE user_id = ? AND event_date = ?
+    WHERE user_id = ? AND event_date = ? AND is_test = 0
     ORDER BY event_time ASC
   `).all(session.id, today) as AttendanceEvent[];
 

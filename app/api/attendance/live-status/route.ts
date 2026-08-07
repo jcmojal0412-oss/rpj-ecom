@@ -37,7 +37,7 @@ export async function GET() {
 
   const eventsRaw = db.prepare(`
     SELECT id, user_id, event_type, event_time, superseded_by FROM attendance_events
-    WHERE event_date = ? AND user_id IN (${activeUsers.map(() => '?').join(',') || '0'})
+    WHERE event_date = ? AND user_id IN (${activeUsers.map(() => '?').join(',') || '0'}) AND is_test = 0
   `).all(today, ...activeUsers.map(u => u.id)) as (AttendanceEvent & { user_id: number })[];
 
   const eventsByUser = new Map<number, AttendanceEvent[]>();

@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
   const eventsRaw = db.prepare(`
     SELECT id, user_id, event_date, event_type, event_time, superseded_by
     FROM attendance_events
-    WHERE event_date BETWEEN ? AND ? AND user_id IN (${userIds.map(() => '?').join(',')})
+    WHERE event_date BETWEEN ? AND ? AND user_id IN (${userIds.map(() => '?').join(',')}) AND is_test = 0
     ORDER BY event_time ASC
   `).all(from, to, ...userIds) as (AttendanceEvent & { user_id: number; event_date: string })[];
 

@@ -365,6 +365,17 @@ function migrateSchema() {
       ON attendance_audit_log(target_user_id, event_date, action) WHERE action = 'auto_absent';
   `);
   seedAttendanceSettingsIfEmpty();
+
+  // Admin Test/Simulation Mode — lets an owner/attendance-admin create
+  // fabricated clock events for QA without waiting for real clock time.
+  // is_test=1 rows are invisible to every real read path (today, clock,
+  // records, live-status, the background jobs) — see the AND is_test = 0
+  // filters added alongside each of those queries. Only the dedicated
+  // /api/attendance/test/* routes ever read or write is_test=1 rows.
+  const attendanceEventCols = (db.prepare('PRAGMA table_info(attendance_events)').all() as { name: string }[]).map(c => c.name);
+  if (!attendanceEventCols.includes('is_test')) {
+    db.exec('ALTER TABLE attendance_events ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 // V1 ships one global shift/rules config (read via app_settings, no scoping

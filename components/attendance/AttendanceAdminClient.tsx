@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { EventType, AttendanceStatus } from '@/lib/attendance';
 
-type Tab = 'dashboard' | 'settings' | 'records' | 'ot' | 'corrections';
+type Tab = 'dashboard' | 'settings' | 'records' | 'ot' | 'corrections' | 'test';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -14,6 +14,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'records', label: 'Daily Records' },
   { key: 'ot', label: 'OT Approval' },
   { key: 'corrections', label: 'Correction Requests' },
+  { key: 'test', label: 'Test Mode' },
 ];
 
 const STATUS_BADGE: Record<AttendanceStatus, string> = {
@@ -82,6 +83,7 @@ export default function AttendanceAdminClient() {
       {tab === 'records' && <RecordsTab />}
       {tab === 'ot' && <OtTab showToast={showToast} />}
       {tab === 'corrections' && <CorrectionsTab showToast={showToast} />}
+      {tab === 'test' && <TestModeTab showToast={showToast} />}
     </div>
   );
 }
@@ -637,6 +639,179 @@ function CorrectionReviewModal({ request, onClose, onDone }: { request: any; onC
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Test / Simulation Mode ──────────────────────────────────────────────
+// Admin-only. Every row this tab creates/reads/deletes is tagged
+// is_test = 1 server-side — every real read path (Dashboard, Daily
+// Records, the employee's own My Attendance page, and both background
+// jobs) explicitly filters is_test = 0, so nothing simulated here can ever
+// reach a real report, a real employee's record, or an OT/payroll-ready
+// total. See app/api/attendance/test/{events,summary}/route.ts.
+
+function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
+  const [userId, setUserId] = useState('');
+  const [date, setDate] = useState(todayISO());
+  const [events, setEvents] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [eventType, setEventType] = useState<EventType>('TIME_IN');
+  const [time, setTime] = useState('09:00');
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/attendance/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
+  }, []);
+
+  const fetchAll = () => {
+    if (!userId || !date) { setEvents([]); setSummary(null); return; }
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/attendance/test/events?user_id=${userId}&date=${date}`).then(r => r.json()),
+      fetch(`/api/attendance/test/summary?user_id=${userId}&date=${date}`).then(r => r.json()),
+    ]).then(([evs, summaryResp]) => {
+      setEvents(Array.isArray(evs) ? evs : []);
+      setSummary(summaryResp.summary ?? null);
+      setLoading(false);
+    });
+  };
+
+  useEffect(fetchAll, [userId, date]);
+
+  const addEvent = async () => {
+    if (!userId) { showToast('Select an employee first.', 'error'); return; }
+    setAdding(true);
+    try {
+      const res = await fetch('/api/attendance/test/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: Number(userId), event_date: date, event_type: eventType, time }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to add simulated event.', 'error'); return; }
+      showToast('Simulated event added!');
+      fetchAll();
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const clearDay = async () => {
+    if (!userId || !confirm('Clear all simulated events for this employee/date?')) return;
+    await fetch(`/api/attendance/test/events?user_id=${userId}&date=${date}`, { method: 'DELETE' });
+    showToast('Test data cleared for this employee/date.');
+    fetchAll();
+  };
+
+  const clearAll = async () => {
+    if (!confirm('Clear ALL simulated test data across every employee and date? This cannot be undone.')) return;
+    await fetch('/api/attendance/test/events?all=1', { method: 'DELETE' });
+    showToast('All test data cleared.');
+    fetchAll();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+        <FlaskConical className="text-amber-500 shrink-0 mt-0.5" size={20} />
+        <div>
+          <p className="text-sm font-semibold text-amber-800">Admin Test / Simulation Mode</p>
+          <p className="text-xs text-amber-700 mt-1">
+            Records created here are marked as <b>TEST DATA</b> and are always excluded from real attendance
+            reports, the Dashboard, and OT/payroll-ready totals — they exist only to preview how the rules
+            engine computes a full workday without waiting for real clock time. Simulated actions follow the
+            same sequencing rules as a real clock-in (no duplicate Time In, break limits enforced, etc.).
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="form-label">Employee</label>
+          <select className="form-input py-1.5 text-sm w-auto" value={userId} onChange={e => setUserId(e.target.value)}>
+            <option value="">Select employee...</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Date</label>
+          <input type="date" className="form-input py-1.5 text-sm w-auto" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        {userId && (
+          <button onClick={clearDay} className="btn-secondary text-xs py-1.5">
+            <Trash2 size={13} /> Clear This Day
+          </button>
+        )}
+        <button onClick={clearAll} className="text-xs text-red-500 hover:text-red-700 font-medium ml-auto">
+          Clear All Test Data
+        </button>
+      </div>
+
+      {!userId ? (
+        <p className="text-sm text-gray-400 text-center py-12">Select an employee and date to start simulating.</p>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="card space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Add Simulated Event</p>
+            <div>
+              <label className="form-label">Action</label>
+              <select className="form-input" value={eventType} onChange={e => setEventType(e.target.value as EventType)}>
+                {Object.entries(EVENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Time (PH-local)</label>
+              <input type="time" className="form-input" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+            <button onClick={addEvent} disabled={adding} className="btn-primary w-full justify-center disabled:opacity-50">
+              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {adding ? 'Adding...' : 'Add Simulated Event'}
+            </button>
+
+            {events.length > 0 && (
+              <div className="border-t border-gray-100 pt-3 space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+                  Simulated Timeline <span className="badge-amber">TEST DATA</span>
+                </p>
+                {events.filter((e: any) => !e.superseded_by).map((e: any) => (
+                  <div key={e.id} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">{EVENT_LABELS[e.event_type as EventType]}</span>
+                    <span className="font-medium text-gray-800">
+                      {new Date(e.event_time).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card space-y-2.5">
+            <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+              Computed Preview <span className="badge-amber">TEST DATA</span>
+            </p>
+            {loading ? (
+              <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-300" size={20} /></div>
+            ) : summary ? (
+              <>
+                <span className={STATUS_BADGE[summary.status as AttendanceStatus]}>{STATUS_LABEL[summary.status as AttendanceStatus]}</span>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2">
+                  <div className="flex justify-between"><span className="text-gray-500">Worked Hours</span><span className="font-medium text-gray-800">{fmtMinutes(summary.totalWorkMinutes)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Break Time</span><span className="font-medium text-gray-800">{fmtMinutes(summary.breakMinutes)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{summary.lateMinutes > 0 ? fmtMinutes(summary.lateMinutes) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{summary.undertimeMinutes > 0 ? fmtMinutes(summary.undertimeMinutes) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Excess Break</span><span className="font-medium text-gray-800">{summary.excessBreakMinutes > 0 ? fmtMinutes(summary.excessBreakMinutes) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{summary.potentialOtMinutes > 0 ? fmtMinutes(summary.potentialOtMinutes) : '—'}</span></div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400 py-4">No simulated events yet for this employee/date.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
