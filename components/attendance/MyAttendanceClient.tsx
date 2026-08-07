@@ -45,6 +45,12 @@ interface TodaySettings {
   lunch_break_minutes: number;
 }
 
+interface AssignedShift {
+  name: string;
+  start_time: string;
+  end_time: string;
+}
+
 interface TodayResp {
   date: string;
   events: TodayEvent[];
@@ -53,6 +59,7 @@ interface TodayResp {
   summary: DaySummary;
   otRequest: OtRequest | null;
   settings: TodaySettings;
+  shift: AssignedShift;
 }
 
 interface Correction {
@@ -96,6 +103,13 @@ function formatPHTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
 }
 
+function fmtShiftTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 function toDateTimeLocalValue(iso: string) {
   const d = new Date(new Date(iso).getTime() + 8 * 3600 * 1000);
   return d.toISOString().slice(0, 16);
@@ -131,8 +145,16 @@ export default function MyAttendanceClient() {
     return () => clearInterval(id);
   }, []);
 
+  const [noShiftError, setNoShiftError] = useState('');
+
   const fetchToday = () => {
-    fetch('/api/attendance/today').then(r => r.json()).then(d => { setToday(d); setLoading(false); });
+    fetch('/api/attendance/today').then(async r => {
+      const d = await r.json();
+      if (!r.ok) { setNoShiftError(d.error || 'Unable to load attendance.'); setLoading(false); return; }
+      setNoShiftError('');
+      setToday(d);
+      setLoading(false);
+    });
   };
 
   const fetchCorrections = () => {
@@ -174,10 +196,20 @@ export default function MyAttendanceClient() {
     }
   };
 
-  if (loading || !today) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-orange-500" size={28} />
+      </div>
+    );
+  }
+
+  if (noShiftError || !today) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="card max-w-sm text-center">
+          <p className="text-sm text-red-600">{noShiftError || 'Unable to load your attendance.'}</p>
+        </div>
       </div>
     );
   }
@@ -219,6 +251,9 @@ export default function MyAttendanceClient() {
           </div>
           <span className="text-xs text-gray-400">{today.date}</span>
         </div>
+        <p className="text-xs text-gray-500">
+          {today.shift.name} · {fmtShiftTime(today.shift.start_time)} – {fmtShiftTime(today.shift.end_time)}
+        </p>
         {dayState.coffeeBreaksUsed > 0 || dayState.coffeeBreaksRemaining >= 0 ? (
           <p className="text-xs text-gray-500">
             Coffee breaks used: {dayState.coffeeBreaksUsed} · remaining: {dayState.coffeeBreaksRemaining}

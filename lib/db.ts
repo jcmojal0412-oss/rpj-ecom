@@ -376,6 +376,58 @@ function migrateSchema() {
   if (!attendanceEventCols.includes('is_test')) {
     db.exec('ALTER TABLE attendance_events ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0');
   }
+
+  // Shift Templates — replaces the single global work_start/work_end/
+  // grace_period_minutes assumption. attendance_work_start/work_end/
+  // grace_period_minutes rows in app_settings are left in place (harmless,
+  // unread) as a safe rollback point, same pattern as booking_availability
+  // being superseded by booking_slots. Every calculation now resolves the
+  // shift that was actually in effect for a given employee on a given
+  // date via attendance_shift_assignments — NOT the employee's current
+  // shift — so changing someone's shift never rewrites how past dates are
+  // computed. attendance_events, attendance_ot_requests, and
+  // attendance_corrections are untouched by this change (still only
+  // reference user_id), exactly as anticipated when the module first shipped.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      grace_period_minutes INTEGER NOT NULL DEFAULT 15,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS attendance_shift_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      shift_id INTEGER NOT NULL REFERENCES attendance_shifts(id),
+      effective_from TEXT NOT NULL,
+      effective_to TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_shift_assignments_user ON attendance_shift_assignments(user_id, effective_from);
+  `);
+  seedShiftsIfEmpty();
+}
+
+function seedShiftsIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM attendance_shifts').get() as { c: number }).c;
+  if (count > 0) return;
+
+  const insert = db.prepare('INSERT INTO attendance_shifts (name, start_time, end_time, grace_period_minutes, active) VALUES (?,?,?,?,1)');
+  const shiftA = insert.run('Shift A', '09:00', '18:00', 15);
+  insert.run('Shift B', '10:00', '19:00', 15);
+  insert.run('Shift C', '11:00', '20:00', 15);
+
+  // Auto-assign every existing user to Shift A from a far-past date so all
+  // pre-existing (and this module only just launched, so minimal) history
+  // resolves consistently. Admin can reassign anyone via the Shifts tab.
+  const users = db.prepare('SELECT id FROM users').all() as { id: number }[];
+  const assign = db.prepare('INSERT INTO attendance_shift_assignments (user_id, shift_id, effective_from) VALUES (?, ?, ?)');
+  for (const u of users) assign.run(u.id, shiftA.lastInsertRowid, '2000-01-01');
 }
 
 // V1 ships one global shift/rules config (read via app_settings, no scoping

@@ -2,18 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import {
-  parseAttendanceSettings, getEmployeeDayState, eventRequiresSelfie, todayISO,
+  getEmployeeDayState, eventRequiresSelfie, todayISO,
   type AttendanceEvent, type EventType,
 } from '@/lib/attendance';
+import { resolveAttendanceSettings } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
-
-const ATTENDANCE_KEYS = [
-  'attendance_work_start', 'attendance_work_end', 'attendance_grace_period_minutes',
-  'attendance_lunch_break_minutes', 'attendance_coffee_break_minutes', 'attendance_coffee_breaks_allowed',
-  'attendance_lunch_break_paid', 'attendance_coffee_break_paid', 'attendance_min_minutes_before_ot',
-  'attendance_selfie_required', 'attendance_work_days',
-];
 
 const VALID_TYPES: EventType[] = ['TIME_IN', 'COFFEE_OUT', 'COFFEE_IN', 'LUNCH_OUT', 'LUNCH_IN', 'TIME_OUT'];
 
@@ -40,16 +34,16 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    const settingsRows = db.prepare(
-      `SELECT key, value FROM app_settings WHERE key IN (${ATTENDANCE_KEYS.map(() => '?').join(',')})`
-    ).all(...ATTENDANCE_KEYS) as { key: string; value: string }[];
-    const settings = parseAttendanceSettings(settingsRows);
+    const today = todayISO();
+
+    const resolved = resolveAttendanceSettings(db, session.id, today);
+    if (!resolved) return NextResponse.json({ error: 'No shift assigned. Please contact an administrator.' }, { status: 409 });
+    const { settings } = resolved;
 
     if (eventRequiresSelfie(eventType, settings) && !photoPath) {
       return NextResponse.json({ error: 'A selfie photo is required for this action.' }, { status: 400 });
     }
 
-    const today = todayISO();
     const events = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events
       WHERE user_id = ? AND event_date = ? AND is_test = 0

@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { parseAttendanceSettings, getEmployeeDayState, todayISO, type AttendanceEvent } from '@/lib/attendance';
+import { getEmployeeDayState, todayISO, type AttendanceEvent } from '@/lib/attendance';
+import { resolveAttendanceSettings } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
-
-const ATTENDANCE_KEYS = [
-  'attendance_work_start', 'attendance_work_end', 'attendance_grace_period_minutes',
-  'attendance_lunch_break_minutes', 'attendance_coffee_break_minutes', 'attendance_coffee_breaks_allowed',
-  'attendance_lunch_break_paid', 'attendance_coffee_break_paid', 'attendance_min_minutes_before_ot',
-  'attendance_selfie_required', 'attendance_work_days',
-];
 
 // Live "what is everyone doing right now" view — distinct from the
 // shift-status KPIs (Present/Late/Absent/Not Clocked In) already computed
@@ -27,11 +21,6 @@ export async function GET() {
   }
 
   const db = getDb();
-  const settingsRows = db.prepare(
-    `SELECT key, value FROM app_settings WHERE key IN (${ATTENDANCE_KEYS.map(() => '?').join(',')})`
-  ).all(...ATTENDANCE_KEYS) as { key: string; value: string }[];
-  const settings = parseAttendanceSettings(settingsRows);
-
   const today = todayISO();
   const activeUsers = db.prepare('SELECT id, name FROM users WHERE active = 1').all() as { id: number; name: string }[];
 
@@ -48,7 +37,9 @@ export async function GET() {
 
   let working = 0, onBreak = 0, clockedOut = 0, notStarted = 0;
   const employees = activeUsers.map(u => {
-    const state = getEmployeeDayState(eventsByUser.get(u.id) ?? [], settings).state;
+    const resolved = resolveAttendanceSettings(db, u.id, today);
+    if (!resolved) return { user_id: u.id, name: u.name, state: 'not_started' as const };
+    const state = getEmployeeDayState(eventsByUser.get(u.id) ?? [], resolved.settings).state;
     if (state === 'working') working++;
     else if (state === 'on_lunch' || state === 'on_coffee') onBreak++;
     else if (state === 'ended') clockedOut++;

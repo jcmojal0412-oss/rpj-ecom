@@ -14,13 +14,16 @@ export interface AttendanceEvent {
   superseded_by: number | null;
 }
 
-// V1 ships ONE global config (see parseAttendanceSettings below, sourced
-// from the shared app_settings key-value table — no scoping column). Every
-// function here only ever takes a single AttendanceSettings object and a
-// user's own events, never touching the DB directly, so a future
-// per-employee/per-branch/multi-shift version can resolve "which settings
-// apply to this user" upstream (e.g. via a join against a new
-// attendance_shifts table) without changing anything in this file.
+// work_start/work_end/grace_period_minutes are resolved PER EMPLOYEE PER
+// DATE from that employee's assigned shift (see lib/attendance-shifts.ts,
+// which is history-aware: it resolves whichever shift was actually in
+// effect on the given date, not the employee's current shift, so
+// reassigning someone never rewrites past calculations). The remaining
+// fields (breaks, OT threshold, selfie, work days) stay one shared global
+// config. Every function here only ever takes an already-resolved
+// AttendanceSettings object and a user's own events — never touches the DB
+// directly — so this file didn't need to change at all when shifts were
+// introduced; only the caller-side resolution logic did.
 export interface AttendanceSettings {
   work_start: string;              // "09:00", PH-local wall time
   work_end: string;                // "18:00"

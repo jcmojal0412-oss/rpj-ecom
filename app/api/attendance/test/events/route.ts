@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { parseAttendanceSettings, getEmployeeDayState, type AttendanceEvent, type EventType } from '@/lib/attendance';
+import { getEmployeeDayState, type AttendanceEvent, type EventType } from '@/lib/attendance';
+import { loadGlobalBreakSettings, mergeShiftIntoSettings, getShiftForUserOnDate, type ShiftTemplate } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
-
-const ATTENDANCE_KEYS = [
-  'attendance_work_start', 'attendance_work_end', 'attendance_grace_period_minutes',
-  'attendance_lunch_break_minutes', 'attendance_coffee_break_minutes', 'attendance_coffee_breaks_allowed',
-  'attendance_lunch_break_paid', 'attendance_coffee_break_paid', 'attendance_min_minutes_before_ot',
-  'attendance_selfie_required', 'attendance_work_days',
-];
 
 const VALID_TYPES: EventType[] = ['TIME_IN', 'COFFEE_OUT', 'COFFEE_IN', 'LUNCH_OUT', 'LUNCH_IN', 'TIME_OUT'];
 
@@ -66,16 +60,24 @@ export async function POST(req: NextRequest) {
     const eventDate: string = body.event_date;
     const eventType: EventType = body.event_type;
     const time: string = body.time; // "HH:MM", PH-local
+    const shiftId: number | undefined = body.shift_id ? Number(body.shift_id) : undefined;
 
     if (!userId || !eventDate || !VALID_TYPES.includes(eventType) || !/^\d{2}:\d{2}$/.test(time || '')) {
       return NextResponse.json({ error: 'user_id, event_date, event_type, and time (HH:MM) are required' }, { status: 400 });
     }
 
     const db = getDb();
-    const settingsRows = db.prepare(
-      `SELECT key, value FROM app_settings WHERE key IN (${ATTENDANCE_KEYS.map(() => '?').join(',')})`
-    ).all(...ATTENDANCE_KEYS) as { key: string; value: string }[];
-    const settings = parseAttendanceSettings(settingsRows);
+
+    // Simulating against a chosen shift template (any shift, not just the
+    // employee's real assignment) is the whole point of Test Mode — falls
+    // back to the employee's actually-assigned shift for that date if none
+    // was explicitly picked.
+    const shift: ShiftTemplate | null = shiftId
+      ? (db.prepare('SELECT * FROM attendance_shifts WHERE id = ?').get(shiftId) as ShiftTemplate | undefined) ?? null
+      : getShiftForUserOnDate(db, userId, eventDate);
+    if (!shift) return NextResponse.json({ error: 'No shift selected and the employee has no assigned shift for this date.' }, { status: 400 });
+
+    const settings = mergeShiftIntoSettings(loadGlobalBreakSettings(db), shift);
 
     const existing = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events

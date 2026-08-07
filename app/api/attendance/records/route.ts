@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import {
-  parseAttendanceSettings, computeDaySummary, isConfiguredWorkDay, isTodayFinalized, todayISO,
-  type AttendanceEvent,
-} from '@/lib/attendance';
+import { computeDaySummary, isTodayFinalized, todayISO, type AttendanceEvent } from '@/lib/attendance';
+import { loadGlobalBreakSettings, resolveAttendanceSettings } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
-
-const ATTENDANCE_KEYS = [
-  'attendance_work_start', 'attendance_work_end', 'attendance_grace_period_minutes',
-  'attendance_lunch_break_minutes', 'attendance_coffee_break_minutes', 'attendance_coffee_breaks_allowed',
-  'attendance_lunch_break_paid', 'attendance_coffee_break_paid', 'attendance_min_minutes_before_ot',
-  'attendance_selfie_required', 'attendance_work_days',
-];
 
 function dateRange(from: string, to: string): string[] {
   const dates: string[] = [];
@@ -39,10 +30,10 @@ export async function GET(req: NextRequest) {
   if (!from || !to) return NextResponse.json({ error: 'from and to are required' }, { status: 400 });
 
   const db = getDb();
-  const settingsRows = db.prepare(
-    `SELECT key, value FROM app_settings WHERE key IN (${ATTENDANCE_KEYS.map(() => '?').join(',')})`
-  ).all(...ATTENDANCE_KEYS) as { key: string; value: string }[];
-  const settings = parseAttendanceSettings(settingsRows);
+  // work_days is a global setting, independent of which shift an employee
+  // is on — used only to pre-filter which dates in the range are business
+  // days at all.
+  const global = loadGlobalBreakSettings(db);
 
   const users = userIdParam
     ? db.prepare('SELECT id, name FROM users WHERE id = ? AND active = 1').all(Number(userIdParam))
@@ -66,15 +57,22 @@ export async function GET(req: NextRequest) {
   }
 
   const today = todayISO();
-  const dates = dateRange(from, to).filter(d => isConfiguredWorkDay(d, settings));
+  const dates = dateRange(from, to).filter(d => global.work_days.includes(new Date(d + 'T00:00:00').getDay()));
   const rows: any[] = [];
 
   for (const u of users as { id: number; name: string }[]) {
     for (const date of dates) {
+      // History-aware: resolves whichever shift this employee was actually
+      // assigned to on THIS date, not their current shift — so a shift
+      // change never rewrites how past dates are computed.
+      const resolved = resolveAttendanceSettings(db, u.id, date);
+      if (!resolved) continue; // no shift assignment covering this date — nothing to compute
+      const { settings, shift } = resolved;
+
       const events = eventsByUserDate.get(`${u.id}|${date}`) ?? [];
       const isFinalized = date < today || (date === today && isTodayFinalized(settings));
       const summary = computeDaySummary(events, settings, isFinalized);
-      rows.push({ user_id: u.id, name: u.name, date, ...summary });
+      rows.push({ user_id: u.id, name: u.name, date, shift_name: shift.name, ...summary });
     }
   }
 

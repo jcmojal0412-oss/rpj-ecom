@@ -40,6 +40,16 @@ export async function POST(req: NextRequest) {
       const insertPerm = db.prepare('INSERT OR IGNORE INTO user_permissions (user_id,module) VALUES (?,?)');
       for (const m of permissions) insertPerm.run(uid, m);
     }
+
+    // Every user needs a shift assignment for attendance calculations to
+    // resolve — default new accounts to the first active shift template.
+    const defaultShift = db.prepare('SELECT id FROM attendance_shifts WHERE active = 1 ORDER BY id ASC LIMIT 1').get() as { id: number } | undefined;
+    if (defaultShift) {
+      const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+      db.prepare('INSERT INTO attendance_shift_assignments (user_id, shift_id, effective_from, created_by) VALUES (?, ?, ?, ?)')
+        .run(uid, defaultShift.id, today, session.id);
+    }
+
     return NextResponse.json({ id: uid }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

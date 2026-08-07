@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus, Pencil } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
+import Modal from '@/components/ui/Modal';
 import type { EventType, AttendanceStatus } from '@/lib/attendance';
 
-type Tab = 'dashboard' | 'settings' | 'records' | 'ot' | 'corrections' | 'test';
+type Tab = 'dashboard' | 'settings' | 'shifts' | 'records' | 'ot' | 'corrections' | 'test';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'settings', label: 'Settings' },
+  { key: 'shifts', label: 'Shifts' },
   { key: 'records', label: 'Daily Records' },
   { key: 'ot', label: 'OT Approval' },
   { key: 'corrections', label: 'Correction Requests' },
@@ -80,6 +82,7 @@ export default function AttendanceAdminClient() {
 
       {tab === 'dashboard' && <DashboardTab />}
       {tab === 'settings' && <SettingsTab showToast={showToast} />}
+      {tab === 'shifts' && <ShiftsTab showToast={showToast} />}
       {tab === 'records' && <RecordsTab />}
       {tab === 'ot' && <OtTab showToast={showToast} />}
       {tab === 'corrections' && <CorrectionsTab showToast={showToast} />}
@@ -193,7 +196,6 @@ function DashboardTab() {
 // ── Settings ─────────────────────────────────────────────────────────────
 
 interface Settings {
-  work_start: string; work_end: string; grace_period_minutes: number;
   lunch_break_minutes: number; coffee_break_minutes: number; coffee_breaks_allowed: number;
   lunch_break_paid: boolean; coffee_break_paid: boolean;
   min_minutes_before_ot: number; selfie_required: boolean; work_days: number[];
@@ -235,23 +237,14 @@ function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
   return (
     <div className="card space-y-5 max-w-2xl">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="form-label">Work Start Time</label>
-          <input type="time" className="form-input" value={settings.work_start} onChange={e => setSettings({ ...settings, work_start: e.target.value })} />
-        </div>
-        <div>
-          <label className="form-label">Work End Time</label>
-          <input type="time" className="form-input" value={settings.work_end} onChange={e => setSettings({ ...settings, work_end: e.target.value })} />
-        </div>
-        <div>
-          <label className="form-label">Grace Period (minutes)</label>
-          <input type="number" className="form-input" value={settings.grace_period_minutes} onChange={e => setSettings({ ...settings, grace_period_minutes: Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="form-label">Min. Minutes Before OT Eligible</label>
-          <input type="number" className="form-input" value={settings.min_minutes_before_ot} onChange={e => setSettings({ ...settings, min_minutes_before_ot: Number(e.target.value) })} />
-        </div>
+      <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-xs text-blue-700">
+        Work start/end time and grace period are now set per Shift Template — see the <b>Shifts</b> tab.
+      </div>
+
+      <div>
+        <label className="form-label">Min. Minutes Before OT Eligible</label>
+        <p className="text-xs text-gray-400 mb-1">Applies after each employee's own assigned shift end time.</p>
+        <input type="number" className="form-input max-w-xs" value={settings.min_minutes_before_ot} onChange={e => setSettings({ ...settings, min_minutes_before_ot: Number(e.target.value) })} />
       </div>
 
       <div className="border-t border-gray-100 pt-4 grid grid-cols-2 gap-4">
@@ -372,6 +365,7 @@ function RecordsTab() {
                 <tr className="border-b border-gray-100">
                   <th className="table-header">Date</th>
                   <th className="table-header">Employee</th>
+                  <th className="table-header">Shift</th>
                   <th className="table-header">Status</th>
                   <th className="table-header">Work Hours</th>
                   <th className="table-header">Break</th>
@@ -386,6 +380,7 @@ function RecordsTab() {
                   <tr key={i} className="hover:bg-gray-50/60">
                     <td className="table-cell">{formatDate(r.date)}</td>
                     <td className="table-cell">{r.name}</td>
+                    <td className="table-cell text-gray-500 text-xs">{r.shift_name}</td>
                     <td className="table-cell"><span className={STATUS_BADGE[r.status as AttendanceStatus]}>{STATUS_LABEL[r.status as AttendanceStatus]}</span></td>
                     <td className="table-cell">{fmtMinutes(r.totalWorkMinutes)}</td>
                     <td className="table-cell">{fmtMinutes(r.breakMinutes)}</td>
@@ -653,10 +648,13 @@ function CorrectionReviewModal({ request, onClose, onDone }: { request: any; onC
 
 function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
+  const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [userId, setUserId] = useState('');
+  const [shiftId, setShiftId] = useState(''); // '' = use the employee's real assigned shift
   const [date, setDate] = useState(todayISO());
   const [events, setEvents] = useState<any[]>([]);
   const [summary, setSummary] = useState<any | null>(null);
+  const [resolvedShift, setResolvedShift] = useState<ShiftTemplate | null>(null);
   const [loading, setLoading] = useState(false);
   const [eventType, setEventType] = useState<EventType>('TIME_IN');
   const [time, setTime] = useState('09:00');
@@ -664,22 +662,25 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
   useEffect(() => {
     fetch('/api/attendance/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
+    fetch('/api/attendance/shifts').then(r => r.json()).then(d => setShifts(Array.isArray(d) ? d : []));
   }, []);
 
   const fetchAll = () => {
-    if (!userId || !date) { setEvents([]); setSummary(null); return; }
+    if (!userId || !date) { setEvents([]); setSummary(null); setResolvedShift(null); return; }
     setLoading(true);
+    const shiftParam = shiftId ? `&shift_id=${shiftId}` : '';
     Promise.all([
       fetch(`/api/attendance/test/events?user_id=${userId}&date=${date}`).then(r => r.json()),
-      fetch(`/api/attendance/test/summary?user_id=${userId}&date=${date}`).then(r => r.json()),
+      fetch(`/api/attendance/test/summary?user_id=${userId}&date=${date}${shiftParam}`).then(r => r.json()),
     ]).then(([evs, summaryResp]) => {
       setEvents(Array.isArray(evs) ? evs : []);
       setSummary(summaryResp.summary ?? null);
+      setResolvedShift(summaryResp.shift ?? null);
       setLoading(false);
     });
   };
 
-  useEffect(fetchAll, [userId, date]);
+  useEffect(fetchAll, [userId, date, shiftId]);
 
   const addEvent = async () => {
     if (!userId) { showToast('Select an employee first.', 'error'); return; }
@@ -688,7 +689,7 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       const res = await fetch('/api/attendance/test/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: Number(userId), event_date: date, event_type: eventType, time }),
+        body: JSON.stringify({ user_id: Number(userId), event_date: date, event_type: eventType, time, shift_id: shiftId ? Number(shiftId) : undefined }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to add simulated event.', 'error'); return; }
@@ -739,6 +740,13 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         <div>
           <label className="form-label">Date</label>
           <input type="date" className="form-input py-1.5 text-sm w-auto" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">Simulate With Shift</label>
+          <select className="form-input py-1.5 text-sm w-auto" value={shiftId} onChange={e => setShiftId(e.target.value)}>
+            <option value="">Employee's assigned shift</option>
+            {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
+          </select>
         </div>
         {userId && (
           <button onClick={clearDay} className="btn-secondary text-xs py-1.5">
@@ -792,6 +800,11 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
               Computed Preview <span className="badge-amber">TEST DATA</span>
             </p>
+            {resolvedShift && (
+              <p className="text-xs text-gray-400">
+                Using {resolvedShift.name} ({fmtShiftTime(resolvedShift.start_time)}–{fmtShiftTime(resolvedShift.end_time)}, {resolvedShift.grace_period_minutes}m grace)
+              </p>
+            )}
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-300" size={20} /></div>
             ) : summary ? (
@@ -812,6 +825,265 @@ function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Shift Templates + Assignments ───────────────────────────────────────
+
+interface ShiftTemplate {
+  id: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  grace_period_minutes: number;
+  active: number;
+}
+
+interface ShiftAssignmentRow {
+  user_id: number;
+  name: string;
+  shift: ShiftTemplate | null;
+}
+
+function fmtShiftTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
+  const [assignments, setAssignments] = useState<ShiftAssignmentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingShift, setEditingShift] = useState<ShiftTemplate | 'new' | null>(null);
+  const [reassigning, setReassigning] = useState<ShiftAssignmentRow | null>(null);
+
+  const fetchAll = () => {
+    setLoading(true);
+    Promise.all([
+      fetch('/api/attendance/shifts').then(r => r.json()),
+      fetch('/api/attendance/shift-assignments').then(r => r.json()),
+    ]).then(([s, a]) => {
+      setShifts(Array.isArray(s) ? s : []);
+      setAssignments(Array.isArray(a) ? a : []);
+      setLoading(false);
+    });
+  };
+
+  useEffect(fetchAll, []);
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-semibold text-gray-700">Shift Templates</p>
+          <button onClick={() => setEditingShift('new')} className="btn-secondary text-xs py-1.5">
+            <Plus size={13} /> Add Shift Template
+          </button>
+        </div>
+        <div className="card p-0 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="table-header">Name</th>
+                <th className="table-header">Start</th>
+                <th className="table-header">End</th>
+                <th className="table-header">Grace Period</th>
+                <th className="table-header">Status</th>
+                <th className="table-header"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {shifts.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50/60">
+                  <td className="table-cell font-medium text-gray-900">{s.name}</td>
+                  <td className="table-cell">{fmtShiftTime(s.start_time)}</td>
+                  <td className="table-cell">{fmtShiftTime(s.end_time)}</td>
+                  <td className="table-cell">{s.grace_period_minutes}m</td>
+                  <td className="table-cell">
+                    <span className={s.active ? 'badge-green' : 'badge-gray'}>{s.active ? 'Active' : 'Inactive'}</span>
+                  </td>
+                  <td className="table-cell text-right">
+                    <button onClick={() => setEditingShift(s)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700">
+                      <Pencil size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-gray-700 mb-2">Employee Shift Assignments</p>
+        <div className="card p-0 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="table-header">Employee</th>
+                <th className="table-header">Current Shift</th>
+                <th className="table-header"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {assignments.map(a => (
+                <tr key={a.user_id} className="hover:bg-gray-50/60">
+                  <td className="table-cell font-medium text-gray-900">{a.name}</td>
+                  <td className="table-cell">
+                    {a.shift ? `${a.shift.name} (${fmtShiftTime(a.shift.start_time)}–${fmtShiftTime(a.shift.end_time)})` : <span className="text-red-500">No shift assigned</span>}
+                  </td>
+                  <td className="table-cell text-right">
+                    <button onClick={() => setReassigning(a)} className="btn-secondary text-xs py-1.5">Change Shift</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {editingShift && (
+        <Modal open={!!editingShift} onClose={() => setEditingShift(null)} title={editingShift === 'new' ? 'Add Shift Template' : 'Edit Shift Template'} size="sm">
+          <ShiftTemplateForm
+            shift={editingShift === 'new' ? null : editingShift}
+            onCancel={() => setEditingShift(null)}
+            onSaved={() => { setEditingShift(null); showToast('Shift template saved!'); fetchAll(); }}
+          />
+        </Modal>
+      )}
+
+      {reassigning && (
+        <Modal open={!!reassigning} onClose={() => setReassigning(null)} title={`Change Shift — ${reassigning.name}`} size="sm">
+          <ReassignShiftForm
+            assignment={reassigning}
+            shifts={shifts.filter(s => s.active)}
+            onCancel={() => setReassigning(null)}
+            onSaved={() => { setReassigning(null); showToast('Shift reassigned!'); fetchAll(); }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ShiftTemplateForm({ shift, onCancel, onSaved }: { shift: ShiftTemplate | null; onCancel: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(shift?.name ?? '');
+  const [startTime, setStartTime] = useState(shift?.start_time ?? '09:00');
+  const [endTime, setEndTime] = useState(shift?.end_time ?? '18:00');
+  const [gracePeriod, setGracePeriod] = useState(shift?.grace_period_minutes ?? 15);
+  const [active, setActive] = useState(shift ? !!shift.active : true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    if (!name.trim()) { setError('Name is required.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const url = shift ? `/api/attendance/shifts/${shift.id}` : '/api/attendance/shifts';
+      const method = shift ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), start_time: startTime, end_time: endTime, grace_period_minutes: gracePeriod, active }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to save.'); return; }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Shift Name</label>
+        <input type="text" className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Shift A" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="form-label">Start Time</label>
+          <input type="time" className="form-input" value={startTime} onChange={e => setStartTime(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">End Time</label>
+          <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Grace Period (minutes)</label>
+        <input type="number" className="form-input" value={gracePeriod} onChange={e => setGracePeriod(Number(e.target.value))} />
+      </div>
+      {shift && (
+        <div>
+          <label className="form-label">Status</label>
+          <select className="form-input" value={active ? '1' : '0'} onChange={e => setActive(e.target.value === '1')}>
+            <option value="1">Active</option>
+            <option value="0">Inactive</option>
+          </select>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReassignShiftForm({ assignment, shifts, onCancel, onSaved }: { assignment: ShiftAssignmentRow; shifts: ShiftTemplate[]; onCancel: () => void; onSaved: () => void }) {
+  const [shiftId, setShiftId] = useState(String(assignment.shift?.id ?? shifts[0]?.id ?? ''));
+  const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    if (!shiftId) { setError('Select a shift.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/attendance/shift-assignments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: assignment.user_id, shift_id: Number(shiftId), effective_from: effectiveFrom }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to reassign.'); return; }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">New Shift</label>
+        <select className="form-input" value={shiftId} onChange={e => setShiftId(e.target.value)}>
+          {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="form-label">Effective From</label>
+        <input type="date" className="form-input" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+        <p className="text-xs text-gray-400 mt-1">Attendance before this date keeps using the previous shift — past records are never recalculated.</p>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Saving...' : 'Reassign'}
+        </button>
+      </div>
     </div>
   );
 }
