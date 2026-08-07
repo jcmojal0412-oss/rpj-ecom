@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { parseAttendanceSettings, getEmployeeDayState, eventRequiresSelfie, todayISO, type AttendanceEvent } from '@/lib/attendance';
+import {
+  parseAttendanceSettings, getEmployeeDayState, computeDaySummary, eventRequiresSelfie, isTodayFinalized, todayISO,
+  type AttendanceEvent,
+} from '@/lib/attendance';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +33,15 @@ export async function GET() {
   `).all(session.id, today) as AttendanceEvent[];
 
   const dayState = getEmployeeDayState(events, settings);
+  const isFinalized = isTodayFinalized(settings);
+  const summary = computeDaySummary(events, settings, isFinalized);
+
+  const otRequest = db.prepare(
+    'SELECT status, excess_minutes, approved_minutes FROM attendance_ot_requests WHERE user_id = ? AND event_date = ?'
+  ).get(session.id, today) as { status: string; excess_minutes: number; approved_minutes: number | null } | undefined;
 
   const requiresSelfie: Record<string, boolean> = {};
   for (const t of ['TIME_IN', 'TIME_OUT'] as const) requiresSelfie[t] = eventRequiresSelfie(t, settings);
 
-  return NextResponse.json({ date: today, events, dayState, settings, requiresSelfie });
+  return NextResponse.json({ date: today, events, dayState, settings, requiresSelfie, summary, otRequest: otRequest ?? null });
 }

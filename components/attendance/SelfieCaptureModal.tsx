@@ -104,11 +104,14 @@ export default function SelfieCaptureModal({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* Capped to a viewport-relative height (not a fixed aspect ratio) so
+          the buttons below always stay visible without scrolling, even on
+          short phone screens. */}
       {(phase === 'starting' || phase === 'live') && (
-        <div className="relative rounded-xl overflow-hidden bg-gray-900 aspect-[3/4]">
+        <div className="relative rounded-xl overflow-hidden bg-gray-900 h-[40vh] max-h-[380px] min-h-[220px]">
           <video ref={videoRef} className="w-full h-full object-cover -scale-x-100" playsInline muted />
           {phase === 'starting' && (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -129,7 +132,7 @@ export default function SelfieCaptureModal({
       )}
 
       {(phase === 'preview' || phase === 'uploading') && previewUrl && (
-        <div className="relative rounded-xl overflow-hidden bg-gray-900 aspect-[3/4]">
+        <div className="relative rounded-xl overflow-hidden bg-gray-900 h-[40vh] max-h-[380px] min-h-[220px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={previewUrl} alt="Captured selfie" className="w-full h-full object-cover -scale-x-100" />
         </div>

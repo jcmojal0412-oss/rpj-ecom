@@ -24,11 +24,35 @@ interface DayStateResp {
   canCoffeeOut: boolean; canCoffeeIn: boolean;
 }
 
+interface DaySummary {
+  status: string;
+  totalWorkMinutes: number;
+  breakMinutes: number;
+  excessBreakMinutes: number;
+  potentialOtMinutes: number;
+  lateMinutes: number;
+  undertimeMinutes: number;
+}
+
+interface OtRequest {
+  status: 'pending' | 'approved' | 'rejected';
+  excess_minutes: number;
+  approved_minutes: number | null;
+}
+
+interface TodaySettings {
+  coffee_break_minutes: number;
+  lunch_break_minutes: number;
+}
+
 interface TodayResp {
   date: string;
   events: TodayEvent[];
   dayState: DayStateResp;
   requiresSelfie: Record<string, boolean>;
+  summary: DaySummary;
+  otRequest: OtRequest | null;
+  settings: TodaySettings;
 }
 
 interface Correction {
@@ -77,6 +101,18 @@ function toDateTimeLocalValue(iso: string) {
   return d.toISOString().slice(0, 16);
 }
 
+function fmtMinutes(m: number) {
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+}
+
+function fmtMMSS(totalSeconds: number) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
 export default function MyAttendanceClient() {
   const { toast, showToast, clearToast } = useToast();
   const [userName, setUserName] = useState('');
@@ -86,6 +122,14 @@ export default function MyAttendanceClient() {
   const [selfieFor, setSelfieFor] = useState<EventType | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Ticks every second so the live break timer stays accurate — purely a
+  // re-render trigger, doesn't refetch anything.
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchToday = () => {
     fetch('/api/attendance/today').then(r => r.json()).then(d => { setToday(d); setLoading(false); });
@@ -138,7 +182,24 @@ export default function MyAttendanceClient() {
     );
   }
 
-  const { dayState } = today;
+  const { dayState, summary, otRequest } = today;
+  const activeEvents = today.events.filter(e => !e.superseded_by).sort((a, b) => a.event_time.localeCompare(b.event_time));
+  const lastEvent = activeEvents[activeEvents.length - 1];
+
+  // Live break timer — only while currently on a break, comparing elapsed
+  // time (ticking every second via nowMs) against the configured allowed
+  // duration for that break type.
+  const onBreak = dayState.state === 'on_coffee' || dayState.state === 'on_lunch';
+  const breakStartMs = onBreak && lastEvent ? new Date(lastEvent.event_time).getTime() : null;
+  const allowedBreakMinutes = dayState.state === 'on_coffee' ? today.settings.coffee_break_minutes : today.settings.lunch_break_minutes;
+  const elapsedSeconds = breakStartMs != null ? (nowMs - breakStartMs) / 1000 : 0;
+  const overBreakLimit = breakStartMs != null && elapsedSeconds > allowedBreakMinutes * 60;
+
+  const otBadge = otRequest && (
+    otRequest.status === 'pending' ? <span className="badge-blue">Potential OT – Pending Approval ({fmtMinutes(otRequest.excess_minutes)})</span> :
+    otRequest.status === 'approved' ? <span className="badge-green">OT Approved: {fmtMinutes(otRequest.approved_minutes ?? 0)}</span> :
+    <span className="badge-red">OT Rejected</span>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 py-6 space-y-4 max-w-lg mx-auto">
@@ -164,17 +225,43 @@ export default function MyAttendanceClient() {
           </p>
         ) : null}
 
-        {today.events.filter(e => !e.superseded_by).length > 0 && (
-          <div className="border-t border-gray-100 pt-3 space-y-1.5">
-            {today.events.filter(e => !e.superseded_by).map(e => (
-              <div key={e.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">{EVENT_LABELS[e.event_type]}</span>
-                <span className="font-medium text-gray-800">{formatPHTime(e.event_time)}</span>
-              </div>
-            ))}
+        {onBreak && breakStartMs != null && (
+          <div className={`rounded-lg p-3 text-center ${overBreakLimit ? 'bg-red-50' : 'bg-orange-50'}`}>
+            <p className={`text-2xl font-bold tabular-nums ${overBreakLimit ? 'text-red-600' : 'text-orange-600'}`}>
+              {fmtMMSS(elapsedSeconds)}
+            </p>
+            <p className={`text-xs mt-0.5 ${overBreakLimit ? 'text-red-500' : 'text-orange-500'}`}>
+              {overBreakLimit ? 'Over the ' : 'of the '}{allowedBreakMinutes}-minute allowed break
+            </p>
           </div>
         )}
       </div>
+
+      {/* Today's summary */}
+      <div className="card space-y-2.5">
+        <p className="text-sm font-semibold text-gray-700">Today's Summary</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-gray-500">Worked Hours</span><span className="font-medium text-gray-800">{fmtMinutes(summary.totalWorkMinutes)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Break Time</span><span className="font-medium text-gray-800">{fmtMinutes(summary.breakMinutes)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{summary.lateMinutes > 0 ? fmtMinutes(summary.lateMinutes) : '—'}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{summary.undertimeMinutes > 0 ? fmtMinutes(summary.undertimeMinutes) : '—'}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Excess Break</span><span className="font-medium text-gray-800">{summary.excessBreakMinutes > 0 ? fmtMinutes(summary.excessBreakMinutes) : '—'}</span></div>
+        </div>
+        {otBadge && <div className="pt-1">{otBadge}</div>}
+      </div>
+
+      {/* Today's timeline */}
+      {activeEvents.length > 0 && (
+        <div className="card space-y-1.5">
+          <p className="text-sm font-semibold text-gray-700 mb-1">Today's Timeline</p>
+          {activeEvents.map(e => (
+            <div key={e.id} className="flex items-center justify-between text-sm border-t border-gray-50 pt-1.5 first:border-t-0 first:pt-0">
+              <span className="text-gray-600">{EVENT_LABELS[e.event_type]}</span>
+              <span className="font-medium text-gray-800">{formatPHTime(e.event_time)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="grid grid-cols-2 gap-2.5">

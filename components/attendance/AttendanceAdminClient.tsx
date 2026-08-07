@@ -88,17 +88,27 @@ export default function AttendanceAdminClient() {
 
 // ── Dashboard ────────────────────────────────────────────────────────────
 
+const DASHBOARD_REFRESH_MS = 45_000;
+
 function DashboardTab() {
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [counts, setCounts] = useState({ present: 0, late: 0, absent: 0, notStarted: 0, pendingOt: 0, pendingCorrections: 0 });
+  // Live "what's happening right now" counts — a separate axis from the
+  // shift-status counts above. Each employee's dayState.state is a single
+  // value, so an employee is counted in exactly one of working/onBreak/
+  // clockedOut/notStarted here, never two, same guarantee as the
+  // status-based counts (each computeDaySummary() call returns one status).
+  const [liveCounts, setLiveCounts] = useState({ working: 0, onBreak: 0, clockedOut: 0 });
 
-  useEffect(() => {
+  const fetchDashboard = () => {
     const today = todayISO();
     Promise.all([
       fetch(`/api/attendance/records?from=${today}&to=${today}`).then(r => r.json()),
       fetch('/api/attendance/ot-requests?status=pending').then(r => r.json()),
       fetch('/api/attendance/corrections?status=pending').then(r => r.json()),
-    ]).then(([records, ot, corrections]) => {
+      fetch('/api/attendance/live-status').then(r => r.json()),
+    ]).then(([records, ot, corrections, live]) => {
       const rows = Array.isArray(records) ? records : [];
       setCounts({
         present: rows.filter((r: any) => r.status === 'present').length,
@@ -108,13 +118,21 @@ function DashboardTab() {
         pendingOt: Array.isArray(ot) ? ot.length : 0,
         pendingCorrections: Array.isArray(corrections) ? corrections.length : 0,
       });
+      if (live?.counts) setLiveCounts({ working: live.counts.working, onBreak: live.counts.onBreak, clockedOut: live.counts.clockedOut });
+      setLastUpdated(new Date());
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+    const id = setInterval(fetchDashboard, DASHBOARD_REFRESH_MS);
+    return () => clearInterval(id);
   }, []);
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
 
-  const cards = [
+  const shiftStatusCards = [
     { label: 'Present Today', value: counts.present, icon: Users, color: 'text-green-600 bg-green-50' },
     { label: 'Late Today', value: counts.late, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
     { label: 'Absent Today', value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
@@ -123,17 +141,49 @@ function DashboardTab() {
     { label: 'Pending Corrections', value: counts.pendingCorrections, icon: FileEdit, color: 'text-blue-600 bg-blue-50' },
   ];
 
+  const liveCards = [
+    { label: 'Currently Working', value: liveCounts.working, icon: Users, color: 'text-green-600 bg-green-50' },
+    { label: 'Currently On Break', value: liveCounts.onBreak, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Clocked Out Today', value: liveCounts.clockedOut, icon: CalendarClock, color: 'text-gray-500 bg-gray-50' },
+  ];
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      {cards.map(c => (
-        <div key={c.label} className="card flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
-          </div>
+    <div className="space-y-6">
+      {lastUpdated && (
+        <p className="text-xs text-gray-400 text-right">
+          Updated {lastUpdated.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit' })} · auto-refreshes every 45s
+        </p>
+      )}
+
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Right Now</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {liveCards.map(c => (
+            <div key={c.label} className="card flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">{c.label}</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Today's Shift Status</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {shiftStatusCards.map(c => (
+            <div key={c.label} className="card flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">{c.label}</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
