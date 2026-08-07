@@ -63,7 +63,11 @@ export function getActiveEmployeeForUser(db: Database.Database, userId: number):
 
 // History-aware: resolves whichever shift was in effect for this employee
 // on this specific date, not their current shift. Returns null if there's
-// no assignment covering that date.
+// no assignment covering that date. This is the employee's DEFAULT shift —
+// assigned once by the admin (via the Employee Profile or Bulk Shift
+// Assignment) and applied automatically to every future date without
+// needing daily re-assignment. It stays history-aware so reassigning it
+// still never rewrites how past dates were computed.
 export function getShiftForEmployeeOnDate(db: Database.Database, employeeId: number, date: string): ShiftTemplate | null {
   const assignment = db.prepare(`
     SELECT shift_id FROM attendance_shift_assignments
@@ -73,6 +77,28 @@ export function getShiftForEmployeeOnDate(db: Database.Database, employeeId: num
   if (!assignment) return null;
 
   return (db.prepare('SELECT * FROM attendance_shifts WHERE id = ?').get(assignment.shift_id) as ShiftTemplate | undefined) ?? null;
+}
+
+// A one-off temporary override for exactly one date (e.g. covering another
+// shift for a single day) — separate from the default-shift assignment
+// history above, and never mutates it. Returns null if no override exists
+// for this exact date.
+export function getShiftOverrideForDate(db: Database.Database, employeeId: number, date: string): ShiftTemplate | null {
+  const override = db.prepare(`
+    SELECT shift_id FROM attendance_shift_overrides WHERE employee_id = ? AND override_date = ?
+  `).get(employeeId, date) as { shift_id: number } | undefined;
+  if (!override) return null;
+
+  return (db.prepare('SELECT * FROM attendance_shifts WHERE id = ?').get(override.shift_id) as ShiftTemplate | undefined) ?? null;
+}
+
+// The shift that actually governs calculations for this employee on this
+// date: a date-specific override if one exists, otherwise the employee's
+// default shift. This is what every real attendance calculation should
+// resolve through — never getShiftForEmployeeOnDate directly — so that late,
+// undertime, absence, and potential OT all honor overrides automatically.
+export function getEffectiveShiftForDate(db: Database.Database, employeeId: number, date: string): ShiftTemplate | null {
+  return getShiftOverrideForDate(db, employeeId, date) ?? getShiftForEmployeeOnDate(db, employeeId, date);
 }
 
 export function mergeIntoSettings(
@@ -99,7 +125,7 @@ export function mergeIntoSettings(
 export function resolveAttendanceSettings(db: Database.Database, employeeId: number, date: string): { settings: AttendanceSettings; shift: ShiftTemplate; employee: Employee } | null {
   const employee = getEmployeeById(db, employeeId);
   if (!employee) return null;
-  const shift = getShiftForEmployeeOnDate(db, employeeId, date);
+  const shift = getEffectiveShiftForDate(db, employeeId, date);
   if (!shift) return null;
   const global = loadGlobalBreakSettings(db);
   return { settings: mergeIntoSettings(global, shift, employee.work_days), shift, employee };

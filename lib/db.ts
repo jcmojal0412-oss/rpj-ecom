@@ -474,6 +474,27 @@ function migrateSchema() {
   `);
 
   seedEmployeesFromUsersIfEmpty();
+
+  // Date-specific shift overrides — separate from attendance_shift_assignments
+  // (the employee's permanent "Default Shift", historized so reassigning it
+  // never rewrites past dates). An override applies to exactly ONE date, for
+  // a temporary schedule change (e.g. covering someone else's shift for a
+  // day), and never touches the assignment history table. Resolution order
+  // (see getEffectiveShiftForDate in lib/attendance-shifts.ts): override for
+  // that exact date, else the employee's default shift as of that date.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attendance_shift_overrides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL REFERENCES employees(id),
+      override_date TEXT NOT NULL,
+      shift_id INTEGER NOT NULL REFERENCES attendance_shifts(id),
+      reason TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(employee_id, override_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_shift_overrides_employee_date ON attendance_shift_overrides(employee_id, override_date);
+  `);
 }
 
 // One-time backfill: every existing users row becomes a linked, active,

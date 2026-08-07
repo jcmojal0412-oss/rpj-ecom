@@ -39,46 +39,59 @@ export async function GET() {
   return NextResponse.json(assignments);
 }
 
-// Reassigns an employee to a new shift, effective from a given date.
+// Reassigns an employee (or, via employee_ids, multiple employees at once —
+// Bulk Shift Assignment) to a new shift, effective from a given date.
 // Closes any currently-open assignment (effective_to IS NULL) the day
 // before the new one starts, then inserts the new open-ended assignment.
 // Past attendance_events/computed summaries are untouched — the new
-// assignment only governs dates >= effective_from going forward.
+// assignment only governs dates >= effective_from going forward. This
+// becomes each employee's new "Default Shift" — applied automatically to
+// every future date with no need to reassign daily.
 export async function POST(req: NextRequest) {
   const session = await getSession();
   const denied = requireAdmin(session);
   if (denied) return denied;
 
   try {
-    const { employee_id, shift_id, effective_from } = await req.json();
-    if (!employee_id || !shift_id || !effective_from) {
-      return NextResponse.json({ error: 'employee_id, shift_id, and effective_from are required' }, { status: 400 });
+    const body = await req.json();
+    const { shift_id, effective_from } = body;
+    const employeeIds: number[] = Array.isArray(body.employee_ids)
+      ? body.employee_ids
+      : body.employee_id ? [body.employee_id] : [];
+
+    if (!employeeIds.length || !shift_id || !effective_from) {
+      return NextResponse.json({ error: 'employee_id (or employee_ids), shift_id, and effective_from are required' }, { status: 400 });
     }
 
     const db = getDb();
     const shift = db.prepare('SELECT id FROM attendance_shifts WHERE id = ?').get(shift_id);
     if (!shift) return NextResponse.json({ error: 'Shift template not found' }, { status: 404 });
 
-    const employee = db.prepare('SELECT id, linked_user_id FROM employees WHERE id = ?').get(employee_id) as { id: number; linked_user_id: number | null } | undefined;
-    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
-
     const dayBefore = new Date(new Date(effective_from + 'T00:00:00').getTime() - 86_400_000).toISOString().slice(0, 10);
-    // user_id is a legacy NOT NULL column nothing reads anymore.
-    const legacyUserId = employee.linked_user_id ?? -employee.id;
+    let count = 0;
 
     runTransaction(() => {
-      db.prepare(`
-        UPDATE attendance_shift_assignments SET effective_to = ?
-        WHERE employee_id = ? AND effective_to IS NULL
-      `).run(dayBefore, employee_id);
+      for (const employeeId of employeeIds) {
+        const employee = db.prepare('SELECT id, linked_user_id FROM employees WHERE id = ?').get(employeeId) as { id: number; linked_user_id: number | null } | undefined;
+        if (!employee) continue;
+        // user_id is a legacy NOT NULL column nothing reads anymore.
+        const legacyUserId = employee.linked_user_id ?? -employee.id;
 
-      db.prepare(`
-        INSERT INTO attendance_shift_assignments (employee_id, user_id, shift_id, effective_from, created_by)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(employee_id, legacyUserId, shift_id, effective_from, session!.id);
+        db.prepare(`
+          UPDATE attendance_shift_assignments SET effective_to = ?
+          WHERE employee_id = ? AND effective_to IS NULL
+        `).run(dayBefore, employeeId);
+
+        db.prepare(`
+          INSERT INTO attendance_shift_assignments (employee_id, user_id, shift_id, effective_from, created_by)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(employeeId, legacyUserId, shift_id, effective_from, session!.id);
+        count++;
+      }
     });
 
-    return NextResponse.json({ ok: true }, { status: 201 });
+    if (!count) return NextResponse.json({ error: 'No matching employees found' }, { status: 404 });
+    return NextResponse.json({ ok: true, count }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

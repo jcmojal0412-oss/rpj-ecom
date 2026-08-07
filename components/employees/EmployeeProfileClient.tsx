@@ -309,20 +309,23 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         <div className="card space-y-3">
           <p className="text-sm font-semibold text-gray-700">Attendance</p>
           <div>
-            <label className="form-label">Assigned Shift</label>
+            <label className="form-label">Default Shift</label>
             {employee.current_shift ? (
               <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                 <span className="text-sm text-gray-700">
                   {employee.current_shift.name} ({fmtShiftTime(employee.current_shift.start_time)}–{fmtShiftTime(employee.current_shift.end_time)})
                 </span>
-                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-1">Change Shift</button>
+                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-1">Change Default Shift</button>
               </div>
             ) : (
               <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                <span className="text-sm text-red-600">No shift assigned</span>
+                <span className="text-sm text-red-600">No default shift assigned</span>
                 <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-1">Assign Shift</button>
               </div>
             )}
+            <p className="text-xs text-gray-400 mt-1">
+              Assigned once — used automatically for all future attendance calculations. For a one-day temporary change, use the Attendance tab's Date-Specific Override instead.
+            </p>
           </div>
           <div>
             <label className="form-label">Work Days</label>
@@ -393,8 +396,8 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
       </div>
 
       {showReassign && (
-        <Modal open={showReassign} onClose={() => setShowReassign(false)} title="Assign Shift" size="sm">
-          <ReassignShiftForm employeeId={employee.id} onCancel={() => setShowReassign(false)} onSaved={() => { setShowReassign(false); showToast('Shift assigned!'); onSaved(); }} />
+        <Modal open={showReassign} onClose={() => setShowReassign(false)} title="Change Default Shift" size="sm">
+          <ReassignShiftForm employeeId={employee.id} onCancel={() => setShowReassign(false)} onSaved={() => { setShowReassign(false); showToast('Default shift updated!'); onSaved(); }} />
         </Modal>
       )}
     </div>
@@ -480,7 +483,9 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
   const fmtMinutes = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h > 0 ? `${h}h ${mm}m` : `${mm}m`; };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <ShiftOverridesSection employeeId={employeeId} />
+
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="form-label">From</label>
@@ -525,6 +530,139 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface ShiftOverride {
+  id: number;
+  override_date: string;
+  reason: string | null;
+  shift_id: number;
+  shift_name: string;
+  start_time: string;
+  end_time: string;
+}
+
+// Manages one-off date-specific temporary shift overrides — separate from
+// the Default Shift above. An override applies to exactly one date and is
+// used automatically by every attendance calculation for that date instead
+// of the default; it never rewrites the default-shift assignment history.
+function ShiftOverridesSection({ employeeId }: { employeeId: number }) {
+  const [overrides, setOverrides] = useState<ShiftOverride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+
+  const fetchOverrides = () => {
+    setLoading(true);
+    fetch(`/api/attendance/shift-overrides?employee_id=${employeeId}`).then(r => r.json()).then(d => {
+      setOverrides(Array.isArray(d) ? d : []);
+      setLoading(false);
+    });
+  };
+
+  useEffect(fetchOverrides, [employeeId]);
+
+  const remove = async (id: number) => {
+    await fetch(`/api/attendance/shift-overrides/${id}`, { method: 'DELETE' });
+    fetchOverrides();
+  };
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-700">Date-Specific Shift Override</p>
+          <p className="text-xs text-gray-400 mt-0.5">For a temporary schedule change on a single day only — the default shift resumes automatically afterward.</p>
+        </div>
+        <button onClick={() => setShowAdd(true)} className="btn-secondary text-xs py-1.5 shrink-0">Add Override</button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-4"><Loader2 className="animate-spin text-gray-300" size={18} /></div>
+      ) : overrides.length === 0 ? (
+        <p className="text-xs text-gray-400">No overrides set.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {overrides.map(o => (
+            <div key={o.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
+              <span>
+                <span className="font-medium text-gray-800">{formatDate(o.override_date)}</span>
+                <span className="text-gray-500"> — {o.shift_name} ({fmtShiftTime(o.start_time)}–{fmtShiftTime(o.end_time)})</span>
+                {o.reason && <span className="text-gray-400"> · {o.reason}</span>}
+              </span>
+              <button onClick={() => remove(o.id)} className="text-xs text-red-500 hover:text-red-600 shrink-0 ml-2">Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Date-Specific Override" size="sm">
+          <AddOverrideForm employeeId={employeeId} onCancel={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); fetchOverrides(); }} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function AddOverrideForm({ employeeId, onCancel, onSaved }: { employeeId: number; onCancel: () => void; onSaved: () => void }) {
+  const [shifts, setShifts] = useState<{ id: number; name: string; start_time: string; end_time: string; active: number }[]>([]);
+  const [date, setDate] = useState(todayISO());
+  const [shiftId, setShiftId] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/attendance/shifts').then(r => r.json()).then(d => {
+      const list = Array.isArray(d) ? d.filter((s: any) => s.active) : [];
+      setShifts(list);
+      if (list.length) setShiftId(String(list[0].id));
+    });
+  }, []);
+
+  const save = async () => {
+    if (!date || !shiftId) { setError('Date and shift are required.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/attendance/shift-overrides', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId, date, shift_id: Number(shiftId), reason: reason.trim() || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to save.'); return; }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Date</label>
+        <input type="date" className="form-input" value={date} onChange={e => setDate(e.target.value)} />
+      </div>
+      <div>
+        <label className="form-label">Shift for This Date</label>
+        <select className="form-input" value={shiftId} onChange={e => setShiftId(e.target.value)}>
+          {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="form-label">Reason (optional)</label>
+        <input type="text" className="form-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Covering Shift B for a day" />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Saving...' : 'Save Override'}
+        </button>
       </div>
     </div>
   );

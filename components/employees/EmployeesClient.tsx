@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Plus, Search } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
+import { todayISO } from '@/lib/utils';
 
 interface Employee {
   id: number;
@@ -34,6 +35,8 @@ export default function EmployeesClient() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [q, setQ] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
 
   const fetchEmployees = () => {
     setLoading(true);
@@ -42,11 +45,19 @@ export default function EmployeesClient() {
     if (q) params.set('q', q);
     fetch(`/api/employees?${params}`).then(r => r.json()).then(d => {
       setEmployees(Array.isArray(d) ? d : []);
+      setSelected([]);
       setLoading(false);
     });
   };
 
   useEffect(fetchEmployees, [statusFilter, q]);
+
+  const toggleSelected = (id: number) => {
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  };
+  const toggleSelectAll = () => {
+    setSelected(s => s.length === employees.length ? [] : employees.map(e => e.id));
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -88,6 +99,16 @@ export default function EmployeesClient() {
         </div>
       </div>
 
+      {selected.length > 0 && (
+        <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-2.5">
+          <p className="text-sm text-orange-700 font-medium">{selected.length} employee{selected.length > 1 ? 's' : ''} selected</p>
+          <div className="flex gap-2">
+            <button onClick={() => setShowBulkAssign(true)} className="btn-secondary text-xs py-1.5">Assign Shift</button>
+            <button onClick={() => setSelected([])} className="text-xs text-gray-400 hover:text-gray-600 px-2">Clear</button>
+          </div>
+        </div>
+      )}
+
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
@@ -98,6 +119,9 @@ export default function EmployeesClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="table-header w-8">
+                    <input type="checkbox" checked={selected.length === employees.length} onChange={toggleSelectAll} />
+                  </th>
                   <th className="table-header">Employee ID</th>
                   <th className="table-header">Full Name</th>
                   <th className="table-header">Position</th>
@@ -109,14 +133,17 @@ export default function EmployeesClient() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {employees.map(e => (
-                  <tr key={e.id} onClick={() => router.push(`/employees/${e.id}`)} className="hover:bg-gray-50/60 cursor-pointer">
-                    <td className="table-cell font-mono text-xs text-gray-500">{e.employee_code}</td>
-                    <td className="table-cell font-medium text-gray-900">{e.full_name}</td>
-                    <td className="table-cell">{e.position || '—'}</td>
-                    <td className="table-cell">{e.department || '—'}</td>
-                    <td className="table-cell">{e.employment_type}</td>
-                    <td className="table-cell"><span className={STATUS_BADGE[e.employment_status]}>{e.employment_status}</span></td>
-                    <td className="table-cell">{e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
+                  <tr key={e.id} className="hover:bg-gray-50/60 cursor-pointer">
+                    <td className="table-cell" onClick={ev => ev.stopPropagation()}>
+                      <input type="checkbox" checked={selected.includes(e.id)} onChange={() => toggleSelected(e.id)} />
+                    </td>
+                    <td className="table-cell font-mono text-xs text-gray-500" onClick={() => router.push(`/employees/${e.id}`)}>{e.employee_code}</td>
+                    <td className="table-cell font-medium text-gray-900" onClick={() => router.push(`/employees/${e.id}`)}>{e.full_name}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.position || '—'}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.department || '—'}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.employment_type}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}><span className={STATUS_BADGE[e.employment_status]}>{e.employment_status}</span></td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -124,6 +151,16 @@ export default function EmployeesClient() {
           </div>
         )}
       </div>
+
+      {showBulkAssign && (
+        <Modal open={showBulkAssign} onClose={() => setShowBulkAssign(false)} title={`Assign Shift to ${selected.length} Employee${selected.length > 1 ? 's' : ''}`} size="sm">
+          <BulkAssignShiftForm
+            employeeIds={selected}
+            onCancel={() => setShowBulkAssign(false)}
+            onSaved={() => { setShowBulkAssign(false); showToast('Shift assigned!'); fetchEmployees(); }}
+          />
+        </Modal>
+      )}
 
       {showAdd && (
         <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Employee" size="sm">
@@ -133,6 +170,70 @@ export default function EmployeesClient() {
           />
         </Modal>
       )}
+    </div>
+  );
+}
+
+function fmtShiftTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function BulkAssignShiftForm({ employeeIds, onCancel, onSaved }: { employeeIds: number[]; onCancel: () => void; onSaved: () => void }) {
+  const [shifts, setShifts] = useState<{ id: number; name: string; start_time: string; end_time: string; active: number }[]>([]);
+  const [shiftId, setShiftId] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/attendance/shifts').then(r => r.json()).then(d => {
+      const list = Array.isArray(d) ? d.filter((s: any) => s.active) : [];
+      setShifts(list);
+      if (list.length) setShiftId(String(list[0].id));
+    });
+  }, []);
+
+  const save = async () => {
+    if (!shiftId) { setError('Select a shift.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/attendance/shift-assignments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_ids: employeeIds, shift_id: Number(shiftId), effective_from: effectiveFrom }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to assign.'); return; }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Shift</label>
+        <select className="form-input" value={shiftId} onChange={e => setShiftId(e.target.value)}>
+          {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="form-label">Effective From</label>
+        <input type="date" className="form-input" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
+        <p className="text-xs text-gray-400 mt-1">Becomes each selected employee's new Default Shift — past attendance is never recalculated.</p>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Assigning...' : `Assign to ${employeeIds.length} Employee${employeeIds.length > 1 ? 's' : ''}`}
+        </button>
+      </div>
     </div>
   );
 }
