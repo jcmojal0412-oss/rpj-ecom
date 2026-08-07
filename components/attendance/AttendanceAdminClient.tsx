@@ -98,7 +98,7 @@ const DASHBOARD_REFRESH_MS = 45_000;
 function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [counts, setCounts] = useState({ present: 0, late: 0, absent: 0, notStarted: 0, pendingOt: 0, pendingCorrections: 0 });
+  const [counts, setCounts] = useState({ present: 0, late: 0, undertime: 0, halfDay: 0, absent: 0, notStarted: 0, pendingOt: 0, pendingCorrections: 0 });
   // Live "what's happening right now" counts — a separate axis from the
   // shift-status counts above. Each employee's dayState.state is a single
   // value, so an employee is counted in exactly one of working/onBreak/
@@ -118,6 +118,8 @@ function DashboardTab() {
       setCounts({
         present: rows.filter((r: any) => r.status === 'present').length,
         late: rows.filter((r: any) => r.status === 'late').length,
+        undertime: rows.filter((r: any) => r.status === 'undertime').length,
+        halfDay: rows.filter((r: any) => r.status === 'half_day').length,
         absent: rows.filter((r: any) => r.status === 'absent').length,
         notStarted: rows.filter((r: any) => r.status === 'not_started').length,
         pendingOt: Array.isArray(ot) ? ot.length : 0,
@@ -140,6 +142,8 @@ function DashboardTab() {
   const shiftStatusCards = [
     { label: 'Present Today', value: counts.present, icon: Users, color: 'text-green-600 bg-green-50' },
     { label: 'Late Today', value: counts.late, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Undertime Today', value: counts.undertime, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Half Day Today', value: counts.halfDay, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
     { label: 'Absent Today', value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
     { label: 'Not Clocked In Yet', value: counts.notStarted, icon: CalendarClock, color: 'text-gray-500 bg-gray-50' },
     { label: 'Pending OT Requests', value: counts.pendingOt, icon: Clock3, color: 'text-orange-600 bg-orange-50' },

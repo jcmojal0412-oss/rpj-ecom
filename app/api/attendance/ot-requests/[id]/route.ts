@@ -25,8 +25,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const db = getDb();
     const request = db.prepare('SELECT * FROM attendance_ot_requests WHERE id = ?').get(params.id) as
-      { id: number; employee_id: number; event_date: string; excess_minutes: number } | undefined;
+      { id: number; employee_id: number; event_date: string; excess_minutes: number; status: string } | undefined;
     if (!request) return NextResponse.json({ error: 'OT request not found' }, { status: 404 });
+    if (request.status !== 'pending') return NextResponse.json({ error: 'This request was already reviewed' }, { status: 409 });
 
     let approvedMinutes: number;
     let status: 'approved' | 'rejected';
