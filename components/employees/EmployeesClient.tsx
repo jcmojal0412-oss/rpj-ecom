@@ -154,7 +154,7 @@ export default function EmployeesClient() {
                   <th className="table-header">Branch</th>
                   <th className="table-header">Default Shift</th>
                   <th className="table-header">Employment Status</th>
-                  <th className="table-header">Attendance Status</th>
+                  <th className="table-header">Attendance Tracking</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
