@@ -101,13 +101,16 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
   // for this whole page). Never removes data: payroll_entries, adjustments,
   // and the audit log all stay intact, so this is safe to offer without
   // undermining the Lock/immutability guarantees elsewhere in this module.
-  // Blocked server-side once payslips have been generated (an employee may
-  // have already seen theirs) — the button is disabled client-side for the
-  // same reason, with a tooltip explaining why, rather than letting the
-  // click fail silently.
+  // Allowed even after payslips have been generated (explicitly requested,
+  // despite an employee possibly having already seen theirs) — the confirm()
+  // below is the only safety net for that case, so its wording escalates
+  // specifically when payslips_generated_at is set. Don't soften either.
   const voidPeriod = async (e: React.MouseEvent, p: any) => {
     e.stopPropagation();
-    if (!confirm(`Void "${p.label}"? It will be hidden from this list, but its records stay intact and can be recovered by a database admin if ever needed.`)) return;
+    const warning = p.payslips_generated_at
+      ? `Void "${p.label}"? Payslips have already been generated for this period — employees may have already seen theirs, and it will disappear from their view too. The underlying records stay intact and are recoverable by a database admin if ever needed, but this is not something to undo casually.`
+      : `Void "${p.label}"? It will be hidden from this list, but its records stay intact and can be recovered by a database admin if ever needed.`;
+    if (!confirm(warning)) return;
 
     setVoidingId(p.id);
     try {
@@ -156,9 +159,9 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
                     <td className="table-cell">
                       <button
                         onClick={e => voidPeriod(e, p)}
-                        disabled={voidingId === p.id || !!p.payslips_generated_at}
-                        title={p.payslips_generated_at ? 'Cannot void — payslips already generated' : 'Void payroll period'}
-                        className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors px-2 py-1 rounded-lg text-xs font-medium"
+                        disabled={voidingId === p.id}
+                        title={p.payslips_generated_at ? 'Void — payslips already generated, employees may have seen theirs' : 'Void payroll period'}
+                        className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors px-2 py-1 rounded-lg text-xs font-medium"
                       >
                         {voidingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
                         Void

@@ -41,10 +41,12 @@ const NEXT_STATUS: Record<string, { action: string; next: string; actorField: st
 // DELETE: the period, its entries, adjustments, and audit log rows are all
 // kept intact, so the audit trail survives. A voided period just stops
 // showing up in the default list (GET /api/payroll/periods filters
-// voided_at IS NULL) and can no longer be opened/edited. Blocked once
-// payslips have been generated for the period — by that point an employee
-// may already have seen their payslip, and 'paid'/'locked' can only be
-// reached after payslip generation anyway, so this one check covers both.
+// voided_at IS NULL) and can no longer be opened/edited.
+//
+// Deliberately allowed even after payslips have been generated (an
+// employee may already have seen theirs) — explicitly requested despite
+// that risk. The confirm() dialog in PayrollClient is the only remaining
+// safety net for that case, so its wording matters; don't weaken it.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const session = await getSession();
   const denied = requireAdmin(session);
@@ -54,9 +56,6 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const period = db.prepare('SELECT id, payslips_generated_at, voided_at FROM payroll_periods WHERE id = ?').get(params.id) as { id: number; payslips_generated_at: string | null; voided_at: string | null } | undefined;
   if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 });
   if (period.voided_at) return NextResponse.json({ error: 'This payroll period is already voided.' }, { status: 409 });
-  if (period.payslips_generated_at) {
-    return NextResponse.json({ error: 'Cannot void a period after payslips have been generated — employees may have already seen them.' }, { status: 409 });
-  }
 
   runTransaction(() => {
     db.prepare(`UPDATE payroll_periods SET voided_at = datetime('now'), voided_by = ? WHERE id = ?`).run(session!.id, params.id);
