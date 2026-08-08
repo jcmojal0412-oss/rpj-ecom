@@ -158,9 +158,10 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
                         onClick={e => voidPeriod(e, p)}
                         disabled={voidingId === p.id || !!p.payslips_generated_at}
                         title={p.payslips_generated_at ? 'Cannot void — payslips already generated' : 'Void payroll period'}
-                        className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-300 transition-colors p-1"
+                        className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors px-2 py-1 rounded-lg text-xs font-medium"
                       >
-                        {voidingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
+                        {voidingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                        Void
                       </button>
                     </td>
                   </tr>
