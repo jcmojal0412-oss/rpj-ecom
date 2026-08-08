@@ -73,8 +73,14 @@ function fmtMMSS(totalSeconds: number) {
 type Screen = 'idle' | 'looking_up' | 'identified' | 'submitting' | 'success' | 'error';
 
 export default function KioskAttendanceClient() {
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Starts null (not Date.now()) so the server-rendered HTML and the
+  // client's first render match exactly — seeding this with Date.now()
+  // caused a hydration mismatch, since the server and the browser never
+  // render at the exact same millisecond. The real clock only kicks in
+  // client-side, after mount, which React never flags.
+  const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => {
+    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -176,7 +182,7 @@ export default function KioskAttendanceClient() {
   const lastEvent = activeEvents[activeEvents.length - 1];
   const breakStartMs = onBreak && lastEvent ? new Date(lastEvent.event_time).getTime() : null;
   const allowedBreakMinutes = employee?.dayState.state === 'on_coffee' ? employee.settings.coffee_break_minutes : employee?.settings.lunch_break_minutes;
-  const elapsedSeconds = breakStartMs != null ? (nowMs - breakStartMs) / 1000 : 0;
+  const elapsedSeconds = breakStartMs != null && nowMs != null ? (nowMs - breakStartMs) / 1000 : 0;
   const overBreakLimit = breakStartMs != null && allowedBreakMinutes != null && elapsedSeconds > allowedBreakMinutes * 60;
   const selfieAction = selfieFor ? ACTIONS.find(a => a.type === selfieFor) : null;
 
@@ -192,7 +198,7 @@ export default function KioskAttendanceClient() {
           <div className="text-center">
             <p className="text-2xl font-extrabold text-gray-900 tracking-tight">EMPLOYEE</p>
             <p className="text-sm font-bold text-amber-500 tracking-widest">ATTENDANCE</p>
-            <p className="text-gray-500 text-sm mt-2 tabular-nums">{fmtClockDateTime(new Date(nowMs))}</p>
+            <p className="text-gray-500 text-sm mt-2 tabular-nums">{nowMs != null ? fmtClockDateTime(new Date(nowMs)) : ' '}</p>
           </div>
 
           {screen === 'idle' && (
@@ -320,7 +326,7 @@ export default function KioskAttendanceClient() {
         </div>
       </div>
 
-      <p className="text-white/70 text-xs mt-8">© {new Date(nowMs).getFullYear()} RPJ Corp.</p>
+      <p className="text-white/70 text-xs mt-8">© {nowMs != null ? new Date(nowMs).getFullYear() : ''} RPJ Corp.</p>
     </div>
   );
 }
