@@ -6,7 +6,7 @@ import Sidebar from './Sidebar';
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === '/login' || pathname.startsWith('/book')) {
+  if (pathname === '/login' || pathname.startsWith('/book') || pathname.startsWith('/attendance-kiosk')) {
     return <>{children}</>;
   }
 

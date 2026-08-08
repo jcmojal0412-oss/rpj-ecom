@@ -61,6 +61,44 @@ export function getActiveEmployeeForUser(db: Database.Database, userId: number):
   `).get(userId) as Employee | undefined) ?? null;
 }
 
+// Identifies an employee at the unauthenticated Attendance Kiosk by
+// Employee ID (e.g. "RPJ-0006"), email, or mobile number — the kiosk has no
+// login, so this is the entire identification step (the required selfie on
+// Time In/Out is the real anti-buddy-punching control, not this lookup).
+// Only ever resolves Active + Attendance Enabled employees, same gate as
+// getActiveEmployeeForUser, and deliberately returns null (not which field
+// almost matched) on any miss so the endpoint can't be used to enumerate
+// real emails/mobile numbers.
+export function findEmployeeByIdentifier(db: Database.Database, identifierRaw: string): Employee | null {
+  const identifier = identifierRaw.trim();
+  if (!identifier) return null;
+
+  const eligible = "employment_status = 'Active' AND attendance_enabled = 1";
+
+  const codeMatch = identifier.match(/^RPJ-?0*(\d+)$/i);
+  if (codeMatch) {
+    const byCode = db.prepare(`SELECT * FROM employees WHERE id = ? AND ${eligible}`).get(Number(codeMatch[1])) as Employee | undefined;
+    if (byCode) return byCode;
+  }
+
+  if (identifier.includes('@')) {
+    const byEmail = db.prepare(`SELECT * FROM employees WHERE email IS NOT NULL AND LOWER(email) = LOWER(?) AND ${eligible}`).get(identifier) as Employee | undefined;
+    if (byEmail) return byEmail;
+  }
+
+  const digits = identifier.replace(/\D/g, '');
+  if (digits.length >= 7) {
+    const candidates = db.prepare(`SELECT * FROM employees WHERE mobile_number IS NOT NULL AND ${eligible}`).all() as (Employee & { mobile_number: string })[];
+    const byMobile = candidates.find(e => {
+      const candidateDigits = e.mobile_number.replace(/\D/g, '');
+      return candidateDigits.length >= 7 && (candidateDigits.endsWith(digits) || digits.endsWith(candidateDigits));
+    });
+    if (byMobile) return byMobile;
+  }
+
+  return null;
+}
+
 // History-aware: resolves whichever shift was in effect for this employee
 // on this specific date, not their current shift. Returns null if there's
 // no assignment covering that date. This is the employee's DEFAULT shift —

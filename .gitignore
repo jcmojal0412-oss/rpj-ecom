@@ -17,6 +17,10 @@ out/
 .env.test.local
 .env.production.local
 
+# Local-only file uploads (production writes these next to DATABASE_PATH, not here)
+public/attendance-photos/
+public/receipts/
+
 # OS files
 .DS_Store
 Thumbs.db

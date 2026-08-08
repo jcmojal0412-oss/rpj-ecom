@@ -511,6 +511,42 @@ function migrateSchema() {
     `);
   }
 
+  // Same dead-column story as attendance_ot_requests above, but for
+  // attendance_events — needed so the unauthenticated Attendance Kiosk can
+  // record a clock event for an employee with no linked_user_id and no
+  // admin session to attribute it to (there's simply no valid users.id to
+  // put there). employee_id is already the real identity column read by
+  // every real query; this only removes the obsolete NOT NULL requirement.
+  const evUserIdCol = (db.prepare("PRAGMA table_info(attendance_events)").all() as { name: string; notnull: number }[])
+    .find(c => c.name === 'user_id');
+  if (evUserIdCol && evUserIdCol.notnull) {
+    db.exec(`
+      CREATE TABLE attendance_events_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id),
+        event_date TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK(event_type IN ('TIME_IN','COFFEE_OUT','COFFEE_IN','LUNCH_OUT','LUNCH_IN','TIME_OUT')),
+        event_time TEXT NOT NULL,
+        photo_path TEXT,
+        source TEXT NOT NULL DEFAULT 'clock' CHECK(source IN ('clock','correction','system')),
+        correction_id INTEGER REFERENCES attendance_corrections(id),
+        superseded_by INTEGER REFERENCES attendance_events(id),
+        created_by INTEGER REFERENCES users(id),
+        created_at TEXT DEFAULT (datetime('now')),
+        is_test INTEGER NOT NULL DEFAULT 0,
+        employee_id INTEGER REFERENCES employees(id)
+      );
+      INSERT INTO attendance_events_new SELECT
+        id, user_id, event_date, event_type, event_time, photo_path, source,
+        correction_id, superseded_by, created_by, created_at, is_test, employee_id
+      FROM attendance_events;
+      DROP TABLE attendance_events;
+      ALTER TABLE attendance_events_new RENAME TO attendance_events;
+      CREATE INDEX IF NOT EXISTS idx_attendance_events_user_date ON attendance_events(user_id, event_date);
+      CREATE INDEX IF NOT EXISTS idx_attendance_events_date ON attendance_events(event_date);
+    `);
+  }
+
   seedEmployeesFromUsersIfEmpty();
 
   // Date-specific shift overrides — separate from attendance_shift_assignments

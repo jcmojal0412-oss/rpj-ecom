@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const SESSION_COOKIE = 'rpj_session';
 const APP_SECRET = 'rpj-corp-ecom-2026-local'; // must match lib/auth-helpers.ts
 
-const PUBLIC = ['/login', '/api/auth/login', '/book', '/api/public'];
+// /attendance-kiosk is a shared physical-device screen with no login of its
+// own (employees identify themselves by ID/email/mobile, not a password —
+// see app/api/attendance-kiosk/*) — deliberately public, same as /book.
+const PUBLIC = ['/login', '/api/auth/login', '/book', '/api/public', '/attendance-kiosk', '/api/attendance-kiosk'];
 
 // Route → required module permission
 const ROUTE_MODULES: [string, string][] = [

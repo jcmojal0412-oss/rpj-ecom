@@ -8,9 +8,13 @@ type Phase = 'starting' | 'live' | 'denied' | 'preview' | 'uploading';
 export default function SelfieCaptureModal({
   onClose,
   onCaptured,
+  uploadUrl = '/api/attendance/upload-photo',
+  extraFields,
 }: {
   onClose: () => void;
   onCaptured: (photoPath: string) => void;
+  uploadUrl?: string;
+  extraFields?: Record<string, string>;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,7 +91,8 @@ export default function SelfieCaptureModal({
     try {
       const fd = new FormData();
       fd.append('file', new File([capturedBlob], 'selfie.jpg', { type: 'image/jpeg' }));
-      const res = await fetch('/api/attendance/upload-photo', { method: 'POST', body: fd });
+      if (extraFields) for (const [k, v] of Object.entries(extraFields)) fd.append(k, v);
+      const res = await fetch(uploadUrl, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       onCaptured(data.path);
