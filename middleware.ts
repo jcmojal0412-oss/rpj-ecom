@@ -31,11 +31,11 @@ const ROUTE_MODULES: [string, string][] = [
   ['/api/hr',                'attendance'],
   ['/payroll',               'payroll'],
   ['/api/payroll',           'payroll'],
-  // /my-attendance intentionally NOT listed — any logged-in user can clock
-  // in regardless of granted modules, so it falls through unmatched (same
-  // as any other route not in this list: valid session required, no
-  // specific module). /api/attendance/* is also intentionally NOT listed —
-  // that prefix mixes self-service and admin-only endpoints that a single
+  // Self-service clock in/out now lives ONLY on the unauthenticated
+  // /attendance-kiosk (see PUBLIC below) — the old authenticated
+  // /my-attendance page was removed. /api/attendance/* is intentionally
+  // NOT listed here — that prefix mixes self-service and admin-only
+  // (and now admin-on-behalf-of-employee) endpoints that a single
   // [prefix, module] rule can't distinguish by HTTP method, so every route
   // under it calls getSession() itself and does its own check. Same reason
   // /api/leave-types, /api/leave-requests, /api/holidays, and

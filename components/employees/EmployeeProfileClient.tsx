@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft, FileText, Briefcase, Wallet, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowLeft, FileText, Briefcase, Wallet, ShieldAlert, FileEdit, Palmtree } from 'lucide-react';
 import { formatDate, formatCurrency, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { EntryDetailModal, STATUS_LABEL, STATUS_BADGE } from '@/components/payroll/PayrollClient';
+import type { EventType } from '@/lib/attendance';
 
 type Tab = 'overview' | 'attendance' | 'documents' | 'history' | 'payroll' | 'payslips' | 'loans' | 'leave' | 'disciplinary';
 
@@ -121,10 +122,10 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
       </div>
 
       {tab === 'overview' && <OverviewTab employee={employee} onSaved={() => { showToast('Employee updated!'); fetchEmployee(); }} showToast={showToast} />}
-      {tab === 'attendance' && <AttendanceTab employeeId={employee.id} />}
+      {tab === 'attendance' && <AttendanceTab employeeId={employee.id} showToast={showToast} />}
       {tab === 'payroll' && <PayrollHistoryTab employeeId={employee.id} />}
       {tab === 'payslips' && <PayslipHistoryTab employeeId={employee.id} />}
-      {tab === 'leave' && <LeaveHistoryTab employeeId={employee.id} />}
+      {tab === 'leave' && <LeaveHistoryTab employeeId={employee.id} showToast={showToast} />}
       {tab === 'documents' && <ComingSoon icon={FileText} label="Documents" description="Upload and manage 201-file documents (IDs, contracts, certificates) here in a future update." />}
       {tab === 'history' && <ComingSoon icon={Briefcase} label="Employment History" description="Track promotions, transfers, and role changes here in a future update." />}
       {tab === 'loans' && <ComingSoon icon={Wallet} label="Loans / Cash Advances" description="Loan and cash advance requests, balances, and deduction schedules will live here in a future update." />}
@@ -476,7 +477,7 @@ function ReassignShiftForm({ employeeId, onCancel, onSaved }: { employeeId: numb
 
 // ── Attendance ───────────────────────────────────────────────────────────
 
-function AttendanceTab({ employeeId }: { employeeId: number }) {
+function AttendanceTab({ employeeId, showToast }: { employeeId: number; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [from, setFrom] = useState(() => {
     const d = new Date(Date.now() + 8 * 3600 * 1000 - 13 * 86_400_000);
     return d.toISOString().slice(0, 10);
@@ -484,6 +485,7 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
   const [to, setTo] = useState(todayISO());
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCorrectionForm, setShowCorrectionForm] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -499,16 +501,31 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
     <div className="space-y-6">
       <ShiftOverridesSection employeeId={employeeId} />
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="form-label">From</label>
-          <input type="date" className="form-input py-1.5 text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="form-label">From</label>
+            <input type="date" className="form-input py-1.5 text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">To</label>
+            <input type="date" className="form-input py-1.5 text-sm w-auto" value={to} onChange={e => setTo(e.target.value)} />
+          </div>
         </div>
-        <div>
-          <label className="form-label">To</label>
-          <input type="date" className="form-input py-1.5 text-sm w-auto" value={to} onChange={e => setTo(e.target.value)} />
-        </div>
+        <button onClick={() => setShowCorrectionForm(true)} className="btn-secondary text-sm">
+          <FileEdit size={14} /> File Correction
+        </button>
       </div>
+
+      {showCorrectionForm && (
+        <Modal open={showCorrectionForm} onClose={() => setShowCorrectionForm(false)} title="File Attendance Correction" size="sm">
+          <CorrectionForm
+            employeeId={employeeId}
+            onCancel={() => setShowCorrectionForm(false)}
+            onSubmitted={() => { setShowCorrectionForm(false); showToast('Correction request filed — pending approval on the Attendance page.'); }}
+          />
+        </Modal>
+      )}
 
       <div className="card p-0 overflow-hidden">
         {loading ? (
@@ -550,19 +567,39 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
 
 // ── Leave History ────────────────────────────────────────────────────────
 
-function LeaveHistoryTab({ employeeId }: { employeeId: number }) {
+function LeaveHistoryTab({ employeeId, showToast }: { employeeId: number; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
 
-  useEffect(() => {
+  const fetchRows = () => {
     setLoading(true);
     fetch(`/api/leave-requests?employee_id=${employeeId}`).then(r => r.ok ? r.json() : []).then(d => {
       setRows(Array.isArray(d) ? d : []);
       setLoading(false);
     });
-  }, [employeeId]);
+  };
+
+  useEffect(fetchRows, [employeeId]);
 
   return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => setShowLeaveForm(true)} className="btn-secondary text-sm">
+          <Palmtree size={14} /> Request Leave
+        </button>
+      </div>
+
+      {showLeaveForm && (
+        <Modal open={showLeaveForm} onClose={() => setShowLeaveForm(false)} title="Request Leave" size="sm">
+          <LeaveRequestForm
+            employeeId={employeeId}
+            onCancel={() => setShowLeaveForm(false)}
+            onSubmitted={() => { setShowLeaveForm(false); showToast('Leave request filed — pending approval on the HR Dashboard.'); fetchRows(); }}
+          />
+        </Modal>
+      )}
+
     <div className="card p-0 overflow-hidden">
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
@@ -598,6 +635,176 @@ function LeaveHistoryTab({ employeeId }: { employeeId: number }) {
           </table>
         </div>
       )}
+    </div>
+    </div>
+  );
+}
+
+// ── Admin-filed Correction / Leave forms ────────────────────────────────
+// Same fields and validation as the (now-removed) self-service My
+// Attendance forms — an admin fills these out on the employee's behalf
+// from their profile, passing employee_id explicitly. Both still land in
+// 'pending' status and go through the exact same approval queues
+// (Attendance page's Correction Requests tab, HR Dashboard's leave queue)
+// as before — this only replaces WHO can create the initial request.
+
+const CORRECTION_EVENT_LABELS: Record<EventType, string> = {
+  TIME_IN: 'Work Time In', COFFEE_OUT: 'Coffee Break Out', COFFEE_IN: 'Coffee Break In',
+  LUNCH_OUT: 'Lunch Break Out', LUNCH_IN: 'Lunch Break In', TIME_OUT: 'Work Time Out',
+};
+
+function toDateTimeLocalValue(iso: string) {
+  const d = new Date(new Date(iso).getTime() + 8 * 3600 * 1000);
+  return d.toISOString().slice(0, 16);
+}
+
+function CorrectionForm({ employeeId, onCancel, onSubmitted }: { employeeId: number; onCancel: () => void; onSubmitted: () => void }) {
+  const [eventDate, setEventDate] = useState(() => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10));
+  const [eventType, setEventType] = useState<EventType>('TIME_IN');
+  const [requestedTime, setRequestedTime] = useState(() => toDateTimeLocalValue(new Date().toISOString()));
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!reason.trim()) { setError('Please explain what needs to be corrected.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const isoTime = new Date(`${requestedTime}:00+08:00`).toISOString();
+      const res = await fetch('/api/attendance/corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId, event_date: eventDate, requested_event_type: eventType, requested_time: isoTime, reason: reason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to submit.'); return; }
+      onSubmitted();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Date</label>
+        <input type="date" className="form-input" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+      </div>
+      <div>
+        <label className="form-label">Which action needs correcting?</label>
+        <select className="form-input" value={eventType} onChange={e => setEventType(e.target.value as EventType)}>
+          {Object.entries(CORRECTION_EVENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="form-label">Correct Time</label>
+        <input type="datetime-local" className="form-input" value={requestedTime} onChange={e => setRequestedTime(e.target.value)} />
+      </div>
+      <div>
+        <label className="form-label">Reason</label>
+        <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Forgot to clock out, phone battery died" />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={submit} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Submitting...' : 'Submit Request'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LeaveRequestForm({ employeeId, onCancel, onSubmitted }: { employeeId: number; onCancel: () => void; onSubmitted: () => void }) {
+  const [leaveTypes, setLeaveTypes] = useState<{ id: number; name: string; paid: number }[]>([]);
+  const [leaveTypeId, setLeaveTypeId] = useState('');
+  const [fromDate, setFromDate] = useState(() => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10));
+  const [dayType, setDayType] = useState<'full' | 'half'>('full');
+  const [reason, setReason] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/leave-types').then(r => r.json()).then(d => {
+      const list = Array.isArray(d) ? d : [];
+      setLeaveTypes(list);
+      if (list.length) setLeaveTypeId(String(list[0].id));
+    });
+  }, []);
+
+  const submit = async () => {
+    if (!leaveTypeId) { setError('Select a leave type.'); return; }
+    if (!reason.trim()) { setError('Please provide a reason.'); return; }
+    if (toDate < fromDate) { setError('To Date cannot be before From Date.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      let attachmentPath: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const uploadRes = await fetch('/api/leave-requests/upload-attachment', { method: 'POST', body: fd });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) { setError(uploadData.error || 'Failed to upload attachment.'); return; }
+        attachmentPath = uploadData.path;
+      }
+      const res = await fetch('/api/leave-requests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId, leave_type_id: Number(leaveTypeId), from_date: fromDate, to_date: toDate, day_type: dayType, reason: reason.trim(), attachment_path: attachmentPath }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to submit.'); return; }
+      onSubmitted();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">Leave Type</label>
+        <select className="form-input" value={leaveTypeId} onChange={e => setLeaveTypeId(e.target.value)}>
+          {leaveTypes.map(t => <option key={t.id} value={t.id}>{t.name}{t.paid ? '' : ' (Unpaid)'}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="form-label">From Date</label>
+          <input type="date" className="form-input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">To Date</label>
+          <input type="date" className="form-input" value={toDate} onChange={e => setToDate(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Day Type</label>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setDayType('full')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${dayType === 'full' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Full Day</button>
+          <button type="button" onClick={() => setDayType('half')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${dayType === 'half' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Half Day</button>
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Reason</label>
+        <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Family emergency, medical appointment" />
+      </div>
+      <div>
+        <label className="form-label">Attachment (optional)</label>
+        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="form-input" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button onClick={submit} disabled={saving} className="btn-primary disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Submitting...' : 'Submit Request'}
+        </button>
+      </div>
     </div>
   );
 }

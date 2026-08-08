@@ -63,14 +63,28 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const db = getDb();
-  const employee = getActiveEmployeeForUser(db, session.id);
-  if (!employee) {
-    return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
-  }
 
   try {
     const body = await req.json();
-    const { leave_type_id, from_date, to_date, day_type, reason, attachment_path } = body;
+    const { leave_type_id, from_date, to_date, day_type, reason, attachment_path, employee_id } = body;
+
+    // An admin filing on behalf of someone else passes employee_id
+    // explicitly (see EmployeeProfileClient's Leave tab) — everyone else
+    // (including an admin with no employee_id) files for themselves,
+    // exactly as before.
+    let targetEmployeeId: number;
+    const isAdmin = session.role === 'owner' || session.permissions.includes('leave_management');
+    if (employee_id && isAdmin) {
+      const target = db.prepare(`SELECT id FROM employees WHERE id = ? AND employment_status = 'Active'`).get(employee_id);
+      if (!target) return NextResponse.json({ error: 'Employee not found or not active.' }, { status: 404 });
+      targetEmployeeId = employee_id;
+    } else {
+      const employee = getActiveEmployeeForUser(db, session.id);
+      if (!employee) {
+        return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
+      }
+      targetEmployeeId = employee.id;
+    }
 
     if (!leave_type_id || !from_date || !to_date || !reason?.trim()) {
       return NextResponse.json({ error: 'leave_type_id, from_date, to_date, and reason are required' }, { status: 400 });
@@ -84,7 +98,7 @@ export async function POST(req: NextRequest) {
     const info = db.prepare(`
       INSERT INTO leave_requests (employee_id, leave_type_id, from_date, to_date, day_type, reason, attachment_path)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(employee.id, leave_type_id, from_date, to_date, day_type === 'half' ? 'half' : 'full', reason.trim(), attachment_path || null);
+    `).run(targetEmployeeId, leave_type_id, from_date, to_date, day_type === 'half' ? 'half' : 'full', reason.trim(), attachment_path || null);
 
     return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
   } catch (e: any) {

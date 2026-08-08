@@ -8,12 +8,12 @@ type Phase = 'starting' | 'live' | 'denied' | 'preview' | 'uploading';
 export default function SelfieCaptureModal({
   onClose,
   onCaptured,
-  uploadUrl = '/api/attendance/upload-photo',
+  uploadUrl,
   extraFields,
 }: {
   onClose: () => void;
   onCaptured: (photoPath: string) => void;
-  uploadUrl?: string;
+  uploadUrl: string;
   extraFields?: Record<string, string>;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);

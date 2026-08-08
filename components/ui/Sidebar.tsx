@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  Clock, ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid,
+  ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -72,7 +72,6 @@ const NAV_GROUPS = [
   {
     label: 'HR & PAYROLL',
     items: [
-      { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
       { label: 'HR Dashboard',     href: '/hr-dashboard',  icon: LayoutGrid,     module: 'attendance' },
       { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
       { label: 'Attendance',       href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },

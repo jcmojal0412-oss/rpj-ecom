@@ -43,14 +43,28 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const db = getDb();
-  const employee = getActiveEmployeeForUser(db, session.id);
-  if (!employee) {
-    return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
-  }
 
   try {
     const body = await req.json();
-    const { event_date, original_event_id, requested_event_type, requested_time, reason } = body;
+    const { event_date, original_event_id, requested_event_type, requested_time, reason, employee_id } = body;
+
+    // An admin filing on behalf of someone else passes employee_id
+    // explicitly (see EmployeeProfileClient's Attendance tab) — everyone
+    // else (including an admin with no employee_id) files for themselves,
+    // exactly as before.
+    let targetEmployeeId: number;
+    const isAdmin = session.role === 'owner' || session.permissions.includes('attendance');
+    if (employee_id && isAdmin) {
+      const target = db.prepare(`SELECT id FROM employees WHERE id = ? AND employment_status = 'Active'`).get(employee_id);
+      if (!target) return NextResponse.json({ error: 'Employee not found or not active.' }, { status: 404 });
+      targetEmployeeId = employee_id;
+    } else {
+      const employee = getActiveEmployeeForUser(db, session.id);
+      if (!employee) {
+        return NextResponse.json({ error: 'You are not linked to an active employee record. Please contact HR/Admin.' }, { status: 409 });
+      }
+      targetEmployeeId = employee.id;
+    }
 
     if (!event_date || !requested_event_type || !requested_time || !reason?.trim()) {
       return NextResponse.json({ error: 'event_date, requested_event_type, requested_time, and reason are required' }, { status: 400 });
@@ -62,7 +76,7 @@ export async function POST(req: NextRequest) {
     const info = db.prepare(`
       INSERT INTO attendance_corrections (employee_id, user_id, event_date, original_event_id, requested_event_type, requested_time, reason)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(employee.id, session.id, event_date, original_event_id || null, requested_event_type, requested_time, reason.trim());
+    `).run(targetEmployeeId, session.id, event_date, original_event_id || null, requested_event_type, requested_time, reason.trim());
 
     return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
   } catch (e: any) {
