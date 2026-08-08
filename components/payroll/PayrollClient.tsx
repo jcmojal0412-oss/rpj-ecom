@@ -7,10 +7,10 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { getDefaultCutoffs, type AdjustmentType } from '@/lib/payroll';
 
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', for_review: 'For Review', approved: 'Approved', paid: 'Paid', locked: 'Locked',
 };
-const STATUS_BADGE: Record<string, string> = {
+export const STATUS_BADGE: Record<string, string> = {
   draft: 'badge-gray', for_review: 'badge-amber', approved: 'badge-blue', paid: 'badge-green', locked: 'badge-green',
 };
 
@@ -453,7 +453,7 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
   );
 }
 
-function EntryDetailModal({ entryId, locked, onClose, onChanged, showToast }: { entryId: number; locked: boolean; onClose: () => void; onChanged: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToast }: { entryId: number; locked: boolean; onClose: () => void; onChanged: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [entry, setEntry] = useState<any>(null);
   const [adjustments, setAdjustments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

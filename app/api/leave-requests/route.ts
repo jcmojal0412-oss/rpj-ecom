@@ -13,6 +13,21 @@ export async function GET(req: NextRequest) {
   const selfOnly = req.nextUrl.searchParams.get('self') === '1';
   const isAdmin = !selfOnly && (session.role === 'owner' || session.permissions.includes('leave_management'));
 
+  // Employee 201 File "Leave History" tab — explicit employee_id lookup.
+  // Kept as its own branch (never falls through to the "self" path below)
+  // so an admin without leave_management never silently sees their OWN
+  // leave requests mislabeled as someone else's on a profile page.
+  const employeeIdParam = req.nextUrl.searchParams.get('employee_id');
+  if (employeeIdParam) {
+    if (!isAdmin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const rows = db.prepare(`
+      SELECT lr.*, lt.name AS leave_type_name, lt.paid AS leave_type_paid
+      FROM leave_requests lr JOIN leave_types lt ON lt.id = lr.leave_type_id
+      WHERE lr.employee_id = ? ORDER BY lr.from_date DESC
+    `).all(employeeIdParam);
+    return NextResponse.json(rows);
+  }
+
   if (isAdmin) {
     const status = req.nextUrl.searchParams.get('status');
     const rows = status

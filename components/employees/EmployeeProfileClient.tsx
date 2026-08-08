@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft, FileText, Briefcase, Banknote, Receipt, Wallet, CalendarClock as CalendarIcon, ShieldAlert } from 'lucide-react';
-import { formatDate, todayISO } from '@/lib/utils';
+import { Loader2, ArrowLeft, FileText, Briefcase, Wallet, ShieldAlert } from 'lucide-react';
+import { formatDate, formatCurrency, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
+import { EntryDetailModal, STATUS_LABEL, STATUS_BADGE } from '@/components/payroll/PayrollClient';
 
 type Tab = 'overview' | 'attendance' | 'documents' | 'history' | 'payroll' | 'payslips' | 'loans' | 'leave' | 'disciplinary';
 
@@ -121,9 +122,9 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
 
       {tab === 'overview' && <OverviewTab employee={employee} onSaved={() => { showToast('Employee updated!'); fetchEmployee(); }} showToast={showToast} />}
       {tab === 'attendance' && <AttendanceTab employeeId={employee.id} />}
-      {tab === 'payroll' && <LinksElsewhere icon={Banknote} label="Payroll" description="Payroll is run for all employees at once, per pay period." href="/payroll" linkLabel="Go to Payroll" />}
-      {tab === 'payslips' && <LinksElsewhere icon={Receipt} label="Payslips" description="This employee's payslips appear here once a payroll period is approved and paid." href="/payslips" linkLabel="Go to Payslips" />}
-      {tab === 'leave' && <LinksElsewhere icon={CalendarIcon} label="Leave" description="Leave requests and balances are managed in Leave Management, reachable from HR Settings." href="/hr-settings" linkLabel="Go to HR Settings" />}
+      {tab === 'payroll' && <PayrollHistoryTab employeeId={employee.id} />}
+      {tab === 'payslips' && <PayslipHistoryTab employeeId={employee.id} />}
+      {tab === 'leave' && <LeaveHistoryTab employeeId={employee.id} />}
       {tab === 'documents' && <ComingSoon icon={FileText} label="Documents" description="Upload and manage 201-file documents (IDs, contracts, certificates) here in a future update." />}
       {tab === 'history' && <ComingSoon icon={Briefcase} label="Employment History" description="Track promotions, transfers, and role changes here in a future update." />}
       {tab === 'loans' && <ComingSoon icon={Wallet} label="Loans / Cash Advances" description="Loan and cash advance requests, balances, and deduction schedules will live here in a future update." />}
@@ -138,20 +139,6 @@ function ComingSoon({ icon: Icon, label, description }: { icon: typeof FileText;
       <Icon className="mx-auto text-gray-300 mb-3" size={32} />
       <p className="text-sm font-semibold text-gray-500">{label} — Coming Soon</p>
       <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">{description}</p>
-    </div>
-  );
-}
-
-// For features that are already live elsewhere (Payroll, Payslips, Leave)
-// but don't have a per-employee view on this profile yet — distinct from
-// ComingSoon, which is only for things that genuinely don't exist anywhere.
-function LinksElsewhere({ icon: Icon, label, description, href, linkLabel }: { icon: typeof FileText; label: string; description: string; href: string; linkLabel: string }) {
-  return (
-    <div className="card text-center py-16">
-      <Icon className="mx-auto text-orange-300 mb-3" size={32} />
-      <p className="text-sm font-semibold text-gray-700">{label}</p>
-      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">{description}</p>
-      <a href={href} className="btn-secondary text-xs py-1.5 mt-4 inline-flex">{linkLabel}</a>
     </div>
   );
 }
@@ -557,6 +544,198 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Leave History ────────────────────────────────────────────────────────
+
+function LeaveHistoryTab({ employeeId }: { employeeId: number }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/leave-requests?employee_id=${employeeId}`).then(r => r.ok ? r.json() : []).then(d => {
+      setRows(Array.isArray(d) ? d : []);
+      setLoading(false);
+    });
+  }, [employeeId]);
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-12">No leave requests yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="table-header">Date</th>
+                <th className="table-header">Leave Type</th>
+                <th className="table-header">Day</th>
+                <th className="table-header">Paid</th>
+                <th className="table-header">Status</th>
+                <th className="table-header">Reason</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {rows.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50/60">
+                  <td className="table-cell whitespace-nowrap">{formatDate(r.from_date)}{r.from_date !== r.to_date ? ` – ${formatDate(r.to_date)}` : ''}</td>
+                  <td className="table-cell">{r.leave_type_name}</td>
+                  <td className="table-cell capitalize">{r.day_type}</td>
+                  <td className="table-cell">{r.leave_type_paid ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}</td>
+                  <td className="table-cell">
+                    <span className={r.status === 'approved' ? 'badge-green' : r.status === 'rejected' ? 'badge-red' : 'badge-amber'}>{r.status}</span>
+                  </td>
+                  <td className="table-cell text-gray-500 max-w-xs truncate" title={r.reason}>{r.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Payroll History ──────────────────────────────────────────────────────
+
+function PayrollHistoryTab({ employeeId }: { employeeId: number }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+  const [detailEntryId, setDetailEntryId] = useState<number | null>(null);
+
+  const fetchRows = () => {
+    setLoading(true);
+    fetch(`/api/payroll/entries?employee_id=${employeeId}`).then(r => {
+      if (r.status === 403) { setForbidden(true); setLoading(false); return null; }
+      return r.json();
+    }).then(d => {
+      if (d) setRows(Array.isArray(d) ? d : []);
+      setLoading(false);
+    });
+  };
+
+  useEffect(fetchRows, [employeeId]);
+
+  if (forbidden) {
+    return <div className="card text-center py-16"><p className="text-sm text-gray-400">You don't have permission to view payroll records.</p></div>;
+  }
+
+  return (
+    <>
+      <div className="card p-0 overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-12">No payroll history yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="table-header">Payroll Period</th>
+                  <th className="table-header">Basic Pay</th>
+                  <th className="table-header">OT</th>
+                  <th className="table-header">Allowances / Other</th>
+                  <th className="table-header">Deductions</th>
+                  <th className="table-header">Gross Pay</th>
+                  <th className="table-header">Net Pay</th>
+                  <th className="table-header">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map((r: any) => (
+                  <tr key={r.id} onClick={() => setDetailEntryId(r.id)} className="hover:bg-gray-50/60 cursor-pointer">
+                    <td className="table-cell font-medium text-gray-900 whitespace-nowrap">{r.period_label}</td>
+                    <td className="table-cell">{formatCurrency(r.basic_pay)}</td>
+                    <td className="table-cell">{formatCurrency(r.ot_pay)}</td>
+                    <td className="table-cell">{formatCurrency(r.allowance_pay + r.bonus_earnings)}</td>
+                    <td className="table-cell text-red-500">-{formatCurrency(r.total_deductions)}</td>
+                    <td className="table-cell">{formatCurrency(r.gross_pay)}</td>
+                    <td className="table-cell font-semibold">{formatCurrency(r.net_pay)}</td>
+                    <td className="table-cell"><span className={STATUS_BADGE[r.period_status]}>{STATUS_LABEL[r.period_status]}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-xs text-gray-400 px-4 py-2 border-t border-gray-100">Click a row to see the full breakdown.</p>
+      </div>
+
+      {detailEntryId && (
+        <EntryDetailModal
+          entryId={detailEntryId}
+          locked={true}
+          onClose={() => setDetailEntryId(null)}
+          onChanged={() => {}}
+          showToast={() => {}}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Payslip History ──────────────────────────────────────────────────────
+
+function PayslipHistoryTab({ employeeId }: { employeeId: number }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/payslips?employee_id=${employeeId}`).then(r => {
+      if (r.status === 403) { setForbidden(true); setLoading(false); return null; }
+      return r.json();
+    }).then(d => {
+      if (d) setRows(Array.isArray(d) ? d : []);
+      setLoading(false);
+    });
+  }, [employeeId]);
+
+  if (forbidden) {
+    return <div className="card text-center py-16"><p className="text-sm text-gray-400">You don't have permission to view payslips.</p></div>;
+  }
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-12">No payslips generated yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="table-header">Payroll Period</th>
+                <th className="table-header">Net Pay</th>
+                <th className="table-header">Status</th>
+                <th className="table-header"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {rows.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50/60">
+                  <td className="table-cell font-medium text-gray-900 whitespace-nowrap">{r.period_label}</td>
+                  <td className="table-cell font-semibold">{formatCurrency(r.net_pay)}</td>
+                  <td className="table-cell"><span className={STATUS_BADGE[r.period_status]}>{STATUS_LABEL[r.period_status]}</span></td>
+                  <td className="table-cell text-right">
+                    <a href={`/payslips/${r.id}`} className="text-orange-600 hover:text-orange-700 text-xs font-medium">View Payslip →</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
