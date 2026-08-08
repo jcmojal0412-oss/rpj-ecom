@@ -28,7 +28,7 @@ export async function GET() {
     SELECT p.*,
       (SELECT COUNT(*) FROM payroll_entries e WHERE e.payroll_period_id = p.id) as employee_count,
       (SELECT COALESCE(SUM(net_pay), 0) FROM payroll_entries e WHERE e.payroll_period_id = p.id) as total_net_pay
-    FROM payroll_periods p ORDER BY p.from_date DESC
+    FROM payroll_periods p WHERE p.voided_at IS NULL ORDER BY p.from_date DESC
   `).all();
   return NextResponse.json(periods);
 }

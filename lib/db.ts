@@ -726,6 +726,13 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_payroll_audit_period ON payroll_audit_log(payroll_period_id);
   `);
   db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('payroll_ot_multiplier', '1.25')`).run();
+
+  // Soft-delete ("Void") for payroll periods — a period is never hard
+  // deleted (see app/api/payroll/periods/[id]/route.ts DELETE), just
+  // flagged and hidden from the default list, keeping payroll_entries/
+  // payroll_adjustments/payroll_audit_log fully intact.
+  addColIfMissing('payroll_periods', 'voided_at', 'voided_at TEXT');
+  addColIfMissing('payroll_periods', 'voided_by', 'voided_by INTEGER REFERENCES users(id)');
 }
 
 // One-time backfill: every existing users row becomes a linked, active,

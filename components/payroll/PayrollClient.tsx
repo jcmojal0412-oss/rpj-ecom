@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2, Archive } from 'lucide-react';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -78,7 +78,7 @@ export default function PayrollClient() {
             <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
             <p className="text-sm text-gray-500 mt-1">Simple, guided payroll — one period at a time.</p>
           </div>
-          <PeriodList periods={periods} loading={loading} onOpen={openPeriod} onStartNew={startNew} />
+          <PeriodList periods={periods} loading={loading} onOpen={openPeriod} onStartNew={startNew} onRefresh={fetchPeriods} showToast={showToast} />
         </>
       ) : (
         <PayrollWizard
@@ -94,7 +94,33 @@ export default function PayrollClient() {
   );
 }
 
-function PeriodList({ periods, loading, onOpen, onStartNew }: { periods: any[]; loading: boolean; onOpen: (p: any) => void; onStartNew: () => void }) {
+function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast }: { periods: any[]; loading: boolean; onOpen: (p: any) => void; onStartNew: () => void; onRefresh: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [voidingId, setVoidingId] = useState<number | null>(null);
+
+  // Void (soft delete) — owner/'payroll' permission only (already the gate
+  // for this whole page). Never removes data: payroll_entries, adjustments,
+  // and the audit log all stay intact, so this is safe to offer without
+  // undermining the Lock/immutability guarantees elsewhere in this module.
+  // Blocked server-side once payslips have been generated (an employee may
+  // have already seen theirs) — the button is disabled client-side for the
+  // same reason, with a tooltip explaining why, rather than letting the
+  // click fail silently.
+  const voidPeriod = async (e: React.MouseEvent, p: any) => {
+    e.stopPropagation();
+    if (!confirm(`Void "${p.label}"? It will be hidden from this list, but its records stay intact and can be recovered by a database admin if ever needed.`)) return;
+
+    setVoidingId(p.id);
+    try {
+      const res = await fetch(`/api/payroll/periods/${p.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to void.', 'error'); return; }
+      showToast('Payroll period voided.');
+      onRefresh();
+    } finally {
+      setVoidingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <button onClick={onStartNew} className="btn-primary text-base py-3 px-6">
@@ -116,6 +142,7 @@ function PeriodList({ periods, loading, onOpen, onStartNew }: { periods: any[]; 
                   <th className="table-header">Total Net Pay</th>
                   <th className="table-header">Status</th>
                   <th className="table-header"></th>
+                  <th className="table-header"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -126,6 +153,16 @@ function PeriodList({ periods, loading, onOpen, onStartNew }: { periods: any[]; 
                     <td className="table-cell font-medium">{formatCurrency(p.total_net_pay)}</td>
                     <td className="table-cell"><span className={STATUS_BADGE[p.status]}>{STATUS_LABEL[p.status]}</span></td>
                     <td className="table-cell text-orange-600 text-xs font-medium">Open →</td>
+                    <td className="table-cell">
+                      <button
+                        onClick={e => voidPeriod(e, p)}
+                        disabled={voidingId === p.id || !!p.payslips_generated_at}
+                        title={p.payslips_generated_at ? 'Cannot void — payslips already generated' : 'Void payroll period'}
+                        className="text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-300 transition-colors p-1"
+                      >
+                        {voidingId === p.id ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
