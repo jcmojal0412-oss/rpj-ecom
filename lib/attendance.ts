@@ -105,10 +105,14 @@ export function isTodayFinalized(settings: AttendanceSettings): boolean {
   return nowMinutes >= parseHHMM(settings.work_end) + settings.grace_period_minutes;
 }
 
-// A selfie is only ever required for the two Work Time punches — breaks
-// never require one, regardless of the selfie_required toggle.
+// A selfie is required for the two Work Time punches and the two Lunch
+// Break punches — Coffee Break never requires one, regardless of the
+// selfie_required toggle.
 export function eventRequiresSelfie(eventType: EventType, settings: AttendanceSettings): boolean {
-  return settings.selfie_required && (eventType === 'TIME_IN' || eventType === 'TIME_OUT');
+  return settings.selfie_required && (
+    eventType === 'TIME_IN' || eventType === 'TIME_OUT' ||
+    eventType === 'LUNCH_OUT' || eventType === 'LUNCH_IN'
+  );
 }
 
 export type AttendanceStatus = 'not_started' | 'present' | 'late' | 'absent' | 'half_day' | 'undertime';

@@ -48,7 +48,7 @@ export function getTodayStateForEmployee(db: Database.Database, employee: Employ
   ).get(employee.id, today) as { status: string; excess_minutes: number; approved_minutes: number | null } | undefined;
 
   const requiresSelfie: Record<string, boolean> = {};
-  for (const t of ['TIME_IN', 'TIME_OUT'] as const) requiresSelfie[t] = eventRequiresSelfie(t, settings);
+  for (const t of ['TIME_IN', 'TIME_OUT', 'LUNCH_OUT', 'LUNCH_IN'] as const) requiresSelfie[t] = eventRequiresSelfie(t, settings);
 
   return { date: today, events, dayState, settings, shift, requiresSelfie, summary, otRequest: otRequest ?? null };
 }
