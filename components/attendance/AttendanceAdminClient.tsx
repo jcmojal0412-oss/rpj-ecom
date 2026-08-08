@@ -330,7 +330,7 @@ function RecordsTab() {
                     <td className="table-cell text-gray-500 text-xs">{r.shift_name || '—'}</td>
                     <td className="table-cell">
                       <span className={STATUS_BADGE[r.status as ExtendedStatus]}>{STATUS_LABEL[r.status as ExtendedStatus]}</span>
-                      {r.exceptionLabel && <span className="text-xs text-gray-400 ml-1.5">{r.exceptionLabel}</span>}
+                      {r.exceptionLabel && r.exceptionLabel !== STATUS_LABEL[r.status as ExtendedStatus] && <span className="text-xs text-gray-400 ml-1.5">{r.exceptionLabel}</span>}
                     </td>
                     <td className="table-cell">{fmtMinutes(r.totalWorkMinutes)}</td>
                     <td className="table-cell">{fmtMinutes(r.breakMinutes)}</td>
