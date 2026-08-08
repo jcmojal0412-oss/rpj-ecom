@@ -93,8 +93,14 @@ export async function POST(req: NextRequest) {
         ? Number(body.shift_id)
         : (db.prepare('SELECT id FROM attendance_shifts WHERE active = 1 ORDER BY id ASC LIMIT 1').get() as { id: number } | undefined)?.id;
       if (shiftId) {
+        // user_id is a legacy NOT NULL + FK(users.id) column nothing reads
+        // anymore. It must reference a REAL row (a negative sentinel used
+        // to be written here, but attendance_shift_assignments.user_id has
+        // foreign_keys=ON enforcement, so that violated the FK and made
+        // creating any unlinked employee fail outright) — the acting
+        // admin's own id always satisfies it.
         db.prepare('INSERT INTO attendance_shift_assignments (employee_id, user_id, shift_id, effective_from, created_by) VALUES (?, ?, ?, ?, ?)')
-          .run(newId, body.linked_user_id || -newId, shiftId, todayISO(), session!.id);
+          .run(newId, body.linked_user_id || session!.id, shiftId, todayISO(), session!.id);
       }
     });
 

@@ -96,10 +96,13 @@ export async function POST(req: NextRequest) {
     }
 
     const eventTime = new Date(`${eventDate}T${time}:00+08:00`).toISOString();
+    // user_id is a legacy NOT NULL + FK(users.id) column nothing reads
+    // anymore, but foreign_keys=ON means it must reference a REAL row —
+    // the admin running the simulation always satisfies it when unlinked.
     db.prepare(`
       INSERT INTO attendance_events (employee_id, user_id, event_date, event_type, event_time, source, created_by, is_test)
       VALUES (?, ?, ?, ?, ?, 'clock', ?, 1)
-    `).run(employeeId, employee.linked_user_id ?? -employeeId, eventDate, eventType, eventTime, session!.id);
+    `).run(employeeId, employee.linked_user_id ?? session!.id, eventDate, eventType, eventTime, session!.id);
 
     const updated = db.prepare(`
       SELECT id, event_type, event_time, superseded_by FROM attendance_events

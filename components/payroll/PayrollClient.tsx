@@ -33,6 +33,14 @@ export default function PayrollClient() {
   const [view, setView] = useState<'list' | 'wizard'>('list');
   const [activePeriodId, setActivePeriodId] = useState<number | null>(null);
   const [initialStep, setInitialStep] = useState(1);
+  // Only bumps when the wizard should actually reset (opening a different
+  // period from the list, or starting fresh) — NOT on every activePeriodId
+  // change. Generation itself calls setActivePeriodId(id) too (see
+  // onGenerated below); keying off that directly used to force a full
+  // remount at the exact moment generation succeeded, wiping out the
+  // in-progress wizard's own setStep(3) and dropping the user back to
+  // Step 1 right after a successful "Generate Payroll".
+  const [wizardKey, setWizardKey] = useState(0);
 
   const fetchPeriods = () => {
     setLoading(true);
@@ -44,12 +52,14 @@ export default function PayrollClient() {
     setActivePeriodId(period.id);
     setInitialStep(RESUME_STEP[period.status] ?? 2);
     setView('wizard');
+    setWizardKey(k => k + 1);
   };
 
   const startNew = () => {
     setActivePeriodId(null);
     setInitialStep(1);
     setView('wizard');
+    setWizardKey(k => k + 1);
   };
 
   const backToList = () => {
@@ -72,7 +82,7 @@ export default function PayrollClient() {
         </>
       ) : (
         <PayrollWizard
-          key={activePeriodId ?? 'new'}
+          key={wizardKey}
           periodId={activePeriodId}
           initialStep={initialStep}
           onBackToList={backToList}

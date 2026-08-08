@@ -58,17 +58,14 @@ export function flagPotentialOvertime(): number {
       if (summary.potentialOtMinutes <= 0) continue;
 
       const timeOutEvent = events.filter(e => e.event_type === 'TIME_OUT' && !e.superseded_by).pop();
-      // user_id is a legacy NOT NULL column nothing reads anymore, but the
-      // table still has a UNIQUE(user_id, event_date) constraint from
-      // before employees existed — when there's no linked user, use
-      // -employee.id as the sentinel (always negative, so it can never
-      // collide with a real positive user id, AND is unique per employee,
-      // so two unlinked employees on the same date don't collide with
-      // each other and silently suppress one another's OT flag).
+      // user_id is a legacy column nothing reads anymore (now nullable —
+      // see the attendance_ot_requests rebuild in lib/db.ts). The real
+      // idempotency guard is idx_attendance_ot_employee_date on
+      // (employee_id, event_date), not this column.
       const info = db.prepare(`
         INSERT OR IGNORE INTO attendance_ot_requests (employee_id, user_id, event_date, time_out_event_id, excess_minutes, status)
         VALUES (?, ?, ?, ?, ?, 'pending')
-      `).run(employee.id, employee.linked_user_id ?? -employee.id, date, timeOutEvent?.id ?? null, summary.potentialOtMinutes);
+      `).run(employee.id, employee.linked_user_id ?? null, date, timeOutEvent?.id ?? null, summary.potentialOtMinutes);
       if (info.changes > 0) flagged++;
     }
   }

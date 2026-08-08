@@ -74,8 +74,10 @@ export async function POST(req: NextRequest) {
       for (const employeeId of employeeIds) {
         const employee = db.prepare('SELECT id, linked_user_id FROM employees WHERE id = ?').get(employeeId) as { id: number; linked_user_id: number | null } | undefined;
         if (!employee) continue;
-        // user_id is a legacy NOT NULL column nothing reads anymore.
-        const legacyUserId = employee.linked_user_id ?? -employee.id;
+        // user_id is a legacy NOT NULL + FK(users.id) column nothing reads
+        // anymore, but foreign_keys=ON means it must reference a REAL row —
+        // the acting admin's own id always satisfies it when unlinked.
+        const legacyUserId = employee.linked_user_id ?? session!.id;
 
         db.prepare(`
           UPDATE attendance_shift_assignments SET effective_to = ?

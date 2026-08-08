@@ -473,6 +473,44 @@ function migrateSchema() {
       ON attendance_ot_requests(employee_id, event_date) WHERE employee_id IS NOT NULL;
   `);
 
+  // attendance_ot_requests.user_id was NOT NULL + FK(users.id) from before
+  // employees existed. With foreign_keys=ON, callers with no linked_user_id
+  // had no valid value to write there, so flagPotentialOvertime() threw for
+  // every unlinked employee. The real idempotency guard is now the
+  // employee_id partial unique index just above, so this dead column only
+  // needs to stop demanding a value — one-time table rebuild, guarded so it
+  // only runs while the column is still NOT NULL.
+  const otUserIdCol = (db.prepare("PRAGMA table_info(attendance_ot_requests)").all() as { name: string; notnull: number }[])
+    .find(c => c.name === 'user_id');
+  if (otUserIdCol && otUserIdCol.notnull) {
+    db.exec(`
+      CREATE TABLE attendance_ot_requests_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id),
+        event_date TEXT NOT NULL,
+        time_out_event_id INTEGER REFERENCES attendance_events(id),
+        excess_minutes INTEGER NOT NULL,
+        approved_minutes INTEGER,
+        status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')) DEFAULT 'pending',
+        remarks TEXT,
+        reviewed_by INTEGER REFERENCES users(id),
+        reviewed_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        employee_id INTEGER REFERENCES employees(id),
+        UNIQUE(user_id, event_date)
+      );
+      INSERT INTO attendance_ot_requests_new SELECT
+        id, user_id, event_date, time_out_event_id, excess_minutes, approved_minutes,
+        status, remarks, reviewed_by, reviewed_at, created_at, employee_id
+      FROM attendance_ot_requests;
+      DROP TABLE attendance_ot_requests;
+      ALTER TABLE attendance_ot_requests_new RENAME TO attendance_ot_requests;
+      CREATE INDEX IF NOT EXISTS idx_attendance_ot_status ON attendance_ot_requests(status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_ot_employee_date
+        ON attendance_ot_requests(employee_id, event_date) WHERE employee_id IS NOT NULL;
+    `);
+  }
+
   seedEmployeesFromUsersIfEmpty();
 
   // Date-specific shift overrides — separate from attendance_shift_assignments

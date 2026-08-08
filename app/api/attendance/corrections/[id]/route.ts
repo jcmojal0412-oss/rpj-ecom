@@ -45,10 +45,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     if (action === 'approve') {
       const employee = db.prepare('SELECT linked_user_id FROM employees WHERE id = ?').get(correction.employee_id) as { linked_user_id: number | null } | undefined;
-      // user_id is a legacy NOT NULL column nothing reads anymore — falls
-      // back to a per-employee-unique negative sentinel when there's no
-      // linked user (see lib/attendance-jobs.ts for the same pattern).
-      const legacyUserId = employee?.linked_user_id ?? -correction.employee_id;
+      // user_id is a legacy NOT NULL + FK(users.id) column nothing reads
+      // anymore, but foreign_keys=ON means it must reference a REAL row —
+      // the reviewing admin's own id always satisfies it when unlinked.
+      const legacyUserId = employee?.linked_user_id ?? session!.id;
 
       runTransaction(() => {
         const info = db.prepare(`
