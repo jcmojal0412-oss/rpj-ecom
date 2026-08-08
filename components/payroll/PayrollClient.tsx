@@ -15,7 +15,10 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 // Which wizard step to resume a period at, based on its current status.
-const RESUME_STEP: Record<string, number> = { draft: 2, for_review: 4, approved: 5, paid: 5, locked: 5 };
+// (Step 1 "Select Period" and Step 2 "Generate Payroll" only ever apply
+// BEFORE a period exists — resuming an already-generated draft jumps
+// straight to Step 3 "Check Issues".)
+const RESUME_STEP: Record<string, number> = { draft: 3, for_review: 5, approved: 5, paid: 5, locked: 5 };
 
 const ADJUSTMENT_LABELS: Record<AdjustmentType, string> = {
   bonus: 'Bonus', incentive: 'Incentive', additional_allowance: 'Additional Allowance', other_earning: 'Other Earning',
@@ -126,13 +129,16 @@ function PeriodList({ periods, loading, onOpen, onStartNew }: { periods: any[]; 
 
 // ── Wizard shell ─────────────────────────────────────────────────────────
 
-const STEP_LABELS = ['Select Period', 'Check Attendance', 'Review Pay', 'Payroll Summary', 'Payslips & Lock'];
+const STEP_LABELS = ['Select Payroll Period', 'Generate Payroll', 'Check Issues', 'Review Payroll', 'Approve & Generate Payslips'];
+
+interface PeriodRange { from: string; to: string; label: string }
 
 function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showToast }: {
   periodId: number | null; initialStep: number; onBackToList: () => void;
   onGenerated: (id: number) => void; showToast: (m: string, t?: 'success' | 'error') => void;
 }) {
   const [step, setStep] = useState(initialStep);
+  const [selectedRange, setSelectedRange] = useState<PeriodRange | null>(null);
   const [currentPeriodId, setCurrentPeriodId] = useState<number | null>(periodId);
   const [period, setPeriod] = useState<any>(null);
   const [entries, setEntries] = useState<any[]>([]);
@@ -147,9 +153,14 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
   };
   useEffect(fetchPeriod, [currentPeriodId]);
 
+  const handleSelected = (range: PeriodRange) => {
+    setSelectedRange(range);
+    setStep(2);
+  };
+
   const handleGenerated = (id: number) => {
     setCurrentPeriodId(id);
-    setStep(2);
+    setStep(3);
     onGenerated(id);
   };
 
@@ -176,21 +187,19 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
         })}
       </div>
 
-      {step === 1 && <StepSelectPeriod onGenerated={handleGenerated} showToast={showToast} />}
+      {step === 1 && <StepSelectPeriod onSelected={handleSelected} />}
+      {step === 2 && selectedRange && <StepGeneratePayroll range={selectedRange} onGenerated={handleGenerated} showToast={showToast} />}
 
-      {step >= 2 && loading ? (
+      {step >= 3 && loading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
       ) : (
         <>
-          {step === 2 && currentPeriodId && <StepCheckAttendance periodId={currentPeriodId} onContinue={() => setStep(3)} />}
-          {step === 3 && currentPeriodId && period && (
-            <StepReviewPay period={period} entries={entries} onRefresh={fetchPeriod} onContinue={() => setStep(4)} showToast={showToast} />
-          )}
+          {step === 3 && currentPeriodId && <StepCheckIssues periodId={currentPeriodId} onContinue={() => setStep(4)} />}
           {step === 4 && currentPeriodId && period && (
-            <StepSummary period={period} entries={entries} onRefresh={fetchPeriod} onContinue={() => setStep(5)} showToast={showToast} />
+            <StepReviewPayroll period={period} entries={entries} onRefresh={fetchPeriod} onContinue={() => setStep(5)} showToast={showToast} />
           )}
           {step === 5 && currentPeriodId && period && (
-            <StepPayslipsAndLock period={period} entries={entries} onRefresh={fetchPeriod} showToast={showToast} />
+            <StepApproveAndPayslips period={period} entries={entries} onRefresh={fetchPeriod} showToast={showToast} />
           )}
         </>
       )}
@@ -200,14 +209,12 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
 
 // ── Step 1: Select Payroll Period ───────────────────────────────────────
 
-function StepSelectPeriod({ onGenerated, showToast }: { onGenerated: (id: number) => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => void }) {
   const now = new Date(Date.now() + 8 * 3600 * 1000);
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const [selected, setSelected] = useState<'first' | 'second' | null>(null);
   const [label, setLabel] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState('');
 
   const cutoffs = getDefaultCutoffs(year, month);
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
@@ -222,26 +229,12 @@ function StepSelectPeriod({ onGenerated, showToast }: { onGenerated: (id: number
   const select = (which: 'first' | 'second') => {
     setSelected(which);
     setLabel(which === 'first' ? cutoffs.firstHalf.label : cutoffs.secondHalf.label);
-    setError('');
   };
 
-  const generate = async () => {
-    if (!selected) { setError('Pick a cutoff period first.'); return; }
-    setGenerating(true);
-    setError('');
-    try {
-      const range = selected === 'first' ? cutoffs.firstHalf : cutoffs.secondHalf;
-      const res = await fetch('/api/payroll/periods', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from_date: range.from, to_date: range.to, label: label.trim() || range.label }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Failed to generate payroll.'); return; }
-      showToast('Payroll generated!');
-      onGenerated(data.id);
-    } finally {
-      setGenerating(false);
-    }
+  const next = () => {
+    if (!selected) return;
+    const range = selected === 'first' ? cutoffs.firstHalf : cutoffs.secondHalf;
+    onSelected({ from: range.from, to: range.to, label: label.trim() || range.label });
   };
 
   return (
@@ -281,9 +274,48 @@ function StepSelectPeriod({ onGenerated, showToast }: { onGenerated: (id: number
         </div>
       )}
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      <button onClick={next} disabled={!selected} className="btn-primary text-base py-3 px-8 disabled:opacity-50">
+        Next: Generate Payroll
+      </button>
+    </div>
+  );
+}
 
-      <button onClick={generate} disabled={!selected || generating} className="btn-primary text-base py-3 px-8 disabled:opacity-50">
+// ── Step 2: Generate Payroll ─────────────────────────────────────────────
+
+function StepGeneratePayroll({ range, onGenerated, showToast }: { range: PeriodRange; onGenerated: (id: number) => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
+
+  const generate = async () => {
+    setGenerating(true);
+    setError('');
+    try {
+      const res = await fetch('/api/payroll/periods', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_date: range.from, to_date: range.to, label: range.label }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to generate payroll.'); return; }
+      showToast('Payroll generated!');
+      onGenerated(data.id);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="card space-y-5 text-center">
+      <div>
+        <p className="text-base font-semibold text-gray-900">Ready to generate payroll</p>
+        <p className="text-sm text-gray-500 mt-1">{range.label}</p>
+        <p className="text-xs text-gray-400 mt-1">{formatDate(range.from)} – {formatDate(range.to)}</p>
+      </div>
+      <p className="text-sm text-gray-600 max-w-md mx-auto">
+        This will automatically pull in attendance, approved overtime, and leave records for every employee in this period.
+      </p>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      <button onClick={generate} disabled={generating} className="btn-primary text-base py-3 px-8 disabled:opacity-50 mx-auto">
         {generating ? <Loader2 size={18} className="animate-spin" /> : null}
         {generating ? 'Generating...' : 'Generate Payroll'}
       </button>
@@ -291,9 +323,9 @@ function StepSelectPeriod({ onGenerated, showToast }: { onGenerated: (id: number
   );
 }
 
-// ── Step 2: Check Attendance ─────────────────────────────────────────────
+// ── Step 3: Check Issues ─────────────────────────────────────────────────
 
-function StepCheckAttendance({ periodId, onContinue }: { periodId: number; onContinue: () => void }) {
+function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinue: () => void }) {
   const [warnings, setWarnings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -310,13 +342,13 @@ function StepCheckAttendance({ periodId, onContinue }: { periodId: number; onCon
     <div className="card space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Attendance was imported automatically.</p>
-        <p className="text-sm text-gray-500 mt-0.5">Here's anything that might need a second look.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Here's anything that might need a second look — missing attendance, pending OT, pending corrections, or other issues.</p>
       </div>
 
       {warnings.length === 0 ? (
         <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl p-5">
           <CheckCircle2 className="text-green-500" size={28} />
-          <p className="text-green-700 font-semibold">Attendance Ready — nothing needs your attention.</p>
+          <p className="text-green-700 font-semibold">No issues found — everything looks good.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -330,54 +362,83 @@ function StepCheckAttendance({ periodId, onContinue }: { periodId: number; onCon
         </div>
       )}
 
-      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Payroll</button>
+      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Review Payroll</button>
     </div>
   );
 }
 
-// ── Step 3: Review Employee Pay ──────────────────────────────────────────
+// ── Step 4: Review Payroll (summary + employee breakdown) ───────────────
 
-function StepReviewPay({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [detailEntry, setDetailEntry] = useState<any | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const locked = period.status === 'locked';
+
+  const totalEarnings = entries.reduce((s, e) => s + e.basic_pay + e.ot_pay + e.allowance_pay + e.bonus_earnings, 0);
+  const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);
+  const grossPayroll = entries.reduce((s, e) => s + e.gross_pay, 0);
+  const netPayroll = entries.reduce((s, e) => s + e.net_pay, 0);
+
+  const cards = [
+    { label: 'Number of Employees', value: String(entries.length) },
+    { label: 'Gross Payroll', value: formatCurrency(grossPayroll) },
+    { label: 'Total Deductions', value: formatCurrency(totalDeductions) },
+    { label: 'Total Net Payroll', value: formatCurrency(netPayroll) },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="table-header">Employee</th>
-                <th className="table-header">Basic Pay</th>
-                <th className="table-header">OT</th>
-                <th className="table-header">Allowance</th>
-                <th className="table-header">Late/Undertime</th>
-                <th className="table-header">Absence/Unpaid Leave</th>
-                <th className="table-header">Other Deduction</th>
-                <th className="table-header">Net Pay</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {entries.map(e => (
-                <tr key={e.id} onClick={() => setDetailEntry(e)} className="hover:bg-gray-50/60 cursor-pointer">
-                  <td className="table-cell font-medium text-gray-900">{e.employee_name_snapshot}</td>
-                  <td className="table-cell">{formatCurrency(e.basic_pay)}</td>
-                  <td className="table-cell">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</td>
-                  <td className="table-cell">{formatCurrency(e.allowance_pay + e.bonus_earnings)}</td>
-                  <td className="table-cell text-red-500">{(e.late_deduction + e.undertime_deduction) > 0 ? `-${formatCurrency(e.late_deduction + e.undertime_deduction)}` : '—'}</td>
-                  <td className="table-cell text-red-500">{(e.absence_deduction + e.unpaid_leave_deduction) > 0 ? `-${formatCurrency(e.absence_deduction + e.unpaid_leave_deduction)}` : '—'}</td>
-                  <td className="table-cell text-red-500">{(e.excess_break_deduction + e.other_deductions) > 0 ? `-${formatCurrency(e.excess_break_deduction + e.other_deductions)}` : '—'}</td>
-                  <td className="table-cell font-semibold text-gray-900">{formatCurrency(e.net_pay)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map(c => (
+          <div key={c.label} className="card">
+            <p className="text-xs text-gray-500">{c.label}</p>
+            <p className="text-xl font-bold text-gray-900 mt-1">{c.value}</p>
+          </div>
+        ))}
       </div>
-      <p className="text-xs text-gray-400">Click an employee to see the full breakdown and add bonuses or deductions.</p>
+      <p className="text-xs text-gray-400">Total Earnings: {formatCurrency(totalEarnings)}</p>
 
-      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Payroll Summary</button>
+      <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+        {showBreakdown ? 'Hide Employee Breakdown' : 'View Employee Breakdown'}
+      </button>
+
+      {showBreakdown && (
+        <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="table-header">Employee</th>
+                  <th className="table-header">Basic Pay</th>
+                  <th className="table-header">OT</th>
+                  <th className="table-header">Allowance</th>
+                  <th className="table-header">Late/Undertime</th>
+                  <th className="table-header">Absence/Unpaid Leave</th>
+                  <th className="table-header">Other Deduction</th>
+                  <th className="table-header">Net Pay</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {entries.map(e => (
+                  <tr key={e.id} onClick={() => setDetailEntry(e)} className="hover:bg-gray-50/60 cursor-pointer">
+                    <td className="table-cell font-medium text-gray-900">{e.employee_name_snapshot}</td>
+                    <td className="table-cell">{formatCurrency(e.basic_pay)}</td>
+                    <td className="table-cell">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</td>
+                    <td className="table-cell">{formatCurrency(e.allowance_pay + e.bonus_earnings)}</td>
+                    <td className="table-cell text-red-500">{(e.late_deduction + e.undertime_deduction) > 0 ? `-${formatCurrency(e.late_deduction + e.undertime_deduction)}` : '—'}</td>
+                    <td className="table-cell text-red-500">{(e.absence_deduction + e.unpaid_leave_deduction) > 0 ? `-${formatCurrency(e.absence_deduction + e.unpaid_leave_deduction)}` : '—'}</td>
+                    <td className="table-cell text-red-500">{(e.excess_break_deduction + e.other_deductions) > 0 ? `-${formatCurrency(e.excess_break_deduction + e.other_deductions)}` : '—'}</td>
+                    <td className="table-cell font-semibold text-gray-900">{formatCurrency(e.net_pay)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400 px-4 py-2 border-t border-gray-100">Click an employee to see the full breakdown and add bonuses or deductions.</p>
+        </div>
+      )}
+
+      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Approve Payroll</button>
 
       {detailEntry && (
         <EntryDetailModal
@@ -552,17 +613,17 @@ function AddAdjustmentForm({ entryId, onCancel, onSaved }: { entryId: number; on
   );
 }
 
-// ── Step 4: Review Payroll Summary ───────────────────────────────────────
+// ── Step 5: Approve & Generate Payslips ──────────────────────────────────
+// One consolidated final screen — review, approve, generate payslips, mark
+// paid, and lock all happen here in sequence. Only the button relevant to
+// the period's CURRENT status is ever shown, so it never overwhelms: HR
+// always sees exactly one next action.
 
-function StepSummary({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
-  const [busy, setBusy] = useState<'review' | 'approve' | null>(null);
-
-  const totalEarnings = entries.reduce((s, e) => s + e.basic_pay + e.ot_pay + e.allowance_pay + e.bonus_earnings, 0);
-  const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);
-  const grossPayroll = entries.reduce((s, e) => s + e.gross_pay, 0);
+function StepApproveAndPayslips({ period, entries, onRefresh, showToast }: { period: any; entries: any[]; onRefresh: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
   const netPayroll = entries.reduce((s, e) => s + e.net_pay, 0);
 
-  const doTransition = async (action: 'review' | 'approve') => {
+  const doTransition = async (action: 'review' | 'approve' | 'mark_paid' | 'lock') => {
     setBusy(action);
     try {
       const res = await fetch(`/api/payroll/periods/${period.id}`, {
@@ -570,64 +631,16 @@ function StepSummary({ period, entries, onRefresh, onContinue, showToast }: { pe
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed.', 'error'); return; }
-      showToast(action === 'review' ? 'Payroll marked for review!' : 'Payroll approved!');
+      const messages: Record<string, string> = {
+        review: 'Payroll marked for review!', approve: 'Payroll approved!',
+        mark_paid: 'Payroll marked as Paid!', lock: 'Payroll Locked — no further changes are possible.',
+      };
+      showToast(messages[action]);
       onRefresh();
-      if (action === 'approve') onContinue();
     } finally {
       setBusy(null);
     }
   };
-
-  const cards = [
-    { label: 'Number of Employees', value: entries.length },
-    { label: 'Gross Payroll', value: formatCurrency(grossPayroll) },
-    { label: 'Total Earnings', value: formatCurrency(totalEarnings) },
-    { label: 'Total Deductions', value: formatCurrency(totalDeductions) },
-    { label: 'Total Net Payroll', value: formatCurrency(netPayroll) },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="grid sm:grid-cols-3 gap-4">
-        {cards.map(c => (
-          <div key={c.label} className="card">
-            <p className="text-xs text-gray-500">{c.label}</p>
-            <p className="text-xl font-bold text-gray-900 mt-1">{c.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="card space-y-3">
-        <p className="text-sm text-gray-600">
-          Current status: <span className={STATUS_BADGE[period.status]}>{STATUS_LABEL[period.status]}</span>
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => doTransition('review')}
-            disabled={period.status !== 'draft' || !!busy}
-            className="btn-secondary text-base py-3 px-6 disabled:opacity-50"
-          >
-            {busy === 'review' ? <Loader2 size={16} className="animate-spin" /> : null} Review Payroll
-          </button>
-          <button
-            onClick={() => doTransition('approve')}
-            disabled={period.status !== 'for_review' || !!busy}
-            className="btn-primary text-base py-3 px-6 disabled:opacity-50"
-          >
-            {busy === 'approve' ? <Loader2 size={16} className="animate-spin" /> : null} Approve Payroll
-          </button>
-        </div>
-        {period.status === 'draft' && <p className="text-xs text-gray-400">Click "Review Payroll" first, then "Approve Payroll" to move forward.</p>}
-      </div>
-    </div>
-  );
-}
-
-// ── Step 5: Generate Payslips / Paid / Lock ──────────────────────────────
-
-function StepPayslipsAndLock({ period, entries, onRefresh, showToast }: { period: any; entries: any[]; onRefresh: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const netPayroll = entries.reduce((s, e) => s + e.net_pay, 0);
 
   const generatePayslips = async () => {
     setBusy('payslips');
@@ -642,38 +655,39 @@ function StepPayslipsAndLock({ period, entries, onRefresh, showToast }: { period
     }
   };
 
-  const doTransition = async (action: 'mark_paid' | 'lock') => {
-    setBusy(action);
-    try {
-      const res = await fetch(`/api/payroll/periods/${period.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.error || 'Failed.', 'error'); return; }
-      showToast(action === 'mark_paid' ? 'Payroll marked as Paid!' : 'Payroll Locked — no further changes are possible.');
-      onRefresh();
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <div className="card space-y-5">
       <div className="text-center">
         <p className="text-sm text-gray-500">Total Net Payroll</p>
         <p className="text-3xl font-bold text-gray-900 mt-1">{formatCurrency(netPayroll)}</p>
         <p className="text-xs text-gray-400 mt-1">{entries.length} employee(s) — {period.label}</p>
+        <p className="text-xs text-gray-400 mt-2">
+          Status: <span className={STATUS_BADGE[period.status]}>{STATUS_LABEL[period.status]}</span>
+        </p>
       </div>
 
       <div className="space-y-3">
-        {!period.payslips_generated_at ? (
-          <button onClick={generatePayslips} disabled={!!busy} className="btn-primary w-full justify-center text-base py-3 disabled:opacity-50">
-            {busy === 'payslips' ? <Loader2 size={16} className="animate-spin" /> : null} Generate Payslips
+        {period.status === 'draft' && (
+          <button onClick={() => doTransition('review')} disabled={!!busy} className="btn-secondary w-full justify-center text-base py-3 disabled:opacity-50">
+            {busy === 'review' ? <Loader2 size={16} className="animate-spin" /> : null} Review Payroll
           </button>
-        ) : (
-          <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-xl p-3 text-sm">
-            <CheckCircle2 size={16} /> Payslips generated — visible to employees now.
-          </div>
+        )}
+        {period.status === 'for_review' && (
+          <button onClick={() => doTransition('approve')} disabled={!!busy} className="btn-primary w-full justify-center text-base py-3 disabled:opacity-50">
+            {busy === 'approve' ? <Loader2 size={16} className="animate-spin" /> : null} Approve Payroll
+          </button>
+        )}
+
+        {(period.status === 'approved' || period.status === 'paid' || period.status === 'locked') && (
+          !period.payslips_generated_at ? (
+            <button onClick={generatePayslips} disabled={!!busy} className="btn-primary w-full justify-center text-base py-3 disabled:opacity-50">
+              {busy === 'payslips' ? <Loader2 size={16} className="animate-spin" /> : null} Generate Payslips
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-xl p-3 text-sm">
+              <CheckCircle2 size={16} /> Payslips generated — visible to employees now.
+            </div>
+          )
         )}
 
         {period.payslips_generated_at && period.status === 'approved' && (

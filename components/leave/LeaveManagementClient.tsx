@@ -56,7 +56,7 @@ interface LeaveType {
   id: number; name: string; paid: number; active: number; annual_credits: number | null;
 }
 
-function LeaveTypesTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function LeaveTypesTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [types, setTypes] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<LeaveType | null>(null);
@@ -175,7 +175,7 @@ function LeaveTypeForm({ leaveType, onCancel, onSaved }: { leaveType: LeaveType 
 
 const REQUEST_STATUS_FILTERS = ['pending', 'approved', 'rejected', 'all'] as const;
 
-function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [statusFilter, setStatusFilter] = useState<typeof REQUEST_STATUS_FILTERS[number]>('pending');
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,7 +263,7 @@ function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'success' 
   );
 }
 
-function LeaveReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
+export function LeaveReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState<'approve' | 'reject' | null>(null);
 
@@ -320,7 +320,7 @@ interface Holiday {
 
 const HOLIDAY_TYPES = ['Regular Holiday', 'Special Non-Working Holiday', 'Special Working Holiday'];
 
-function HolidaysTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function HolidaysTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Holiday | null>(null);
@@ -461,7 +461,7 @@ const EXCEPTION_TYPES: { value: string; label: string }[] = [
 ];
 const EXCEPTION_LABELS: Record<string, string> = Object.fromEntries(EXCEPTION_TYPES.map(t => [t.value, t.label]));
 
-function ExceptionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function ExceptionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [exceptions, setExceptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);

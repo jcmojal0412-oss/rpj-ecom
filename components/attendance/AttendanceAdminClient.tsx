@@ -1,22 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Users, AlertTriangle, Clock3, FileEdit, CalendarClock, FlaskConical, Trash2, Plus, Pencil, Palmtree, PartyPopper, Briefcase, BedDouble } from 'lucide-react';
+import { Loader2, FlaskConical, Trash2, Plus, Pencil } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import type { EventType, AttendanceStatus } from '@/lib/attendance';
 
-type Tab = 'dashboard' | 'settings' | 'shifts' | 'records' | 'ot' | 'corrections' | 'test';
+// Simple HR Mode: Attendance now only covers day-to-day operations —
+// Shift Templates, Attendance Rules, and Test Mode moved to HR Settings
+// (see components/hr/HrSettingsClient.tsx, which imports SettingsTab/
+// ShiftsTab/TestModeTab straight from this file — nothing about those
+// tabs' logic changed, only where they're reachable from). The old
+// Dashboard tab moved to its own HR Dashboard page for the same reason.
+type Tab = 'today' | 'records' | 'ot' | 'corrections';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'settings', label: 'Settings' },
-  { key: 'shifts', label: 'Shifts' },
+  { key: 'today', label: 'Today' },
   { key: 'records', label: 'Daily Records' },
-  { key: 'ot', label: 'OT Approval' },
-  { key: 'corrections', label: 'Correction Requests' },
-  { key: 'test', label: 'Test Mode' },
+  { key: 'ot', label: 'OT for Approval' },
+  { key: 'corrections', label: 'Attendance Corrections' },
 ];
 
 type ExtendedStatus = AttendanceStatus | 'rest_day' | 'on_leave' | 'holiday' | 'official_business';
@@ -65,15 +68,15 @@ function fmtMinutes(m: number) {
 
 export default function AttendanceAdminClient() {
   const { toast, showToast, clearToast } = useToast();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>('today');
 
   return (
     <div className="p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Attendance Admin</h1>
-        <p className="text-sm text-gray-500 mt-1">Shift rules, daily records, overtime, and correction approvals</p>
+        <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
+        <p className="text-sm text-gray-500 mt-1">Today's status, daily records, and approvals</p>
       </div>
 
       <div className="flex gap-1 flex-wrap">
@@ -90,133 +93,74 @@ export default function AttendanceAdminClient() {
         ))}
       </div>
 
-      {tab === 'dashboard' && <DashboardTab />}
-      {tab === 'settings' && <SettingsTab showToast={showToast} />}
-      {tab === 'shifts' && <ShiftsTab showToast={showToast} />}
+      {tab === 'today' && <TodayTab />}
       {tab === 'records' && <RecordsTab />}
       {tab === 'ot' && <OtTab showToast={showToast} />}
       {tab === 'corrections' && <CorrectionsTab showToast={showToast} />}
-      {tab === 'test' && <TestModeTab showToast={showToast} />}
     </div>
   );
 }
 
-// ── Dashboard ────────────────────────────────────────────────────────────
+// ── Today (the new simple default view) ─────────────────────────────────
 
-const DASHBOARD_REFRESH_MS = 45_000;
-
-function DashboardTab() {
+function TodayTab() {
+  const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [counts, setCounts] = useState({
-    present: 0, late: 0, undertime: 0, halfDay: 0, absent: 0, notStarted: 0,
-    onLeave: 0, holiday: 0, officialBusiness: 0, restDay: 0,
-    pendingOt: 0, pendingCorrections: 0, pendingLeave: 0,
-  });
-  // Live "what's happening right now" counts — a separate axis from the
-  // shift-status counts above. Each employee's dayState.state is a single
-  // value, so an employee is counted in exactly one of working/onBreak/
-  // clockedOut/notStarted here, never two, same guarantee as the
-  // status-based counts (each computeDaySummary() call returns one status).
-  const [liveCounts, setLiveCounts] = useState({ working: 0, onBreak: 0, clockedOut: 0 });
 
-  const fetchDashboard = () => {
+  const fetchToday = () => {
     const today = todayISO();
-    Promise.all([
-      fetch(`/api/attendance/records?from=${today}&to=${today}`).then(r => r.json()),
-      fetch('/api/attendance/ot-requests?status=pending').then(r => r.json()),
-      fetch('/api/attendance/corrections?status=pending').then(r => r.json()),
-      fetch('/api/attendance/live-status').then(r => r.json()),
-      fetch('/api/leave-requests?status=pending').then(r => r.json()),
-    ]).then(([records, ot, corrections, live, leave]) => {
-      const rows = Array.isArray(records) ? records : [];
-      setCounts({
-        present: rows.filter((r: any) => r.status === 'present').length,
-        late: rows.filter((r: any) => r.status === 'late').length,
-        undertime: rows.filter((r: any) => r.status === 'undertime').length,
-        halfDay: rows.filter((r: any) => r.status === 'half_day').length,
-        absent: rows.filter((r: any) => r.status === 'absent').length,
-        notStarted: rows.filter((r: any) => r.status === 'not_started').length,
-        onLeave: rows.filter((r: any) => r.status === 'on_leave').length,
-        holiday: rows.filter((r: any) => r.status === 'holiday').length,
-        officialBusiness: rows.filter((r: any) => r.status === 'official_business').length,
-        restDay: rows.filter((r: any) => r.status === 'rest_day').length,
-        pendingOt: Array.isArray(ot) ? ot.length : 0,
-        pendingCorrections: Array.isArray(corrections) ? corrections.length : 0,
-        pendingLeave: Array.isArray(leave) ? leave.length : 0,
-      });
-      if (live?.counts) setLiveCounts({ working: live.counts.working, onBreak: live.counts.onBreak, clockedOut: live.counts.clockedOut });
+    fetch(`/api/attendance/records?from=${today}&to=${today}`).then(r => r.json()).then(d => {
+      setRows(Array.isArray(d) ? d : []);
       setLastUpdated(new Date());
       setLoading(false);
     });
   };
 
   useEffect(() => {
-    fetchDashboard();
-    const id = setInterval(fetchDashboard, DASHBOARD_REFRESH_MS);
+    fetchToday();
+    const id = setInterval(fetchToday, 45_000);
     return () => clearInterval(id);
   }, []);
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
 
-  const shiftStatusCards = [
-    { label: 'Present Today', value: counts.present, icon: Users, color: 'text-green-600 bg-green-50' },
-    { label: 'Late Today', value: counts.late, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Undertime Today', value: counts.undertime, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Half Day Today', value: counts.halfDay, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Absent Today', value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
-    { label: 'Not Clocked In Yet', value: counts.notStarted, icon: CalendarClock, color: 'text-gray-500 bg-gray-50' },
-    { label: 'On Leave Today', value: counts.onLeave, icon: Palmtree, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Holiday Today', value: counts.holiday, icon: PartyPopper, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Official Business Today', value: counts.officialBusiness, icon: Briefcase, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Rest Day Today', value: counts.restDay, icon: BedDouble, color: 'text-gray-500 bg-gray-50' },
-    { label: 'Pending OT Requests', value: counts.pendingOt, icon: Clock3, color: 'text-orange-600 bg-orange-50' },
-    { label: 'Pending Corrections', value: counts.pendingCorrections, icon: FileEdit, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Pending Leave Requests', value: counts.pendingLeave, icon: Palmtree, color: 'text-orange-600 bg-orange-50' },
-  ];
-
-  const liveCards = [
-    { label: 'Currently Working', value: liveCounts.working, icon: Users, color: 'text-green-600 bg-green-50' },
-    { label: 'Currently On Break', value: liveCounts.onBreak, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Clocked Out Today', value: liveCounts.clockedOut, icon: CalendarClock, color: 'text-gray-500 bg-gray-50' },
-  ];
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {lastUpdated && (
         <p className="text-xs text-gray-400 text-right">
-          Updated {lastUpdated.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit' })} · auto-refreshes every 45s
+          Updated {lastUpdated.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })} · auto-refreshes every 45s
         </p>
       )}
-
-      <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Right Now</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {liveCards.map(c => (
-            <div key={c.label} className="card flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Today's Shift Status</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {shiftStatusCards.map(c => (
-            <div key={c.label} className="card flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
-              <div>
-                <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="card p-0 overflow-hidden">
+        {rows.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-12">No employees to show today.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="table-header">Employee</th>
+                  <th className="table-header">Status</th>
+                  <th className="table-header">Note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50/60">
+                    <td className="table-cell font-medium text-gray-900">{r.name}</td>
+                    <td className="table-cell">
+                      <span className={STATUS_BADGE[r.status as ExtendedStatus]}>{STATUS_LABEL[r.status as ExtendedStatus]}</span>
+                    </td>
+                    <td className="table-cell text-gray-500 text-xs">
+                      {r.exceptionLabel || (r.lateMinutes > 0 ? `Late ${fmtMinutes(r.lateMinutes)}` : '')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -230,7 +174,7 @@ interface Settings {
   min_minutes_before_ot: number; selfie_required: boolean; work_days: number[];
 }
 
-function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -491,7 +435,7 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
   );
 }
 
-function OtReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
+export function OtReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
   const [approvedMinutes, setApprovedMinutes] = useState(String(request.excess_minutes));
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState<'approve' | 'partial_approve' | 'reject' | null>(null);
@@ -626,7 +570,7 @@ function CorrectionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 
   );
 }
 
-function CorrectionReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
+export function CorrectionReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState<'approve' | 'reject' | null>(null);
 
@@ -678,7 +622,7 @@ function CorrectionReviewModal({ request, onClose, onDone }: { request: any; onC
 // reach a real report, a real employee's record, or an OT/payroll-ready
 // total. See app/api/attendance/test/{events,summary}/route.ts.
 
-function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [userId, setUserId] = useState('');
@@ -879,7 +823,7 @@ function fmtShiftTime(t: string) {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+export function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingShift, setEditingShift] = useState<ShiftTemplate | 'new' | null>(null);

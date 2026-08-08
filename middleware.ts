@@ -23,6 +23,9 @@ const ROUTE_MODULES: [string, string][] = [
   ['/employees',             'employees'],
   ['/api/employees',         'employees'],
   ['/leave-management',      'leave_management'],
+  ['/hr-dashboard',          'attendance'],
+  ['/hr-settings',           'attendance'],
+  ['/api/hr',                'attendance'],
   ['/payroll',               'payroll'],
   ['/api/payroll',           'payroll'],
   // /my-attendance intentionally NOT listed — any logged-in user can clock

@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  Clock, ClipboardCheck, Contact, Banknote, Receipt, Palmtree,
+  Clock, ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -62,15 +62,23 @@ const NAV_GROUPS = [
       { label: 'Financing Sales', href: '/financing-sales', icon: Landmark, module: 'financing' },
     ],
   },
+  // Simple HR Mode: main navigation only shows the 5 everyday screens
+  // (HR Dashboard, Employees, Attendance, Payroll, Payslips) plus My
+  // Attendance (every employee's own self-service clock, not an HR/admin
+  // concern) and HR Settings (one consolidated home for shift templates,
+  // attendance rules, holidays, leave types, and test mode — see
+  // components/hr/HrSettingsClient.tsx). Nothing was removed, only moved —
+  // Leave Management's tabs are all still reachable from HR Settings.
   {
     label: 'HR & PAYROLL',
     items: [
-      { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
       { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
-      { label: 'Attendance Admin', href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
-      { label: 'Leave Management', href: '/leave-management', icon: Palmtree,   module: 'leave_management' },
+      { label: 'HR Dashboard',     href: '/hr-dashboard',  icon: LayoutGrid,     module: 'attendance' },
+      { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
+      { label: 'Attendance',       href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
       { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll' },
       { label: 'Payslips',         href: '/payslips',      icon: Receipt,        module: '_any' },
+      { label: 'HR Settings',      href: '/hr-settings',   icon: Settings,       module: 'attendance' },
     ],
   },
   // AI PRODUCT RESEARCHER group hidden — re-add when ready
