@@ -9,16 +9,24 @@ import Modal from '@/components/ui/Modal';
 
 type Tab = 'overview' | 'attendance' | 'documents' | 'history' | 'payroll' | 'payslips' | 'loans' | 'leave' | 'disciplinary';
 
-const TABS: { key: Tab; label: string }[] = [
+// Only Overview and Attendance actually show per-employee data on THIS
+// screen. Payroll/Payslips/Leave are real, live features elsewhere in the
+// system (Payroll, Payslips, and Leave Management/HR Dashboard) — this tab
+// just points there instead of duplicating them. Documents/Employment
+// History/Loans/Disciplinary are the only genuinely not-yet-built ones, so
+// only those render smaller and muted — keeping all 9 tabs equal weight
+// made this screen look like 9 working sections instead of 2, which is
+// confusing for a first-time HR user.
+const TABS: { key: Tab; label: string; soon?: boolean }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'attendance', label: 'Attendance' },
-  { key: 'documents', label: 'Documents' },
-  { key: 'history', label: 'Employment History' },
   { key: 'payroll', label: 'Payroll' },
   { key: 'payslips', label: 'Payslips' },
-  { key: 'loans', label: 'Loans / Cash Advances' },
   { key: 'leave', label: 'Leave' },
-  { key: 'disciplinary', label: 'Disciplinary' },
+  { key: 'documents', label: 'Documents', soon: true },
+  { key: 'history', label: 'Employment History', soon: true },
+  { key: 'loans', label: 'Loans / Cash Advances', soon: true },
+  { key: 'disciplinary', label: 'Disciplinary', soon: true },
 ];
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -79,7 +87,7 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
     <div className="p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <button onClick={() => router.push('/employees')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+      <button onClick={() => router.push('/employees')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 py-2 -my-2">
         <ArrowLeft size={15} /> Back to Employees
       </button>
 
@@ -97,13 +105,13 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
         </span>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 flex-wrap items-center">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              tab === t.key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            className={`rounded-lg font-semibold transition-colors ${t.soon ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} ${
+              tab === t.key ? 'bg-orange-500 text-white' : t.soon ? 'bg-gray-50 text-gray-400 hover:bg-gray-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {t.label}
@@ -113,12 +121,12 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
 
       {tab === 'overview' && <OverviewTab employee={employee} onSaved={() => { showToast('Employee updated!'); fetchEmployee(); }} showToast={showToast} />}
       {tab === 'attendance' && <AttendanceTab employeeId={employee.id} />}
+      {tab === 'payroll' && <LinksElsewhere icon={Banknote} label="Payroll" description="Payroll is run for all employees at once, per pay period." href="/payroll" linkLabel="Go to Payroll" />}
+      {tab === 'payslips' && <LinksElsewhere icon={Receipt} label="Payslips" description="This employee's payslips appear here once a payroll period is approved and paid." href="/payslips" linkLabel="Go to Payslips" />}
+      {tab === 'leave' && <LinksElsewhere icon={CalendarIcon} label="Leave" description="Leave requests and balances are managed in Leave Management, reachable from HR Settings." href="/hr-settings" linkLabel="Go to HR Settings" />}
       {tab === 'documents' && <ComingSoon icon={FileText} label="Documents" description="Upload and manage 201-file documents (IDs, contracts, certificates) here in a future update." />}
       {tab === 'history' && <ComingSoon icon={Briefcase} label="Employment History" description="Track promotions, transfers, and role changes here in a future update." />}
-      {tab === 'payroll' && <ComingSoon icon={Banknote} label="Payroll" description="Payroll computation — not built yet, coming after Attendance V1 is finalized." />}
-      {tab === 'payslips' && <ComingSoon icon={Receipt} label="Payslips" description="Generated payslips will be viewable and downloadable here once Payroll is built." />}
       {tab === 'loans' && <ComingSoon icon={Wallet} label="Loans / Cash Advances" description="Loan and cash advance requests, balances, and deduction schedules will live here in a future update." />}
-      {tab === 'leave' && <ComingSoon icon={CalendarIcon} label="Leave" description="Leave requests, balances, and approvals will live here in a future update." />}
       {tab === 'disciplinary' && <ComingSoon icon={ShieldAlert} label="Disciplinary" description="Disciplinary records and case history will live here in a future update." />}
     </div>
   );
@@ -130,6 +138,20 @@ function ComingSoon({ icon: Icon, label, description }: { icon: typeof FileText;
       <Icon className="mx-auto text-gray-300 mb-3" size={32} />
       <p className="text-sm font-semibold text-gray-500">{label} — Coming Soon</p>
       <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">{description}</p>
+    </div>
+  );
+}
+
+// For features that are already live elsewhere (Payroll, Payslips, Leave)
+// but don't have a per-employee view on this profile yet — distinct from
+// ComingSoon, which is only for things that genuinely don't exist anywhere.
+function LinksElsewhere({ icon: Icon, label, description, href, linkLabel }: { icon: typeof FileText; label: string; description: string; href: string; linkLabel: string }) {
+  return (
+    <div className="card text-center py-16">
+      <Icon className="mx-auto text-orange-300 mb-3" size={32} />
+      <p className="text-sm font-semibold text-gray-700">{label}</p>
+      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">{description}</p>
+      <a href={href} className="btn-secondary text-xs py-1.5 mt-4 inline-flex">{linkLabel}</a>
     </div>
   );
 }
@@ -360,13 +382,13 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             Attendance Enabled
           </label>
           <p className="text-xs text-gray-400">
-            Only Active employees with Attendance Enabled appear in Attendance Admin (Dashboard, Daily Records, OT, reports).
+            Only Active employees with Attendance Enabled appear in Attendance and HR Dashboard reports.
           </p>
         </div>
 
         {/* Compensation */}
         <div className="card space-y-3">
-          <p className="text-sm font-semibold text-gray-700">Compensation <span className="text-xs font-normal text-gray-400">(storage only — Payroll not built yet)</span></p>
+          <p className="text-sm font-semibold text-gray-700">Compensation <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">Salary Type</label>

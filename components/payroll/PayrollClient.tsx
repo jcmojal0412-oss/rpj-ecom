@@ -166,7 +166,7 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
 
   return (
     <div className="space-y-6">
-      <button onClick={onBackToList} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+      <button onClick={onBackToList} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 py-2 -my-2">
         <ArrowLeft size={15} /> Back to Payroll List
       </button>
 
