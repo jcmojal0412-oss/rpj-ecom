@@ -37,17 +37,19 @@ interface LookupResp {
 // buttons like the logged-in My Attendance page. Filtering this same list
 // by dayState[canKey] naturally produces exactly the per-state button sets
 // from the spec (only TIME IN before clocking in, etc.) because that's
-// exactly what the server-computed dayState already encodes. Gold / blue /
-// silver theme — gold marks the one "special" moment (starting the day),
-// silver marks a pause (starting a break), blue marks resuming or ending
-// work — purely visual, no behavior tied to color.
-const ACTIONS: { type: EventType; label: string; canKey: keyof DayStateResp; icon: typeof Clock; color: string }[] = [
-  { type: 'TIME_IN', label: 'TIME IN', canKey: 'canTimeIn', icon: LogIn, color: 'bg-amber-500 hover:bg-amber-600' },
-  { type: 'COFFEE_OUT', label: 'COFFEE BREAK', canKey: 'canCoffeeOut', icon: Coffee, color: 'bg-slate-500 hover:bg-slate-600' },
-  { type: 'LUNCH_OUT', label: 'LUNCH BREAK', canKey: 'canLunchOut', icon: Utensils, color: 'bg-slate-500 hover:bg-slate-600' },
-  { type: 'TIME_OUT', label: 'TIME OUT', canKey: 'canTimeOut', icon: LogOut, color: 'bg-blue-800 hover:bg-blue-900' },
-  { type: 'COFFEE_IN', label: 'END COFFEE BREAK', canKey: 'canCoffeeIn', icon: Coffee, color: 'bg-blue-600 hover:bg-blue-700' },
-  { type: 'LUNCH_IN', label: 'END LUNCH BREAK', canKey: 'canLunchIn', icon: Utensils, color: 'bg-blue-600 hover:bg-blue-700' },
+// exactly what the server-computed dayState already encodes. Every action
+// shares one gold/amber CTA color — the restrained corporate palette keeps
+// color meaning limited to: gold = call to action, green = success, soft
+// red = error/destructive. Purely visual, no behavior tied to color.
+const PRIMARY_BTN = 'bg-amber-500 hover:bg-amber-600';
+
+const ACTIONS: { type: EventType; label: string; canKey: keyof DayStateResp; icon: typeof Clock }[] = [
+  { type: 'TIME_IN', label: 'TIME IN', canKey: 'canTimeIn', icon: LogIn },
+  { type: 'COFFEE_OUT', label: 'COFFEE BREAK', canKey: 'canCoffeeOut', icon: Coffee },
+  { type: 'LUNCH_OUT', label: 'LUNCH BREAK', canKey: 'canLunchOut', icon: Utensils },
+  { type: 'TIME_OUT', label: 'TIME OUT', canKey: 'canTimeOut', icon: LogOut },
+  { type: 'COFFEE_IN', label: 'END COFFEE BREAK', canKey: 'canCoffeeIn', icon: Coffee },
+  { type: 'LUNCH_IN', label: 'END LUNCH BREAK', canKey: 'canLunchIn', icon: Utensils },
 ];
 
 const RESET_AFTER_MS = 5000;
@@ -90,7 +92,7 @@ export default function KioskAttendanceClient() {
   const [employee, setEmployee] = useState<LookupResp | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [selfieFor, setSelfieFor] = useState<EventType | null>(null);
-  const [successInfo, setSuccessInfo] = useState<{ label: string; time: string; color: string } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ label: string; time: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -156,7 +158,6 @@ export default function KioskAttendanceClient() {
       setSuccessInfo({
         label: action.label,
         time: justRecorded ? fmtPHTime(justRecorded.event_time) : fmtClockTime(new Date()),
-        color: action.color.split(' ')[0].replace('bg-', 'text-'),
       });
       setScreen('success');
       clearResetTimer();
@@ -187,7 +188,7 @@ export default function KioskAttendanceClient() {
   const selfieAction = selfieFor ? ACTIONS.find(a => a.type === selfieFor) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-sky-300 to-slate-200 flex flex-col items-center justify-center p-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-stone-100 via-neutral-50 to-stone-100 flex flex-col items-center justify-center p-4 py-10">
       <div className="w-full max-w-md relative">
         {/* Logo, overlapping the card's top edge */}
         <div className="absolute left-1/2 -translate-x-1/2 -top-12 z-10 bg-white rounded-2xl shadow-md px-5 py-3">
@@ -196,9 +197,9 @@ export default function KioskAttendanceClient() {
 
         <div className="bg-white rounded-2xl shadow-xl pt-14 p-6 sm:p-8 space-y-5">
           <div className="text-center">
-            <p className="text-2xl font-extrabold text-gray-900 tracking-tight">EMPLOYEE</p>
+            <p className="text-2xl font-extrabold text-slate-900 tracking-tight">EMPLOYEE</p>
             <p className="text-sm font-bold text-amber-500 tracking-widest">ATTENDANCE</p>
-            <p className="text-gray-500 text-sm mt-2 tabular-nums">{nowMs != null ? fmtClockDateTime(new Date(nowMs)) : ' '}</p>
+            <p className="text-slate-500 text-sm mt-2 tabular-nums">{nowMs != null ? fmtClockDateTime(new Date(nowMs)) : ' '}</p>
           </div>
 
           {screen === 'idle' && (
@@ -207,7 +208,7 @@ export default function KioskAttendanceClient() {
                 <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center">
                   <Camera className="text-white" size={18} />
                 </div>
-                <p className="text-xs text-gray-400">Camera</p>
+                <p className="text-xs text-slate-400">Camera</p>
               </div>
 
               <input
@@ -217,13 +218,13 @@ export default function KioskAttendanceClient() {
                 onChange={e => setIdentifier(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') lookup(); }}
                 placeholder="Employee ID / Email / Mobile Number"
-                className="w-full text-center text-base font-medium rounded-xl bg-gray-50 border border-gray-200 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full text-center text-base font-medium rounded-xl bg-slate-50 border border-slate-200 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 autoFocus
               />
               <button
                 onClick={lookup}
                 disabled={!identifier.trim()}
-                className="w-full py-5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xl font-bold transition-colors"
+                className={`w-full py-5 rounded-xl disabled:opacity-40 text-white text-xl font-bold transition-colors ${PRIMARY_BTN}`}
               >
                 Continue
               </button>
@@ -233,7 +234,7 @@ export default function KioskAttendanceClient() {
           {screen === 'looking_up' && (
             <div className="py-10 flex flex-col items-center gap-3">
               <Loader2 className="animate-spin text-amber-500" size={36} />
-              <p className="text-sm text-gray-500">Looking up your record...</p>
+              <p className="text-sm text-slate-500">Looking up your record...</p>
             </div>
           )}
 
@@ -241,7 +242,7 @@ export default function KioskAttendanceClient() {
             <div className="py-4 flex flex-col items-center gap-4 text-center">
               <XCircle className="text-rose-400" size={40} />
               <p className="text-sm text-rose-600 font-medium">{errorMsg}</p>
-              <button onClick={resetToIdle} className="w-full py-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold transition-colors">
+              <button onClick={resetToIdle} className="w-full py-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-bold transition-colors">
                 Try Again
               </button>
             </div>
@@ -249,14 +250,14 @@ export default function KioskAttendanceClient() {
 
           {screen === 'identified' && employee && (
             <>
-              <div className="text-center border-b border-gray-100 pb-4">
-                <p className="text-xl font-bold text-gray-900">{employee.full_name}</p>
-                <p className="text-xs text-gray-400 font-mono mt-0.5">{employee.employee_code}</p>
+              <div className="text-center border-b border-slate-100 pb-4">
+                <p className="text-xl font-bold text-slate-900">{employee.full_name}</p>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">{employee.employee_code}</p>
               </div>
 
               {onBreak && breakStartMs != null && (
                 <div className={`rounded-xl p-4 text-center ${overBreakLimit ? 'bg-rose-50' : 'bg-slate-100'}`}>
-                  <p className={`text-3xl font-bold tabular-nums ${overBreakLimit ? 'text-rose-600' : 'text-slate-700'}`}>
+                  <p className={`text-3xl font-bold tabular-nums ${overBreakLimit ? 'text-rose-600' : 'text-slate-800'}`}>
                     {fmtMMSS(elapsedSeconds)}
                   </p>
                   <p className={`text-xs mt-1 ${overBreakLimit ? 'text-rose-500' : 'text-slate-500'}`}>
@@ -267,7 +268,7 @@ export default function KioskAttendanceClient() {
 
               {selfieAction ? (
                 <div className="space-y-3">
-                  <p className="text-center text-sm font-semibold text-gray-700">
+                  <p className="text-center text-sm font-semibold text-slate-700">
                     Please take a selfie for {selfieAction.label}
                   </p>
                   <SelfieCaptureModal
@@ -279,16 +280,16 @@ export default function KioskAttendanceClient() {
                 </div>
               ) : availableActions.length === 0 ? (
                 <div className="text-center py-6 space-y-2">
-                  <CheckCircle2 className="mx-auto text-amber-400" size={36} />
-                  <p className="text-sm text-gray-600 font-medium">You have completed today's attendance.</p>
+                  <CheckCircle2 className="mx-auto text-emerald-500" size={36} />
+                  <p className="text-sm text-slate-600 font-medium">You have completed today's attendance.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3">
-                  {availableActions.map(({ type, label, icon: Icon, color }) => (
+                  {availableActions.map(({ type, label, icon: Icon }) => (
                     <button
                       key={type}
                       onClick={() => handleAction(type)}
-                      className={`flex items-center justify-center gap-3 rounded-xl py-5 text-lg font-bold text-white transition-colors ${color}`}
+                      className={`flex items-center justify-center gap-3 rounded-xl py-5 text-lg font-bold text-white transition-colors ${PRIMARY_BTN}`}
                     >
                       <Icon size={24} />
                       {label}
@@ -299,7 +300,7 @@ export default function KioskAttendanceClient() {
               )}
 
               {!selfieAction && (
-                <button onClick={resetToIdle} className="w-full py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold transition-colors">
+                <button onClick={resetToIdle} className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors">
                   Cancel
                 </button>
               )}
@@ -309,16 +310,16 @@ export default function KioskAttendanceClient() {
           {screen === 'submitting' && (
             <div className="py-10 flex flex-col items-center gap-3">
               <Loader2 className="animate-spin text-amber-500" size={36} />
-              <p className="text-sm text-gray-500">Recording...</p>
+              <p className="text-sm text-slate-500">Recording...</p>
             </div>
           )}
 
           {screen === 'success' && successInfo && (
             <div className="py-6 flex flex-col items-center gap-3 text-center">
-              <CheckCircle2 className="text-amber-500" size={48} />
-              <p className="text-xl font-bold text-gray-900">{successInfo.label} Recorded</p>
-              <p className={`text-3xl font-bold tabular-nums ${successInfo.color}`}>{successInfo.time}</p>
-              <button onClick={resetToIdle} className="w-full mt-2 py-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-bold transition-colors">
+              <CheckCircle2 className="text-emerald-500" size={48} />
+              <p className="text-xl font-bold text-slate-900">{successInfo.label} Recorded</p>
+              <p className="text-3xl font-bold tabular-nums text-emerald-600">{successInfo.time}</p>
+              <button onClick={resetToIdle} className="w-full mt-2 py-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-bold transition-colors">
                 Done
               </button>
             </div>
@@ -326,7 +327,7 @@ export default function KioskAttendanceClient() {
         </div>
       </div>
 
-      <p className="text-white/70 text-xs mt-8">© {nowMs != null ? new Date(nowMs).getFullYear() : ''} RPJ Corp.</p>
+      <p className="text-stone-400 text-xs mt-8">© {nowMs != null ? new Date(nowMs).getFullYear() : ''} RPJ Corp.</p>
     </div>
   );
 }
