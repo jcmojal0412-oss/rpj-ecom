@@ -149,6 +149,7 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
 
   const handleGenerated = (id: number) => {
     setCurrentPeriodId(id);
+    setStep(2);
     onGenerated(id);
   };
 
