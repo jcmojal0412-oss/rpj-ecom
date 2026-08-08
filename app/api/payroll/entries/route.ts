@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       e.total_deductions, e.net_pay,
       p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
-    WHERE e.employee_id = ? ORDER BY p.from_date DESC
+    WHERE e.employee_id = ? AND p.voided_at IS NULL ORDER BY p.from_date DESC
   `).all(employeeId);
 
   return NextResponse.json(rows);

@@ -15,11 +15,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   const db = getDb();
   const entry = db.prepare(`
-    SELECT e.*, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
+    SELECT e.*, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at, p.voided_at
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
     WHERE e.id = ?
   `).get(params.id) as any;
-  if (!entry) return NextResponse.json({ error: 'Payslip not found' }, { status: 404 });
+  // A voided period is hidden from every viewer, admin included — matches
+  // the Void confirmation's promise that it disappears from view, not just
+  // from the admin period list. Recovery is a direct-DB action only.
+  if (!entry || entry.voided_at) return NextResponse.json({ error: 'Payslip not found' }, { status: 404 });
 
   const isAdmin = session.role === 'owner' || session.permissions.includes('payroll');
   if (!isAdmin) {

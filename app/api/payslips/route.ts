@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
         p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
       FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
-      WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL
+      WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL AND p.voided_at IS NULL
       ORDER BY p.from_date DESC
     `).all(employeeIdParam);
     return NextResponse.json(rows);
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
         p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
       FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
+      WHERE p.voided_at IS NULL
       ORDER BY p.from_date DESC, e.employee_name_snapshot ASC
     `).all();
     return NextResponse.json(rows);
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
       p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
-    WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL
+    WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL AND p.voided_at IS NULL
     ORDER BY p.from_date DESC
   `).all(employee.id);
   return NextResponse.json(rows);
