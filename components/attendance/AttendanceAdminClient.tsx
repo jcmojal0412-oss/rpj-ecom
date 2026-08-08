@@ -59,8 +59,6 @@ const EVENT_LABELS: Record<EventType, string> = {
   TIME_OUT: 'Work Time Out',
 };
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 function fmtMinutes(m: number) {
   const h = Math.floor(m / 60), mm = m % 60;
   return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
@@ -171,7 +169,7 @@ function TodayTab() {
 interface Settings {
   lunch_break_minutes: number; coffee_break_minutes: number; coffee_breaks_allowed: number;
   lunch_break_paid: boolean; coffee_break_paid: boolean;
-  min_minutes_before_ot: number; selfie_required: boolean; work_days: number[];
+  min_minutes_before_ot: number; selfie_required: boolean;
 }
 
 export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
@@ -200,13 +198,6 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
   };
 
   if (loading || !settings) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
-
-  const toggleWorkDay = (dow: number) => {
-    setSettings(s => s ? {
-      ...s,
-      work_days: s.work_days.includes(dow) ? s.work_days.filter(d => d !== dow) : [...s.work_days, dow].sort(),
-    } : s);
-  };
 
   return (
     <div className="card space-y-5 max-w-2xl">
@@ -250,29 +241,12 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
       </div>
 
       <div className="border-t border-gray-100 pt-4">
-        <label className="form-label">Selfie Required for Work Time In / Time Out</label>
-        <p className="text-xs text-gray-400 mb-2">Coffee and Lunch breaks never require a selfie.</p>
+        <label className="form-label">Selfie Required for Work Time In / Time Out / Lunch Break</label>
+        <p className="text-xs text-gray-400 mb-2">Coffee breaks never require a selfie.</p>
         <select className="form-input max-w-xs" value={settings.selfie_required ? '1' : '0'} onChange={e => setSettings({ ...settings, selfie_required: e.target.value === '1' })}>
           <option value="1">Required</option>
           <option value="0">Not Required</option>
         </select>
-      </div>
-
-      <div className="border-t border-gray-100 pt-4">
-        <label className="form-label">Work Days</label>
-        <div className="flex gap-1.5 flex-wrap">
-          {WEEKDAYS.map((d, i) => (
-            <button
-              key={d}
-              onClick={() => toggleWorkDay(i)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                settings.work_days.includes(i) ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="flex justify-end pt-2">
