@@ -23,6 +23,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/employees',             'employees'],
   ['/api/employees',         'employees'],
   ['/leave-management',      'leave_management'],
+  ['/payroll',               'payroll'],
+  ['/api/payroll',           'payroll'],
   // /my-attendance intentionally NOT listed — any logged-in user can clock
   // in regardless of granted modules, so it falls through unmatched (same
   // as any other route not in this list: valid session required, no
@@ -34,7 +36,12 @@ const ROUTE_MODULES: [string, string][] = [
   // /api/attendance-exceptions are NOT listed — each mixes self-service
   // (submit/view your own leave request, read active leave types/holidays)
   // with admin-only actions (approve, configure), so every route under
-  // them does its own getSession() + permission check.
+  // them does its own getSession() + permission check. /payroll and
+  // /api/payroll ARE blanket-gated (unlike attendance/leave) because every
+  // route under them is genuinely admin-only — the one self-service
+  // exception, viewing your own payslip, lives under the separate
+  // /payslips and /api/payslips paths, deliberately left unlisted here so
+  // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready

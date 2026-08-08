@@ -7,13 +7,21 @@ import { resolveAttendanceException, applyAttendanceException } from '@/lib/atte
 
 export const dynamic = 'force-dynamic';
 
+// Builds the list of YYYY-MM-DD dates from `from` to `to` inclusive. Uses
+// Date.UTC() explicitly rather than `new Date(dateStr + 'T00:00:00')` —
+// the latter parses as the SERVER'S LOCAL timezone, which silently shifts
+// every date by a day whenever that local zone isn't UTC (e.g. a PH-local
+// dev machine, UTC+8) even though production containers are typically UTC.
+// Found via Payroll V1 QA, where a non-UTC local run surfaced the drift.
 function dateRange(from: string, to: string): string[] {
   const dates: string[] = [];
-  let cur = new Date(from + 'T00:00:00');
-  const end = new Date(to + 'T00:00:00');
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  let cur = Date.UTC(fy, fm - 1, fd);
+  const end = Date.UTC(ty, tm - 1, td);
   while (cur <= end) {
-    dates.push(cur.toISOString().slice(0, 10));
-    cur = new Date(cur.getTime() + 86_400_000);
+    dates.push(new Date(cur).toISOString().slice(0, 10));
+    cur += 86_400_000;
   }
   return dates;
 }

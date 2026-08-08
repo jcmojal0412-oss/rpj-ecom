@@ -557,6 +557,101 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_attendance_exceptions_employee_range ON attendance_exceptions(employee_id, from_date, to_date);
   `);
   seedLeaveTypesIfEmpty();
+
+  // Payroll V1 — computes off the already-built Attendance/Leave/Employee
+  // data (never re-implements any of it). payroll_entries stores a FULL
+  // SNAPSHOT of every source value used (rate, allowance, attendance
+  // totals, approved OT, computed pay breakdown) at generation time — once
+  // written, nothing here is ever re-read live from employees/
+  // attendance_events/leave_requests again, so editing an employee's
+  // salary, shift, or old attendance can never change a historical payroll
+  // run. See lib/payroll.ts (pure calculation engine, no DB access — same
+  // "engine never changes" principle as lib/attendance.ts) and
+  // lib/payroll-data.ts (the DB-touching aggregation layer that builds the
+  // snapshot). Explicitly NOT built yet per instruction: SSS, PhilHealth,
+  // Pag-IBIG, withholding tax, 13th month — Phase 2.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS payroll_periods (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      label TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('draft','for_review','approved','paid','locked')) DEFAULT 'draft',
+      generated_by INTEGER REFERENCES users(id),
+      generated_at TEXT DEFAULT (datetime('now')),
+      reviewed_by INTEGER REFERENCES users(id),
+      reviewed_at TEXT,
+      approved_by INTEGER REFERENCES users(id),
+      approved_at TEXT,
+      paid_by INTEGER REFERENCES users(id),
+      paid_at TEXT,
+      locked_by INTEGER REFERENCES users(id),
+      locked_at TEXT,
+      payslips_generated_by INTEGER REFERENCES users(id),
+      payslips_generated_at TEXT,
+      UNIQUE(from_date, to_date)
+    );
+
+    CREATE TABLE IF NOT EXISTS payroll_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payroll_period_id INTEGER NOT NULL REFERENCES payroll_periods(id),
+      employee_id INTEGER NOT NULL REFERENCES employees(id),
+      employee_name_snapshot TEXT NOT NULL,
+      employee_code_snapshot TEXT NOT NULL,
+      position_snapshot TEXT,
+      salary_type_snapshot TEXT NOT NULL,
+      basic_rate_snapshot REAL NOT NULL,
+      allowance_snapshot REAL NOT NULL,
+      work_days_count INTEGER NOT NULL DEFAULT 0,
+      late_minutes INTEGER NOT NULL DEFAULT 0,
+      undertime_minutes INTEGER NOT NULL DEFAULT 0,
+      excess_break_minutes INTEGER NOT NULL DEFAULT 0,
+      absence_days REAL NOT NULL DEFAULT 0,
+      unpaid_leave_days REAL NOT NULL DEFAULT 0,
+      approved_ot_minutes INTEGER NOT NULL DEFAULT 0,
+      ot_multiplier_snapshot REAL NOT NULL DEFAULT 1.25,
+      basic_pay REAL NOT NULL DEFAULT 0,
+      ot_pay REAL NOT NULL DEFAULT 0,
+      allowance_pay REAL NOT NULL DEFAULT 0,
+      bonus_earnings REAL NOT NULL DEFAULT 0,
+      gross_pay REAL NOT NULL DEFAULT 0,
+      late_deduction REAL NOT NULL DEFAULT 0,
+      undertime_deduction REAL NOT NULL DEFAULT 0,
+      excess_break_deduction REAL NOT NULL DEFAULT 0,
+      absence_deduction REAL NOT NULL DEFAULT 0,
+      unpaid_leave_deduction REAL NOT NULL DEFAULT 0,
+      other_deductions REAL NOT NULL DEFAULT 0,
+      total_deductions REAL NOT NULL DEFAULT 0,
+      net_pay REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(payroll_period_id, employee_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_payroll_entries_period ON payroll_entries(payroll_period_id);
+    CREATE INDEX IF NOT EXISTS idx_payroll_entries_employee ON payroll_entries(employee_id);
+
+    CREATE TABLE IF NOT EXISTS payroll_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payroll_entry_id INTEGER NOT NULL REFERENCES payroll_entries(id),
+      adjustment_type TEXT NOT NULL CHECK(adjustment_type IN ('bonus','incentive','additional_allowance','other_earning','cash_advance','loan_deduction','other_deduction')),
+      amount REAL NOT NULL,
+      reason TEXT NOT NULL,
+      added_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_payroll_adjustments_entry ON payroll_adjustments(payroll_entry_id);
+
+    CREATE TABLE IF NOT EXISTS payroll_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payroll_period_id INTEGER REFERENCES payroll_periods(id),
+      payroll_entry_id INTEGER REFERENCES payroll_entries(id),
+      actor_user_id INTEGER REFERENCES users(id),
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_payroll_audit_period ON payroll_audit_log(payroll_period_id);
+  `);
+  db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('payroll_ot_multiplier', '1.25')`).run();
 }
 
 // One-time backfill: every existing users row becomes a linked, active,

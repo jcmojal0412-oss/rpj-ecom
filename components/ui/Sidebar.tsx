@@ -69,8 +69,8 @@ const NAV_GROUPS = [
       { label: 'My Attendance',    href: '/my-attendance', icon: Clock,          module: '_any' },
       { label: 'Attendance Admin', href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
       { label: 'Leave Management', href: '/leave-management', icon: Palmtree,   module: 'leave_management' },
-      { label: 'Payroll',          href: '#',              icon: Banknote,       module: 'employees', disabled: true },
-      { label: 'Payslips',         href: '#',              icon: Receipt,        module: 'employees', disabled: true },
+      { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll' },
+      { label: 'Payslips',         href: '/payslips',      icon: Receipt,        module: '_any' },
     ],
   },
   // AI PRODUCT RESEARCHER group hidden — re-add when ready
