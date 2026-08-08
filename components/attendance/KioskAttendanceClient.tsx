@@ -41,7 +41,7 @@ interface LookupResp {
 // shares one gold/amber CTA color — the restrained corporate palette keeps
 // color meaning limited to: gold = call to action, green = success, soft
 // red = error/destructive. Purely visual, no behavior tied to color.
-const PRIMARY_BTN = 'bg-amber-500 hover:bg-amber-600';
+const PRIMARY_BTN = 'bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-md shadow-amber-500/30';
 
 const ACTIONS: { type: EventType; label: string; canKey: keyof DayStateResp; icon: typeof Clock }[] = [
   { type: 'TIME_IN', label: 'TIME IN', canKey: 'canTimeIn', icon: LogIn },
@@ -188,24 +188,24 @@ export default function KioskAttendanceClient() {
   const selfieAction = selfieFor ? ACTIONS.find(a => a.type === selfieFor) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-100 via-neutral-50 to-stone-100 flex flex-col items-center justify-center p-4 py-10">
-      <div className="w-full max-w-md relative">
-        {/* Logo, overlapping the card's top edge */}
-        <div className="absolute left-1/2 -translate-x-1/2 -top-12 z-10 bg-white rounded-2xl shadow-md px-5 py-3">
-          <Image src="/rpj-logo-gold.png" alt="RPJ Corp" width={80} height={64} className="object-contain" priority />
+    <div className="min-h-screen bg-gradient-to-b from-[#EEF3F8] via-[#E9F0F6] to-[#EEF3F8] flex flex-col items-center justify-center p-4 py-10">
+      <div className="w-full max-w-lg relative">
+        {/* Logo, hovering above the card with clear breathing room */}
+        <div className="absolute left-1/2 -translate-x-1/2 -top-14 z-10 bg-white rounded-2xl shadow-md ring-1 ring-black/5 px-6 py-4">
+          <Image src="/rpj-logo-gold.png" alt="RPJ Corp" width={88} height={70} className="object-contain" priority />
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl pt-14 p-6 sm:p-8 space-y-5">
+        <div className="bg-white rounded-2xl shadow-lg ring-1 ring-black/5 pt-20 px-6 pb-6 sm:px-10 sm:pb-10 space-y-6">
           <div className="text-center">
             <p className="text-2xl font-extrabold text-slate-900 tracking-tight">EMPLOYEE</p>
-            <p className="text-sm font-bold text-amber-500 tracking-widest">ATTENDANCE</p>
+            <p className="text-sm font-bold text-amber-600 tracking-widest">ATTENDANCE</p>
             <p className="text-slate-500 text-sm mt-2 tabular-nums">{nowMs != null ? fmtClockDateTime(new Date(nowMs)) : ' '}</p>
           </div>
 
           {screen === 'idle' && (
             <>
-              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 h-36 flex flex-col items-center justify-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 h-36 flex flex-col items-center justify-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-amber-600 flex items-center justify-center">
                   <Camera className="text-white" size={18} />
                 </div>
                 <p className="text-xs text-slate-400">Camera</p>
@@ -218,7 +218,7 @@ export default function KioskAttendanceClient() {
                 onChange={e => setIdentifier(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') lookup(); }}
                 placeholder="Employee ID / Email / Mobile Number"
-                className="w-full text-center text-base font-medium rounded-xl bg-slate-50 border border-slate-200 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full text-center text-base font-medium rounded-xl bg-slate-50 border border-slate-200 px-4 py-4 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 autoFocus
               />
               <button
@@ -233,7 +233,7 @@ export default function KioskAttendanceClient() {
 
           {screen === 'looking_up' && (
             <div className="py-10 flex flex-col items-center gap-3">
-              <Loader2 className="animate-spin text-amber-500" size={36} />
+              <Loader2 className="animate-spin text-amber-600" size={36} />
               <p className="text-sm text-slate-500">Looking up your record...</p>
             </div>
           )}
@@ -309,7 +309,7 @@ export default function KioskAttendanceClient() {
 
           {screen === 'submitting' && (
             <div className="py-10 flex flex-col items-center gap-3">
-              <Loader2 className="animate-spin text-amber-500" size={36} />
+              <Loader2 className="animate-spin text-amber-600" size={36} />
               <p className="text-sm text-slate-500">Recording...</p>
             </div>
           )}
