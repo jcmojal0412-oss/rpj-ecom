@@ -164,14 +164,32 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
   };
 }
 
-// Default semi-monthly cutoffs for a given month — "1-15" and "16-End of
-// Month". Pure date math, no DB.
-export function getDefaultCutoffs(year: number, month1to12: number): { firstHalf: { from: string; to: string; label: string }; secondHalf: { from: string; to: string; label: string } } {
+export interface PayrollCutoff {
+  from: string;
+  to: string;
+  label: string;
+  payDate: string; // same as `to` in this schedule — cutoff ends the day it pays
+}
+
+// Default 4x-monthly cutoffs — pay dates on the 8th, 15th, 23rd, and the
+// last day of the month (loosely "30th" in everyday speech, but Feb/30-day
+// months use their actual last day so no cutoff ever skips or double-counts
+// a day). Each cutoff's attendance window ends ON its pay date — no
+// processing lag modeled, since none was specified; if actual practice pays
+// a few days after cutoff-end, this needs a distinct payDate field later.
+// Pure date math, no DB.
+export function getDefaultCutoffs(year: number, month1to12: number): { cutoffs: PayrollCutoff[] } {
   const mm = String(month1to12).padStart(2, '0');
   const lastDay = new Date(year, month1to12, 0).getDate();
   const monthName = new Date(year, month1to12 - 1, 1).toLocaleString('en-US', { month: 'long' });
+  const d = (day: number) => `${year}-${mm}-${String(day).padStart(2, '0')}`;
+  const ranges: [number, number][] = [[1, 8], [9, 15], [16, 23], [24, lastDay]];
   return {
-    firstHalf: { from: `${year}-${mm}-01`, to: `${year}-${mm}-15`, label: `${monthName} 1-15, ${year}` },
-    secondHalf: { from: `${year}-${mm}-16`, to: `${year}-${mm}-${String(lastDay).padStart(2, '0')}`, label: `${monthName} 16-${lastDay}, ${year}` },
+    cutoffs: ranges.map(([from, to]) => ({
+      from: d(from),
+      to: d(to),
+      label: `${monthName} ${from}-${to}, ${year}`,
+      payDate: d(to),
+    })),
   };
 }

@@ -262,12 +262,13 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
 
 function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => void }) {
   const now = new Date(Date.now() + 8 * 3600 * 1000);
+  const todayISO = now.toISOString().slice(0, 10);
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
-  const [selected, setSelected] = useState<'first' | 'second' | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
   const [label, setLabel] = useState('');
 
-  const cutoffs = getDefaultCutoffs(year, month);
+  const { cutoffs } = getDefaultCutoffs(year, month);
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
   const changeMonth = (delta: number) => {
@@ -277,14 +278,15 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
     setSelected(null);
   };
 
-  const select = (which: 'first' | 'second') => {
-    setSelected(which);
-    setLabel(which === 'first' ? cutoffs.firstHalf.label : cutoffs.secondHalf.label);
+  const select = (i: number) => {
+    if (cutoffs[i].to >= todayISO) return; // cutoff hasn't ended yet — see next()'s guard too
+    setSelected(i);
+    setLabel(cutoffs[i].label);
   };
 
   const next = () => {
-    if (!selected) return;
-    const range = selected === 'first' ? cutoffs.firstHalf : cutoffs.secondHalf;
+    if (selected === null) return;
+    const range = cutoffs[selected];
     onSelected({ from: range.from, to: range.to, label: label.trim() || range.label });
   };
 
@@ -292,7 +294,7 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
     <div className="card space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Select a payroll period</p>
-        <p className="text-sm text-gray-500 mt-0.5">Choose which cutoff you want to run payroll for.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Choose which cutoff you want to run payroll for. Pay dates: 8th, 15th, 23rd, and end of month.</p>
       </div>
 
       <div className="flex items-center justify-center gap-4">
@@ -302,30 +304,35 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
-        <button
-          onClick={() => select('first')}
-          className={`rounded-2xl border-2 p-6 text-left transition-colors ${selected === 'first' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}
-        >
-          <p className="text-lg font-bold text-gray-900">1st Half</p>
-          <p className="text-sm text-gray-500">{cutoffs.firstHalf.label}</p>
-        </button>
-        <button
-          onClick={() => select('second')}
-          className={`rounded-2xl border-2 p-6 text-left transition-colors ${selected === 'second' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}
-        >
-          <p className="text-lg font-bold text-gray-900">2nd Half</p>
-          <p className="text-sm text-gray-500">{cutoffs.secondHalf.label}</p>
-        </button>
+        {cutoffs.map((c, i) => {
+          const notEnded = c.to >= todayISO;
+          return (
+            <button
+              key={c.from}
+              onClick={() => select(i)}
+              disabled={notEnded}
+              className={`rounded-2xl border-2 p-6 text-left transition-colors ${
+                notEnded ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed' :
+                selected === i ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <p className="text-lg font-bold text-gray-900">Cutoff {i + 1}</p>
+              <p className="text-sm text-gray-500">{c.label}</p>
+              <p className="text-xs text-gray-400 mt-1">Pay date: {new Date(c.payDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+              {notEnded && <p className="text-xs text-amber-600 mt-1">Cutoff hasn&apos;t ended yet</p>}
+            </button>
+          );
+        })}
       </div>
 
-      {selected && (
+      {selected !== null && (
         <div>
           <label className="form-label">Payroll Period Name</label>
           <input type="text" className="form-input" value={label} onChange={e => setLabel(e.target.value)} />
         </div>
       )}
 
-      <button onClick={next} disabled={!selected} className="btn-primary text-base py-3 px-8 disabled:opacity-50">
+      <button onClick={next} disabled={selected === null} className="btn-primary text-base py-3 px-8 disabled:opacity-50">
         Next: Generate Payroll
       </button>
     </div>
