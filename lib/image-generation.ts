@@ -46,16 +46,26 @@ export async function generateAdImage(input: GenerateAdImageInput): Promise<Gene
 async function generateWithOpenAI(input: GenerateAdImageInput, apiKey: string): Promise<GenerateAdImageResult> {
   const size = FORMAT_TO_OPENAI_SIZE[input.format];
 
+  // quality: 'high' — without this, gpt-image-1 falls back to a cheaper/
+  // faster internal default that visibly looks worse than what the ChatGPT
+  // app itself renders (which always uses high quality for user-facing
+  // images). This costs more per generation but was the actual root cause
+  // of the "looks nothing like ChatGPT" complaint — not the prompt.
   let res: Response;
   if (input.referenceImageBase64) {
     // Image edit — uses the supplied product photo as the visual reference,
     // per "preserve the real product appearance as accurately as possible."
+    // input_fidelity: 'high' is gpt-image-1's dedicated setting for exactly
+    // that — it keeps far more of the reference photo's real detail intact
+    // through the edit than the default, instead of loosely reinterpreting it.
     const bytes = Buffer.from(input.referenceImageBase64, 'base64');
     const ext = (input.referenceImageMediaType || 'image/jpeg').split('/')[1] || 'jpg';
     const form = new FormData();
     form.append('model', 'gpt-image-1');
     form.append('prompt', input.prompt);
     form.append('size', size);
+    form.append('quality', 'high');
+    form.append('input_fidelity', 'high');
     form.append('n', '1');
     form.append('image', new Blob([bytes], { type: input.referenceImageMediaType || 'image/jpeg' }), `reference.${ext}`);
 
@@ -68,7 +78,7 @@ async function generateWithOpenAI(input: GenerateAdImageInput, apiKey: string): 
     res = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-image-1', prompt: input.prompt, size, n: 1 }),
+      body: JSON.stringify({ model: 'gpt-image-1', prompt: input.prompt, size, quality: 'high', n: 1 }),
     });
   }
 
