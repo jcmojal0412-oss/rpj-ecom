@@ -112,19 +112,27 @@ export function computeDiscountPercent(sellingPrice: number, oldPrice?: number |
 
 // LAYER 1 — hidden master prompt, always used. Describes the FULL finished
 // poster structure (matching the reference ads), not just a product photo.
+//
+// Revised after owner feedback on the first two live samples ("wala model,
+// wala hook" — no human/lifestyle presence, and the eyebrow line was just a
+// restated product name instead of an actual attention-grabbing hook). Both
+// are now required defaults, not left to chance.
 const MASTER_PROMPT = `Create a premium, professional, full-bleed Facebook advertising POSTER for the attached product — a complete finished ad graphic that combines real photography with polished graphic design, like a high-end printed flyer or agency-made ecommerce ad. This is NOT just a product photo — it is a fully composed advertisement with real text rendered directly in the image.
 
 Preserve the actual product's appearance exactly and make it the visual hero of the design — never invent a different product, never redesign it, never distort its shape, colors, materials, or markings.
 
 COMPOSITION TO FOLLOW (adapt to the chosen style below, but keep this general structure):
-- Full-bleed, photorealistic background — real photography (a lifestyle setting, a model, or refined studio staging, whichever fits the style) with the product naturally integrated into the scene.
-- A short decorative header near the top: a slim ornamental divider line, optionally with a small decorative motif, framing a short elegant eyebrow line above a bold, large headline.
+- Full-bleed, photorealistic lifestyle background with the product naturally integrated into the scene.
+- HUMAN PRESENCE (default — include unless the product genuinely cannot support one): a real person or model naturally in the scene — a hand placing, holding, or adjusting the product, a person in the background of the room/setting, or someone visibly using or admiring it. Do not default to an empty, unpeopled studio shot; a lived-in, human scene reads far more premium and relatable than a bare product photo.
+- A short decorative header near the top: a slim ornamental divider line, optionally with a small decorative motif, framing a HOOK line above a bold, large headline.
 - A short one-line supporting description beneath the headline.
 - A vertical or horizontal list of benefit callouts, each paired with a small circular icon badge.
 - A circular badge or seal graphic somewhere in the composition carrying a short closing line or the call-to-action phrase.
 - A bottom banner: a bold colored strip with a short punchy tagline, and a lighter strip beneath it with 2 short trust/value phrases separated by a small divider.
-- Typography: pair an elegant script/cursive accent face for the small eyebrow line with a bold serif or bold sans headline, and a clean simple sans for supporting/body text — premium, editorial, magazine-ad quality, never a generic template look.
+- Typography: pair an elegant script/cursive accent face for the small hook/eyebrow line with a bold serif or bold sans headline, and a clean simple sans for supporting/body text — premium, editorial, magazine-ad quality, never a generic template look.
 - Strong visual hierarchy, balanced spacing, premium lighting and shadow, modern styling. Optimized for mobile Facebook feed viewing.
+
+HOOK LINE (non-negotiable): the small eyebrow line above the headline must be a genuine scroll-stopping HOOK — a benefit, question, or curiosity/urgency-driven phrase written to make someone stop scrolling (e.g. "Still guessing what day it is?", "The one thing your home is missing"). It must NEVER simply restate the product name or category as a label. Always invent this hook line yourself in the same voice as the rest of the copy — it is never one of the exact-text fields below.
 
 TEXT ACCURACY (non-negotiable): render the Headline, Benefits, Offer/tagline and CTA text given below EXACTLY as written — do not rewrite, shorten, paraphrase, mistranslate, or invent your own copy in their place. If any of those fields are not provided, you may design a short, fitting line yourself in the same voice, but never for the ones that ARE provided.
 
