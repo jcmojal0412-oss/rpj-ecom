@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { buildAdPrompt, CREATIVE_STYLES, type AdFormat, type CreativeStyle } from '@/lib/ai-fb-ads';
+import { buildAdPrompt, CREATIVE_STYLES, PRESET_PROMPTS, type AdFormat, type CreativeStyle, type PromptMode, type PresetKey } from '@/lib/ai-fb-ads';
 import { generateAdImage, ImageGenerationConfigError, ImageGenerationApiError } from '@/lib/image-generation';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { product_name, creative_style, format, reference_image_base64, reference_image_media_type } = body;
+    const {
+      product_name, creative_style, format, reference_image_base64, reference_image_media_type,
+      prompt_mode, preset_key, custom_prompt,
+    } = body;
 
     if (!product_name?.trim()) {
       return NextResponse.json({ error: 'Product name is required.' }, { status: 400 });
@@ -32,8 +35,18 @@ export async function POST(req: NextRequest) {
     const validStyles = CREATIVE_STYLES.map(s => s.key);
     const style: CreativeStyle = validStyles.includes(creative_style) ? creative_style : 'auto';
     const adFormat: AdFormat = format === '1:1' ? '1:1' : '4:5';
+    const mode: PromptMode = ['auto', 'preset', 'custom'].includes(prompt_mode) ? prompt_mode : 'auto';
+    const validPresets = PRESET_PROMPTS.map(p => p.key);
+    const preset: PresetKey | undefined = validPresets.includes(preset_key) ? preset_key : undefined;
 
-    const prompt = buildAdPrompt({ productName: product_name.trim(), creativeStyle: style, format: adFormat });
+    const prompt = buildAdPrompt({
+      productName: product_name.trim(),
+      creativeStyle: style,
+      format: adFormat,
+      promptMode: mode,
+      presetKey: preset,
+      customPrompt: mode === 'custom' ? custom_prompt : undefined,
+    });
 
     const generated = await generateAdImage({
       prompt,

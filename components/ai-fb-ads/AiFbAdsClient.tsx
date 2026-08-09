@@ -17,6 +17,23 @@ type StyleKey = typeof CREATIVE_STYLES[number]['key'];
 const CTA_OPTIONS = ['Shop Now', 'Order Now', 'Buy Now', 'Get Yours Now', 'Learn More'];
 const OFFER_SUGGESTIONS = ['BUY 1 TAKE 1', 'FREE SHIPPING', 'COD AVAILABLE', 'LIMITED TIME OFFER'];
 
+const PROMPT_MODES = [
+  { key: 'auto', label: 'Auto', description: 'Uses the hidden master prompt + your Creative Style. No extra input needed.' },
+  { key: 'preset', label: 'Preset', description: 'Pick a named creative direction below.' },
+  { key: 'custom', label: 'Custom', description: 'Add your own extra instructions.' },
+] as const;
+type PromptModeKey = typeof PROMPT_MODES[number]['key'];
+
+const PRESETS = [
+  { key: 'premium', label: 'Premium Product', description: 'Elegant, luxury-inspired, refined lighting.' },
+  { key: 'feature_heavy', label: 'Feature Heavy Ecommerce', description: 'Large hero product, benefit/icon areas.' },
+  { key: 'promo', label: 'Promo / Discount', description: 'Scroll-stopping, offer-led, urgent.' },
+  { key: 'lifestyle', label: 'Lifestyle', description: 'Aspirational real-world setting.' },
+  { key: 'minimal_clean', label: 'Minimal Clean', description: 'Strong spacing, soft background, elegant.' },
+  { key: 'high_converting', label: 'High-Converting FB Ad', description: 'Strong hook, persuasive hierarchy.' },
+] as const;
+type PresetKey = typeof PRESETS[number]['key'];
+
 const NAVY = '#0B1F3A';
 const ROYAL = '#2554C7';
 
@@ -284,6 +301,9 @@ export default function AiFbAdsClient() {
   const [cta, setCta] = useState('Shop Now');
   const [creativeStyle, setCreativeStyle] = useState<StyleKey>('auto');
   const [format, setFormat] = useState<'4:5' | '1:1'>('4:5');
+  const [promptMode, setPromptMode] = useState<PromptModeKey>('auto');
+  const [presetKey, setPresetKey] = useState<PresetKey>('premium');
+  const [customPrompt, setCustomPrompt] = useState('');
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -338,6 +358,9 @@ export default function AiFbAdsClient() {
           format,
           reference_image_base64: base64,
           reference_image_media_type: mediaType,
+          prompt_mode: promptMode,
+          preset_key: promptMode === 'preset' ? presetKey : undefined,
+          custom_prompt: promptMode === 'custom' ? customPrompt : undefined,
         }),
       });
       const genData = await genRes.json();
@@ -471,8 +494,8 @@ export default function AiFbAdsClient() {
           </div>
 
           <div>
-            <label className="form-label">Creative Style</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <label className="form-label">Creative Style {promptMode === 'preset' && <span className="text-gray-400 font-normal">— not used while Prompt Mode is Preset</span>}</label>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2 ${promptMode === 'preset' ? 'opacity-40 pointer-events-none' : ''}`}>
               {CREATIVE_STYLES.map(s => (
                 <button
                   key={s.key}
@@ -484,6 +507,54 @@ export default function AiFbAdsClient() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Prompt Mode — Layer 2/3 of the 3-layer prompt system (Layer 1,
+              the master prompt, is hidden and always applied). Auto reuses
+              Creative Style above; Preset overrides it with a named
+              direction; Custom keeps Creative Style AND appends free text. */}
+          <div className="border-t border-gray-100 pt-4">
+            <label className="form-label">Prompt Mode</label>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {PROMPT_MODES.map(m => (
+                <button
+                  key={m.key}
+                  onClick={() => setPromptMode(m.key)}
+                  className={`text-left rounded-lg border-2 p-2.5 transition-colors ${promptMode === m.key ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <p className="text-xs font-semibold text-gray-900">{m.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{m.description}</p>
+                </button>
+              ))}
+            </div>
+
+            {promptMode === 'preset' && (
+              <div className="grid grid-cols-2 gap-2">
+                {PRESETS.map(p => (
+                  <button
+                    key={p.key}
+                    onClick={() => setPresetKey(p.key)}
+                    className={`text-left rounded-lg border-2 p-2.5 transition-colors ${presetKey === p.key ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  >
+                    <p className="text-xs font-semibold text-gray-900">{p.label}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{p.description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {promptMode === 'custom' && (
+              <div>
+                <label className="form-label">Custom Prompt <span className="text-gray-400 font-normal">— optional</span></label>
+                <textarea
+                  className="form-input min-h-[90px]"
+                  value={customPrompt}
+                  onChange={e => setCustomPrompt(e.target.value)}
+                  placeholder="e.g. use blue and white theme, make it more premium, use modern home background, add stylish model if appropriate, focus on mothers/homeowners, make it elegant and scroll-stopping"
+                />
+                <p className="text-xs text-gray-400 mt-1">Still uses the master prompt + your Creative Style above — this text is added on top. Leave blank to let the generator add its own premium-styling hook automatically.</p>
+              </div>
+            )}
           </div>
 
           <div>

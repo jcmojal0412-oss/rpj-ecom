@@ -2,18 +2,30 @@
 // Kept separate from lib/image-generation.ts (the provider transport) so
 // "what to ask for" stays independent of "how to call the API."
 //
-// V1.1 architecture change (per owner feedback on the first real test):
-// the AI model must NEVER be asked to render price/headline/benefits/CTA
-// text — vision-language image models routinely misspell or invent numbers,
-// and the first live test also showed it can drift away from the supplied
-// reference product entirely. So the prompt now asks for ONLY the visual
-// backbone (product staging, background, lighting, composition) with an
-// explicit "no text" instruction, and the app draws the real text as a
-// canvas overlay afterward (see AiFbAdsClient.tsx) — the AI image becomes
-// scaffolding, never the source of truth for anything a customer reads.
+// V1.2 architecture — three prompt layers, matching the owner's requested
+// structure:
+//   LAYER 1: MASTER_PROMPT — hidden, always used, owner-specified wording.
+//   LAYER 2: style direction — either the matching CREATIVE_STYLES entry
+//            (Prompt Mode = Auto or Custom) or a PRESET_PROMPTS entry
+//            (Prompt Mode = Preset).
+//   LAYER 3: CUSTOM_PROMPT — optional free text, only appended in Custom mode.
+//
+// TECHNICAL_ADDENDUM is NOT one of the three owner-facing layers — it's a
+// standing technical constraint appended to every request regardless of
+// mode. It exists because of what the V1.1 rework (previous session) found
+// in the first live test: asking the model to render price/headline/CTA
+// text produced wrong numbers and even a wrong product. The addendum keeps
+// the master prompt's own "avoid fake text, inaccurate numbers" line
+// actually enforceable by (a) telling the model to leave that text out of
+// the image entirely — the app composites the real text afterward via
+// canvas, see AiFbAdsClient.tsx — and (b) spelling out product-fidelity
+// requirements precisely. Removing it would regress straight back to the
+// wrong-product/wrong-price failure from the first test.
 
 export type CreativeStyle = 'auto' | 'premium' | 'feature_heavy' | 'promo' | 'lifestyle';
 export type AdFormat = '4:5' | '1:1';
+export type PromptMode = 'auto' | 'preset' | 'custom';
+export type PresetKey = 'premium' | 'feature_heavy' | 'promo' | 'lifestyle' | 'minimal_clean' | 'high_converting';
 
 export const CREATIVE_STYLES: { key: CreativeStyle; label: string; description: string; promptDirection: string }[] = [
   {
@@ -62,6 +74,37 @@ export const CREATIVE_STYLES: { key: CreativeStyle; label: string; description: 
   },
 ];
 
+// Preset prompts — owner-specified wording, used only when Prompt Mode = Preset.
+export const PRESET_PROMPTS: { key: PresetKey; label: string; prompt: string }[] = [
+  {
+    key: 'premium', label: 'Premium Product',
+    prompt: 'Use a premium, elegant, clean, luxury-inspired ecommerce style. Emphasize the product as the hero with refined lighting, premium presentation, and a polished professional look.',
+  },
+  {
+    key: 'feature_heavy', label: 'Feature Heavy Ecommerce',
+    prompt: 'Use a structured ecommerce ad layout with a large hero product, clean feature sections, icons or visual benefit areas, and a professional infographic-style composition.',
+  },
+  {
+    key: 'promo', label: 'Promo / Discount',
+    prompt: 'Use a scroll-stopping sales-driven layout. Emphasize the offer, price, urgency, and CTA while keeping the product highly visible and the design premium.',
+  },
+  {
+    key: 'lifestyle', label: 'Lifestyle',
+    prompt: 'Place the product in a realistic, aspirational, and visually attractive lifestyle setting. Keep the design clean and premium, with the product still as the hero.',
+  },
+  {
+    key: 'minimal_clean', label: 'Minimal Clean',
+    prompt: 'Use a minimalist clean layout with strong spacing, soft background, simple premium typography, and focus on elegance and clarity.',
+  },
+  {
+    key: 'high_converting', label: 'High-Converting FB Ad',
+    prompt: 'Use a high-converting Facebook ad approach with a strong hook, premium product presentation, persuasive visual hierarchy, and mobile-first clarity.',
+  },
+];
+
+export const DEFAULT_CUSTOM_FALLBACK =
+  'Add a strong hook, make it premium, and if appropriate include a model or lifestyle element to improve visual appeal.';
+
 export const CTA_OPTIONS = ['Shop Now', 'Order Now', 'Buy Now', 'Get Yours Now', 'Learn More'] as const;
 
 // Never trust a manually-typed discount figure — compute it from the two
@@ -72,46 +115,61 @@ export function computeDiscountPercent(sellingPrice: number, oldPrice?: number |
   return Math.round((1 - sellingPrice / oldPrice) * 100);
 }
 
-const MASTER_INSTRUCTION = `Create the visual backbone of a professional commercial ecommerce product photograph, to be used as a Facebook advertising creative background. This image will have real marketing text and pricing added on top of it afterward by a separate design layer — so this image itself must contain almost no text.
+// LAYER 1 — hidden master prompt, owner-specified wording, always used.
+const MASTER_PROMPT = `Create a premium high-converting Facebook ad image for the attached product.
+Preserve the actual product appearance and make it the main hero of the design.
+Create a clean, premium, professional ecommerce advertising layout.
+Use strong visual hierarchy, polished composition, balanced spacing, premium lighting, and modern styling.
+Make it suitable for Facebook Ads and optimized for mobile viewing.
+If appropriate, include a stylish model or lifestyle element, but keep the product as the main focus.
+Avoid clutter, distorted product details, fake text, inaccurate numbers, cheap-looking layouts, and random brand elements.
+Strictly follow the selected output format and aspect ratio.
+Act like a professional graphic artist and Facebook ad strategist.`;
 
-PRODUCT FIDELITY — HIGHEST PRIORITY:
-The supplied reference image shows the ACTUAL real product. Preserve it exactly as shown: same shape, proportions, colors, materials, markings, buttons, labels, printed text on the product itself, and construction. Do not invent a different or "improved" version of the product. Do not redesign it. Do not substitute a similar-looking but different product. If you are not fully confident about a specific detail of the product, keep that detail exactly as shown in the reference rather than guessing or changing it.
+// Standing technical constraint, not one of the 3 owner-facing layers —
+// see file header for why this can't be dropped.
+const TECHNICAL_ADDENDUM = `PRODUCT FIDELITY (non-negotiable): the attached image shows the ACTUAL real product. Keep its exact shape, proportions, colors, materials, markings, and labels — do not redesign it, do not invent a different or "improved" version, do not substitute a similar-looking but different product. If unsure about a specific detail, keep it exactly as shown rather than guessing.
 
-VISUAL DIRECTION:
-Professional commercial product photography, shot as if by a paid ecommerce photographer for a premium online store. Strong visual hierarchy with the product as the clear hero element. Realistic, intentional lighting with proper shadow and depth — this must look like a photograph of a real product in a real (or realistically lit studio) environment, never like a flat illustration or a "random AI artwork." Thoughtful, uncluttered composition with deliberate negative space — do not fill the entire frame with detail. Optimize the composition for a vertical mobile phone screen (Facebook feed).
-
-WHAT THIS IMAGE MUST NOT CONTAIN:
-- Do not render any price, numbers, percentages, or discount figures.
-- Do not render a headline, tagline, or any marketing copy.
-- Do not render benefit text, feature labels, or bullet points.
-- Do not render a "Shop Now" button or any call-to-action button or text.
-- Do not invent or render any brand name, logo, or watermark that was not in the reference image.
-- Do not add random numbers, fake product codes, or invented labels anywhere in the image.
-- Do not distort the product's real geometry, proportions, or markings.
-- Do not make this look like cheap, generic AI-generated artwork.
-- Do not use a cluttered layout — leave clear open space for text to be added afterward.
-
-If any product packaging visible in the reference already has real printed text on it (e.g. a label), you may keep that exact text as part of the product itself — but do not add any NEW text anywhere else in the image.`;
+TEXT (non-negotiable): a separate design layer adds the real product name, price, discount, headline and CTA on top of this image afterward with guaranteed-accurate spelling and numbers. So this image itself must not render ANY price, number, percentage, headline, CTA button/text, or marketing copy — leave clean, uncluttered negative space (per the layout direction below) for that text to be added later. Do not add any brand name, logo, or watermark that wasn't in the reference image.`;
 
 export interface AdPromptInput {
   productName: string;
-  creativeStyle: CreativeStyle;
   format: AdFormat;
+  promptMode: PromptMode;
+  creativeStyle: CreativeStyle;   // used when promptMode is 'auto' or 'custom'
+  presetKey?: PresetKey;          // used when promptMode is 'preset'
+  customPrompt?: string;          // used when promptMode is 'custom'
 }
 
 export function buildAdPrompt(input: AdPromptInput): string {
-  const style = CREATIVE_STYLES.find(s => s.key === input.creativeStyle) ?? CREATIVE_STYLES[0];
   const formatLabel = input.format === '4:5' ? 'vertical 4:5 (Facebook Feed, 1080x1350)' : 'square 1:1 (Facebook Feed, 1080x1080)';
 
-  return [
-    MASTER_INSTRUCTION,
-    '',
+  // LAYER 2: preset directly when Prompt Mode = Preset; otherwise the
+  // Creative Style's own direction (Auto and Custom both use Creative Style
+  // per the requested logic).
+  let styleBlock: string;
+  if (input.promptMode === 'preset') {
+    const preset = PRESET_PROMPTS.find(p => p.key === input.presetKey) ?? PRESET_PROMPTS[0];
+    styleBlock = `CREATIVE DIRECTION (${preset.label}): ${preset.prompt}`;
+  } else {
+    const style = CREATIVE_STYLES.find(s => s.key === input.creativeStyle) ?? CREATIVE_STYLES[0];
+    styleBlock = `CREATIVE DIRECTION (${style.label}): ${style.promptDirection}`;
+  }
+
+  // LAYER 3: only in Custom mode — user's own text, or the intelligent
+  // fallback line when they leave it blank.
+  const customBlock = input.promptMode === 'custom'
+    ? `ADDITIONAL INSTRUCTIONS: ${input.customPrompt?.trim() || DEFAULT_CUSTOM_FALLBACK}`
+    : '';
+
+  const sections = [
+    MASTER_PROMPT,
+    TECHNICAL_ADDENDUM,
     `PRODUCT: ${input.productName}`,
-    '',
-    `PHOTOGRAPHY / COMPOSITION STYLE: ${style.promptDirection}`,
-    '',
-    `TARGET CUSTOMER: an everyday online shopper browsing Facebook on their phone — the image should feel trustworthy and premium, not like a random marketplace listing.`,
-    '',
+    styleBlock,
+    customBlock,
     `OUTPUT ASPECT RATIO: ${formatLabel}. Compose with that vertical/square frame in mind from the start.`,
-  ].join('\n');
+  ].filter(Boolean);
+
+  return sections.join('\n\n');
 }
