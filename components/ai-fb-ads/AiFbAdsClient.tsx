@@ -12,13 +12,17 @@ const CREATIVE_STYLES = [
   { key: 'promo', label: 'Promo / Discount', description: 'Big offer, price prominent.' },
   { key: 'lifestyle', label: 'Lifestyle', description: 'Product in real usage setting.' },
 ] as const;
+type StyleKey = typeof CREATIVE_STYLES[number]['key'];
 
 const CTA_OPTIONS = ['Shop Now', 'Order Now', 'Buy Now', 'Get Yours Now', 'Learn More'];
-const OFFER_SUGGESTIONS = ['50% OFF', 'BUY 1 TAKE 1', 'FREE SHIPPING', 'COD AVAILABLE', 'LIMITED TIME OFFER'];
+const OFFER_SUGGESTIONS = ['BUY 1 TAKE 1', 'FREE SHIPPING', 'COD AVAILABLE', 'LIMITED TIME OFFER'];
+
+const NAVY = '#0B1F3A';
+const ROYAL = '#2554C7';
 
 interface Product { id: number; sku: string; name: string; srp: number | null; }
 
-/** Resize to max 1200px + compress to JPEG, matching the pattern used elsewhere in the app for image uploads. */
+/** Resize to max 1200px + compress to JPEG — used for the uploaded product photo before sending. */
 function compressToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -52,6 +56,219 @@ function compressToBase64(file: File): Promise<{ base64: string; mediaType: stri
   });
 }
 
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+interface OverlayInput {
+  productName: string;
+  sellingPrice: string;
+  oldPrice: string;
+  discountPercent: number | null;
+  offer: string;
+  headline: string;
+  benefits: string[];
+  cta: string;
+  style: StyleKey;
+}
+
+/** Draws the background (cover-fit) plus the real text layer on top — this is the whole point of the V1.1 rework: the AI image never carries text, this function does. */
+async function compositeCreative(backgroundDataUrl: string, format: '4:5' | '1:1', input: OverlayInput): Promise<string> {
+  const W = 1080, H = format === '1:1' ? 1080 : 1350;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  const bg = await loadImage(backgroundDataUrl);
+  const scale = Math.max(W / bg.width, H / bg.height);
+  const dw = bg.width * scale, dh = bg.height * scale;
+  ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+
+  const priceText = input.sellingPrice ? formatCurrency(Number(input.sellingPrice)) : '';
+  const oldPriceText = input.oldPrice ? formatCurrency(Number(input.oldPrice)) : '';
+  const discountText = input.discountPercent ? `${input.discountPercent}% OFF` : '';
+
+  ctx.textBaseline = 'middle';
+
+  const drawHeadline = (bandY: number, bandH: number, color: string) => {
+    if (!input.headline) return;
+    ctx.fillStyle = color;
+    ctx.font = '700 52px -apple-system, Segoe UI, Roboto, Arial';
+    ctx.textAlign = 'center';
+    const lines = wrapText(ctx, input.headline.toUpperCase(), W - 120);
+    const lineH = 58;
+    const startY = bandY + bandH / 2 - ((lines.length - 1) * lineH) / 2;
+    lines.slice(0, 2).forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineH));
+  };
+
+  const drawCtaButton = (cx: number, cy: number) => {
+    ctx.font = '700 36px -apple-system, Segoe UI, Roboto, Arial';
+    const label = input.cta.toUpperCase();
+    const tw = ctx.measureText(label).width;
+    const bw = tw + 90, bh = 78;
+    roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, bh / 2);
+    ctx.fillStyle = ROYAL;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, cx, cy + 2);
+  };
+
+  if (input.style === 'feature_heavy') {
+    // Top band: headline
+    const topH = 170;
+    const grad = ctx.createLinearGradient(0, 0, 0, topH);
+    grad.addColorStop(0, 'rgba(11,31,58,0.92)');
+    grad.addColorStop(1, 'rgba(11,31,58,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, topH);
+    drawHeadline(0, topH, '#fff');
+
+    // Left column: benefit chips
+    const chips = input.benefits.slice(0, 5);
+    if (chips.length) {
+      const chipW = 300, chipH = 70, gap = 18, startY = topH + 40;
+      chips.forEach((b, i) => {
+        const y = startY + i * (chipH + gap);
+        roundRect(ctx, 40, y, chipW, chipH, 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fill();
+        ctx.fillStyle = ROYAL;
+        ctx.beginPath();
+        ctx.arc(40 + 36, y + chipH / 2, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 18px -apple-system, Segoe UI, Roboto, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('✓', 40 + 36, y + chipH / 2 + 1);
+        ctx.fillStyle = NAVY;
+        ctx.font = '600 20px -apple-system, Segoe UI, Roboto, Arial';
+        ctx.textAlign = 'left';
+        const lines = wrapText(ctx, b, chipW - 80);
+        lines.slice(0, 2).forEach((l, li) => ctx.fillText(l, 40 + 66, y + chipH / 2 + (li === 0 && lines.length > 1 ? -12 : 6)));
+      });
+    }
+
+    drawBottomStrip();
+  } else if (input.style === 'promo') {
+    const topH = input.headline ? 150 : 0;
+    if (topH) {
+      ctx.fillStyle = NAVY;
+      ctx.fillRect(0, 0, W, topH);
+      drawHeadline(0, topH, '#fff');
+    }
+    drawBottomStrip(true);
+  } else {
+    // premium / lifestyle / auto — minimal
+    if (input.headline) {
+      const topH = 140;
+      const grad = ctx.createLinearGradient(0, 0, 0, topH);
+      grad.addColorStop(0, 'rgba(11,31,58,0.85)');
+      grad.addColorStop(1, 'rgba(11,31,58,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, topH);
+      drawHeadline(0, topH, '#fff');
+    }
+    drawBottomStrip();
+  }
+
+  function drawBottomStrip(big = false) {
+    if (!priceText && !input.cta) return;
+    const stripH = big ? 300 : 240;
+    ctx.fillStyle = NAVY;
+    ctx.fillRect(0, H - stripH, W, stripH);
+
+    let y = H - stripH + (big ? 70 : 60);
+
+    if (discountText) {
+      ctx.font = '700 30px -apple-system, Segoe UI, Roboto, Arial';
+      const tw = ctx.measureText(discountText).width;
+      roundRect(ctx, W / 2 - tw / 2 - 24, y - 26, tw + 48, 52, 26);
+      ctx.fillStyle = ROYAL;
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(discountText, W / 2, y + 1);
+      y += 70;
+    }
+
+    if (priceText) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${big ? 72 : 60}px -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillStyle = '#fff';
+      if (oldPriceText) {
+        const priceW = ctx.measureText(priceText).width;
+        ctx.font = '400 34px -apple-system, Segoe UI, Roboto, Arial';
+        const oldW = ctx.measureText(oldPriceText).width;
+        const totalW = priceW + 24 + oldW;
+        const startX = W / 2 - totalW / 2;
+        ctx.font = `700 ${big ? 72 : 60}px -apple-system, Segoe UI, Roboto, Arial`;
+        ctx.textAlign = 'left';
+        ctx.fillText(priceText, startX, y);
+        ctx.font = '400 34px -apple-system, Segoe UI, Roboto, Arial';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        const oldX = startX + priceW + 24;
+        ctx.fillText(oldPriceText, oldX, y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(oldX, y); ctx.lineTo(oldX + oldW, y); ctx.stroke();
+      } else {
+        ctx.fillText(priceText, W / 2, y);
+      }
+      y += big ? 80 : 66;
+    }
+
+    if (input.offer) {
+      ctx.font = '600 22px -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.textAlign = 'center';
+      ctx.fillText(input.offer.toUpperCase(), W / 2, y);
+      y += 44;
+    }
+
+    if (input.cta) drawCtaButton(W / 2, y + 20);
+  }
+
+  // Product name label, small, top-left corner (kept minimal — the physical
+  // product itself is the primary visual, per the prompt's "hero" direction).
+  if (input.productName) {
+    ctx.font = '600 22px -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillStyle = 'rgba(11,31,58,0.55)';
+    ctx.textAlign = 'left';
+    ctx.fillText(input.productName.toUpperCase(), 28, 34);
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
 export default function AiFbAdsClient() {
   const { toast, showToast, clearToast } = useToast();
 
@@ -64,9 +281,8 @@ export default function AiFbAdsClient() {
   const [offer, setOffer] = useState('');
   const [benefits, setBenefits] = useState(['', '', '', '', '']);
   const [headline, setHeadline] = useState('');
-  const [autoHeadline, setAutoHeadline] = useState(true);
   const [cta, setCta] = useState('Shop Now');
-  const [creativeStyle, setCreativeStyle] = useState<typeof CREATIVE_STYLES[number]['key']>('auto');
+  const [creativeStyle, setCreativeStyle] = useState<StyleKey>('auto');
   const [format, setFormat] = useState<'4:5' | '1:1'>('4:5');
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -81,6 +297,12 @@ export default function AiFbAdsClient() {
     fetch('/api/products').then(r => r.json()).then(d => setProducts(Array.isArray(d) ? d : []));
   }, []);
 
+  const discountPercent = (() => {
+    const sp = Number(sellingPrice), op = Number(oldPrice);
+    if (!sp || !op || op <= sp) return null;
+    return Math.round((1 - sp / op) * 100);
+  })();
+
   const selectProduct = (id: string) => {
     if (!id) { setSelectedProductId(''); return; }
     const p = products.find(pr => pr.id === Number(id));
@@ -88,7 +310,6 @@ export default function AiFbAdsClient() {
     setSelectedProductId(p.id);
     setProductName(p.name);
     setSellingPrice(p.srp ? String(p.srp) : '');
-    // Products don't have a stored image/description yet — still require a manual upload.
     showToast('Product selected. This product has no saved image yet — please upload one below.', 'success');
   };
 
@@ -103,32 +324,55 @@ export default function AiFbAdsClient() {
   const generate = async () => {
     setError('');
     if (!productName.trim()) { setError('Product name is required.'); return; }
-    if (!sellingPrice.trim()) { setError('Selling price is required.'); return; }
     if (!imageFile) { setError('Product image is required.'); return; }
 
     setGenerating(true);
     try {
       const { base64, mediaType } = await compressToBase64(imageFile);
-      const res = await fetch('/api/ai-fb-ads/generate', {
+
+      const genRes = await fetch('/api/ai-fb-ads/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product_id: selectedProductId || null,
           product_name: productName.trim(),
-          selling_price: sellingPrice,
-          old_price: oldPrice || undefined,
-          offer: offer || undefined,
-          headline: autoHeadline ? undefined : (headline || undefined),
-          benefits: benefits.filter(Boolean),
-          cta,
           creative_style: creativeStyle,
           format,
           reference_image_base64: base64,
           reference_image_media_type: mediaType,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Image generation failed. Please try again.'); return; }
-      setGeneratedImageUrl(data.image_path);
+      const genData = await genRes.json();
+      if (!genRes.ok) { setError(genData.error || 'Image generation failed. Please try again.'); return; }
+
+      const backgroundDataUrl = `data:${genData.background_media_type};base64,${genData.background_base64}`;
+      const finalDataUrl = await compositeCreative(backgroundDataUrl, format, {
+        productName: productName.trim(),
+        sellingPrice, oldPrice, discountPercent,
+        offer, headline, benefits: benefits.filter(Boolean), cta, style: creativeStyle,
+      });
+
+      const saveRes = await fetch('/api/ai-fb-ads/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: selectedProductId || null,
+          product_name: productName.trim(),
+          selling_price: sellingPrice || undefined,
+          old_price: oldPrice || undefined,
+          offer: offer || undefined,
+          headline: headline || undefined,
+          benefits: benefits.filter(Boolean),
+          cta,
+          creative_style: creativeStyle,
+          format,
+          reference_image_base64: base64,
+          reference_image_media_type: mediaType,
+          final_image_base64: finalDataUrl.split(',')[1],
+          final_image_media_type: 'image/png',
+        }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveRes.ok) { setError(saveData.error || 'Failed to save the creative.'); return; }
+
+      setGeneratedImageUrl(saveData.image_path);
       showToast('Creative generated!');
     } catch (e: any) {
       setError('Image generation failed. Please try again.');
@@ -187,7 +431,7 @@ export default function AiFbAdsClient() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Selling Price (₱)</label>
+              <label className="form-label">Selling Price (₱) <span className="text-gray-400 font-normal">— optional</span></label>
               <input type="number" className="form-input" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} placeholder="499" />
             </div>
             <div>
@@ -195,10 +439,13 @@ export default function AiFbAdsClient() {
               <input type="number" className="form-input" value={oldPrice} onChange={e => setOldPrice(e.target.value)} placeholder="999" />
             </div>
           </div>
+          {discountPercent !== null && (
+            <p className="text-xs text-orange-600 -mt-3">Auto-calculated discount: <b>{discountPercent}% OFF</b> (not typed — computed from the two prices above)</p>
+          )}
 
           <div>
-            <label className="form-label">Offer / Promo <span className="text-gray-400 font-normal">— optional</span></label>
-            <input type="text" className="form-input" value={offer} onChange={e => setOffer(e.target.value)} placeholder="e.g. 50% OFF" list="offer-suggestions" />
+            <label className="form-label">Offer / Promo <span className="text-gray-400 font-normal">— optional, non-price offers</span></label>
+            <input type="text" className="form-input" value={offer} onChange={e => setOffer(e.target.value)} placeholder="e.g. BUY 1 TAKE 1" list="offer-suggestions" />
             <datalist id="offer-suggestions">{OFFER_SUGGESTIONS.map(o => <option key={o} value={o} />)}</datalist>
           </div>
 
@@ -212,16 +459,8 @@ export default function AiFbAdsClient() {
           </div>
 
           <div>
-            <label className="form-label">Headline</label>
-            <div className="flex items-center gap-2 mb-1.5">
-              <label className="flex items-center gap-1.5 text-xs text-gray-600">
-                <input type="checkbox" checked={autoHeadline} onChange={e => setAutoHeadline(e.target.checked)} />
-                Auto Generate
-              </label>
-            </div>
-            {!autoHeadline && (
-              <input type="text" className="form-input" value={headline} onChange={e => setHeadline(e.target.value)} placeholder="e.g. Stay Cool. Sleep Better." />
-            )}
+            <label className="form-label">Headline <span className="text-gray-400 font-normal">— optional</span></label>
+            <input type="text" className="form-input" value={headline} onChange={e => setHeadline(e.target.value)} placeholder="e.g. Stay Cool. Sleep Better." />
           </div>
 
           <div>
@@ -275,7 +514,7 @@ export default function AiFbAdsClient() {
             {generating ? (
               <div className="flex flex-col items-center gap-2 text-gray-400">
                 <Loader2 size={28} className="animate-spin" />
-                <p className="text-xs">Generating your creative...</p>
+                <p className="text-xs">Generating background, then adding your text...</p>
               </div>
             ) : generatedImageUrl ? (
               <img src={generatedImageUrl} alt="Generated creative" className="w-full h-full object-contain" />
@@ -299,7 +538,7 @@ export default function AiFbAdsClient() {
             <div className="text-xs text-gray-400 border-t border-gray-100 pt-3">
               {productName && <p className="font-medium text-gray-600">{productName}</p>}
               {sellingPrice && (
-                <p>{formatCurrency(Number(sellingPrice))} {oldPrice && <span className="line-through ml-1">{formatCurrency(Number(oldPrice))}</span>}</p>
+                <p>{formatCurrency(Number(sellingPrice))} {oldPrice && <span className="line-through ml-1">{formatCurrency(Number(oldPrice))}</span>} {discountPercent !== null && <span className="ml-1 text-orange-600">({discountPercent}% OFF)</span>}</p>
               )}
             </div>
           )}
