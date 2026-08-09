@@ -80,6 +80,7 @@ export function clearCookieOptions() {
 export const MODULES = [
   { key: 'dashboard',        label: 'Dashboard',        icon: '📊' },
   { key: 'products',         label: 'Products',         icon: '🏷️' },
+  { key: 'ai_fb_ads',        label: 'AI FB Ads',        icon: '✨' },
   { key: 'inventory',        label: 'Inventory',        icon: '📦' },
   { key: 'purchase_orders',  label: 'Purchase Orders',  icon: '🛒' },
   { key: 'product_research', label: 'Product Research', icon: '🔬' },

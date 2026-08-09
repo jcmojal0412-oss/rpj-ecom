@@ -25,6 +25,7 @@ const NAV_GROUPS = [
     label: 'CATALOG',
     items: [
       { label: 'Products',        href: '/products',         icon: Tag,           module: 'products'         },
+      { label: 'AI FB Ads',       href: '/ai-fb-ads',        icon: Sparkles,      module: 'ai_fb_ads'        },
     ],
   },
   {

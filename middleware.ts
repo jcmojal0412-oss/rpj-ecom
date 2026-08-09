@@ -11,6 +11,8 @@ const PUBLIC = ['/login', '/api/auth/login', '/book', '/api/public', '/attendanc
 // Route → required module permission
 const ROUTE_MODULES: [string, string][] = [
   ['/products',         'products'],
+  ['/ai-fb-ads',        'ai_fb_ads'],
+  ['/api/ai-fb-ads',    'ai_fb_ads'],
   ['/inventory',        'inventory'],
   ['/purchase-orders',  'purchase_orders'],
   ['/product-research', 'product_research'],

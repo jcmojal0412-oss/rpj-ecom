@@ -823,6 +823,34 @@ function migrateSchema() {
   addColIfMissing('payroll_entries', 'pagibig_ee_contribution', 'pagibig_ee_contribution REAL NOT NULL DEFAULT 0');
   addColIfMissing('payroll_entries', 'pagibig_er_contribution', 'pagibig_er_contribution REAL NOT NULL DEFAULT 0');
   addColIfMissing('payroll_entries', 'pagibig_version_snapshot', 'pagibig_version_snapshot TEXT');
+
+  // AI FB Ads Generator V1 — one row per generated creative. product_id is
+  // nullable (staff can generate for a product not yet in the Products
+  // module, via manual entry + uploaded image). source_image_path is the
+  // reference photo sent to the image API; generated_image_path is the
+  // result. Both live in the same persistent-storage convention already
+  // used by receipts (see app/api/upload/receipt/route.ts) — a subfolder
+  // next to the SQLite file on Railway, public/ai-fb-ads locally.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_fb_ad_creatives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER REFERENCES products(id),
+      product_name TEXT NOT NULL,
+      selling_price REAL,
+      old_price REAL,
+      offer TEXT,
+      benefits TEXT,
+      headline TEXT,
+      cta TEXT NOT NULL DEFAULT 'Shop Now',
+      creative_style TEXT NOT NULL DEFAULT 'auto',
+      format TEXT NOT NULL DEFAULT '4:5',
+      source_image_path TEXT,
+      generated_image_path TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_fb_ad_creatives_product ON ai_fb_ad_creatives(product_id);
+  `);
 }
 
 // One-time backfill: every existing users row becomes a linked, active,
