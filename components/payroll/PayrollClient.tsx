@@ -294,7 +294,7 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
     <div className="card space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Select a payroll period</p>
-        <p className="text-sm text-gray-500 mt-0.5">Choose which cutoff you want to run payroll for. Pay dates: 8th, 15th, 23rd, and end of month.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Choose which cutoff you want to run payroll for.</p>
       </div>
 
       <div className="flex items-center justify-center gap-4">
@@ -316,9 +316,8 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
                 selected === i ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              <p className="text-lg font-bold text-gray-900">Cutoff {i + 1}</p>
+              <p className="text-lg font-bold text-gray-900">{i === 0 ? '1st Half' : '2nd Half'}</p>
               <p className="text-sm text-gray-500">{c.label}</p>
-              <p className="text-xs text-gray-400 mt-1">Pay date: {new Date(c.payDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
               {notEnded && <p className="text-xs text-amber-600 mt-1">Cutoff hasn&apos;t ended yet</p>}
             </button>
           );

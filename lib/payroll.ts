@@ -168,22 +168,21 @@ export interface PayrollCutoff {
   from: string;
   to: string;
   label: string;
-  payDate: string; // same as `to` in this schedule — cutoff ends the day it pays
+  payDate: string; // same as `to` — cutoff ends the day it pays
 }
 
-// Default 4x-monthly cutoffs — pay dates on the 8th, 15th, 23rd, and the
-// last day of the month (loosely "30th" in everyday speech, but Feb/30-day
-// months use their actual last day so no cutoff ever skips or double-counts
-// a day). Each cutoff's attendance window ends ON its pay date — no
-// processing lag modeled, since none was specified; if actual practice pays
-// a few days after cutoff-end, this needs a distinct payDate field later.
-// Pure date math, no DB.
+// Default semi-monthly cutoffs — "1-15" and "16-End of Month". (Previously
+// tried a 4x-monthly schedule — 1-8/9-15/16-23/24-end — but that's on hold
+// per owner request; reverted back to 2x/month. The array-shaped return and
+// the "cutoff must have already ended" disabled-state in PayrollClient's
+// StepSelectPeriod both carry over unchanged, since neither is specific to
+// the cutoff count.) Pure date math, no DB.
 export function getDefaultCutoffs(year: number, month1to12: number): { cutoffs: PayrollCutoff[] } {
   const mm = String(month1to12).padStart(2, '0');
   const lastDay = new Date(year, month1to12, 0).getDate();
   const monthName = new Date(year, month1to12 - 1, 1).toLocaleString('en-US', { month: 'long' });
   const d = (day: number) => `${year}-${mm}-${String(day).padStart(2, '0')}`;
-  const ranges: [number, number][] = [[1, 8], [9, 15], [16, 23], [24, lastDay]];
+  const ranges: [number, number][] = [[1, 15], [16, lastDay]];
   return {
     cutoffs: ranges.map(([from, to]) => ({
       from: d(from),
