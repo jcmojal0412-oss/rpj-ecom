@@ -733,6 +733,85 @@ function migrateSchema() {
   // payroll_adjustments/payroll_audit_log fully intact.
   addColIfMissing('payroll_periods', 'voided_at', 'voided_at TEXT');
   addColIfMissing('payroll_periods', 'voided_by', 'voided_by INTEGER REFERENCES users(id)');
+
+  // Statutory Contributions V1 — SSS, PhilHealth, Pag-IBIG. Employee share
+  // reduces Net Pay; employer share (+ SSS EC) is tracked as company cost
+  // only, never subtracted — see lib/statutory-contributions.ts and the
+  // computeStatutoryContributionsForPeriod() aggregator in
+  // lib/payroll-data.ts. Rate/bracket data is VERSIONED here rather than
+  // hardcoded in code, so a future rate change is a new version row, never
+  // a rewrite of already-generated payroll — every payroll_entries row
+  // freezes which version label produced its numbers (see the
+  // *_version_snapshot columns below), same "snapshot everything, never
+  // re-read live" principle as the rest of Payroll V1. No withholding tax
+  // yet — explicitly out of scope per instruction.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sss_contribution_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version_label TEXT NOT NULL UNIQUE,
+      effective_date TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS sss_contribution_brackets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version_id INTEGER NOT NULL REFERENCES sss_contribution_versions(id),
+      min_compensation REAL NOT NULL,
+      max_compensation REAL,
+      msc REAL NOT NULL,
+      ee_amount REAL NOT NULL,
+      er_amount REAL NOT NULL,
+      ec_amount REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sss_brackets_version ON sss_contribution_brackets(version_id, min_compensation);
+
+    CREATE TABLE IF NOT EXISTS philhealth_contribution_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version_label TEXT NOT NULL UNIQUE,
+      effective_date TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      premium_rate REAL NOT NULL,
+      income_floor REAL NOT NULL,
+      income_ceiling REAL NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS pagibig_contribution_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version_label TEXT NOT NULL UNIQUE,
+      effective_date TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      ee_rate_low REAL NOT NULL,
+      ee_rate_high REAL NOT NULL,
+      ee_low_threshold REAL NOT NULL,
+      er_rate REAL NOT NULL,
+      max_fund_salary REAL NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+  seedStatutoryContributionTablesIfEmpty();
+
+  addColIfMissing('employees', 'sss_number', 'sss_number TEXT');
+  addColIfMissing('employees', 'philhealth_number', 'philhealth_number TEXT');
+  addColIfMissing('employees', 'pagibig_number', 'pagibig_number TEXT');
+  addColIfMissing('employees', 'sss_enabled', 'sss_enabled INTEGER NOT NULL DEFAULT 1');
+  addColIfMissing('employees', 'philhealth_enabled', 'philhealth_enabled INTEGER NOT NULL DEFAULT 1');
+  addColIfMissing('employees', 'pagibig_enabled', 'pagibig_enabled INTEGER NOT NULL DEFAULT 1');
+
+  addColIfMissing('payroll_entries', 'contribution_basis_snapshot', 'contribution_basis_snapshot REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'sss_ee_contribution', 'sss_ee_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'sss_er_contribution', 'sss_er_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'sss_ec_contribution', 'sss_ec_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'sss_version_snapshot', 'sss_version_snapshot TEXT');
+  addColIfMissing('payroll_entries', 'philhealth_ee_contribution', 'philhealth_ee_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'philhealth_er_contribution', 'philhealth_er_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'philhealth_version_snapshot', 'philhealth_version_snapshot TEXT');
+  addColIfMissing('payroll_entries', 'pagibig_ee_contribution', 'pagibig_ee_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'pagibig_er_contribution', 'pagibig_er_contribution REAL NOT NULL DEFAULT 0');
+  addColIfMissing('payroll_entries', 'pagibig_version_snapshot', 'pagibig_version_snapshot TEXT');
 }
 
 // One-time backfill: every existing users row becomes a linked, active,
@@ -789,6 +868,55 @@ function seedLeaveTypesIfEmpty() {
   insert.run('Emergency Leave', 1, 5);
   insert.run('Unpaid Leave', 0, null);
   insert.run('Other Leave', 1, null);
+}
+
+// Seeds the initial VERSION of each statutory schedule — verified against
+// official sources at build time (SSS Circular No. 2024-006; PhilHealth's
+// PIA advisory confirming the 5% UHC-Law rate unchanged through 2026;
+// HDMF Circular No. 460). SSS bracket amounts are computed from the
+// confirmed 5% EE / 10% ER percentages rather than transcribed from a
+// third-party table — a spot-check against one aggregator site found an
+// internally-inconsistent row there, so deriving from the confirmed rate
+// is the more reliable source. Recommend a manual cross-check against the
+// SSS's own published table before relying on this for real payroll —
+// see the sandbox dry-run report for exact seeded values.
+function seedStatutoryContributionTablesIfEmpty() {
+  const sssCount = (db.prepare('SELECT COUNT(*) as c FROM sss_contribution_versions').get() as { c: number }).c;
+  if (sssCount === 0) {
+    const v = db.prepare(`
+      INSERT INTO sss_contribution_versions (version_label, effective_date, is_active, notes)
+      VALUES ('SSS-2025-01', '2025-01-01', 1, 'RA 11199 schedule per SSS Circular No. 2024-006 — 15% total (5% EE / 10% ER) of Monthly Salary Credit, MSC range 5,000-35,000 in 500 increments, EC 10 (MSC<15,000) / 30 (MSC>=15,000).')
+    `).run();
+    const versionId = Number(v.lastInsertRowid);
+    const insertBracket = db.prepare(`
+      INSERT INTO sss_contribution_brackets (version_id, min_compensation, max_compensation, msc, ee_amount, er_amount, ec_amount)
+      VALUES (?,?,?,?,?,?,?)
+    `);
+    for (let msc = 5000; msc <= 35000; msc += 500) {
+      const min = msc === 5000 ? 0 : msc - 250;
+      const max = msc === 35000 ? null : msc + 249.99;
+      const ee = Math.round(msc * 0.05);
+      const er = Math.round(msc * 0.10);
+      const ec = msc < 15000 ? 10 : 30;
+      insertBracket.run(versionId, min, max, msc, ee, er, ec);
+    }
+  }
+
+  const phCount = (db.prepare('SELECT COUNT(*) as c FROM philhealth_contribution_versions').get() as { c: number }).c;
+  if (phCount === 0) {
+    db.prepare(`
+      INSERT INTO philhealth_contribution_versions (version_label, effective_date, is_active, premium_rate, income_floor, income_ceiling, notes)
+      VALUES ('PHILHEALTH-2025-01', '2025-01-01', 1, 0.05, 10000, 100000, '5% of Monthly Basic Salary (2.5% EE / 2.5% ER); floor 10,000 (min premium 500/mo total); ceiling 100,000 (max premium 5,000/mo total) — final step of the RA 11223 UHC Law phased schedule, confirmed unchanged through 2026.')
+    `).run();
+  }
+
+  const pagibigCount = (db.prepare('SELECT COUNT(*) as c FROM pagibig_contribution_versions').get() as { c: number }).c;
+  if (pagibigCount === 0) {
+    db.prepare(`
+      INSERT INTO pagibig_contribution_versions (version_label, effective_date, is_active, ee_rate_low, ee_rate_high, ee_low_threshold, er_rate, max_fund_salary, notes)
+      VALUES ('PAGIBIG-2024-02', '2024-02-01', 1, 0.01, 0.02, 1500, 0.02, 10000, 'HDMF Circular No. 460 — EE 1% if monthly compensation <= 1,500 else 2%; ER always 2%; Maximum Fund Salary (MFS) 10,000 (max 200/mo each side); effective Feb 2024, confirmed unchanged through 2026.')
+    `).run();
+  }
 }
 
 // V1 ships one global shift/rules config (read via app_settings, no scoping

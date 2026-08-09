@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { computePayroll, type PayrollInput } from '@/lib/payroll';
-import { aggregateAttendanceForPeriod, getApprovedOtMinutes, type PayrollEmployee } from '@/lib/payroll-data';
+import { aggregateAttendanceForPeriod, getApprovedOtMinutes, computeStatutoryContributionsForPeriod, type PayrollEmployee } from '@/lib/payroll-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
     const otMultiplier = otMultiplierRow ? Number(otMultiplierRow.value) : 1.25;
 
     const employees = db.prepare(`
-      SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, position
+      SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, position,
+        sss_enabled, philhealth_enabled, pagibig_enabled
       FROM employees WHERE employment_status = 'Active' AND attendance_enabled = 1
     `).all() as (PayrollEmployee & { position: string | null })[];
 
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       for (const employee of employees) {
         const attendance = aggregateAttendanceForPeriod(db, employee, from_date, to_date);
         const approvedOtMinutes = employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
+        const statutory = computeStatutoryContributionsForPeriod(db, employee, attendance.workDaysInPeriod);
 
         const input: PayrollInput = {
           salaryType: employee.salary_type,
@@ -89,6 +91,13 @@ export async function POST(req: NextRequest) {
           approvedOtMinutes,
           otMultiplier,
           adjustments: [],
+          sssEmployeeContribution: statutory.sssEmployee,
+          sssEmployerContribution: statutory.sssEmployer,
+          sssEcContribution: statutory.sssEc,
+          philhealthEmployeeContribution: statutory.philhealthEmployee,
+          philhealthEmployerContribution: statutory.philhealthEmployer,
+          pagibigEmployeeContribution: statutory.pagibigEmployee,
+          pagibigEmployerContribution: statutory.pagibigEmployer,
         };
         const breakdown = computePayroll(input);
 
@@ -100,8 +109,12 @@ export async function POST(req: NextRequest) {
             approved_ot_minutes, ot_multiplier_snapshot,
             basic_pay, ot_pay, allowance_pay, bonus_earnings, gross_pay,
             late_deduction, undertime_deduction, excess_break_deduction, absence_deduction, unpaid_leave_deduction,
-            other_deductions, total_deductions, net_pay
-          ) VALUES (?,?,?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?)
+            other_deductions, total_deductions, net_pay,
+            contribution_basis_snapshot,
+            sss_ee_contribution, sss_er_contribution, sss_ec_contribution, sss_version_snapshot,
+            philhealth_ee_contribution, philhealth_er_contribution, philhealth_version_snapshot,
+            pagibig_ee_contribution, pagibig_er_contribution, pagibig_version_snapshot
+          ) VALUES (?,?,?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?, ?,?,?,?, ?,?,?, ?,?,?)
         `).run(
           periodId, employee.id, employee.full_name, employeeCode(employee.id), employee.position,
           employee.salary_type, employee.basic_rate, employee.allowance,
@@ -109,7 +122,11 @@ export async function POST(req: NextRequest) {
           approvedOtMinutes, otMultiplier,
           breakdown.basicPay, breakdown.otPay, breakdown.allowancePay, breakdown.bonusEarnings, breakdown.grossPay,
           breakdown.lateDeduction, breakdown.undertimeDeduction, breakdown.excessBreakDeduction, breakdown.absenceDeduction, breakdown.unpaidLeaveDeduction,
-          breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay
+          breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay,
+          statutory.contributionBasis,
+          breakdown.sssEmployeeContribution, breakdown.sssEmployerContribution, breakdown.sssEcContribution, statutory.sssVersion,
+          breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, statutory.philhealthVersion,
+          breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, statutory.pagibigVersion
         );
       }
 

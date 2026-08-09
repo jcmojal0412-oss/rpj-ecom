@@ -32,6 +32,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     : null;
   const currentShift = getShiftForEmployeeOnDate(db, employee.id, todayISO());
 
+  // Government ID numbers stay hidden from a viewer who only has the
+  // 'employees' (roster) permission — they're only ever returned to
+  // owner/'payroll' viewers, per "don't expose these IDs unnecessarily
+  // outside authorized HR/Payroll views."
+  const canSeeStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
+  if (!canSeeStatutoryIds) {
+    delete employee.sss_number;
+    delete employee.philhealth_number;
+    delete employee.pagibig_number;
+  }
+
   return NextResponse.json({ ...employee, employee_code: employeeCode(employee.id), linked_user: linkedUser, current_shift: currentShift });
 }
 
@@ -60,7 +71,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         full_name=?, mobile_number=?, email=?, address=?, birthday=?, emergency_contact_name=?, emergency_contact_number=?,
         position=?, department=?, branch=?, date_hired=?, employment_type=?, employment_status=?,
         work_days=?, rest_day=?, attendance_enabled=?, linked_user_id=?,
-        salary_type=?, basic_rate=?, allowance=?, ot_eligible=?
+        salary_type=?, basic_rate=?, allowance=?, ot_eligible=?,
+        sss_enabled=?, philhealth_enabled=?, pagibig_enabled=?
       WHERE id=?
     `).run(
       body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
@@ -71,8 +83,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
       body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
       body.ot_eligible === false ? 0 : 1,
+      body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1,
       params.id
     );
+
+    // Government ID numbers are only ever written by a payroll-permission
+    // viewer — a plain 'employees' (roster) viewer's form never received
+    // these values from GET (see above), so blindly writing body.sss_number
+    // etc. from that form would silently wipe a real number with undefined.
+    const canEditStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
+    if (canEditStatutoryIds) {
+      db.prepare(`UPDATE employees SET sss_number=?, philhealth_number=?, pagibig_number=? WHERE id=?`).run(
+        body.sss_number || null, body.philhealth_number || null, body.pagibig_number || null, params.id
+      );
+    }
 
     return NextResponse.json({ ok: true, employee_code: employeeCode(Number(params.id)) });
   } catch (e: any) {

@@ -39,11 +39,17 @@ export async function GET(req: NextRequest) {
 
   const rows = db.prepare(sql).all(...params) as any[];
   const today = todayISO();
-  const withCode = rows.map(r => ({
-    ...r,
-    employee_code: employeeCode(r.id),
-    default_shift: getShiftForEmployeeOnDate(db, r.id, today),
-  }));
+  // SSS/PhilHealth/Pag-IBIG numbers never go out on the list view — only
+  // the detail view (below), and only then to a payroll-permission viewer.
+  // The list keeps the *_enabled flags (needed for basic roster display).
+  const withCode = rows.map(r => {
+    const { sss_number, philhealth_number, pagibig_number, ...rest } = r;
+    return {
+      ...rest,
+      employee_code: employeeCode(r.id),
+      default_shift: getShiftForEmployeeOnDate(db, r.id, today),
+    };
+  });
   return NextResponse.json(withCode);
 }
 
@@ -72,8 +78,9 @@ export async function POST(req: NextRequest) {
           full_name, mobile_number, email, address, birthday, emergency_contact_name, emergency_contact_number,
           position, department, branch, date_hired, employment_type, employment_status,
           work_days, rest_day, attendance_enabled, linked_user_id,
-          salary_type, basic_rate, allowance, ot_eligible
-        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?)
+          salary_type, basic_rate, allowance, ot_eligible,
+          sss_number, philhealth_number, pagibig_number, sss_enabled, philhealth_enabled, pagibig_enabled
+        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?)
       `).run(
         body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
         body.birthday || null, body.emergency_contact_name || null, body.emergency_contact_number || null,
@@ -82,7 +89,9 @@ export async function POST(req: NextRequest) {
         Array.isArray(body.work_days) ? body.work_days.join(',') : '1,2,3,4,5',
         body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
         body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
-        body.ot_eligible === false ? 0 : 1
+        body.ot_eligible === false ? 0 : 1,
+        body.sss_number || null, body.philhealth_number || null, body.pagibig_number || null,
+        body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1
       );
       newId = Number(info.lastInsertRowid);
 

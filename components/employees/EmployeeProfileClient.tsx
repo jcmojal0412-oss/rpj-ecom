@@ -59,6 +59,16 @@ interface EmployeeDetail {
   basic_rate: number;
   allowance: number;
   ot_eligible: number;
+  // sss_number/philhealth_number/pagibig_number are OMITTED entirely (not
+  // just null) by the API for a viewer without 'payroll' permission — see
+  // app/api/employees/[id]/route.ts. Their presence as a key is itself the
+  // client-side signal for "am I allowed to see/edit these."
+  sss_number?: string | null;
+  philhealth_number?: string | null;
+  pagibig_number?: string | null;
+  sss_enabled: number;
+  philhealth_enabled: number;
+  pagibig_enabled: number;
 }
 
 function fmtShiftTime(t: string) {
@@ -169,7 +179,14 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
     basic_rate: employee.basic_rate,
     allowance: employee.allowance,
     ot_eligible: !!employee.ot_eligible,
+    sss_number: employee.sss_number ?? '',
+    philhealth_number: employee.philhealth_number ?? '',
+    pagibig_number: employee.pagibig_number ?? '',
+    sss_enabled: !!employee.sss_enabled,
+    philhealth_enabled: !!employee.philhealth_enabled,
+    pagibig_enabled: !!employee.pagibig_enabled,
   });
+  const canSeeStatutoryIds = 'sss_number' in employee;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [users, setUsers] = useState<{ id: number; name: string; username: string; linked_employee_id: number | null }[]>([]);
@@ -398,6 +415,49 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             <input type="checkbox" checked={form.ot_eligible} onChange={e => set({ ot_eligible: e.target.checked })} />
             OT Eligible
           </label>
+        </div>
+
+        {/* Statutory Contributions — SSS/PhilHealth/Pag-IBIG numbers are
+            HR/Payroll-only; canSeeStatutoryIds mirrors the API's own gate
+            (see EmployeeDetail's sss_number?: comment above). */}
+        <div className="card space-y-3">
+          <p className="text-sm font-semibold text-gray-700">Statutory Contributions <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
+
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.sss_enabled} onChange={e => set({ sss_enabled: e.target.checked })} />
+              SSS Enabled
+            </label>
+            {canSeeStatutoryIds ? (
+              <input type="text" className="form-input max-w-[180px]" placeholder="SSS Number" value={form.sss_number} onChange={e => set({ sss_number: e.target.value })} />
+            ) : (
+              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.philhealth_enabled} onChange={e => set({ philhealth_enabled: e.target.checked })} />
+              PhilHealth Enabled
+            </label>
+            {canSeeStatutoryIds ? (
+              <input type="text" className="form-input max-w-[180px]" placeholder="PhilHealth Number" value={form.philhealth_number} onChange={e => set({ philhealth_number: e.target.value })} />
+            ) : (
+              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.pagibig_enabled} onChange={e => set({ pagibig_enabled: e.target.checked })} />
+              Pag-IBIG Enabled
+            </label>
+            {canSeeStatutoryIds ? (
+              <input type="text" className="form-input max-w-[180px]" placeholder="Pag-IBIG MID Number" value={form.pagibig_number} onChange={e => set({ pagibig_number: e.target.value })} />
+            ) : (
+              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+            )}
+          </div>
         </div>
       </div>
 

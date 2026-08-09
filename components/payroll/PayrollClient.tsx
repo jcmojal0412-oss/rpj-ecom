@@ -429,6 +429,8 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
   const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);
   const grossPayroll = entries.reduce((s, e) => s + e.gross_pay, 0);
   const netPayroll = entries.reduce((s, e) => s + e.net_pay, 0);
+  const totalEmployerContributions = entries.reduce((s, e) =>
+    s + (e.sss_er_contribution || 0) + (e.sss_ec_contribution || 0) + (e.philhealth_er_contribution || 0) + (e.pagibig_er_contribution || 0), 0);
 
   const cards = [
     { label: 'Number of Employees', value: String(entries.length) },
@@ -448,6 +450,12 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
         ))}
       </div>
       <p className="text-xs text-gray-400">Total Earnings: {formatCurrency(totalEarnings)}</p>
+
+      <div className="card bg-gray-50 border-gray-100">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Employer Contributions / Company Cost</p>
+        <p className="text-xs text-gray-400 mt-0.5">SSS, EC, PhilHealth and Pag-IBIG employer shares — company cost only, already excluded from Net Pay above.</p>
+        <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(totalEmployerContributions)}</p>
+      </div>
 
       <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium">
         {showBreakdown ? 'Hide Employee Breakdown' : 'View Employee Breakdown'}
@@ -550,6 +558,9 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
             <div className="flex justify-between"><span className="text-gray-500">Absence</span><span className="text-red-500">-{formatCurrency(entry.absence_deduction)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Unpaid Leave</span><span className="text-red-500">-{formatCurrency(entry.unpaid_leave_deduction)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Excess Break</span><span className="text-red-500">-{formatCurrency(entry.excess_break_deduction)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">SSS</span><span className="text-red-500">-{formatCurrency(entry.sss_ee_contribution || 0)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">PhilHealth</span><span className="text-red-500">-{formatCurrency(entry.philhealth_ee_contribution || 0)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Pag-IBIG</span><span className="text-red-500">-{formatCurrency(entry.pagibig_ee_contribution || 0)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Other Deductions</span><span className="text-red-500">-{formatCurrency(entry.other_deductions)}</span></div>
           </div>
           <div className="flex justify-between text-sm font-semibold border-t border-gray-100 pt-2">
@@ -558,6 +569,17 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
 
           <div className="flex justify-between text-base font-bold bg-gray-50 rounded-xl px-4 py-3">
             <span>NET PAY</span><span>{formatCurrency(entry.net_pay)}</span>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-3.5 text-xs space-y-1.5 border border-gray-100">
+            <p className="font-semibold text-gray-500 uppercase tracking-wide">Employer Contributions / Company Cost</p>
+            <p className="text-gray-400">Not deducted from Net Pay — tracked separately as company cost.</p>
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <div className="flex justify-between"><span className="text-gray-500">SSS Employer</span><span className="font-medium">{formatCurrency(entry.sss_er_contribution || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">EC</span><span className="font-medium">{formatCurrency(entry.sss_ec_contribution || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">PhilHealth Employer</span><span className="font-medium">{formatCurrency(entry.philhealth_er_contribution || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Pag-IBIG Employer</span><span className="font-medium">{formatCurrency(entry.pagibig_er_contribution || 0)}</span></div>
+            </div>
           </div>
 
           <button onClick={() => setShowDetails(s => !s)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">

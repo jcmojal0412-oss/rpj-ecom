@@ -8,6 +8,10 @@ import { computeDaySummary, isTodayFinalized, todayISO, type AttendanceEvent } f
 import { resolveAttendanceSettings } from './attendance-shifts';
 import { resolveAttendanceException, applyAttendanceException } from './attendance-exceptions';
 import { computePayroll, type PayrollInput, type AdjustmentType } from './payroll';
+import {
+  computeSssContribution, computePhilHealthContribution, computePagibigContribution,
+  type SssBracket, type PhilHealthConfig, type PagibigConfig,
+} from './statutory-contributions';
 
 export interface PayrollEmployee {
   id: number;
@@ -18,6 +22,9 @@ export interface PayrollEmployee {
   basic_rate: number;
   allowance: number;
   ot_eligible: number;
+  sss_enabled: number;
+  philhealth_enabled: number;
+  pagibig_enabled: number;
 }
 
 export interface AttendanceAggregate {
@@ -183,6 +190,112 @@ export function checkAttendanceWarnings(db: Database.Database, employee: Payroll
   return warnings;
 }
 
+export interface StatutoryContributions {
+  contributionBasis: number;
+  sssEmployee: number; sssEmployer: number; sssEc: number; sssVersion: string | null;
+  philhealthEmployee: number; philhealthEmployer: number; philhealthVersion: string | null;
+  pagibigEmployee: number; pagibigEmployer: number; pagibigVersion: string | null;
+}
+
+// "Monthly Basic Salary" for statutory-contribution purposes — the FULL
+// scheduled entitlement, never reduced for late/undertime/absence/unpaid
+// leave (the official PhilHealth contribution-basis rule; applied to
+// SSS/Pag-IBIG too for consistency — a documented judgment call, flagged
+// for the user's review in the acceptance report). Monthly-salaried
+// employees already store a monthly figure in basic_rate. Daily-rate
+// employees don't have one on file, so it's derived as this cutoff's own
+// scheduled-day count (workDaysInPeriod already excludes rest days/
+// holidays — see aggregateAttendanceForPeriod above) doubled for the
+// semi-monthly-to-monthly conversion — an approximation that reflects each
+// employee's own configured work week rather than an arbitrary fixed
+// day-count constant.
+export function computeContributionBasis(employee: PayrollEmployee, workDaysInPeriod: number): number {
+  if (employee.salary_type === 'Monthly') return employee.basic_rate;
+  return employee.basic_rate * workDaysInPeriod * 2;
+}
+
+function getActiveSssBrackets(db: Database.Database): { brackets: SssBracket[]; versionLabel: string | null } {
+  const version = db.prepare(`SELECT id, version_label FROM sss_contribution_versions WHERE is_active = 1 ORDER BY effective_date DESC LIMIT 1`).get() as { id: number; version_label: string } | undefined;
+  if (!version) return { brackets: [], versionLabel: null };
+  const rows = db.prepare(`
+    SELECT min_compensation, max_compensation, msc, ee_amount, er_amount, ec_amount
+    FROM sss_contribution_brackets WHERE version_id = ? ORDER BY min_compensation ASC
+  `).all(version.id) as { min_compensation: number; max_compensation: number | null; msc: number; ee_amount: number; er_amount: number; ec_amount: number }[];
+  return {
+    brackets: rows.map(r => ({ minCompensation: r.min_compensation, maxCompensation: r.max_compensation, msc: r.msc, eeAmount: r.ee_amount, erAmount: r.er_amount, ecAmount: r.ec_amount })),
+    versionLabel: version.version_label,
+  };
+}
+
+function getActivePhilHealthConfig(db: Database.Database): { config: PhilHealthConfig | null; versionLabel: string | null } {
+  const row = db.prepare(`
+    SELECT version_label, premium_rate, income_floor, income_ceiling FROM philhealth_contribution_versions WHERE is_active = 1 ORDER BY effective_date DESC LIMIT 1
+  `).get() as { version_label: string; premium_rate: number; income_floor: number; income_ceiling: number } | undefined;
+  if (!row) return { config: null, versionLabel: null };
+  return { config: { premiumRate: row.premium_rate, incomeFloor: row.income_floor, incomeCeiling: row.income_ceiling }, versionLabel: row.version_label };
+}
+
+function getActivePagibigConfig(db: Database.Database): { config: PagibigConfig | null; versionLabel: string | null } {
+  const row = db.prepare(`
+    SELECT version_label, ee_rate_low, ee_rate_high, ee_low_threshold, er_rate, max_fund_salary FROM pagibig_contribution_versions WHERE is_active = 1 ORDER BY effective_date DESC LIMIT 1
+  `).get() as { version_label: string; ee_rate_low: number; ee_rate_high: number; ee_low_threshold: number; er_rate: number; max_fund_salary: number } | undefined;
+  if (!row) return { config: null, versionLabel: null };
+  return { config: { eeRateLow: row.ee_rate_low, eeRateHigh: row.ee_rate_high, eeLowThreshold: row.ee_low_threshold, erRate: row.er_rate, maxFundSalary: row.max_fund_salary }, versionLabel: row.version_label };
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// Each program's official amount is a MONTHLY figure; this app runs
+// semi-monthly payroll, so it's split evenly across the two cutoffs — the
+// same simple convention as a Monthly-salaried employee's Basic Pay itself
+// (basic_rate / 2 per cutoff, see lib/payroll.ts). Any program the
+// employee has toggled off (employee.*_enabled = 0) contributes ₱0 on
+// both sides.
+export function computeStatutoryContributionsForPeriod(db: Database.Database, employee: PayrollEmployee, workDaysInPeriod: number): StatutoryContributions {
+  const contributionBasis = computeContributionBasis(employee, workDaysInPeriod);
+
+  let sssEmployee = 0, sssEmployer = 0, sssEc = 0, sssVersion: string | null = null;
+  if (employee.sss_enabled) {
+    const { brackets, versionLabel } = getActiveSssBrackets(db);
+    const result = computeSssContribution(contributionBasis, brackets);
+    sssEmployee = round2(result.employeeContribution / 2);
+    sssEmployer = round2(result.employerContribution / 2);
+    sssEc = round2(result.ecContribution / 2);
+    sssVersion = versionLabel;
+  }
+
+  let philhealthEmployee = 0, philhealthEmployer = 0, philhealthVersion: string | null = null;
+  if (employee.philhealth_enabled) {
+    const { config, versionLabel } = getActivePhilHealthConfig(db);
+    if (config) {
+      const result = computePhilHealthContribution(contributionBasis, config);
+      philhealthEmployee = round2(result.employeeContribution / 2);
+      philhealthEmployer = round2(result.employerContribution / 2);
+      philhealthVersion = versionLabel;
+    }
+  }
+
+  let pagibigEmployee = 0, pagibigEmployer = 0, pagibigVersion: string | null = null;
+  if (employee.pagibig_enabled) {
+    const { config, versionLabel } = getActivePagibigConfig(db);
+    if (config) {
+      const result = computePagibigContribution(contributionBasis, config);
+      pagibigEmployee = round2(result.employeeContribution / 2);
+      pagibigEmployer = round2(result.employerContribution / 2);
+      pagibigVersion = versionLabel;
+    }
+  }
+
+  return {
+    contributionBasis,
+    sssEmployee, sssEmployer, sssEc, sssVersion,
+    philhealthEmployee, philhealthEmployer, philhealthVersion,
+    pagibigEmployee, pagibigEmployer, pagibigVersion,
+  };
+}
+
 // Re-runs the pure engine for an existing entry using its FROZEN snapshot
 // columns (salary/attendance never re-read live) plus whatever the
 // adjustments table currently holds — the only thing that can change a
@@ -206,6 +319,17 @@ export function recomputePayrollEntry(db: Database.Database, entryId: number): v
     approvedOtMinutes: entry.approved_ot_minutes,
     otMultiplier: entry.ot_multiplier_snapshot,
     adjustments: adjustments.map(a => ({ type: a.adjustment_type, amount: a.amount })),
+    // Statutory contributions are based on basic salary, never on bonuses/
+    // cash advances/loan deductions — so an adjustment change must NEVER
+    // recompute these off live rates. Pass through the exact frozen amounts
+    // already on the entry (set once, at generation time).
+    sssEmployeeContribution: entry.sss_ee_contribution,
+    sssEmployerContribution: entry.sss_er_contribution,
+    sssEcContribution: entry.sss_ec_contribution,
+    philhealthEmployeeContribution: entry.philhealth_ee_contribution,
+    philhealthEmployerContribution: entry.philhealth_er_contribution,
+    pagibigEmployeeContribution: entry.pagibig_ee_contribution,
+    pagibigEmployerContribution: entry.pagibig_er_contribution,
   };
   const breakdown = computePayroll(input);
 

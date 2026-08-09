@@ -58,6 +58,18 @@ export interface PayrollInput {
   approvedOtMinutes: number; // ONLY approved_minutes from approved OT requests — pending/rejected never reach here
   otMultiplier: number;
   adjustments: PayrollAdjustmentInput[];
+  // Statutory Contributions V1 — already-computed EE/ER amounts for THIS
+  // cutoff (bracket lookup / percentage math happens one level up, in
+  // computeStatutoryContributionsForPeriod() in lib/payroll-data.ts, which
+  // is DB-touching; this engine stays pure). Employee shares reduce Net
+  // Pay; employer shares (+ SSS EC) never do — see employerContributionsTotal.
+  sssEmployeeContribution: number;
+  sssEmployerContribution: number;
+  sssEcContribution: number;
+  philhealthEmployeeContribution: number;
+  philhealthEmployerContribution: number;
+  pagibigEmployeeContribution: number;
+  pagibigEmployerContribution: number;
 }
 
 export interface PayrollBreakdown {
@@ -74,8 +86,17 @@ export interface PayrollBreakdown {
   absenceDeduction: number;
   unpaidLeaveDeduction: number;
   otherDeductions: number;
+  sssEmployeeContribution: number;
+  philhealthEmployeeContribution: number;
+  pagibigEmployeeContribution: number;
   totalDeductions: number;
   netPay: number;
+  // Company cost only — informational, already excluded from totalDeductions/netPay above.
+  sssEmployerContribution: number;
+  sssEcContribution: number;
+  philhealthEmployerContribution: number;
+  pagibigEmployerContribution: number;
+  employerContributionsTotal: number;
 }
 
 function round2(n: number): number {
@@ -110,8 +131,11 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
   const absenceDeduction = input.absenceDays * dailyRate;
   const unpaidLeaveDeduction = input.unpaidLeaveDays * dailyRate;
 
-  const totalDeductions = lateDeduction + undertimeDeduction + excessBreakDeduction + absenceDeduction + unpaidLeaveDeduction + otherDeductions;
+  const statutoryEmployeeDeductions = input.sssEmployeeContribution + input.philhealthEmployeeContribution + input.pagibigEmployeeContribution;
+  const totalDeductions = lateDeduction + undertimeDeduction + excessBreakDeduction + absenceDeduction + unpaidLeaveDeduction + otherDeductions + statutoryEmployeeDeductions;
   const netPay = grossPay - totalDeductions;
+
+  const employerContributionsTotal = input.sssEmployerContribution + input.sssEcContribution + input.philhealthEmployerContribution + input.pagibigEmployerContribution;
 
   return {
     dailyRate: round2(dailyRate),
@@ -127,8 +151,16 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
     absenceDeduction: round2(absenceDeduction),
     unpaidLeaveDeduction: round2(unpaidLeaveDeduction),
     otherDeductions: round2(otherDeductions),
+    sssEmployeeContribution: round2(input.sssEmployeeContribution),
+    philhealthEmployeeContribution: round2(input.philhealthEmployeeContribution),
+    pagibigEmployeeContribution: round2(input.pagibigEmployeeContribution),
     totalDeductions: round2(totalDeductions),
     netPay: round2(netPay),
+    sssEmployerContribution: round2(input.sssEmployerContribution),
+    sssEcContribution: round2(input.sssEcContribution),
+    philhealthEmployerContribution: round2(input.philhealthEmployerContribution),
+    pagibigEmployerContribution: round2(input.pagibigEmployerContribution),
+    employerContributionsTotal: round2(employerContributionsTotal),
   };
 }
 
