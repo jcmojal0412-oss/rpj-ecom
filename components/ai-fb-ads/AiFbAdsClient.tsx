@@ -34,9 +34,6 @@ const PRESETS = [
 ] as const;
 type PresetKey = typeof PRESETS[number]['key'];
 
-const NAVY = '#0B1F3A';
-const ROYAL = '#2554C7';
-
 interface Product { id: number; sku: string; name: string; srp: number | null; }
 
 /** Resize to max 1200px + compress to JPEG — used for the uploaded product photo before sending. */
@@ -71,219 +68,6 @@ function compressToBase64(file: File): Promise<{ base64: string; mediaType: stri
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
     img.src = url;
   });
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let line = '';
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-interface OverlayInput {
-  productName: string;
-  sellingPrice: string;
-  oldPrice: string;
-  discountPercent: number | null;
-  offer: string;
-  headline: string;
-  benefits: string[];
-  cta: string;
-  style: StyleKey;
-}
-
-/** Draws the background (cover-fit) plus the real text layer on top — this is the whole point of the V1.1 rework: the AI image never carries text, this function does. */
-async function compositeCreative(backgroundDataUrl: string, format: '4:5' | '1:1', input: OverlayInput): Promise<string> {
-  const W = 1080, H = format === '1:1' ? 1080 : 1350;
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d')!;
-
-  const bg = await loadImage(backgroundDataUrl);
-  const scale = Math.max(W / bg.width, H / bg.height);
-  const dw = bg.width * scale, dh = bg.height * scale;
-  ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-
-  const priceText = input.sellingPrice ? formatCurrency(Number(input.sellingPrice)) : '';
-  const oldPriceText = input.oldPrice ? formatCurrency(Number(input.oldPrice)) : '';
-  const discountText = input.discountPercent ? `${input.discountPercent}% OFF` : '';
-
-  ctx.textBaseline = 'middle';
-
-  const drawHeadline = (bandY: number, bandH: number, color: string) => {
-    if (!input.headline) return;
-    ctx.fillStyle = color;
-    ctx.font = '700 52px -apple-system, Segoe UI, Roboto, Arial';
-    ctx.textAlign = 'center';
-    const lines = wrapText(ctx, input.headline.toUpperCase(), W - 120);
-    const lineH = 58;
-    const startY = bandY + bandH / 2 - ((lines.length - 1) * lineH) / 2;
-    lines.slice(0, 2).forEach((l, i) => ctx.fillText(l, W / 2, startY + i * lineH));
-  };
-
-  const drawCtaButton = (cx: number, cy: number) => {
-    ctx.font = '700 36px -apple-system, Segoe UI, Roboto, Arial';
-    const label = input.cta.toUpperCase();
-    const tw = ctx.measureText(label).width;
-    const bw = tw + 90, bh = 78;
-    roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, bh / 2);
-    ctx.fillStyle = ROYAL;
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.fillText(label, cx, cy + 2);
-  };
-
-  if (input.style === 'feature_heavy') {
-    // Top band: headline
-    const topH = 170;
-    const grad = ctx.createLinearGradient(0, 0, 0, topH);
-    grad.addColorStop(0, 'rgba(11,31,58,0.92)');
-    grad.addColorStop(1, 'rgba(11,31,58,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, topH);
-    drawHeadline(0, topH, '#fff');
-
-    // Left column: benefit chips
-    const chips = input.benefits.slice(0, 5);
-    if (chips.length) {
-      const chipW = 300, chipH = 70, gap = 18, startY = topH + 40;
-      chips.forEach((b, i) => {
-        const y = startY + i * (chipH + gap);
-        roundRect(ctx, 40, y, chipW, chipH, 16);
-        ctx.fillStyle = 'rgba(255,255,255,0.94)';
-        ctx.fill();
-        ctx.fillStyle = ROYAL;
-        ctx.beginPath();
-        ctx.arc(40 + 36, y + chipH / 2, 14, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = '700 18px -apple-system, Segoe UI, Roboto, Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('✓', 40 + 36, y + chipH / 2 + 1);
-        ctx.fillStyle = NAVY;
-        ctx.font = '600 20px -apple-system, Segoe UI, Roboto, Arial';
-        ctx.textAlign = 'left';
-        const lines = wrapText(ctx, b, chipW - 80);
-        lines.slice(0, 2).forEach((l, li) => ctx.fillText(l, 40 + 66, y + chipH / 2 + (li === 0 && lines.length > 1 ? -12 : 6)));
-      });
-    }
-
-    drawBottomStrip();
-  } else if (input.style === 'promo') {
-    const topH = input.headline ? 150 : 0;
-    if (topH) {
-      ctx.fillStyle = NAVY;
-      ctx.fillRect(0, 0, W, topH);
-      drawHeadline(0, topH, '#fff');
-    }
-    drawBottomStrip(true);
-  } else {
-    // premium / lifestyle / auto — minimal
-    if (input.headline) {
-      const topH = 140;
-      const grad = ctx.createLinearGradient(0, 0, 0, topH);
-      grad.addColorStop(0, 'rgba(11,31,58,0.85)');
-      grad.addColorStop(1, 'rgba(11,31,58,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, topH);
-      drawHeadline(0, topH, '#fff');
-    }
-    drawBottomStrip();
-  }
-
-  function drawBottomStrip(big = false) {
-    if (!priceText && !input.cta) return;
-    const stripH = big ? 300 : 240;
-    ctx.fillStyle = NAVY;
-    ctx.fillRect(0, H - stripH, W, stripH);
-
-    let y = H - stripH + (big ? 70 : 60);
-
-    if (discountText) {
-      ctx.font = '700 30px -apple-system, Segoe UI, Roboto, Arial';
-      const tw = ctx.measureText(discountText).width;
-      roundRect(ctx, W / 2 - tw / 2 - 24, y - 26, tw + 48, 52, 26);
-      ctx.fillStyle = ROYAL;
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.fillText(discountText, W / 2, y + 1);
-      y += 70;
-    }
-
-    if (priceText) {
-      ctx.textAlign = 'center';
-      ctx.font = `700 ${big ? 72 : 60}px -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.fillStyle = '#fff';
-      if (oldPriceText) {
-        const priceW = ctx.measureText(priceText).width;
-        ctx.font = '400 34px -apple-system, Segoe UI, Roboto, Arial';
-        const oldW = ctx.measureText(oldPriceText).width;
-        const totalW = priceW + 24 + oldW;
-        const startX = W / 2 - totalW / 2;
-        ctx.font = `700 ${big ? 72 : 60}px -apple-system, Segoe UI, Roboto, Arial`;
-        ctx.textAlign = 'left';
-        ctx.fillText(priceText, startX, y);
-        ctx.font = '400 34px -apple-system, Segoe UI, Roboto, Arial';
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        const oldX = startX + priceW + 24;
-        ctx.fillText(oldPriceText, oldX, y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(oldX, y); ctx.lineTo(oldX + oldW, y); ctx.stroke();
-      } else {
-        ctx.fillText(priceText, W / 2, y);
-      }
-      y += big ? 80 : 66;
-    }
-
-    if (input.offer) {
-      ctx.font = '600 22px -apple-system, Segoe UI, Roboto, Arial';
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.textAlign = 'center';
-      ctx.fillText(input.offer.toUpperCase(), W / 2, y);
-      y += 44;
-    }
-
-    if (input.cta) drawCtaButton(W / 2, y + 20);
-  }
-
-  // Product name label, small, top-left corner (kept minimal — the physical
-  // product itself is the primary visual, per the prompt's "hero" direction).
-  if (input.productName) {
-    ctx.font = '600 22px -apple-system, Segoe UI, Roboto, Arial';
-    ctx.fillStyle = 'rgba(11,31,58,0.55)';
-    ctx.textAlign = 'left';
-    ctx.fillText(input.productName.toUpperCase(), 28, 34);
-  }
-
-  return canvas.toDataURL('image/png');
 }
 
 export default function AiFbAdsClient() {
@@ -354,6 +138,10 @@ export default function AiFbAdsClient() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_name: productName.trim(),
+          headline: headline || undefined,
+          benefits: benefits.filter(Boolean),
+          offer: offer || undefined,
+          cta,
           creative_style: creativeStyle,
           format,
           reference_image_base64: base64,
@@ -365,13 +153,6 @@ export default function AiFbAdsClient() {
       });
       const genData = await genRes.json();
       if (!genRes.ok) { setError(genData.error || 'Image generation failed. Please try again.'); return; }
-
-      const backgroundDataUrl = `data:${genData.background_media_type};base64,${genData.background_base64}`;
-      const finalDataUrl = await compositeCreative(backgroundDataUrl, format, {
-        productName: productName.trim(),
-        sellingPrice, oldPrice, discountPercent,
-        offer, headline, benefits: benefits.filter(Boolean), cta, style: creativeStyle,
-      });
 
       const saveRes = await fetch('/api/ai-fb-ads/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -388,8 +169,8 @@ export default function AiFbAdsClient() {
           format,
           reference_image_base64: base64,
           reference_image_media_type: mediaType,
-          final_image_base64: finalDataUrl.split(',')[1],
-          final_image_media_type: 'image/png',
+          final_image_base64: genData.background_base64,
+          final_image_media_type: genData.background_media_type,
         }),
       });
       const saveData = await saveRes.json();
@@ -585,7 +366,7 @@ export default function AiFbAdsClient() {
             {generating ? (
               <div className="flex flex-col items-center gap-2 text-gray-400">
                 <Loader2 size={28} className="animate-spin" />
-                <p className="text-xs">Generating background, then adding your text...</p>
+                <p className="text-xs">Generating your ad creative...</p>
               </div>
             ) : generatedImageUrl ? (
               <img src={generatedImageUrl} alt="Generated creative" className="w-full h-full object-contain" />

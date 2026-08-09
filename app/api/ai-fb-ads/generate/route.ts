@@ -6,12 +6,12 @@ import { generateAdImage, ImageGenerationConfigError, ImageGenerationApiError } 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Generation only — no DB/disk save here. Returns the raw AI background
-// (product staging/lighting/composition, deliberately NO text baked in —
-// see lib/ai-fb-ads.ts) as base64 so the client can composite the real
-// Product Name/Price/Discount/Headline/Benefits/CTA on top of it as a
-// canvas overlay. The FINAL composited image is what actually gets saved,
-// via POST /api/ai-fb-ads/save, once the client has produced it.
+// Generation only — no DB/disk save here. Returns the raw AI-generated
+// poster (see lib/ai-fb-ads.ts's V1.3 "full poster" prompt — the AI now
+// renders Headline/Benefits/Offer/CTA text itself, verbatim, as part of
+// the composition) as base64. The only thing deliberately kept OUT of the
+// image is the numeric Price/Old Price/Discount — the client sends this
+// straight through to POST /api/ai-fb-ads/save with no further compositing.
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      product_name, creative_style, format, reference_image_base64, reference_image_media_type,
+      product_name, headline, benefits, offer, cta, creative_style, format,
+      reference_image_base64, reference_image_media_type,
       prompt_mode, preset_key, custom_prompt,
     } = body;
 
@@ -41,6 +42,10 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildAdPrompt({
       productName: product_name.trim(),
+      headline: headline || undefined,
+      benefits: Array.isArray(benefits) ? benefits.filter(Boolean).slice(0, 5) : undefined,
+      offer: offer || undefined,
+      cta: cta || undefined,
       creativeStyle: style,
       format: adFormat,
       promptMode: mode,

@@ -2,25 +2,28 @@
 // Kept separate from lib/image-generation.ts (the provider transport) so
 // "what to ask for" stays independent of "how to call the API."
 //
-// V1.2 architecture — three prompt layers, matching the owner's requested
-// structure:
-//   LAYER 1: MASTER_PROMPT — hidden, always used, owner-specified wording.
-//   LAYER 2: style direction — either the matching CREATIVE_STYLES entry
-//            (Prompt Mode = Auto or Custom) or a PRESET_PROMPTS entry
-//            (Prompt Mode = Preset).
-//   LAYER 3: CUSTOM_PROMPT — optional free text, only appended in Custom mode.
+// V1.3 — full "poster ad" architecture, replacing the V1.1/V1.2
+// "AI draws only the background, the app overlays all text" approach.
 //
-// TECHNICAL_ADDENDUM is NOT one of the three owner-facing layers — it's a
-// standing technical constraint appended to every request regardless of
-// mode. It exists because of what the V1.1 rework (previous session) found
-// in the first live test: asking the model to render price/headline/CTA
-// text produced wrong numbers and even a wrong product. The addendum keeps
-// the master prompt's own "avoid fake text, inaccurate numbers" line
-// actually enforceable by (a) telling the model to leave that text out of
-// the image entirely — the app composites the real text afterward via
-// canvas, see AiFbAdsClient.tsx — and (b) spelling out product-fidelity
-// requirements precisely. Removing it would regress straight back to the
-// wrong-product/wrong-price failure from the first test.
+// Why the pivot: the owner shared 3 real ChatGPT-generated reference ads
+// (ornamental header, script eyebrow line + bold serif headline, an icon+
+// text benefit list, a circular badge/seal, a product inset, a two-tier
+// bottom banner — ALL rendered by the AI, not overlaid) and asked for that
+// exact quality bar. That's proof gpt-image-1 CAN render short, verbatim,
+// user-authored marketing copy reliably when given the exact text to use
+// and a clear structural brief — the earlier failure (wrong product, wrong
+// price) was really about (a) using a non-product logo as the test
+// reference image, and (b) asking the model to inventing/calculate a
+// numeric price on its own.
+//
+// So now: Headline, Benefits, Offer/tagline and CTA are embedded directly
+// in the prompt and the AI renders them as part of the full composition.
+// The one thing still kept OUT of the AI image and added as a canvas
+// overlay afterward is the numeric Price/Old Price/Discount — pure numbers
+// are the one category that's still unreliable to trust an image model
+// with, and none of the reference ads even show a price. Product identity
+// preservation (never invent/replace/redesign the reference product) is
+// unchanged and still non-negotiable.
 
 export type CreativeStyle = 'auto' | 'premium' | 'feature_heavy' | 'promo' | 'lifestyle';
 export type AdFormat = '4:5' | '1:1';
@@ -31,46 +34,38 @@ export const CREATIVE_STYLES: { key: CreativeStyle; label: string; description: 
   {
     key: 'auto', label: 'Auto',
     description: 'Let the generator pick the best-fitting style for this offer.',
-    promptDirection: 'Choose whichever commercial photography treatment below best fits this product and offer.',
+    promptDirection: 'Choose whichever composition below best fits this product and offer.',
   },
   {
     key: 'premium', label: 'Premium Product',
-    description: 'Elegant studio staging, premium lighting, one dominant hero product.',
+    description: 'Elegant editorial poster, one dominant hero shot.',
     promptDirection:
-      'Premium studio product photography. Elegant staging on a clean surface with a subtle gradient or softly lit backdrop. ' +
-      'Realistic studio lighting with soft shadow and a gentle reflection beneath the product. The product is one large, ' +
-      'dominant hero element, shot at a flattering three-quarter angle. Generous negative space above and below the product ' +
-      'so text can be overlaid later — leave the top ~20% and bottom ~25% of the frame visually quiet (soft gradient or blank ' +
-      'background, no busy detail there). Minimal, uncluttered, luxury feel.',
+      'Elegant, editorial poster composition. Full-bleed premium photography (studio or a refined real setting) with the ' +
+      'product as the clear hero. Restrained typography — a slim decorative divider, a short elegant eyebrow line, one bold ' +
+      'headline, minimal supporting copy. Luxury magazine-ad feel, generous spacing, not busy.',
   },
   {
     key: 'feature_heavy', label: 'Feature Heavy',
-    description: 'Large product plus clear space for benefit callouts.',
+    description: 'Icon-driven benefit list beside a large hero shot.',
     promptDirection:
-      'Feature-forward ecommerce product photography. Large, clearly lit hero product placed slightly right-of-center on a ' +
-      'clean, softly lit background. Leave open, uncluttered negative space along the left third and across the very top ' +
-      'and bottom of the frame — that space will hold benefit callouts and pricing added afterward, so keep it visually calm ' +
-      '(soft gradient or plain background there, no competing detail). Sharp product detail and realistic material texture ' +
-      '(fabric weave, plastic sheen, metal, etc. — whatever the product is actually made of) so viewers can see its quality.',
+      'Structured ecommerce poster with a large hero product photo and a clear vertical list of benefit callouts down one ' +
+      'side, each with a small circular icon badge beside 1-2 lines of text. Professional infographic-meets-lifestyle-ad feel.',
   },
   {
     key: 'promo', label: 'Promo / Discount',
-    description: 'Bold, energetic staging built around a big price moment.',
+    description: 'Bold, energetic, offer-forward poster.',
     promptDirection:
-      'Bold, energetic ecommerce promotional photography. Product staged prominently with dynamic but clean lighting and a ' +
-      'punchy, high-contrast background using the brand colors (white / dark navy blue / royal blue) — think a sale-event ' +
-      'feel without being tacky. Leave a clear, visually quiet zone across the top and a strong open band across the bottom ' +
-      'third of the frame — those areas will carry a price badge and CTA button added afterward, so avoid placing important ' +
-      'product detail there.',
+      'Bold, energetic, scroll-stopping poster layout. Strong colored banner elements, a prominent CTA area, dynamic but ' +
+      'clean composition. Product still highly visible and the overall design still premium, not cheap or cluttered.',
   },
   {
     key: 'lifestyle', label: 'Lifestyle',
-    description: 'Product shown in a realistic, relatable usage setting.',
+    description: 'Real people, real setting, product naturally in-scene.',
     promptDirection:
-      'Realistic lifestyle product photography. Show the product in an authentic, relatable real-world usage environment or ' +
-      'setting appropriate to what it is, shot like a natural editorial/lifestyle ecommerce photo (not a studio cutout). ' +
-      'Natural, soft lighting. Keep the top of the frame and a band across the bottom visually calmer/less busy so text can ' +
-      'be overlaid there afterward.',
+      'Realistic lifestyle photography as the full-bleed background — real people (family, a professional, a homeowner, ' +
+      'whichever fits the product) in an authentic real-world setting, with the product naturally placed within that scene ' +
+      '(e.g. worn, held, or displayed in the environment) rather than floating on a plain background. Editorial, aspirational, ' +
+      'warm and natural lighting.',
   },
 ];
 
@@ -86,7 +81,7 @@ export const PRESET_PROMPTS: { key: PresetKey; label: string; prompt: string }[]
   },
   {
     key: 'promo', label: 'Promo / Discount',
-    prompt: 'Use a scroll-stopping sales-driven layout. Emphasize the offer, price, urgency, and CTA while keeping the product highly visible and the design premium.',
+    prompt: 'Use a scroll-stopping sales-driven layout. Emphasize the offer, urgency, and CTA while keeping the product highly visible and the design premium.',
   },
   {
     key: 'lifestyle', label: 'Lifestyle',
@@ -115,25 +110,32 @@ export function computeDiscountPercent(sellingPrice: number, oldPrice?: number |
   return Math.round((1 - sellingPrice / oldPrice) * 100);
 }
 
-// LAYER 1 — hidden master prompt, owner-specified wording, always used.
-const MASTER_PROMPT = `Create a premium high-converting Facebook ad image for the attached product.
-Preserve the actual product appearance and make it the main hero of the design.
-Create a clean, premium, professional ecommerce advertising layout.
-Use strong visual hierarchy, polished composition, balanced spacing, premium lighting, and modern styling.
-Make it suitable for Facebook Ads and optimized for mobile viewing.
-If appropriate, include a stylish model or lifestyle element, but keep the product as the main focus.
-Avoid clutter, distorted product details, fake text, inaccurate numbers, cheap-looking layouts, and random brand elements.
-Strictly follow the selected output format and aspect ratio.
-Act like a professional graphic artist and Facebook ad strategist.`;
+// LAYER 1 — hidden master prompt, always used. Describes the FULL finished
+// poster structure (matching the reference ads), not just a product photo.
+const MASTER_PROMPT = `Create a premium, professional, full-bleed Facebook advertising POSTER for the attached product — a complete finished ad graphic that combines real photography with polished graphic design, like a high-end printed flyer or agency-made ecommerce ad. This is NOT just a product photo — it is a fully composed advertisement with real text rendered directly in the image.
 
-// Standing technical constraint, not one of the 3 owner-facing layers —
-// see file header for why this can't be dropped.
-const TECHNICAL_ADDENDUM = `PRODUCT FIDELITY (non-negotiable): the attached image shows the ACTUAL real product. Keep its exact shape, proportions, colors, materials, markings, and labels — do not redesign it, do not invent a different or "improved" version, do not substitute a similar-looking but different product. If unsure about a specific detail, keep it exactly as shown rather than guessing.
+Preserve the actual product's appearance exactly and make it the visual hero of the design — never invent a different product, never redesign it, never distort its shape, colors, materials, or markings.
 
-TEXT (non-negotiable): a separate design layer adds the real product name, price, discount, headline and CTA on top of this image afterward with guaranteed-accurate spelling and numbers. So this image itself must not render ANY price, number, percentage, headline, CTA button/text, or marketing copy — leave clean, uncluttered negative space (per the layout direction below) for that text to be added later. Do not add any brand name, logo, or watermark that wasn't in the reference image.`;
+COMPOSITION TO FOLLOW (adapt to the chosen style below, but keep this general structure):
+- Full-bleed, photorealistic background — real photography (a lifestyle setting, a model, or refined studio staging, whichever fits the style) with the product naturally integrated into the scene.
+- A short decorative header near the top: a slim ornamental divider line, optionally with a small decorative motif, framing a short elegant eyebrow line above a bold, large headline.
+- A short one-line supporting description beneath the headline.
+- A vertical or horizontal list of benefit callouts, each paired with a small circular icon badge.
+- A circular badge or seal graphic somewhere in the composition carrying a short closing line or the call-to-action phrase.
+- A bottom banner: a bold colored strip with a short punchy tagline, and a lighter strip beneath it with 2 short trust/value phrases separated by a small divider.
+- Typography: pair an elegant script/cursive accent face for the small eyebrow line with a bold serif or bold sans headline, and a clean simple sans for supporting/body text — premium, editorial, magazine-ad quality, never a generic template look.
+- Strong visual hierarchy, balanced spacing, premium lighting and shadow, modern styling. Optimized for mobile Facebook feed viewing.
+
+TEXT ACCURACY (non-negotiable): render the Headline, Benefits, Offer/tagline and CTA text given below EXACTLY as written — do not rewrite, shorten, paraphrase, mistranslate, or invent your own copy in their place. If any of those fields are not provided, you may design a short, fitting line yourself in the same voice, but never for the ones that ARE provided.
+
+DO NOT render any price, peso amount, percentage, or discount number anywhere in the image — that is added separately afterward with guaranteed-accurate numbers. Do not invent a brand name, logo, or watermark that wasn't supplied. Do not distort the product's real geometry or markings. Do not make this look like a cheap, generic AI template.`;
 
 export interface AdPromptInput {
   productName: string;
+  headline?: string;
+  benefits?: string[];
+  offer?: string;
+  cta?: string;
   format: AdFormat;
   promptMode: PromptMode;
   creativeStyle: CreativeStyle;   // used when promptMode is 'auto' or 'custom'
@@ -162,10 +164,17 @@ export function buildAdPrompt(input: AdPromptInput): string {
     ? `ADDITIONAL INSTRUCTIONS: ${input.customPrompt?.trim() || DEFAULT_CUSTOM_FALLBACK}`
     : '';
 
+  const contentLines = [`PRODUCT: ${input.productName}`];
+  if (input.headline?.trim()) contentLines.push(`HEADLINE (render exactly): ${input.headline.trim()}`);
+  if (input.benefits && input.benefits.filter(Boolean).length) {
+    contentLines.push(`BENEFITS (render exactly, one per icon callout): ${input.benefits.filter(Boolean).map(b => `"${b}"`).join(', ')}`);
+  }
+  if (input.offer?.trim()) contentLines.push(`OFFER / TAGLINE (render exactly): ${input.offer.trim()}`);
+  if (input.cta?.trim()) contentLines.push(`CTA PHRASE (render exactly, e.g. in the badge or bottom banner): ${input.cta.trim()}`);
+
   const sections = [
     MASTER_PROMPT,
-    TECHNICAL_ADDENDUM,
-    `PRODUCT: ${input.productName}`,
+    contentLines.join('\n'),
     styleBlock,
     customBlock,
     `OUTPUT ASPECT RATIO: ${formatLabel}. Compose with that vertical/square frame in mind from the start.`,

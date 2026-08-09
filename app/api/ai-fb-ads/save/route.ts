@@ -18,10 +18,10 @@ function saveImage(base64: string, mediaType: string, prefix: string): Promise<s
   return writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(base64, 'base64')).then(() => filename);
 }
 
-// Persists the FINAL creative — the AI background with Product Name/Price/
-// Discount/Headline/Benefits/CTA already composited on top by the client
-// (see AiFbAdsClient.tsx). Called only after the client has produced that
-// composite; this route never talks to the image-generation API itself.
+// Persists the FINAL creative — the raw AI-generated poster (Headline/
+// Benefits/Offer/CTA already rendered by the model itself, no price shown;
+// see lib/ai-fb-ads.ts) exactly as returned by /api/ai-fb-ads/generate.
+// This route never talks to the image-generation API itself.
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
