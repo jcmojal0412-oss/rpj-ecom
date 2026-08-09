@@ -26,7 +26,13 @@ export async function GET() {
       WHERE type='OUT' AND date(moved_at)=?
     `).get(today) as { total: number }).total;
 
-    return NextResponse.json({ inventoryValue, totalSkus, todayIn, todayOut });
+    const todayCogsOut = (db.prepare(`
+      SELECT COALESCE(SUM(sm.quantity * p.cogs), 0) as value
+      FROM stock_movements sm JOIN products p ON p.id = sm.product_id
+      WHERE sm.type='OUT' AND date(sm.moved_at)=?
+    `).get(today) as { value: number }).value;
+
+    return NextResponse.json({ inventoryValue, totalSkus, todayIn, todayOut, todayCogsOut });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

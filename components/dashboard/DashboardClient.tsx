@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Package, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Download, Trophy } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Download, Trophy, Receipt } from 'lucide-react';
 import { formatCurrency, todayISO } from '@/lib/utils';
 import MovingChart from './MovingChart';
 import Spinner from '@/components/ui/Spinner';
@@ -12,6 +12,7 @@ interface KPIs {
   totalSkus: number;
   todayIn: number;
   todayOut: number;
+  todayCogsOut: number;
 }
 
 interface LowStockItem {
@@ -110,7 +111,7 @@ export default function DashboardClient() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <KpiCard
           title="Total Inventory Value"
           value={formatCurrency(kpis?.inventoryValue ?? 0)}
@@ -134,6 +135,12 @@ export default function DashboardClient() {
           value={String(kpis?.todayOut ?? 0)} unit="units"
           icon={<TrendingDown className="text-red-500" size={22} />}
           color="red"
+        />
+        <KpiCard
+          title="Total COGS Out (Today)"
+          value={formatCurrency(kpis?.todayCogsOut ?? 0)}
+          icon={<Receipt className="text-amber-600" size={22} />}
+          color="amber"
         />
       </div>
 
