@@ -41,6 +41,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     delete employee.sss_number;
     delete employee.philhealth_number;
     delete employee.pagibig_number;
+    delete employee.sss_deduction_amount;
+    delete employee.philhealth_deduction_amount;
+    delete employee.pagibig_deduction_amount;
   }
 
   return NextResponse.json({ ...employee, employee_code: employeeCode(employee.id), linked_user: linkedUser, current_shift: currentShift });
@@ -93,8 +96,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     // etc. from that form would silently wipe a real number with undefined.
     const canEditStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
     if (canEditStatutoryIds) {
-      db.prepare(`UPDATE employees SET sss_number=?, philhealth_number=?, pagibig_number=? WHERE id=?`).run(
-        body.sss_number || null, body.philhealth_number || null, body.pagibig_number || null, params.id
+      db.prepare(`
+        UPDATE employees SET
+          sss_number=?, philhealth_number=?, pagibig_number=?,
+          sss_deduction_amount=?, philhealth_deduction_amount=?, pagibig_deduction_amount=?
+        WHERE id=?
+      `).run(
+        body.sss_number || null, body.philhealth_number || null, body.pagibig_number || null,
+        Number(body.sss_deduction_amount) || 0, Number(body.philhealth_deduction_amount) || 0, Number(body.pagibig_deduction_amount) || 0,
+        params.id
       );
     }
 

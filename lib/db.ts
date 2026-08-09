@@ -801,6 +801,17 @@ function migrateSchema() {
   addColIfMissing('employees', 'philhealth_enabled', 'philhealth_enabled INTEGER NOT NULL DEFAULT 1');
   addColIfMissing('employees', 'pagibig_enabled', 'pagibig_enabled INTEGER NOT NULL DEFAULT 1');
 
+  // Employee-share DEFAULT deduction amounts (per payroll cutoff) — pre-fill
+  // the manual Statutory Contributions entry in Payroll (see
+  // app/api/payroll/periods/route.ts's generate step) so HR isn't retyping
+  // the same peso figure every run. Still fully editable per-run afterward
+  // via PUT /api/payroll/entries/[id]/contributions — this is a starting
+  // value, not an override. Employee share only (not employer share),
+  // matching what was actually asked for.
+  addColIfMissing('employees', 'sss_deduction_amount', 'sss_deduction_amount REAL NOT NULL DEFAULT 0');
+  addColIfMissing('employees', 'philhealth_deduction_amount', 'philhealth_deduction_amount REAL NOT NULL DEFAULT 0');
+  addColIfMissing('employees', 'pagibig_deduction_amount', 'pagibig_deduction_amount REAL NOT NULL DEFAULT 0');
+
   addColIfMissing('payroll_entries', 'contribution_basis_snapshot', 'contribution_basis_snapshot REAL NOT NULL DEFAULT 0');
   addColIfMissing('payroll_entries', 'sss_ee_contribution', 'sss_ee_contribution REAL NOT NULL DEFAULT 0');
   addColIfMissing('payroll_entries', 'sss_er_contribution', 'sss_er_contribution REAL NOT NULL DEFAULT 0');

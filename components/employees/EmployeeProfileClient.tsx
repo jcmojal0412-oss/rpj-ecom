@@ -66,6 +66,9 @@ interface EmployeeDetail {
   sss_number?: string | null;
   philhealth_number?: string | null;
   pagibig_number?: string | null;
+  sss_deduction_amount?: number;
+  philhealth_deduction_amount?: number;
+  pagibig_deduction_amount?: number;
   sss_enabled: number;
   philhealth_enabled: number;
   pagibig_enabled: number;
@@ -182,6 +185,9 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
     sss_number: employee.sss_number ?? '',
     philhealth_number: employee.philhealth_number ?? '',
     pagibig_number: employee.pagibig_number ?? '',
+    sss_deduction_amount: employee.sss_deduction_amount ?? 0,
+    philhealth_deduction_amount: employee.philhealth_deduction_amount ?? 0,
+    pagibig_deduction_amount: employee.pagibig_deduction_amount ?? 0,
     sss_enabled: !!employee.sss_enabled,
     philhealth_enabled: !!employee.philhealth_enabled,
     pagibig_enabled: !!employee.pagibig_enabled,
@@ -191,9 +197,12 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
   const [error, setError] = useState('');
   const [users, setUsers] = useState<{ id: number; name: string; username: string; linked_employee_id: number | null }[]>([]);
   const [showReassign, setShowReassign] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
 
   useEffect(() => {
     fetch('/api/employees/available-users').then(r => r.json()).then(d => setUsers(Array.isArray(d) ? d : []));
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setIsOwner(u?.role === 'owner'));
   }, []);
 
   const set = (patch: Partial<typeof form>) => setForm(f => ({ ...f, ...patch }));
@@ -333,6 +342,18 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-1">Only needed if this employee logs in to clock their own attendance.</p>
+
+            {employee.linked_user && (
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mt-2">
+                <div>
+                  <p className="text-xs text-gray-400">Username</p>
+                  <p className="text-sm font-mono text-gray-700">{employee.linked_user.username}</p>
+                </div>
+                {isOwner && (
+                  <button onClick={() => setShowSetPassword(true)} className="btn-secondary text-xs py-1">Set / Reset Password</button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -423,41 +444,68 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         <div className="card space-y-3">
           <p className="text-sm font-semibold text-gray-700">Statutory Contributions <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
 
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.sss_enabled} onChange={e => set({ sss_enabled: e.target.checked })} />
-              SSS Enabled
-            </label>
-            {canSeeStatutoryIds ? (
-              <input type="text" className="form-input max-w-[180px]" placeholder="SSS Number" value={form.sss_number} onChange={e => set({ sss_number: e.target.value })} />
-            ) : (
-              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+          <div className="space-y-1.5 pb-2 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.sss_enabled} onChange={e => set({ sss_enabled: e.target.checked })} />
+                SSS Enabled
+              </label>
+              {canSeeStatutoryIds ? (
+                <input type="text" className="form-input max-w-[180px]" placeholder="SSS Number" value={form.sss_number} onChange={e => set({ sss_number: e.target.value })} />
+              ) : (
+                <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+              )}
+            </div>
+            {canSeeStatutoryIds && (
+              <div className="flex items-center justify-end gap-2">
+                <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
+                <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.sss_deduction_amount} onChange={e => set({ sss_deduction_amount: Number(e.target.value) })} />
+              </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.philhealth_enabled} onChange={e => set({ philhealth_enabled: e.target.checked })} />
-              PhilHealth Enabled
-            </label>
-            {canSeeStatutoryIds ? (
-              <input type="text" className="form-input max-w-[180px]" placeholder="PhilHealth Number" value={form.philhealth_number} onChange={e => set({ philhealth_number: e.target.value })} />
-            ) : (
-              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+          <div className="space-y-1.5 pb-2 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.philhealth_enabled} onChange={e => set({ philhealth_enabled: e.target.checked })} />
+                PhilHealth Enabled
+              </label>
+              {canSeeStatutoryIds ? (
+                <input type="text" className="form-input max-w-[180px]" placeholder="PhilHealth Number" value={form.philhealth_number} onChange={e => set({ philhealth_number: e.target.value })} />
+              ) : (
+                <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+              )}
+            </div>
+            {canSeeStatutoryIds && (
+              <div className="flex items-center justify-end gap-2">
+                <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
+                <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.philhealth_deduction_amount} onChange={e => set({ philhealth_deduction_amount: Number(e.target.value) })} />
+              </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.pagibig_enabled} onChange={e => set({ pagibig_enabled: e.target.checked })} />
-              Pag-IBIG Enabled
-            </label>
-            {canSeeStatutoryIds ? (
-              <input type="text" className="form-input max-w-[180px]" placeholder="Pag-IBIG MID Number" value={form.pagibig_number} onChange={e => set({ pagibig_number: e.target.value })} />
-            ) : (
-              <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.pagibig_enabled} onChange={e => set({ pagibig_enabled: e.target.checked })} />
+                Pag-IBIG Enabled
+              </label>
+              {canSeeStatutoryIds ? (
+                <input type="text" className="form-input max-w-[180px]" placeholder="Pag-IBIG MID Number" value={form.pagibig_number} onChange={e => set({ pagibig_number: e.target.value })} />
+              ) : (
+                <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
+              )}
+            </div>
+            {canSeeStatutoryIds && (
+              <div className="flex items-center justify-end gap-2">
+                <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
+                <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.pagibig_deduction_amount} onChange={e => set({ pagibig_deduction_amount: Number(e.target.value) })} />
+              </div>
             )}
           </div>
+          {canSeeStatutoryIds && (
+            <p className="text-xs text-gray-400">Pre-fills this amount in Payroll every cutoff — HR can still edit it per run before approving.</p>
+          )}
         </div>
       </div>
 
@@ -474,6 +522,58 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
           <ReassignShiftForm employeeId={employee.id} onCancel={() => setShowReassign(false)} onSaved={() => { setShowReassign(false); showToast('Default shift updated!'); onSaved(); }} />
         </Modal>
       )}
+
+      {showSetPassword && employee.linked_user && (
+        <Modal open={showSetPassword} onClose={() => setShowSetPassword(false)} title={`Set Password — ${employee.linked_user.username}`} size="sm">
+          <SetPasswordForm userId={employee.linked_user.id} onCancel={() => setShowSetPassword(false)} onSaved={() => { setShowSetPassword(false); showToast('Password updated!'); }} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SetPasswordForm({ userId, onCancel, onSaved }: { userId: number; onCancel: () => void; onSaved: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (password !== confirm) { setError('Passwords do not match.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/users/${userId}/password`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to update password.'); return; }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="form-label">New Password</label>
+        <input type="password" className="form-input" value={password} onChange={e => setPassword(e.target.value)} autoFocus />
+      </div>
+      <div>
+        <label className="form-label">Confirm Password</label>
+        <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} />
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary text-sm py-2 px-4">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary text-sm py-2 px-4 disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Saving...' : 'Save Password'}
+        </button>
+      </div>
     </div>
   );
 }

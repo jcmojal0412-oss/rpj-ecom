@@ -39,11 +39,12 @@ export async function GET(req: NextRequest) {
 
   const rows = db.prepare(sql).all(...params) as any[];
   const today = todayISO();
-  // SSS/PhilHealth/Pag-IBIG numbers never go out on the list view — only
-  // the detail view (below), and only then to a payroll-permission viewer.
-  // The list keeps the *_enabled flags (needed for basic roster display).
+  // SSS/PhilHealth/Pag-IBIG numbers and default deduction amounts never go
+  // out on the list view — only the detail view (below), and only then to
+  // a payroll-permission viewer. The list keeps the *_enabled flags (needed
+  // for basic roster display).
   const withCode = rows.map(r => {
-    const { sss_number, philhealth_number, pagibig_number, ...rest } = r;
+    const { sss_number, philhealth_number, pagibig_number, sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount, ...rest } = r;
     return {
       ...rest,
       employee_code: employeeCode(r.id),
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
       if (existing) return NextResponse.json({ error: 'That system user is already linked to another employee.' }, { status: 409 });
     }
 
+    // Government ID numbers and default deduction amounts are only ever
+    // written by a payroll-permission viewer — matches the read/write gate
+    // on the [id] PUT route.
+    const canEditStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
+
     let newId = 0;
     runTransaction(() => {
       const info = db.prepare(`
@@ -79,8 +85,9 @@ export async function POST(req: NextRequest) {
           position, department, branch, date_hired, employment_type, employment_status,
           work_days, rest_day, attendance_enabled, linked_user_id,
           salary_type, basic_rate, allowance, ot_eligible,
-          sss_number, philhealth_number, pagibig_number, sss_enabled, philhealth_enabled, pagibig_enabled
-        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?)
+          sss_number, philhealth_number, pagibig_number, sss_enabled, philhealth_enabled, pagibig_enabled,
+          sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
+        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?, ?,?,?)
       `).run(
         body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
         body.birthday || null, body.emergency_contact_name || null, body.emergency_contact_number || null,
@@ -90,8 +97,13 @@ export async function POST(req: NextRequest) {
         body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
         body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
         body.ot_eligible === false ? 0 : 1,
-        body.sss_number || null, body.philhealth_number || null, body.pagibig_number || null,
-        body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1
+        canEditStatutoryIds ? (body.sss_number || null) : null,
+        canEditStatutoryIds ? (body.philhealth_number || null) : null,
+        canEditStatutoryIds ? (body.pagibig_number || null) : null,
+        body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1,
+        canEditStatutoryIds ? (Number(body.sss_deduction_amount) || 0) : 0,
+        canEditStatutoryIds ? (Number(body.philhealth_deduction_amount) || 0) : 0,
+        canEditStatutoryIds ? (Number(body.pagibig_deduction_amount) || 0) : 0
       );
       newId = Number(info.lastInsertRowid);
 

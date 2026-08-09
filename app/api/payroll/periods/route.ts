@@ -62,9 +62,10 @@ export async function POST(req: NextRequest) {
 
     const employees = db.prepare(`
       SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, position,
-        sss_enabled, philhealth_enabled, pagibig_enabled
+        sss_enabled, philhealth_enabled, pagibig_enabled,
+        sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
       FROM employees WHERE employment_status = 'Active' AND attendance_enabled = 1
-    `).all() as (PayrollEmployee & { position: string | null })[];
+    `).all() as (PayrollEmployee & { position: string | null; sss_deduction_amount: number; philhealth_deduction_amount: number; pagibig_deduction_amount: number })[];
 
     let periodId = 0;
     runTransaction(() => {
@@ -78,12 +79,17 @@ export async function POST(req: NextRequest) {
         const approvedOtMinutes = employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
 
         // Statutory Contributions are MANUAL per payroll run (not
-        // auto-computed) — every entry starts at ₱0 here; HR types in the
-        // exact SSS/PhilHealth/Pag-IBIG EE+ER amounts themselves in Review
-        // Payroll (see PUT /api/payroll/entries/[id]/contributions). The
-        // bracket/percentage engine in lib/statutory-contributions.ts and
-        // lib/payroll-data.ts's computeStatutoryContributionsForPeriod()
-        // still exist, unused, in case auto-compute is turned back on later.
+        // auto-computed) — but each entry starts PRE-FILLED with the
+        // employee's own default deduction amount (set on their 201 profile,
+        // Statutory Contributions section) instead of ₱0, so HR isn't
+        // retyping the same figure every cutoff. Still fully editable in
+        // Review Payroll (PUT /api/payroll/entries/[id]/contributions).
+        // Employer-share defaults aren't a thing yet (not asked for) — those
+        // always start at ₱0. Disabled programs (*_enabled = 0) always start
+        // at ₱0 regardless of any default on file. The bracket/percentage
+        // engine in lib/statutory-contributions.ts and lib/payroll-data.ts's
+        // computeStatutoryContributionsForPeriod() still exist, unused, in
+        // case auto-compute is turned back on later.
         const input: PayrollInput = {
           salaryType: employee.salary_type,
           basicRate: employee.basic_rate,
@@ -97,12 +103,12 @@ export async function POST(req: NextRequest) {
           approvedOtMinutes,
           otMultiplier,
           adjustments: [],
-          sssEmployeeContribution: 0,
+          sssEmployeeContribution: employee.sss_enabled ? (employee.sss_deduction_amount || 0) : 0,
           sssEmployerContribution: 0,
           sssEcContribution: 0,
-          philhealthEmployeeContribution: 0,
+          philhealthEmployeeContribution: employee.philhealth_enabled ? (employee.philhealth_deduction_amount || 0) : 0,
           philhealthEmployerContribution: 0,
-          pagibigEmployeeContribution: 0,
+          pagibigEmployeeContribution: employee.pagibig_enabled ? (employee.pagibig_deduction_amount || 0) : 0,
           pagibigEmployerContribution: 0,
         };
         const breakdown = computePayroll(input);
