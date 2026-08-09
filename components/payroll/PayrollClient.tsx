@@ -512,20 +512,52 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
   );
 }
 
+const CONTRIBUTION_FIELDS = [
+  { key: 'sss_ee', column: 'sss_ee_contribution', label: 'SSS (Employee)' },
+  { key: 'sss_er', column: 'sss_er_contribution', label: 'SSS (Employer)' },
+  { key: 'sss_ec', column: 'sss_ec_contribution', label: 'EC (Employer)' },
+  { key: 'philhealth_ee', column: 'philhealth_ee_contribution', label: 'PhilHealth (Employee)' },
+  { key: 'philhealth_er', column: 'philhealth_er_contribution', label: 'PhilHealth (Employer)' },
+  { key: 'pagibig_ee', column: 'pagibig_ee_contribution', label: 'Pag-IBIG (Employee)' },
+  { key: 'pagibig_er', column: 'pagibig_er_contribution', label: 'Pag-IBIG (Employer)' },
+] as const;
+
 export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToast }: { entryId: number; locked: boolean; onClose: () => void; onChanged: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [entry, setEntry] = useState<any>(null);
   const [adjustments, setAdjustments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [showAddAdjustment, setShowAddAdjustment] = useState(false);
+  const [contributions, setContributions] = useState<Record<string, string>>({});
+  const [savingContributions, setSavingContributions] = useState(false);
 
   const fetchDetail = () => {
     setLoading(true);
     fetch(`/api/payroll/entries/${entryId}`).then(r => r.json()).then(d => {
       setEntry(d.entry); setAdjustments(d.adjustments); setLoading(false);
+      const c: Record<string, string> = {};
+      for (const f of CONTRIBUTION_FIELDS) c[f.key] = String(d.entry?.[f.column] || 0);
+      setContributions(c);
     });
   };
   useEffect(fetchDetail, [entryId]);
+
+  const saveContributions = async () => {
+    setSavingContributions(true);
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}/contributions`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(CONTRIBUTION_FIELDS.map(f => [f.key, Number(contributions[f.key]) || 0]))),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to save.', 'error'); return; }
+      showToast('Contributions saved!');
+      fetchDetail();
+      onChanged();
+    } finally {
+      setSavingContributions(false);
+    }
+  };
 
   const removeAdjustment = async (adjId: number) => {
     await fetch(`/api/payroll/entries/${entryId}/adjustments/${adjId}`, { method: 'DELETE' });
@@ -571,15 +603,36 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
             <span>NET PAY</span><span>{formatCurrency(entry.net_pay)}</span>
           </div>
 
-          <div className="bg-gray-50 rounded-xl p-3.5 text-xs space-y-1.5 border border-gray-100">
-            <p className="font-semibold text-gray-500 uppercase tracking-wide">Employer Contributions / Company Cost</p>
-            <p className="text-gray-400">Not deducted from Net Pay — tracked separately as company cost.</p>
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
-              <div className="flex justify-between"><span className="text-gray-500">SSS Employer</span><span className="font-medium">{formatCurrency(entry.sss_er_contribution || 0)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">EC</span><span className="font-medium">{formatCurrency(entry.sss_ec_contribution || 0)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">PhilHealth Employer</span><span className="font-medium">{formatCurrency(entry.philhealth_er_contribution || 0)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Pag-IBIG Employer</span><span className="font-medium">{formatCurrency(entry.pagibig_er_contribution || 0)}</span></div>
+          {/* Statutory Contributions are entered MANUALLY here, per payroll
+              run — not auto-computed. Employee shares (above) reduce Net
+              Pay; employer shares + EC never do, tracked as company cost
+              only. */}
+          <div className="bg-gray-50 rounded-xl p-3.5 text-xs space-y-2 border border-gray-100">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-500 uppercase tracking-wide">Statutory Contributions</p>
+              <span className="text-gray-400">Enter manually</span>
             </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {CONTRIBUTION_FIELDS.map(f => (
+                <div key={f.key}>
+                  <label className="block text-gray-500 mb-0.5">{f.label}</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    className="form-input py-1.5 text-xs"
+                    value={contributions[f.key] ?? '0'}
+                    disabled={locked}
+                    onChange={e => setContributions(c => ({ ...c, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-gray-400 pt-1">Employee shares (SSS, PhilHealth, Pag-IBIG) reduce Net Pay above once saved. Employer shares + EC are company cost only — never deducted.</p>
+            {!locked && (
+              <button onClick={saveContributions} disabled={savingContributions} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-50">
+                {savingContributions ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
+                {savingContributions ? 'Saving...' : 'Save Contributions'}
+              </button>
+            )}
           </div>
 
           <button onClick={() => setShowDetails(s => !s)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">

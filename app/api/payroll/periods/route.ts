@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { computePayroll, type PayrollInput } from '@/lib/payroll';
-import { aggregateAttendanceForPeriod, getApprovedOtMinutes, computeStatutoryContributionsForPeriod, type PayrollEmployee } from '@/lib/payroll-data';
+import { aggregateAttendanceForPeriod, getApprovedOtMinutes, type PayrollEmployee } from '@/lib/payroll-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,8 +76,14 @@ export async function POST(req: NextRequest) {
       for (const employee of employees) {
         const attendance = aggregateAttendanceForPeriod(db, employee, from_date, to_date);
         const approvedOtMinutes = employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
-        const statutory = computeStatutoryContributionsForPeriod(db, employee, attendance.workDaysInPeriod);
 
+        // Statutory Contributions are MANUAL per payroll run (not
+        // auto-computed) — every entry starts at ₱0 here; HR types in the
+        // exact SSS/PhilHealth/Pag-IBIG EE+ER amounts themselves in Review
+        // Payroll (see PUT /api/payroll/entries/[id]/contributions). The
+        // bracket/percentage engine in lib/statutory-contributions.ts and
+        // lib/payroll-data.ts's computeStatutoryContributionsForPeriod()
+        // still exist, unused, in case auto-compute is turned back on later.
         const input: PayrollInput = {
           salaryType: employee.salary_type,
           basicRate: employee.basic_rate,
@@ -91,13 +97,13 @@ export async function POST(req: NextRequest) {
           approvedOtMinutes,
           otMultiplier,
           adjustments: [],
-          sssEmployeeContribution: statutory.sssEmployee,
-          sssEmployerContribution: statutory.sssEmployer,
-          sssEcContribution: statutory.sssEc,
-          philhealthEmployeeContribution: statutory.philhealthEmployee,
-          philhealthEmployerContribution: statutory.philhealthEmployer,
-          pagibigEmployeeContribution: statutory.pagibigEmployee,
-          pagibigEmployerContribution: statutory.pagibigEmployer,
+          sssEmployeeContribution: 0,
+          sssEmployerContribution: 0,
+          sssEcContribution: 0,
+          philhealthEmployeeContribution: 0,
+          philhealthEmployerContribution: 0,
+          pagibigEmployeeContribution: 0,
+          pagibigEmployerContribution: 0,
         };
         const breakdown = computePayroll(input);
 
@@ -123,10 +129,10 @@ export async function POST(req: NextRequest) {
           breakdown.basicPay, breakdown.otPay, breakdown.allowancePay, breakdown.bonusEarnings, breakdown.grossPay,
           breakdown.lateDeduction, breakdown.undertimeDeduction, breakdown.excessBreakDeduction, breakdown.absenceDeduction, breakdown.unpaidLeaveDeduction,
           breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay,
-          statutory.contributionBasis,
-          breakdown.sssEmployeeContribution, breakdown.sssEmployerContribution, breakdown.sssEcContribution, statutory.sssVersion,
-          breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, statutory.philhealthVersion,
-          breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, statutory.pagibigVersion
+          0,
+          breakdown.sssEmployeeContribution, breakdown.sssEmployerContribution, breakdown.sssEcContribution, null,
+          breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, null,
+          breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, null
         );
       }
 
