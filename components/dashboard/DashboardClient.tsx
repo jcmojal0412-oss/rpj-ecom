@@ -12,7 +12,6 @@ interface KPIs {
   totalSkus: number;
   todayIn: number;
   todayOut: number;
-  todayCogsOut: number;
 }
 
 interface LowStockItem {
@@ -29,6 +28,16 @@ interface ChartItem { sku: string; name: string; total_out: number; }
 interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
 type DailyPeriod = 'today' | 'yesterday' | '7days';
 
+const COGS_PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'weekly', label: 'Weekly' },
+  { key: 'this_month', label: 'This Month' },
+  { key: 'last_month', label: 'Last Month' },
+  { key: 'custom', label: 'Custom' },
+] as const;
+type CogsPeriod = typeof COGS_PERIODS[number]['key'];
+
 export default function DashboardClient() {
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
@@ -39,6 +48,13 @@ export default function DashboardClient() {
   const [dailyLabel,  setDailyLabel]  = useState('');
   const [dailyPeriod, setDailyPeriod] = useState<DailyPeriod>('today');
   const [loading, setLoading] = useState(true);
+
+  const [cogsPeriod, setCogsPeriod] = useState<CogsPeriod>('today');
+  const [cogsFrom,   setCogsFrom]   = useState(todayISO());
+  const [cogsTo,     setCogsTo]     = useState(todayISO());
+  const [cogsValue,  setCogsValue]  = useState(0);
+  const [cogsLabel,  setCogsLabel]  = useState('Today');
+  const [cogsLoading, setCogsLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -61,6 +77,28 @@ export default function DashboardClient() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const fetchCogsOut = useCallback(async (period: CogsPeriod, from?: string, to?: string) => {
+    setCogsLoading(true);
+    const params = new URLSearchParams({ period });
+    if (period === 'custom') {
+      params.set('from', from || todayISO());
+      params.set('to', to || todayISO());
+    }
+    const d = await fetch(`/api/dashboard/cogs-out?${params}`).then(r => r.json());
+    setCogsValue(d.value ?? 0);
+    setCogsLabel(d.label ?? '');
+    setCogsLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCogsOut('today'); }, [fetchCogsOut]);
+
+  const handleCogsPeriodChange = (period: CogsPeriod) => {
+    setCogsPeriod(period);
+    if (period !== 'custom') fetchCogsOut(period);
+  };
+
+  const applyCogsCustomRange = () => fetchCogsOut('custom', cogsFrom, cogsTo);
 
   const fetchDailyTop = useCallback(async (period: DailyPeriod) => {
     const dt = await fetch(`/api/dashboard/daily-top?period=${period}`).then(r => r.json());
@@ -136,11 +174,17 @@ export default function DashboardClient() {
           icon={<TrendingDown className="text-red-500" size={22} />}
           color="red"
         />
-        <KpiCard
-          title="Total COGS Out (Today)"
-          value={formatCurrency(kpis?.todayCogsOut ?? 0)}
-          icon={<Receipt className="text-amber-600" size={22} />}
-          color="amber"
+        <CogsOutCard
+          period={cogsPeriod}
+          onPeriodChange={handleCogsPeriodChange}
+          from={cogsFrom}
+          to={cogsTo}
+          onFromChange={setCogsFrom}
+          onToChange={setCogsTo}
+          onApplyCustom={applyCogsCustomRange}
+          value={cogsValue}
+          label={cogsLabel}
+          loading={cogsLoading}
         />
       </div>
 
@@ -366,6 +410,59 @@ function DailyTopSection({ data, label, period, onPeriodChange }: {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CogsOutCard({ period, onPeriodChange, from, to, onFromChange, onToChange, onApplyCustom, value, label, loading }: {
+  period: CogsPeriod;
+  onPeriodChange: (p: CogsPeriod) => void;
+  from: string; to: string;
+  onFromChange: (v: string) => void; onToChange: (v: string) => void;
+  onApplyCustom: () => void;
+  value: number; label: string; loading: boolean;
+}) {
+  const todayStr = todayISO();
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-2 rounded-lg bg-amber-50 shrink-0"><Receipt className="text-amber-600" size={18} /></div>
+          <p className="text-xs text-gray-500 font-medium truncate">Total COGS Out</p>
+        </div>
+        <select
+          value={period}
+          onChange={e => onPeriodChange(e.target.value as CogsPeriod)}
+          className="text-xs border border-gray-200 rounded-md px-1.5 py-1 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-orange-400 shrink-0"
+        >
+          {COGS_PERIODS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+      </div>
+
+      {period === 'custom' && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <input
+            type="date" value={from} max={to || todayStr}
+            onChange={e => onFromChange(e.target.value)}
+            className="text-xs border border-gray-200 rounded-md px-1.5 py-1 flex-1 min-w-0"
+          />
+          <span className="text-gray-300 text-xs shrink-0">–</span>
+          <input
+            type="date" value={to} min={from} max={todayStr}
+            onChange={e => onToChange(e.target.value)}
+            className="text-xs border border-gray-200 rounded-md px-1.5 py-1 flex-1 min-w-0"
+          />
+          <button
+            onClick={onApplyCustom}
+            className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-md px-2.5 py-1 shrink-0"
+          >
+            Go
+          </button>
+        </div>
+      )}
+
+      <p className="text-2xl font-bold text-gray-900">{loading ? '…' : formatCurrency(value)}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{label}</p>
     </div>
   );
 }
