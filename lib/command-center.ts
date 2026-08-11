@@ -205,6 +205,62 @@ export function buildScheduleAnswer(s: ScheduleSnapshot): { text: string; spoken
   return { text, spoken };
 }
 
+// Morning Brief / End of Day Review — deterministic summaries built from
+// data the Dashboard already has in memory (no extra API calls). Same
+// "free heuristic, not real AI" approach as the rest of this file: a real
+// AI-generated executive summary would read more naturally but costs money
+// per generation, which the owner chose to avoid (see plan doc / FB Ads
+// module). This just narrates the numbers already on screen.
+export function buildMorningBrief(input: {
+  today: number; urgent: number; overdue: number; followups: number;
+  activeReminders: number;
+  topPriority?: { title: string; sub: string; time: string };
+  overdueItems: { title: string }[];
+}, dateLabel: string): { text: string; spoken: string } {
+  const overdueList = input.overdueItems.slice(0, 3).map(t => t.title).join(', ');
+  const lines: string[] = [`Magandang umaga, boss! Eto ang Morning Brief mo para sa ${dateLabel}:`];
+  lines.push(`• ${input.today} task${input.today === 1 ? '' : 's'} ang due ngayon${input.urgent ? ` (${input.urgent} urgent)` : ''}.`);
+  if (input.overdue > 0) lines.push(`• ${input.overdue} overdue na: ${overdueList}${input.overdue > 3 ? ', at iba pa' : ''}.`);
+  else lines.push(`• Wala kang overdue na task. 🎉`);
+  if (input.topPriority) lines.push(`• Top priority: "${input.topPriority.title}" — ${input.topPriority.time || 'walang oras na naka-set'}.`);
+  if (input.followups > 0) lines.push(`• ${input.followups} follow-up${input.followups === 1 ? '' : 's'} na naghihintay.`);
+  if (input.activeReminders > 0) lines.push(`• ${input.activeReminders} active na reminder${input.activeReminders === 1 ? '' : 's'}.`);
+  lines.push(`Sige boss, andiyan na lahat — good luck sa araw mo!`);
+
+  const spoken = `Good morning boss. You have ${input.today} task${input.today === 1 ? '' : 's'} today` +
+    (input.urgent ? `, ${input.urgent} urgent` : '') + `, and ${input.overdue} overdue.` +
+    (input.topPriority ? ` Your top priority is ${input.topPriority.title}.` : '') +
+    ` Have a great day.`;
+
+  return { text: lines.join('\n'), spoken };
+}
+
+export function buildEndOfDayReview(input: {
+  completedToday: { title: string }[];
+  overdue: number;
+  overdueItems: { title: string }[];
+  dueTodayNotDone: { title: string }[];
+}, dateLabel: string): { text: string; spoken: string } {
+  const doneCount = input.completedToday.length;
+  const doneList = input.completedToday.slice(0, 5).map(t => t.title).join(', ');
+  const notDoneList = input.dueTodayNotDone.slice(0, 3).map(t => t.title).join(', ');
+
+  const lines: string[] = [`Magandang gabi, boss! Eto ang wrap-up mo para sa ${dateLabel}:`];
+  if (doneCount > 0) lines.push(`• ${doneCount} task${doneCount === 1 ? '' : 's'} natapos ngayon: ${doneList}${doneCount > 5 ? ', at iba pa' : ''}. Great job!`);
+  else lines.push(`• Wala pang natapos na task ngayong araw.`);
+  if (input.dueTodayNotDone.length > 0) lines.push(`• ${input.dueTodayNotDone.length} na dapat sana natapos ngayon pero hindi pa: ${notDoneList}${input.dueTodayNotDone.length > 3 ? ', at iba pa' : ''}.`);
+  if (input.overdue > 0) lines.push(`• ${input.overdue} pa ring overdue — puwede mong unahin bukas.`);
+  else lines.push(`• Walang overdue na task. 🎉`);
+  lines.push(`Magpahinga ka na, boss!`);
+
+  const spoken = `Good evening boss. You completed ${doneCount} task${doneCount === 1 ? '' : 's'} today.` +
+    (input.dueTodayNotDone.length > 0 ? ` ${input.dueTodayNotDone.length} planned for today are still not done.` : '') +
+    (input.overdue > 0 ? ` ${input.overdue} are still overdue.` : '') +
+    ` Rest well.`;
+
+  return { text: lines.join('\n'), spoken };
+}
+
 // Converts the parser's *display* due-date labels ("Tomorrow", "Wednesday",
 // "This week", "August 30") into a real YYYY-MM-DD to store. `today` should
 // be a PH-local Date (see lib/utils.ts's todayISO() convention used

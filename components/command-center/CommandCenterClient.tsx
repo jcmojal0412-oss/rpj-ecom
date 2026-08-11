@@ -9,7 +9,8 @@ import {
 import './command-center.css';
 import {
   parseMessage, isScheduleQuery, buildScheduleAnswer, isPlanNarration, buildPlanSummary,
-  resolveDueDate, summarizeTitle, CONFIRM_WORDS, CANCEL_WORDS, type ScheduleSnapshot,
+  resolveDueDate, summarizeTitle, buildMorningBrief, buildEndOfDayReview,
+  CONFIRM_WORDS, CANCEL_WORDS, type ScheduleSnapshot,
 } from '@/lib/command-center';
 
 // ============================================================================
@@ -315,7 +316,7 @@ export default function CommandCenterClient() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)',
-          background: '#14284D', color: '#F0F3FA', padding: '11px 20px', borderRadius: 10,
+          background: 'var(--cc-navy)', color: 'var(--cc-navy-text)', padding: '11px 20px', borderRadius: 10,
           fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,.25)', zIndex: 50,
         }}>{toast}</div>
       )}
@@ -379,6 +380,27 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
     loadReminders();
   };
 
+  const [brief, setBrief] = useState<{ title: string; text: string; spoken: string } | null>(null);
+  const dateLabel = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const generateMorningBrief = () => {
+    if (!data) return;
+    const result = buildMorningBrief({
+      today: data.today, urgent: data.urgent, overdue: data.overdue, followups: data.followups,
+      activeReminders: reminders.length, topPriority: data.topPriorities[0], overdueItems: overdue,
+    }, dateLabel);
+    setBrief({ title: 'Morning Brief', ...result });
+    speak(result.spoken);
+  };
+
+  const generateEndOfDay = () => {
+    if (!data) return;
+    const dueTodayNotDone = dueToday.filter((t: any) => t.status !== 'Completed' && t.status !== 'Cancelled');
+    const result = buildEndOfDayReview({ completedToday, overdue: data.overdue, overdueItems: overdue, dueTodayNotDone }, dateLabel);
+    setBrief({ title: 'End of Day Review', ...result });
+    speak(result.spoken);
+  };
+
   if (loading || !data) {
     return <div className="cc-placeholder-screen"><div className="cc-placeholder-inner"><h3>Loading…</h3></div></div>;
   }
@@ -394,8 +416,8 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
           <p className="cc-date">{new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
         <div className="cc-dash-actions">
-          <button className="cc-btn cc-btn-outline" onClick={() => showToast('Morning Brief — coming soon')}><Sun size={15} /> Generate Morning Brief</button>
-          <button className="cc-btn cc-btn-gold" onClick={() => showToast('End of Day review — coming soon')}><Moon size={15} /> End My Day</button>
+          <button className="cc-btn cc-btn-outline" onClick={generateMorningBrief}><Sun size={15} /> Generate Morning Brief</button>
+          <button className="cc-btn cc-btn-gold" onClick={generateEndOfDay}><Moon size={15} /> End My Day</button>
         </div>
       </div>
 
@@ -479,6 +501,22 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
           </div>
         </div>
       </div>
+
+      {brief && (
+        <div className="cc-modal-backdrop" onClick={() => setBrief(null)}>
+          <div className="cc-card cc-modal" onClick={e => e.stopPropagation()}>
+            <div className="cc-modal-head">
+              <h3>{brief.title}</h3>
+              <button className="cc-row-dismiss" onClick={() => setBrief(null)} title="Close"><X size={15} /></button>
+            </div>
+            <div className="cc-modal-body">{brief.text}</div>
+            <div className="cc-modal-actions">
+              <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => speak(brief.spoken)}>🔊 Paki-basa ulit</button>
+              <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={() => setBrief(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

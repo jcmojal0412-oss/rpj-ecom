@@ -15,16 +15,20 @@
   --cc-gold-ink: #8A6A1E;
   --cc-gold-soft: #F4E9CC;
   --cc-gold-soft-border: #E3CE97;
-  --cc-navy: #14284D;
-  --cc-navy-2: #1E3A6E;
-  --cc-navy-ink: #0D1B33;
-  --cc-navy-border: #2A4472;
-  --cc-navy-text: #F0F3FA;
-  --cc-navy-text-muted: #A9B4C9;
-  --cc-blue: #2554C7;
-  --cc-blue-ink: #1A3E96;
-  --cc-blue-soft: #E7EDFB;
-  --cc-blue-soft-border: #C3D3EF;
+  /* "Navy"/"blue" tokens now hold a brushed-steel silver-gray instead of
+     navy blue — kept the original variable names so every call site below
+     (and the few inline styles in CommandCenterClient.tsx) stays in sync
+     with a single Gold + Silver palette without needing a rename pass. */
+  --cc-navy: #3D434B;
+  --cc-navy-2: #565C66;
+  --cc-navy-ink: #23262B;
+  --cc-navy-border: #6B7280;
+  --cc-navy-text: #F5F6F8;
+  --cc-navy-text-muted: #C3C6CC;
+  --cc-blue: #8A8F98;
+  --cc-blue-ink: #5B6068;
+  --cc-blue-soft: #EDEEF0;
+  --cc-blue-soft-border: #D4D6DA;
   --cc-urgent: #B8452E;
   --cc-urgent-soft: #FBEBE7;
   --cc-high: #C07A1E;
@@ -62,6 +66,14 @@
 .cc-preview-pill .cc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cc-gold-ink); }
 
 .cc-card { background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: var(--cc-radius); box-shadow: var(--cc-shadow-sm); }
+
+/* ---------- Morning Brief / End of Day Review modal ---------- */
+.cc-modal-backdrop { position: fixed; inset: 0; background: rgba(20,20,24,0.45); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px; }
+.cc-modal { width: 100%; max-width: 460px; padding: 22px 24px; max-height: 80vh; display: flex; flex-direction: column; }
+.cc-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.cc-modal-head h3 { font-size: 17px; }
+.cc-modal-body { font-size: 13.5px; line-height: 1.7; color: var(--cc-text); white-space: pre-line; overflow-y: auto; }
+.cc-modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 
 /* ---------- Goldie alarm banner (repeats until Stop is tapped) ---------- */
 .cc-alarm-banner {
