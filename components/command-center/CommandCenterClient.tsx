@@ -216,8 +216,27 @@ export default function CommandCenterClient() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const { due } = await fetch('/api/command-center/due-now').then(r => r.json());
-        if (cancelled || !due?.length) return;
+        const [{ due }, todayTasks, activeReminders] = await Promise.all([
+          fetch('/api/command-center/due-now').then(r => r.json()),
+          fetch('/api/command-center/tasks?when=today').then(r => r.json()),
+          fetch('/api/command-center/reminders').then(r => r.json()),
+        ]);
+        if (cancelled) return;
+
+        // Reconcile every cycle: if a task/reminder that's currently alarming
+        // got completed, cancelled, or deleted elsewhere in the app (or by
+        // anyone with DB access), it stops being "still due" here and the
+        // alarm is dropped — otherwise Goldie would keep repeating forever
+        // for something that no longer exists, with Stop as the only way out.
+        const validTaskIds = new Set(
+          todayTasks.filter((t: any) => t.status !== 'Completed' && t.status !== 'Cancelled').map((t: any) => t.id)
+        );
+        const validReminderIds = new Set(activeReminders.map((r: any) => r.id));
+        setActiveAlarms(prev => prev.filter(a =>
+          a.type === 'task' ? validTaskIds.has(a.entityId) : validReminderIds.has(a.entityId)
+        ));
+
+        if (!due?.length) return;
         const existingKeys = new Set(activeAlarmsRef.current.map(a => a.key));
         const fresh: ActiveAlarm[] = due
           .map((item: any) => ({ key: `${item.type}:${item.id}`, type: item.type, entityId: item.id, title: item.title }))
