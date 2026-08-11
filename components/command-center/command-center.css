@@ -94,6 +94,7 @@
 
 .cc-btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 9px; border: 1px solid transparent; white-space: nowrap; }
 .cc-btn svg { width: 15px; height: 15px; }
+.cc-btn:disabled { background: var(--cc-surface-2) !important; color: var(--cc-text-faint) !important; border-color: var(--cc-border) !important; cursor: not-allowed; opacity: .7; }
 .cc-btn-gold { background: var(--cc-gold); color: #FFFDF7; border-color: var(--cc-gold); }
 .cc-btn-gold:hover { background: var(--cc-gold-ink); border-color: var(--cc-gold-ink); }
 .cc-btn-outline { background: var(--cc-surface); color: var(--cc-text); border-color: var(--cc-border); }
