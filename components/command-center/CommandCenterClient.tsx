@@ -1037,11 +1037,15 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const submit = async () => {
     if (!title.trim()) return;
     setSaving(true);
-    await fetch('/api/command-center/tasks', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority, status: 'To Do', source: 'typed' }),
-    });
-    onCreated();
+    try {
+      await fetch('/api/command-center/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority, status: 'To Do', source: 'typed' }),
+      });
+      onCreated();
+    } catch {
+      setSaving(false); // network failure — let the owner retry instead of leaving Save stuck disabled
+    }
   };
 
   return (
@@ -1187,11 +1191,15 @@ function NewFollowUpModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const submit = async () => {
     if (!title.trim()) return;
     setSaving(true);
-    await fetch('/api/command-center/follow-ups', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim(), status_note: statusNote || null, category: category || null, follow_up_date: followUpDate || null }),
-    });
-    onCreated();
+    try {
+      await fetch('/api/command-center/follow-ups', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), status_note: statusNote || null, category: category || null, follow_up_date: followUpDate || null }),
+      });
+      onCreated();
+    } catch {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1200,7 +1208,7 @@ function NewFollowUpModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div className="cc-modal-head"><h3>New Follow-Up</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
         <div className="cc-form-row">
           <label className="cc-form-label">Ano ang hinihintay</label>
-          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Follow up J&amp;T courier" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Follow up J&T courier" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
         </div>
         <div className="cc-form-row">
           <label className="cc-form-label">Status Note</label>
@@ -1348,16 +1356,20 @@ function NewPlanModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const submit = async () => {
     if (!title.trim()) return;
     setSaving(true);
-    const res = await fetch('/api/command-center/plans', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: title.trim(), goal: goal.trim() || null, category: category || null,
-        deadline: deadline || null, notes: notes.trim() || null,
-        tasks: steps.map(s => s.trim()).filter(Boolean),
-      }),
-    });
-    const data = await res.json();
-    onCreated(data.id);
+    try {
+      const res = await fetch('/api/command-center/plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(), goal: goal.trim() || null, category: category || null,
+          deadline: deadline || null, notes: notes.trim() || null,
+          tasks: steps.map(s => s.trim()).filter(Boolean),
+        }),
+      });
+      const data = await res.json();
+      onCreated(data.id);
+    } catch {
+      setSaving(false);
+    }
   };
 
   return (
