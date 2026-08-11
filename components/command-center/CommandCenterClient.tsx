@@ -75,6 +75,45 @@ const SEED_MESSAGES: ChatMsg[] = [
   },
 ];
 
+// Single source of truth for "today" so the Dashboard tab and the AI
+// Secretary's "what's my schedule today" answer never disagree. Still demo
+// data (no DB yet) — once the real backend exists this becomes a live query
+// instead of a constant.
+const TODAY_SNAPSHOT = {
+  today: 6, urgent: 2, overdue: 3, followups: 3, completed: 4,
+  topPriorities: [
+    { title: 'Approve marketing creative for Flash Sale', sub: 'Bodega ni Suki', time: '2:00 PM' },
+    { title: 'Follow up supplier for quotation', sub: 'SEDO', time: '10:00 AM' },
+    { title: 'Review Bodega Thursday Sale prep', sub: 'Bodega ni Suki', time: '4:00 PM' },
+    { title: 'Check tarp for Thursday sale', sub: 'Bodega ni Suki', time: 'Tomorrow' },
+    { title: 'Reply to financing application update', sub: 'Finance', time: 'EOD' },
+  ],
+  meetingsToday: [{ title: 'SEDO Partners check-in call', time: '11:00 AM' }],
+};
+
+// Very simple keyword heuristic — same "not real AI yet" caveat as
+// parseMessage() below. Distinguishes "what's my schedule today" (a
+// question, answer from existing data) from "remind me to check the
+// schedule" (a command, should create something).
+function isScheduleQuery(msg: string) {
+  const lower = msg.toLowerCase();
+  const questionCue = /\?|^(ano|what|how many|magkano|ilan|paano)\b/.test(lower);
+  const topicCue = /(schedule|task|priorit|meeting|today|ngayon|agenda)/.test(lower);
+  const commandCue = /remind|paalala|follow.?up|sundan|add|move|done|finish|matapos/.test(lower);
+  return questionCue && topicCue && !commandCue;
+}
+
+function buildScheduleAnswer() {
+  const s = TODAY_SNAPSHOT;
+  const top = s.topPriorities[0];
+  const meeting = s.meetingsToday[0];
+  const text = `Ngayong araw, boss: ${s.today} tasks, ${s.urgent} urgent, ${s.overdue} overdue, ${s.followups} follow-ups na naghihintay. Pinaka-priority: "${top.title}" (${top.sub}) — ${top.time}.` +
+    (meeting ? ` May meeting ka rin: ${meeting.title}, ${meeting.time}.` : '');
+  const spoken = `You have ${s.today} tasks today, boss — ${s.urgent} urgent, ${s.overdue} overdue. Top priority: ${top.title}, at ${top.time}.` +
+    (meeting ? ` You also have a meeting: ${meeting.title}, at ${meeting.time}.` : '');
+  return { text, spoken };
+}
+
 function parseMessage(msg: string) {
   const lower = msg.toLowerCase();
   let type = '✅ Task', priority = 'Normal', due: string, unsure = false;
@@ -103,19 +142,28 @@ function parseMessage(msg: string) {
 // Browsers ship several TTS voices (locally installed OS voices, plus
 // higher-quality "Natural"/"Neural"/"Online" ones on Edge/Chrome) but
 // default to whichever is first alphabetically, which is usually the
-// flattest-sounding one. Picking a better voice here is free — the real
-// jump in quality (a natural Filipino voice, consistent across every
-// device) needs a paid TTS API wired in on the backend later, not this
-// client-only mockup.
+// flattest-sounding one. No Filipino voice reads Tagalog cleanly on most
+// browsers, so spoken replies are English (see speak() call sites below) —
+// the AI still writes in Taglish in the chat, only what it SAYS out loud is
+// English. Picking a better voice here is free — a real natural Filipino
+// voice, consistent across every device, needs a paid TTS API wired in on
+// the backend later, not this client-only mockup.
 let cachedVoices: SpeechSynthesisVoice[] = [];
 function refreshVoices() {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   cachedVoices = window.speechSynthesis.getVoices();
 }
+// Known pleasant-sounding female English voice names across platforms —
+// Samantha (Safari/macOS/iOS, the closest thing to "Siri's voice" exposed
+// to the web), Zira/Aria/Jenny (Windows/Edge), Google US English (Chrome,
+// female by default).
+const FEMALE_VOICE_NAMES = /samantha|zira|aria|jenny|susan|female|google us english|karen|moira|tessa/i;
 function pickVoice(): SpeechSynthesisVoice | null {
   if (!cachedVoices.length) return null;
-  const fil = cachedVoices.find(v => /^fil|^tl/i.test(v.lang));
-  if (fil) return fil;
+  const femaleNatural = cachedVoices.find(v => FEMALE_VOICE_NAMES.test(v.name) && /natural|neural|online/i.test(v.name) && /^en/i.test(v.lang));
+  if (femaleNatural) return femaleNatural;
+  const female = cachedVoices.find(v => FEMALE_VOICE_NAMES.test(v.name) && /^en/i.test(v.lang));
+  if (female) return female;
   const natural = cachedVoices.find(v => /natural|neural|online/i.test(v.name) && /^en/i.test(v.lang));
   if (natural) return natural;
   const branded = cachedVoices.find(v => /Google|Microsoft/i.test(v.name) && /^en/i.test(v.lang));
@@ -129,9 +177,9 @@ function speak(text: string) {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
-    if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'fil-PH'; }
+    if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
     utter.rate = 1.0;
-    utter.pitch = 1.0;
+    utter.pitch = 1.05;
     window.speechSynthesis.speak(utter);
   } catch { /* speech synthesis unavailable — silent no-op, text reply still shown */ }
 }
@@ -219,11 +267,11 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
       </div>
 
       <div className="cc-kpi-row">
-        <Kpi cls="cc-kpi-today" icon={<LayoutDashboard size={15} />} value="6" label="Today" />
-        <Kpi cls="cc-kpi-urgent" icon={<AlertTriangle size={15} />} value="2" label="Urgent" />
-        <Kpi cls="cc-kpi-overdue" icon={<Clock size={15} />} value="3" label="Overdue" />
-        <Kpi cls="cc-kpi-followup" icon={<MessageSquare size={15} />} value="3" label="Follow-Ups" />
-        <Kpi cls="cc-kpi-done" icon={<CheckCircle2 size={15} />} value="4" label="Completed" />
+        <Kpi cls="cc-kpi-today" icon={<LayoutDashboard size={15} />} value={String(TODAY_SNAPSHOT.today)} label="Today" />
+        <Kpi cls="cc-kpi-urgent" icon={<AlertTriangle size={15} />} value={String(TODAY_SNAPSHOT.urgent)} label="Urgent" />
+        <Kpi cls="cc-kpi-overdue" icon={<Clock size={15} />} value={String(TODAY_SNAPSHOT.overdue)} label="Overdue" />
+        <Kpi cls="cc-kpi-followup" icon={<MessageSquare size={15} />} value={String(TODAY_SNAPSHOT.followups)} label="Follow-Ups" />
+        <Kpi cls="cc-kpi-done" icon={<CheckCircle2 size={15} />} value={String(TODAY_SNAPSHOT.completed)} label="Completed" />
       </div>
 
       <div className="cc-attn-box">
@@ -242,13 +290,11 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
 
       <div className="cc-dash-grid">
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Top 5 Priorities Today</h3><span className="cc-count">5</span></div>
+          <div className="cc-panel-head"><h3>Top 5 Priorities Today</h3><span className="cc-count">{TODAY_SNAPSHOT.topPriorities.length}</span></div>
           <div className="cc-rowlist">
-            <Row rank={1} title="Approve marketing creative for Flash Sale" sub="Bodega ni Suki" time="2:00 PM" />
-            <Row rank={2} title="Follow up supplier for quotation" sub="SEDO" time="10:00 AM" />
-            <Row rank={3} title="Review Bodega Thursday Sale prep" sub="Bodega ni Suki" time="4:00 PM" />
-            <Row rank={4} title="Check tarp for Thursday sale" sub="Bodega ni Suki" time="Tomorrow" />
-            <Row rank={5} title="Reply to financing application update" sub="Finance" time="EOD" />
+            {TODAY_SNAPSHOT.topPriorities.map((p, i) => (
+              <Row key={p.title} rank={i + 1} title={p.title} sub={p.sub} time={p.time} />
+            ))}
           </div>
         </div>
 
@@ -349,6 +395,14 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     setMessages(prev => [...prev, userMsg]);
 
     setTimeout(() => {
+      if (isScheduleQuery(text)) {
+        const { text: answer, spoken } = buildScheduleAnswer();
+        const aiMsg: ChatMsg = { id: nextId(), role: 'ai', text: answer };
+        setMessages(prev => [...prev, aiMsg]);
+        if (viaVoice) speak(spoken);
+        return;
+      }
+
       const p = parseMessage(text);
       const rows: [string, string][] = [
         ['Task', text.length > 46 ? text.slice(0, 46) + '…' : text],
@@ -363,7 +417,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
           previews: [{ id: nextId(), type: p.type, rows, mode: 'auto', listLabel: p.listLabel, status: 'saved' }],
         };
         setMessages(prev => [...prev, aiMsg]);
-        speak(`Nadagdag na sa ${p.listLabel}, boss. ${rows[0][1]}, due ${p.due}.`);
+        speak(`Added to your ${p.listLabel}, boss. ${rows[0][1]}, due ${p.due}.`);
       } else {
         const aiMsg: ChatMsg = {
           id: nextId(), role: 'ai',
@@ -371,7 +425,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
           previews: [{ id: nextId(), type: p.type, rows, warn: p.unsure ? 'Hindi sigurado ang exact date/time — paki-confirm o i-edit muna.' : undefined, mode: 'confirm', listLabel: p.listLabel, status: 'pending' }],
         };
         setMessages(prev => [...prev, aiMsg]);
-        if (viaVoice) speak('Medyo hindi ko sigurado ang date, boss. Paki-confirm muna bago ko i-save.');
+        if (viaVoice) speak("I'm not totally sure about the date, boss. Please confirm before I save it.");
       }
     }, 450);
   };
@@ -423,7 +477,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
 
   const confirm = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'saved'); showToast('Saved (mockup preview)'); };
   const dismiss = () => showToast('Edit / Cancel — wired up once backend is approved');
-  const undo = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Inalis sa list (mockup)'); speak('Okay boss, inalis ko na.'); };
+  const undo = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Inalis sa list (mockup)'); speak('Okay boss, I removed that.'); };
 
   return (
     <div className="cc-secretary-wrap">
