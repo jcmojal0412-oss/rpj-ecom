@@ -326,13 +326,31 @@ export default function CommandCenterClient() {
 // ============================================================================
 // DASHBOARD
 // ============================================================================
+const REMINDER_DAY_LABEL: Record<string, string> = {
+  sunday: 'Sun', monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat',
+};
+
+// Reminders don't have a single "due" field the way tasks do — build a
+// human-readable schedule label depending on recurrence type, for display
+// in the Dashboard panel and anywhere else reminders get listed.
+function reminderSchedule(r: { recurrence: string; remind_date: string | null; remind_time: string | null; recurrence_day: string | null }): string {
+  const time = r.remind_time ? `, ${r.remind_time}` : '';
+  if (r.recurrence === 'daily') return `Daily${time}`;
+  if (r.recurrence === 'weekly') return `Every ${REMINDER_DAY_LABEL[r.recurrence_day || ''] || r.recurrence_day || '?'}${time}`;
+  if (r.recurrence === 'monthly') return `Monthly, day ${r.recurrence_day || '?'}${time}`;
+  return `${r.remind_date || 'No date set'}${time}`;
+}
+
 function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
   const [data, setData] = useState<ScheduleSnapshot | null>(null);
   const [overdue, setOverdue] = useState<any[]>([]);
   const [dueToday, setDueToday] = useState<any[]>([]);
   const [followupsWaiting, setFollowupsWaiting] = useState<any[]>([]);
   const [completedToday, setCompletedToday] = useState<any[]>([]);
+  const [reminders, setReminders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const loadReminders = () => fetch('/api/command-center/reminders').then(r => r.json()).then(setReminders);
 
   useEffect(() => {
     Promise.all([
@@ -341,15 +359,25 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
       fetch('/api/command-center/tasks?when=today').then(r => r.json()),
       fetch('/api/command-center/follow-ups').then(r => r.json()),
       fetch('/api/command-center/tasks?when=completed').then(r => r.json()),
-    ]).then(([dash, ov, today, fu, done]) => {
+      fetch('/api/command-center/reminders').then(r => r.json()),
+    ]).then(([dash, ov, today, fu, done, rem]) => {
       setData(dash);
       setOverdue(ov);
       setDueToday(today);
       setFollowupsWaiting(fu);
       setCompletedToday(done.slice(0, 5));
+      setReminders(rem);
       setLoading(false);
     });
   }, []);
+
+  const dismissReminder = async (id: number) => {
+    await fetch(`/api/command-center/reminders/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }),
+    });
+    showToast('Reminder dismissed');
+    loadReminders();
+  };
 
   if (loading || !data) {
     return <div className="cc-placeholder-screen"><div className="cc-placeholder-inner"><h3>Loading…</h3></div></div>;
@@ -377,6 +405,7 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
         <Kpi cls="cc-kpi-overdue" icon={<Clock size={15} />} value={String(data.overdue)} label="Overdue" />
         <Kpi cls="cc-kpi-followup" icon={<MessageSquare size={15} />} value={String(data.followups)} label="Follow-Ups" />
         <Kpi cls="cc-kpi-done" icon={<CheckCircle2 size={15} />} value={String(data.completed)} label="Completed" />
+        <Kpi cls="cc-kpi-followup" icon={<Bell size={15} />} value={String(reminders.length)} label="Reminders" />
       </div>
 
       <div className="cc-dash-grid">
@@ -421,6 +450,19 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
         </div>
 
         <div className="cc-card cc-panel">
+          <div className="cc-panel-head"><h3>Active Reminders</h3><span className="cc-count">{reminders.length}</span></div>
+          <div className="cc-rowlist">
+            {reminders.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Wala kang active na reminders.</p>}
+            {reminders.slice(0, 5).map((r: any) => (
+              <Row
+                key={r.id} title={r.title} sub={reminderSchedule(r)} time=""
+                action={<button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="cc-card cc-panel">
           <div className="cc-panel-head"><h3>Meetings / Calendar</h3><span className="cc-count">{data.meetingsToday.length}</span></div>
           <div className="cc-rowlist">
             <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Walang calendar sync pa — check Calendar tab para sa upcoming dates.</p>
@@ -451,8 +493,8 @@ function Kpi({ cls, icon, value, label }: { cls: string; icon: React.ReactNode; 
   );
 }
 
-function Row({ rank, dot, title, sub, time, done, overdue }: {
-  rank?: number; dot?: 'urgent' | 'high' | 'normal' | 'low'; title: string; sub: string; time: string; done?: boolean; overdue?: boolean;
+function Row({ rank, dot, title, sub, time, done, overdue, action }: {
+  rank?: number; dot?: 'urgent' | 'high' | 'normal' | 'low'; title: string; sub: string; time: string; done?: boolean; overdue?: boolean; action?: React.ReactNode;
 }) {
   return (
     <div className={`cc-item-row ${done ? 'done' : ''} ${overdue ? 'overdue' : ''}`}>
@@ -460,6 +502,7 @@ function Row({ rank, dot, title, sub, time, done, overdue }: {
       {dot && <span className={`cc-pdot ${dot}`} />}
       <div className="cc-item-title"><strong>{title}</strong><span className="cc-item-sub">{sub}</span></div>
       <span className="cc-item-time cc-num">{time}</span>
+      {action}
     </div>
   );
 }
@@ -1113,11 +1156,15 @@ function CalendarTab() {
       fetch('/api/command-center/tasks').then(r => r.json()),
       fetch('/api/command-center/follow-ups').then(r => r.json()),
       fetch('/api/command-center/plans').then(r => r.json()),
-    ]).then(([tasks, followups, plans]) => {
+      fetch('/api/command-center/reminders').then(r => r.json()),
+    ]).then(([tasks, followups, plans, reminders]) => {
       const rows: { date: string; label: string; kind: string }[] = [];
       tasks.forEach((t: any) => { if (t.due_date) rows.push({ date: t.due_date, label: t.title, kind: 'Task' }); });
       followups.forEach((f: any) => { if (f.follow_up_date) rows.push({ date: f.follow_up_date, label: f.title, kind: 'Follow-Up' }); });
       plans.forEach((p: any) => { if (p.deadline) rows.push({ date: p.deadline, label: p.title, kind: 'Plan Deadline' }); });
+      // Only one-time reminders have a single date to place on the calendar —
+      // daily/weekly/monthly ones repeat and are listed on the Dashboard instead.
+      reminders.forEach((r: any) => { if (r.recurrence === 'once' && r.remind_date) rows.push({ date: r.remind_date, label: r.title, kind: 'Reminder' }); });
       rows.sort((a, b) => a.date.localeCompare(b.date));
       setItems(rows);
       setLoading(false);

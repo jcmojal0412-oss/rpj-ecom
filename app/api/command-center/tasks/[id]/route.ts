@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+// Same "+8h then read as ISO" trick as lib/utils.ts's todayISO() — Railway
+// runs UTC, so a plain new Date().toISOString() timestamp stored here would
+// disagree with the PH-local `today` the dashboard route compares dates
+// against for anything completed between PH midnight and 8am.
+function nowPHISOString(): string {
+  return new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -23,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     for (const key of ['title', 'description', 'category', 'due_date', 'due_time', 'priority', 'status', 'notes']) {
       if (key in body) { fields.push(`${key} = ?`); values.push(body[key]); }
     }
-    if (body.status === 'Completed') { fields.push('completed_at = ?'); values.push(new Date().toISOString()); }
+    if (body.status === 'Completed') { fields.push('completed_at = ?'); values.push(nowPHISOString()); }
     if (!fields.length) return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
 
     values.push(id);

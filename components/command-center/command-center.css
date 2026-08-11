@@ -147,6 +147,8 @@
 .cc-item-time { font-size: 12px; color: var(--cc-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cc-item-row.done .cc-item-title strong { text-decoration: line-through; color: var(--cc-text-faint); }
 .cc-item-row.overdue .cc-item-time { color: var(--cc-urgent); font-weight: 600; }
+.cc-row-dismiss { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; color: var(--cc-text-faint); flex-shrink: 0; }
+.cc-row-dismiss:hover { background: var(--cc-urgent-soft); color: var(--cc-urgent); }
 
 .cc-tag { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .2px; padding: 2px 7px; border-radius: 999px; background: var(--cc-surface-2); color: var(--cc-text-muted); border: 1px solid var(--cc-border-soft); }
 .cc-status-badge { font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
