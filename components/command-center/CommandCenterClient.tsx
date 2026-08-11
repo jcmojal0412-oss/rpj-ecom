@@ -296,7 +296,7 @@ export default function CommandCenterClient() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)',
-          background: '#221F1A', color: '#F3F1EA', padding: '11px 20px', borderRadius: 10,
+          background: '#14284D', color: '#F0F3FA', padding: '11px 20px', borderRadius: 10,
           fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,.25)', zIndex: 50,
         }}>{toast}</div>
       )}
