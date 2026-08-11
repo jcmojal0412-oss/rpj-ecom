@@ -40,11 +40,20 @@ interface PreviewCard {
   listLabel: string;
   status: 'pending' | 'saved' | 'undone';
 }
+interface PlanSummary {
+  id: string;
+  goal: string;
+  steps: string[];
+  deadline: string;
+  deadlineUnsure: boolean;
+  status: 'pending' | 'saved';
+}
 interface ChatMsg {
   id: string;
   role: 'user' | 'ai';
   text: string;
   previews?: PreviewCard[];
+  planSummary?: PlanSummary;
 }
 
 let uid = 0;
@@ -112,6 +121,58 @@ function buildScheduleAnswer() {
   const spoken = `You have ${s.today} tasks today, boss — ${s.urgent} urgent, ${s.overdue} overdue. Top priority: ${top.title}, at ${top.time}.` +
     (meeting ? ` You also have a meeting: ${meeting.title}, at ${meeting.time}.` : '');
   return { text, spoken };
+}
+
+// "Narrate a plan, I'll summarize it" — a long, free-flowing message (vs. a
+// short one-line command) gets treated as a plan brain-dump instead of a
+// single task. Still a simple heuristic, not real understanding: splits on
+// connector words/punctuation to fake a "goal + steps" breakdown. Real
+// summarization needs the backend LLM in Step 2 — this demonstrates the UX
+// (long narration in, structured Goal + Steps out, review before saving)
+// so it can be reviewed now.
+const PLAN_CONNECTORS = /\b(?:tapos|then|after that|after|saka|dagdag|also|next|kailangan|need|una|first|finally|lastly)\b/gi;
+function isPlanNarration(text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const connectorHits = (text.match(PLAN_CONNECTORS) || []).length;
+  return words.length > 20 || connectorHits >= 2;
+}
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+function detectDeadline(text: string): { deadline: string; unsure: boolean } {
+  const lower = text.toLowerCase();
+
+  const monthMatch = lower.match(new RegExp(`\\b(${MONTHS.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'));
+  if (monthMatch) {
+    const month = monthMatch[1].charAt(0).toUpperCase() + monthMatch[1].slice(1);
+    return { deadline: `${month} ${monthMatch[2]}`, unsure: false };
+  }
+  if (lower.includes('tomorrow') || lower.includes('bukas')) return { deadline: 'Tomorrow', unsure: false };
+
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const foundDay = days.find(d => lower.includes(d));
+  if (foundDay) return { deadline: foundDay.charAt(0).toUpperCase() + foundDay.slice(1), unsure: false };
+
+  if (/end of (the )?month/.test(lower)) return { deadline: 'End of the month', unsure: false };
+  if (lower.includes('next week')) return { deadline: 'Next week', unsure: true };
+  if (lower.includes('this week')) return { deadline: 'This week', unsure: true };
+
+  return { deadline: 'Not specified', unsure: true };
+}
+
+function buildPlanSummary(text: string): { goal: string; steps: string[]; deadline: string; deadlineUnsure: boolean } {
+  const segments = text
+    .split(new RegExp(`[.,;]|${PLAN_CONNECTORS.source}`, 'gi'))
+    .map(s => s.trim())
+    .filter(s => s.length > 3)
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+
+  const goal = segments[0] || text.trim();
+  const steps = segments.slice(1, 8);
+  const { deadline, unsure: deadlineUnsure } = detectDeadline(text);
+  return {
+    goal, deadline, deadlineUnsure,
+    steps: steps.length ? steps : ['(Magbigay ng mas maraming detalye para sa mas mahabang breakdown)'],
+  };
 }
 
 function parseMessage(msg: string) {
@@ -390,11 +451,33 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     ));
   };
 
+  const updatePlanSummary = (msgId: string, status: PlanSummary['status']) => {
+    setMessages(prev => prev.map(m =>
+      m.id === msgId && m.planSummary ? { ...m, planSummary: { ...m.planSummary, status } } : m
+    ));
+  };
+
   const process = (text: string, viaVoice: boolean) => {
     const userMsg: ChatMsg = { id: nextId(), role: 'user', text };
     setMessages(prev => [...prev, userMsg]);
 
     setTimeout(() => {
+      if (isPlanNarration(text)) {
+        const { goal, steps, deadline, deadlineUnsure } = buildPlanSummary(text);
+        const aiMsg: ChatMsg = {
+          id: nextId(), role: 'ai',
+          text: `Narinig ko yung buong plano mo, boss. Eto yung na-summarize ko — i-check mo bago i-save bilang bagong Plan:`,
+          planSummary: { id: nextId(), goal, steps, deadline, deadlineUnsure, status: 'pending' },
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        if (viaVoice) {
+          speak(deadlineUnsure
+            ? `Got it, boss. I've broken that down into ${steps.length} steps, but I'm not sure about the deadline — please set that before I save it.`
+            : `Got it, boss. I've broken that down into ${steps.length} steps, due ${deadline}. Please review before I save it as a new plan.`);
+        }
+        return;
+      }
+
       if (isScheduleQuery(text)) {
         const { text: answer, spoken } = buildScheduleAnswer();
         const aiMsg: ChatMsg = { id: nextId(), role: 'ai', text: answer };
@@ -448,7 +531,10 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
       recognizerRef.current = recognizer;
       recognizer.lang = 'fil-PH';
       recognizer.interimResults = true;
-      recognizer.continuous = false;
+      // continuous:true so a pause while you're still thinking doesn't cut
+      // the recording — it only stops when you tap the mic again (see
+      // toggleMic's `if (listening) { recognizer.stop(); return; }` above).
+      recognizer.continuous = true;
 
       let finalTranscript = '';
       recognizer.onstart = () => setListening(true);
@@ -522,12 +608,41 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
                     )}
                   </div>
                 ))}
+
+                {m.planSummary && (
+                  <div className={`cc-preview-card ${m.planSummary.status === 'saved' ? 'saved' : ''}`} style={{ maxWidth: 380 }}>
+                    <div className="cc-pc-type">📋 Plan Summary</div>
+                    <div className="cc-pc-row"><span className="k">Goal</span><span className="v">{m.planSummary.goal}</span></div>
+                    <div className="cc-pc-row"><span className="k">Deadline</span><span className="v">{m.planSummary.deadline}</span></div>
+                    {m.planSummary.deadlineUnsure && (
+                      <div className="cc-pc-warn"><AlertTriangle size={13} /><span>Hindi sigurado ang deadline — paki-confirm o i-edit muna.</span></div>
+                    )}
+                    <div style={{ marginTop: 8 }}>
+                      <div className="k" style={{ fontSize: 11.5, marginBottom: 4 }}>Suggested Steps</div>
+                      <div className="cc-checklist">
+                        {m.planSummary.steps.map((s, i) => (
+                          <div className="cc-check-row" key={i}><div className="cc-check-box" style={{ fontSize: 10 }}>{i + 1}</div><span>{s}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                    {m.planSummary.status === 'pending' && (
+                      <div className="cc-pc-actions">
+                        <button className="cc-pc-btn cancel" onClick={dismiss}>Cancel</button>
+                        <button className="cc-pc-btn" onClick={dismiss}>Edit</button>
+                        <button className="cc-pc-btn confirm" onClick={() => { updatePlanSummary(m.id, 'saved'); showToast('Saved as new Plan (mockup preview)'); }}>Save as New Plan</button>
+                      </div>
+                    )}
+                    {m.planSummary.status === 'saved' && (
+                      <div className="cc-pc-saved"><Check size={15} />Saved as new Plan</div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
 
-        {listening && <div className="cc-mic-status show"><span className="cc-live-dot" />Listening... magsalita ka na, boss</div>}
+        {listening && <div className="cc-mic-status show"><span className="cc-live-dot" />Nakikinig pa... pindutin ulit ang mic kapag tapos ka na</div>}
         <div className="cc-chat-input-bar">
           <button className={`cc-mic-btn ${listening ? 'listening' : ''}`} onClick={toggleMic} title="Voice command"><Mic size={17} /></button>
           <textarea
@@ -550,6 +665,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
             <button className="cc-chip" onClick={() => setInput('High priority ito.')}>&quot;High priority ito.&quot;</button>
             <button className="cc-chip" onClick={() => setInput('Move this task to Friday.')}>&quot;Move this task to Friday.&quot;</button>
             <button className="cc-chip" onClick={() => setInput('Done na ito.')}>&quot;Done na ito.&quot;</button>
+            <button className="cc-chip" onClick={() => setInput('Gusto kong ilunch yung Solid Suki Card sa August 30. Kailangan muna tapusin yung design, tapos i-print, tapos i-train yung staff, tapos i-announce sa customers.')}>&quot;Gusto kong ilunch yung Solid Suki Card sa August 30. Kailangan muna tapusin yung design, tapos i-print...&quot; (plan narration)</button>
           </div>
         </div>
         <div className="cc-card">
