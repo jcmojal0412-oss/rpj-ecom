@@ -443,7 +443,9 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognizerRef = useRef<any>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
@@ -571,7 +573,11 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     const Ctor: any = typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     if (!Ctor) { showToast("Voice command needs Chrome/Edge — this browser doesn't support it."); return; }
 
-    if (listening) { recognizerRef.current?.stop(); return; }
+    const clearSilenceTimer = () => {
+      if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    };
+
+    if (listening) { clearSilenceTimer(); recognizerRef.current?.stop(); return; }
 
     try {
       const recognizer = new Ctor();
@@ -579,8 +585,11 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
       recognizer.lang = 'fil-PH';
       recognizer.interimResults = true;
       // continuous:true so a pause while you're still thinking doesn't cut
-      // the recording — it only stops when you tap the mic again (see
-      // toggleMic's `if (listening) { recognizer.stop(); return; }` above).
+      // the recording immediately. But continuous mode never stops on its
+      // own — without a manual tap it would just keep recording forever and
+      // nothing would ever get sent. So: auto-stop after ~3.5s of silence
+      // (reset on every new bit of speech), with tap-to-stop still working
+      // for "I'm done now."
       recognizer.continuous = true;
 
       let finalTranscript = '';
@@ -589,6 +598,8 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
         const transcript = Array.from(e.results as any).map((r: any) => r[0].transcript).join(' ');
         finalTranscript = transcript;
         setInput(transcript);
+        clearSilenceTimer();
+        silenceTimerRef.current = setTimeout(() => recognizer.stop(), 3500);
       };
       recognizer.onerror = (e: any) => {
         showToast(e.error === 'not-allowed'
@@ -596,6 +607,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
           : 'Voice command error: ' + e.error);
       };
       recognizer.onend = () => {
+        clearSilenceTimer();
         setListening(false);
         if (finalTranscript.trim()) {
           setInput('');
@@ -609,9 +621,22 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
   };
 
   const confirm = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'saved'); showToast('Saved (mockup preview)'); };
-  const dismiss = () => showToast('Edit / Cancel — wired up once backend is approved');
+  const cancelPreview = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Cancelled'); };
+  const editPreview = (msgId: string, previewId: string, taskText: string) => {
+    updatePreview(msgId, previewId, 'undone');
+    setInput(taskText);
+    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
+    textareaRef.current?.focus();
+  };
   const undo = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Inalis sa list (mockup)'); speak('Okay boss, I removed that.'); };
   const confirmPlan = (msgId: string) => { updatePlanSummary(msgId, 'saved'); showToast('Saved as new Plan (mockup preview)'); };
+  const cancelPlan = (msgId: string) => { updatePlanSummary(msgId, 'cancelled'); showToast('Cancelled'); };
+  const editPlan = (msgId: string, goalText: string) => {
+    updatePlanSummary(msgId, 'cancelled');
+    setInput(goalText);
+    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
+    textareaRef.current?.focus();
+  };
 
   return (
     <div className="cc-secretary-wrap">
@@ -637,8 +662,8 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
 
                     {pc.mode === 'confirm' && pc.status === 'pending' && (
                       <div className="cc-pc-actions">
-                        <button className="cc-pc-btn cancel" onClick={dismiss}>Cancel</button>
-                        <button className="cc-pc-btn" onClick={dismiss}>Edit</button>
+                        <button className="cc-pc-btn cancel" onClick={() => cancelPreview(m.id, pc.id)}>Cancel</button>
+                        <button className="cc-pc-btn" onClick={() => editPreview(m.id, pc.id, pc.rows[0][1])}>Edit</button>
                         <button className="cc-pc-btn confirm" onClick={() => confirm(m.id, pc.id)}>Confirm</button>
                       </div>
                     )}
@@ -675,8 +700,8 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
                     </div>
                     {m.planSummary.status === 'pending' && (
                       <div className="cc-pc-actions">
-                        <button className="cc-pc-btn cancel" onClick={dismiss}>Cancel</button>
-                        <button className="cc-pc-btn" onClick={dismiss}>Edit</button>
+                        <button className="cc-pc-btn cancel" onClick={() => cancelPlan(m.id)}>Cancel</button>
+                        <button className="cc-pc-btn" onClick={() => editPlan(m.id, m.planSummary!.goal)}>Edit</button>
                         <button className="cc-pc-btn confirm" onClick={() => confirmPlan(m.id)}>Save as New Plan</button>
                       </div>
                     )}
@@ -697,6 +722,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
         <div className="cc-chat-input-bar">
           <button className={`cc-mic-btn ${listening ? 'listening' : ''}`} onClick={toggleMic} title="Voice command"><Mic size={17} /></button>
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Ano ang gusto mong ipagawa, tandaan, o i-plano?"
