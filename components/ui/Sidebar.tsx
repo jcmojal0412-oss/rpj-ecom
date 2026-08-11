@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid,
+  ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -172,6 +172,27 @@ export default function Sidebar() {
             </div>
           );
         })}
+
+        {/* Owner only */}
+        {user?.role === 'owner' && (
+          <div className="mb-4">
+            <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
+              EXECUTIVE
+            </p>
+            <Link
+              href="/command-center"
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                pathname.startsWith('/command-center')
+                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Compass size={17} className={pathname.startsWith('/command-center') ? 'text-white' : 'text-gray-400'} />
+              Command Center
+            </Link>
+          </div>
+        )}
 
         {/* Owner only */}
         {user?.role === 'owner' && (

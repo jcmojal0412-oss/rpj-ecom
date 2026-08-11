@@ -62,6 +62,7 @@ const ROUTE_MODULES: [string, string][] = [
   ['/api/settings/bookings-overview', 'partners'],
 ['/settings',         '_owner'], // owner-only flag
 ['/api/settings',     '_owner'], // owner-only flag
+['/command-center',   '_owner'], // owner-only flag — personal CEO tool, Step 1 UI mockup only, no API routes yet
 ];
 
 // Always returns a Uint8Array backed by a real ArrayBuffer (never SharedArrayBuffer),
