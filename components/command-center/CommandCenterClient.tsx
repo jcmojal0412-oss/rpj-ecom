@@ -91,14 +91,14 @@ function buildSavePayload(p: ReturnType<typeof parseMessage>, rawText: string): 
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayName = days.find(d => p.due.toLowerCase().startsWith(d));
     if (isRecurring && dayName) {
-      return { kind: 'reminder', payload: { title, recurrence: 'weekly', recurrence_day: dayName } };
+      return { kind: 'reminder', payload: { title, recurrence: 'weekly', recurrence_day: dayName, remind_time: p.dueTime } };
     }
-    return { kind: 'reminder', payload: { title, recurrence: 'once', remind_date: isoDate } };
+    return { kind: 'reminder', payload: { title, recurrence: 'once', remind_date: isoDate, remind_time: p.dueTime } };
   }
   if (isFollowUp) {
     return { kind: 'followup', payload: { title, status_note: 'Waiting', follow_up_date: isoDate } };
   }
-  return { kind: 'task', payload: { title, due_date: isoDate, priority: p.priority, status: 'To Do', source: 'typed' } };
+  return { kind: 'task', payload: { title, due_date: isoDate, due_time: p.dueTime, priority: p.priority, status: 'To Do', source: 'typed' } };
 }
 
 const SAVE_ENDPOINTS: Record<SaveKind, string> = {

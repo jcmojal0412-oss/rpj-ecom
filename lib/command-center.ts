@@ -10,6 +10,7 @@ export interface ParsedMessage {
   type: string;
   priority: 'Urgent' | 'High' | 'Normal' | 'Low';
   due: string;
+  dueTime: string | null; // 24h "HH:MM", parsed from things like "7:18pm" — null if no time was said
   unsure: boolean;
   listLabel: string;
 }
@@ -41,7 +42,12 @@ const PLAN_CONNECTORS = /\b(?:tapos|then|after that|after|saka|dagdag|also|next|
 export function isPlanNarration(text: string): boolean {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const connectorHits = (text.match(PLAN_CONNECTORS) || []).length;
-  return words.length > 20 || connectorHits >= 2;
+  // A plan narration is a multi-step brain-dump — it needs actual connector
+  // words joining separate steps ("tapos", "kailangan", ...), not just raw
+  // length. A long-but-single-idea message (e.g. a wordy "remind me at
+  // 7:18pm today please" with pleasantries) has zero connectors and should
+  // stay a normal Task/Reminder, not get misrouted into Plans.
+  return connectorHits >= 2 || (connectorHits >= 1 && words.length > 30);
 }
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
@@ -101,11 +107,25 @@ export function parseMessage(msg: string): ParsedMessage {
   else if (lower.includes('this week')) { due = 'This week'; unsure = true; }
   else { due = 'Not specified'; unsure = true; }
 
-  const timeMatch = lower.match(/(\d{1,2})\s?(am|pm)/);
-  if (timeMatch) due += ', ' + timeMatch[0].toUpperCase();
+  // Handles both "7pm" / "10 AM" and colon times like "7:18pm" — the old
+  // regex ignored the ":18" part entirely and mistakenly read the minutes
+  // as the hour (e.g. "7:18 pm" -> "18 PM"). dueTime is stored in 24h
+  // "HH:MM" for the actual due_date/remind_date row; `due` keeps the
+  // human-readable label shown in the preview card.
+  let dueTime: string | null = null;
+  const timeMatch = lower.match(/(\d{1,2})(?::(\d{2}))?\s?(am|pm)/);
+  if (timeMatch) {
+    const minute = timeMatch[2] ? Number(timeMatch[2]) : 0;
+    let hour = Number(timeMatch[1]);
+    const ampm = timeMatch[3];
+    due += `, ${timeMatch[1]}${timeMatch[2] ? ':' + timeMatch[2] : ''}${ampm.toUpperCase()}`;
+    if (ampm === 'pm' && hour !== 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+    dueTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
 
   const listLabel = type.includes('Reminder') ? 'Reminders' : type.includes('Follow-Up') ? 'Follow-Ups' : 'Task List';
-  return { type, priority, due, unsure, listLabel };
+  return { type, priority, due, dueTime, unsure, listLabel };
 }
 
 // Very simple keyword heuristic — same "not real AI yet" caveat as
