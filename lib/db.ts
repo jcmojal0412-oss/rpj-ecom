@@ -851,6 +851,102 @@ function migrateSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_ai_fb_ad_creatives_product ON ai_fb_ad_creatives(product_id);
   `);
+
+  // Command Center V2 — owner-only personal executive assistant (Goldie).
+  // Single-user by design (no created_by/user scoping — see middleware.ts
+  // '_owner' gate on /command-center and /api/command-center), so schema
+  // stays intentionally simple per the original spec. category is plain
+  // TEXT (not a FK) — cc_categories just powers the Settings suggestion
+  // list, doesn't constrain what gets typed/spoken.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cc_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS cc_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT,
+      due_date TEXT,
+      due_time TEXT,
+      priority TEXT NOT NULL DEFAULT 'Normal' CHECK(priority IN ('Urgent','High','Normal','Low')),
+      status TEXT NOT NULL DEFAULT 'To Do' CHECK(status IN ('To Do','In Progress','Waiting','Completed','Cancelled')),
+      source TEXT NOT NULL DEFAULT 'typed' CHECK(source IN ('typed','voice')),
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_cc_tasks_due ON cc_tasks(due_date, status);
+
+    CREATE TABLE IF NOT EXISTS cc_reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      category TEXT,
+      remind_date TEXT,
+      remind_time TEXT,
+      recurrence TEXT NOT NULL DEFAULT 'once' CHECK(recurrence IN ('once','daily','weekly','monthly')),
+      recurrence_day TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','cancelled')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS cc_follow_ups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      status_note TEXT,
+      category TEXT,
+      follow_up_date TEXT,
+      status TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting','done','cancelled')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS cc_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      goal TEXT,
+      category TEXT,
+      deadline TEXT,
+      progress INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','cancelled')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS cc_plan_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL REFERENCES cc_plans(id) ON DELETE CASCADE,
+      label TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_cc_plan_tasks_plan ON cc_plan_tasks(plan_id);
+
+    -- Dedupe log for Goldie's spoken reminders — one row per (entity, day)
+    -- actually announced, so the ~60s due-now poll doesn't repeat the same
+    -- task/reminder over and over, but still announces fresh each new day.
+    CREATE TABLE IF NOT EXISTS cc_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('task','reminder')),
+      entity_id INTEGER NOT NULL,
+      fired_for_date TEXT NOT NULL,
+      spoken_text TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(entity_type, entity_id, fired_for_date)
+    );
+  `);
+
+  seedCcCategoriesIfEmpty();
+}
+
+function seedCcCategoriesIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM cc_categories').get() as { c: number }).c;
+  if (count > 0) return;
+  const insert = db.prepare('INSERT OR IGNORE INTO cc_categories (name) VALUES (?)');
+  for (const name of ['Bodega ni Suki', 'SEDO', 'RPJ', 'Personal', 'Marketing', 'Finance', 'Operations']) {
+    insert.run(name);
+  }
 }
 
 // One-time backfill: every existing users row becomes a linked, active,

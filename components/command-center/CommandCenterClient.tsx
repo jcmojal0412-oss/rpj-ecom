@@ -4,25 +4,29 @@ import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, MessageSquare, ListChecks, Clock, FolderKanban, CalendarClock,
   CheckCircle2, Settings as SettingsIcon, AlertTriangle,
-  Mic, Send, Sun, Moon, Check,
+  Mic, Send, Sun, Moon, Check, Bell, Plus, X,
 } from 'lucide-react';
 import './command-center.css';
+import {
+  parseMessage, isScheduleQuery, buildScheduleAnswer, isPlanNarration, buildPlanSummary,
+  resolveDueDate, CONFIRM_WORDS, CANCEL_WORDS, type ScheduleSnapshot,
+} from '@/lib/command-center';
 
 // ============================================================================
-// Command Center — STEP 1 UI mockup ported into the real app so voice-command
-// testing works on a real top-level page (the browser blocks mic permission
-// inside the sandboxed Artifact preview). No database yet — everything here
-// is still demo/local state, same as the artifact. Owner-only (see
-// middleware.ts '/command-center' -> '_owner' and Sidebar.tsx's owner-only
-// block). Real backend (tasks/reminders/follow-ups/plans tables, real AI
-// parsing) comes only after the design itself is approved.
+// Command Center (Goldie) — Step 2: real backend. The chat/voice UI and its
+// "not real AI yet, simple keyword heuristics" parsing (lib/command-center.ts)
+// are unchanged from the Step 1 mockup the owner approved — what changed is
+// that Confirm now saves to a real database row (app/api/command-center/*)
+// instead of only flipping local component state, and every tab reads real
+// data instead of hardcoded arrays. Owner-only (see middleware.ts
+// '/command-center' + '/api/command-center' -> '_owner').
 // ============================================================================
 
 type TabKey = 'dashboard' | 'secretary' | 'tasks' | 'followups' | 'plans' | 'calendar' | 'completed' | 'settings';
 
 const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'secretary', label: 'AI Secretary', icon: MessageSquare },
+  { key: 'secretary', label: 'Goldie', icon: MessageSquare },
   { key: 'tasks', label: 'My Tasks', icon: ListChecks },
   { key: 'followups', label: 'Follow-Ups', icon: Clock },
   { key: 'plans', label: 'Plans', icon: FolderKanban },
@@ -30,6 +34,8 @@ const TABS: { key: TabKey; label: string; icon: any }[] = [
   { key: 'completed', label: 'Completed', icon: CheckCircle2 },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+type SaveKind = 'task' | 'reminder' | 'followup';
 
 interface PreviewCard {
   id: string;
@@ -39,6 +45,9 @@ interface PreviewCard {
   mode: 'confirm' | 'auto';
   listLabel: string;
   status: 'pending' | 'saved' | 'undone';
+  saveKind: SaveKind;
+  savePayload: Record<string, any>;
+  dbId?: number;
 }
 interface PlanSummary {
   id: string;
@@ -59,162 +68,51 @@ interface ChatMsg {
 let uid = 0;
 const nextId = () => `m${Date.now()}_${uid++}`;
 
-const SEED_MESSAGES: ChatMsg[] = [
-  { id: nextId(), role: 'user', text: 'Every Thursday may Bodega ni Suki Flash Sale. Remind me Wednesday to check the tarp and Thursday morning to check the team.' },
-  {
-    id: nextId(), role: 'ai', text: 'Got it, boss! Gagawa ako ng dalawang recurring reminders para dyan:',
-    previews: [
-      { id: nextId(), type: '🔁 Recurring Reminder', rows: [['Task', 'Check the tarp'], ['Recurs', 'Every Wednesday'], ['Category', 'Bodega ni Suki']], mode: 'confirm', listLabel: 'Reminders', status: 'pending' },
-      { id: nextId(), type: '🔁 Recurring Reminder', rows: [['Task', 'Check the team'], ['Recurs', 'Every Thursday, morning'], ['Category', 'Bodega ni Suki']], mode: 'confirm', listLabel: 'Reminders', status: 'pending' },
-    ],
-  },
-  { id: nextId(), role: 'user', text: 'Follow up J&T after 3 days.' },
-  {
-    id: nextId(), role: 'ai', text: "Noted. I'll set a follow-up 3 days from today:",
-    previews: [
-      { id: nextId(), type: '📞 Follow-Up', rows: [['Item', 'J&T Complaint'], ['Follow-up on', 'August 14, 2026'], ['Priority', 'Normal'], ['Category', 'Operations']], mode: 'confirm', listLabel: 'Follow-Ups', status: 'pending' },
-    ],
-  },
-  { id: nextId(), role: 'user', text: 'Need matapos Solid Suki Card this week.' },
-  {
-    id: nextId(), role: 'ai', text: 'Sige boss — pero hindi ako sigurado sa specific na araw. Paki-confirm bago ko i-save:',
-    previews: [
-      { id: nextId(), type: '✅ Task', rows: [['Task', 'Finish Solid Suki Card'], ['Due', 'This week'], ['Priority', 'High'], ['Category', 'Bodega ni Suki']], warn: 'Hindi sigurado ang exact date — "this week" pa lang. Pili ng specific date bago i-confirm.', mode: 'confirm', listLabel: 'Task List', status: 'pending' },
-    ],
-  },
-];
-
-// Single source of truth for "today" so the Dashboard tab and the AI
-// Secretary's "what's my schedule today" answer never disagree. Still demo
-// data (no DB yet) — once the real backend exists this becomes a live query
-// instead of a constant.
-const TODAY_SNAPSHOT = {
-  today: 6, urgent: 2, overdue: 3, followups: 3, completed: 4,
-  topPriorities: [
-    { title: 'Approve marketing creative for Flash Sale', sub: 'Bodega ni Suki', time: '2:00 PM' },
-    { title: 'Follow up supplier for quotation', sub: 'SEDO', time: '10:00 AM' },
-    { title: 'Review Bodega Thursday Sale prep', sub: 'Bodega ni Suki', time: '4:00 PM' },
-    { title: 'Check tarp for Thursday sale', sub: 'Bodega ni Suki', time: 'Tomorrow' },
-    { title: 'Reply to financing application update', sub: 'Finance', time: 'EOD' },
-  ],
-  meetingsToday: [{ title: 'SEDO Partners check-in call', time: '11:00 AM' }],
+const WELCOME_MESSAGE: ChatMsg = {
+  id: nextId(), role: 'ai',
+  text: "Hi boss, ako si Goldie! Sabihin mo lang o i-type kung anong gusto mong ipagawa, tandaan, o i-plano — check mo yung mga halimbawa sa kanan.",
 };
 
-// Very simple keyword heuristic — same "not real AI yet" caveat as
-// parseMessage() below. Distinguishes "what's my schedule today" (a
-// question, answer from existing data) from "remind me to check the
-// schedule" (a command, should create something).
-function isScheduleQuery(msg: string) {
-  const lower = msg.toLowerCase();
-  const questionCue = /\?|^(ano|what|how many|magkano|ilan|paano)\b/.test(lower);
-  const topicCue = /(schedule|task|priorit|meeting|today|ngayon|agenda)/.test(lower);
-  const commandCue = /remind|paalala|follow.?up|sundan|add|move|done|finish|matapos/.test(lower);
-  return questionCue && topicCue && !commandCue;
-}
+// Converts a ParsedMessage (see lib/command-center.ts) into what actually
+// gets saved. Kept in the client (not lib/command-center.ts) because it
+// needs "now" (for resolveDueDate) at call time, not as a pure function of
+// text alone.
+function buildSavePayload(p: ReturnType<typeof parseMessage>, rawText: string): { kind: SaveKind; payload: Record<string, any> } {
+  const title = rawText.length > 120 ? rawText.slice(0, 120) : rawText;
+  const { isoDate } = resolveDueDate(p.due, new Date());
+  const isRecurring = p.type.includes('Recurring');
+  const isReminder = p.type.includes('Reminder');
+  const isFollowUp = p.type.includes('Follow-Up');
 
-function buildScheduleAnswer() {
-  const s = TODAY_SNAPSHOT;
-  const top = s.topPriorities[0];
-  const meeting = s.meetingsToday[0];
-  const text = `Ngayong araw, boss: ${s.today} tasks, ${s.urgent} urgent, ${s.overdue} overdue, ${s.followups} follow-ups na naghihintay. Pinaka-priority: "${top.title}" (${top.sub}) — ${top.time}.` +
-    (meeting ? ` May meeting ka rin: ${meeting.title}, ${meeting.time}.` : '');
-  const spoken = `You have ${s.today} tasks today, boss — ${s.urgent} urgent, ${s.overdue} overdue. Top priority: ${top.title}, at ${top.time}.` +
-    (meeting ? ` You also have a meeting: ${meeting.title}, at ${meeting.time}.` : '');
-  return { text, spoken };
-}
-
-// "Narrate a plan, I'll summarize it" — a long, free-flowing message (vs. a
-// short one-line command) gets treated as a plan brain-dump instead of a
-// single task. Still a simple heuristic, not real understanding: splits on
-// connector words/punctuation to fake a "goal + steps" breakdown. Real
-// summarization needs the backend LLM in Step 2 — this demonstrates the UX
-// (long narration in, structured Goal + Steps out, review before saving)
-// so it can be reviewed now.
-const PLAN_CONNECTORS = /\b(?:tapos|then|after that|after|saka|dagdag|also|next|kailangan|need|una|first|finally|lastly)\b/gi;
-
-// A short standalone "Confirm"/"Cancel" said out loud acts on whatever
-// preview or plan-summary card is still pending, instead of being parsed as
-// a brand-new task titled "confirm".
-const CONFIRM_WORDS = /^(confirm|yes|oo|tama|correct|save|i-?save|sige|go)\.?$/i;
-const CANCEL_WORDS = /^(cancel|no|hindi|huwag)\.?$/i;
-function isPlanNarration(text: string) {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  const connectorHits = (text.match(PLAN_CONNECTORS) || []).length;
-  return words.length > 20 || connectorHits >= 2;
-}
-
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-function detectDeadline(text: string): { deadline: string; unsure: boolean } {
-  const lower = text.toLowerCase();
-
-  const monthMatch = lower.match(new RegExp(`\\b(${MONTHS.join('|')})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'));
-  if (monthMatch) {
-    const month = monthMatch[1].charAt(0).toUpperCase() + monthMatch[1].slice(1);
-    return { deadline: `${month} ${monthMatch[2]}`, unsure: false };
+  if (isReminder) {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days.find(d => p.due.toLowerCase().startsWith(d));
+    if (isRecurring && dayName) {
+      return { kind: 'reminder', payload: { title, recurrence: 'weekly', recurrence_day: dayName } };
+    }
+    return { kind: 'reminder', payload: { title, recurrence: 'once', remind_date: isoDate } };
   }
-  if (lower.includes('tomorrow') || lower.includes('bukas')) return { deadline: 'Tomorrow', unsure: false };
-
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const foundDay = days.find(d => lower.includes(d));
-  if (foundDay) return { deadline: foundDay.charAt(0).toUpperCase() + foundDay.slice(1), unsure: false };
-
-  if (/end of (the )?month/.test(lower)) return { deadline: 'End of the month', unsure: false };
-  if (lower.includes('next week')) return { deadline: 'Next week', unsure: true };
-  if (lower.includes('this week')) return { deadline: 'This week', unsure: true };
-
-  return { deadline: 'Not specified', unsure: true };
+  if (isFollowUp) {
+    return { kind: 'followup', payload: { title, status_note: 'Waiting', follow_up_date: isoDate } };
+  }
+  return { kind: 'task', payload: { title, due_date: isoDate, priority: p.priority, status: 'To Do', source: 'typed' } };
 }
 
-function buildPlanSummary(text: string): { goal: string; steps: string[]; deadline: string; deadlineUnsure: boolean } {
-  const segments = text
-    .split(new RegExp(`[.,;]|${PLAN_CONNECTORS.source}`, 'gi'))
-    .map(s => s.trim())
-    .filter(s => s.length > 3)
-    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
-
-  const goal = segments[0] || text.trim();
-  const steps = segments.slice(1, 8);
-  const { deadline, unsure: deadlineUnsure } = detectDeadline(text);
-  return {
-    goal, deadline, deadlineUnsure,
-    steps: steps.length ? steps : ['(Magbigay ng mas maraming detalye para sa mas mahabang breakdown)'],
-  };
-}
-
-function parseMessage(msg: string) {
-  const lower = msg.toLowerCase();
-  let type = '✅ Task', priority = 'Normal', due: string, unsure = false;
-
-  if (/paalala|remind/.test(lower)) type = '⏰ Reminder';
-  if (/follow.?up|sundan/.test(lower)) type = '📞 Follow-Up';
-  if (/every|kada|linggo-linggo|araw-araw/.test(lower)) type = '🔁 Recurring ' + type.split(' ').slice(1).join(' ');
-  if (/urgent|high priority/.test(lower)) priority = 'High';
-  if (/asap|ngayon din/.test(lower)) priority = 'Urgent';
-
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const found = days.find(d => lower.includes(d));
-  if (lower.includes('tomorrow') || lower.includes('bukas')) due = 'Tomorrow';
-  else if (lower.includes('today') || lower.includes('ngayon')) due = 'Today';
-  else if (found) due = found[0].toUpperCase() + found.slice(1);
-  else if (lower.includes('this week')) { due = 'This week'; unsure = true; }
-  else { due = 'Not specified'; unsure = true; }
-
-  const timeMatch = lower.match(/(\d{1,2})\s?(am|pm)/);
-  if (timeMatch) due += ', ' + timeMatch[0].toUpperCase();
-
-  const listLabel = type.includes('Reminder') ? 'Reminders' : type.includes('Follow-Up') ? 'Follow-Ups' : 'Task List';
-  return { type, priority, due, unsure, listLabel };
-}
+const SAVE_ENDPOINTS: Record<SaveKind, string> = {
+  task: '/api/command-center/tasks',
+  reminder: '/api/command-center/reminders',
+  followup: '/api/command-center/follow-ups',
+};
 
 // Browsers ship several TTS voices (locally installed OS voices, plus
 // higher-quality "Natural"/"Neural"/"Online" ones on Edge/Chrome) but
 // default to whichever is first alphabetically, which is usually the
 // flattest-sounding one. No Filipino voice reads Tagalog cleanly on most
 // browsers, so spoken replies are English (see speak() call sites below) —
-// the AI still writes in Taglish in the chat, only what it SAYS out loud is
-// English. Picking a better voice here is free — a real natural Filipino
-// voice, consistent across every device, needs a paid TTS API wired in on
-// the backend later, not this client-only mockup.
+// Goldie still writes in Taglish in the chat, only what she SAYS out loud is
+// English. A real natural Filipino voice, consistent across every device,
+// needs a paid TTS API — the owner chose to keep this free browser voice
+// for V1 instead (see plan doc).
 let cachedVoices: SpeechSynthesisVoice[] = [];
 function refreshVoices() {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -269,9 +167,46 @@ export default function CommandCenterClient() {
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
+  // Goldie's proactive voice reminders — while this page is open, poll for
+  // due tasks/reminders every ~60s and speak + show a chat bubble + toast
+  // for each. Only works while the tab is open in the browser (not a true
+  // closed-app alarm — see plan doc). Lives at this top level (not inside
+  // SecretaryTab) so it keeps running even while viewing other tabs.
+  const [goldieMessages, setGoldieMessages] = useState<{ id: string; text: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { due } = await fetch('/api/command-center/due-now').then(r => r.json());
+        if (cancelled || !due?.length) return;
+        for (const item of due) {
+          const line = item.type === 'task'
+            ? `Boss, ${item.title} — ito ang task mo ngayon, dapat mo tapusin.`
+            : `Boss, paalala — ${item.title}.`;
+          speak(line);
+          showToast(`🔔 Goldie: ${item.title}`);
+          setGoldieMessages(prev => [...prev, { id: nextId(), text: line }]);
+        }
+      } catch { /* offline or not logged in — skip this tick, try again next poll */ }
+    };
+    const interval = setInterval(poll, 60_000);
+    const initial = setTimeout(poll, 5_000); // small delay so it doesn't fire before the page has settled
+    return () => { cancelled = true; clearInterval(interval); clearTimeout(initial); };
+  }, []);
+
+  const requestNotificationPermission = () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      showToast('Hindi supported ng browser mo ang notifications.');
+      return;
+    }
+    Notification.requestPermission().then(perm => {
+      showToast(perm === 'granted' ? 'Naka-enable na ang Goldie Alerts! 🔔' : 'Hindi na-grant ang notification permission.');
+    });
+  };
+
   return (
     <div className="cc-root">
-      <div className="cc-preview-pill"><span className="cc-dot" />UI Mockup — Step 1 · no live data yet, testing voice on the real page</div>
+      <div className="cc-preview-pill"><span className="cc-dot" />Command Center — Goldie is live · voice alerts work while this tab stays open</div>
 
       <div className="cc-tabs">
         {TABS.map(t => {
@@ -282,16 +217,19 @@ export default function CommandCenterClient() {
             </button>
           );
         })}
+        <button className="cc-tab" onClick={requestNotificationPermission} title="Enable Goldie Alerts">
+          <Bell size={15} /> Alerts
+        </button>
       </div>
 
       {tab === 'dashboard' && <DashboardTab showToast={showToast} />}
-      {tab === 'secretary' && <SecretaryTab showToast={showToast} />}
+      {tab === 'secretary' && <SecretaryTab showToast={showToast} goldieMessages={goldieMessages} />}
       {tab === 'tasks' && <TasksTab />}
       {tab === 'followups' && <FollowUpsTab showToast={showToast} />}
       {tab === 'plans' && <PlansTab />}
-      {tab === 'calendar' && <Placeholder icon={CalendarClock} title="Calendar view" desc="Meetings and due dates from Tasks, Reminders and Follow-Ups will appear here in one monthly view once the backend is built." />}
-      {tab === 'completed' && <Placeholder icon={CheckCircle2} title="Completed history" desc={'A full, filterable log of everything you’ve finished — same list style as "Completed Today" on the Dashboard, extended to any date range.'} />}
-      {tab === 'settings' && <Placeholder icon={SettingsIcon} title="Settings" desc="Manage your Business / Project tags (Bodega ni Suki, SEDO, RPJ, Personal, Marketing, Finance, Operations) and notification preferences here." />}
+      {tab === 'calendar' && <CalendarTab />}
+      {tab === 'completed' && <CompletedTab />}
+      {tab === 'settings' && <SettingsTab showToast={showToast} />}
 
       {toast && (
         <div style={{
@@ -304,22 +242,41 @@ export default function CommandCenterClient() {
   );
 }
 
-function Placeholder({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) {
-  return (
-    <div className="cc-placeholder-screen">
-      <div className="cc-placeholder-inner">
-        <div className="cc-ph-icon"><Icon size={22} /></div>
-        <h3>{title}</h3>
-        <p>{desc}</p>
-      </div>
-    </div>
-  );
-}
-
 // ============================================================================
 // DASHBOARD
 // ============================================================================
 function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
+  const [data, setData] = useState<ScheduleSnapshot | null>(null);
+  const [overdue, setOverdue] = useState<any[]>([]);
+  const [dueToday, setDueToday] = useState<any[]>([]);
+  const [followupsWaiting, setFollowupsWaiting] = useState<any[]>([]);
+  const [completedToday, setCompletedToday] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/command-center/dashboard').then(r => r.json()),
+      fetch('/api/command-center/tasks?when=overdue').then(r => r.json()),
+      fetch('/api/command-center/tasks?when=today').then(r => r.json()),
+      fetch('/api/command-center/follow-ups').then(r => r.json()),
+      fetch('/api/command-center/tasks?when=completed').then(r => r.json()),
+    ]).then(([dash, ov, today, fu, done]) => {
+      setData(dash);
+      setOverdue(ov);
+      setDueToday(today);
+      setFollowupsWaiting(fu);
+      setCompletedToday(done.slice(0, 5));
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading || !data) {
+    return <div className="cc-placeholder-screen"><div className="cc-placeholder-inner"><h3>Loading…</h3></div></div>;
+  }
+
+  const priorityDot = (priority: string): 'urgent' | 'high' | 'normal' | 'low' =>
+    priority === 'Urgent' ? 'urgent' : priority === 'High' ? 'high' : priority === 'Low' ? 'low' : 'normal';
+
   return (
     <>
       <div className="cc-dash-head">
@@ -328,83 +285,74 @@ function DashboardTab({ showToast }: { showToast: (m: string) => void }) {
           <p className="cc-date">{new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
         <div className="cc-dash-actions">
-          <button className="cc-btn cc-btn-outline" onClick={() => showToast('Morning Brief generated (mockup)')}><Sun size={15} /> Generate Morning Brief</button>
-          <button className="cc-btn cc-btn-gold" onClick={() => showToast('End of Day review opened (mockup)')}><Moon size={15} /> End My Day</button>
+          <button className="cc-btn cc-btn-outline" onClick={() => showToast('Morning Brief — coming soon')}><Sun size={15} /> Generate Morning Brief</button>
+          <button className="cc-btn cc-btn-gold" onClick={() => showToast('End of Day review — coming soon')}><Moon size={15} /> End My Day</button>
         </div>
       </div>
 
       <div className="cc-kpi-row">
-        <Kpi cls="cc-kpi-today" icon={<LayoutDashboard size={15} />} value={String(TODAY_SNAPSHOT.today)} label="Today" />
-        <Kpi cls="cc-kpi-urgent" icon={<AlertTriangle size={15} />} value={String(TODAY_SNAPSHOT.urgent)} label="Urgent" />
-        <Kpi cls="cc-kpi-overdue" icon={<Clock size={15} />} value={String(TODAY_SNAPSHOT.overdue)} label="Overdue" />
-        <Kpi cls="cc-kpi-followup" icon={<MessageSquare size={15} />} value={String(TODAY_SNAPSHOT.followups)} label="Follow-Ups" />
-        <Kpi cls="cc-kpi-done" icon={<CheckCircle2 size={15} />} value={String(TODAY_SNAPSHOT.completed)} label="Completed" />
-      </div>
-
-      <div className="cc-attn-box">
-        <div className="cc-attn-head"><AlertTriangle size={17} /><h3>CEO Attention Needed</h3><span>2 decisions waiting</span></div>
-        <div className="cc-attn-list">
-          <div className="cc-attn-item">
-            <div><p>Approve ₱10,000 marketing budget for Bodega Flash Sale</p><span className="cc-attn-tag">Bodega ni Suki · Marketing</span></div>
-            <a onClick={() => showToast('Decision view (mockup)')}>Decide →</a>
-          </div>
-          <div className="cc-attn-item">
-            <div><p>Choose final loyalty card design — Solid Suki Card</p><span className="cc-attn-tag">Bodega ni Suki · Plans</span></div>
-            <a onClick={() => showToast('Decision view (mockup)')}>Decide →</a>
-          </div>
-        </div>
+        <Kpi cls="cc-kpi-today" icon={<LayoutDashboard size={15} />} value={String(data.today)} label="Today" />
+        <Kpi cls="cc-kpi-urgent" icon={<AlertTriangle size={15} />} value={String(data.urgent)} label="Urgent" />
+        <Kpi cls="cc-kpi-overdue" icon={<Clock size={15} />} value={String(data.overdue)} label="Overdue" />
+        <Kpi cls="cc-kpi-followup" icon={<MessageSquare size={15} />} value={String(data.followups)} label="Follow-Ups" />
+        <Kpi cls="cc-kpi-done" icon={<CheckCircle2 size={15} />} value={String(data.completed)} label="Completed" />
       </div>
 
       <div className="cc-dash-grid">
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Top 5 Priorities Today</h3><span className="cc-count">{TODAY_SNAPSHOT.topPriorities.length}</span></div>
+          <div className="cc-panel-head"><h3>Top 5 Priorities Today</h3><span className="cc-count">{data.topPriorities.length}</span></div>
           <div className="cc-rowlist">
-            {TODAY_SNAPSHOT.topPriorities.map((p, i) => (
-              <Row key={p.title} rank={i + 1} title={p.title} sub={p.sub} time={p.time} />
+            {data.topPriorities.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Walang naka-schedule na priority ngayon.</p>}
+            {data.topPriorities.map((p, i) => (
+              <Row key={p.title + i} rank={i + 1} title={p.title} sub={p.sub} time={p.time} />
             ))}
           </div>
         </div>
 
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Overdue</h3><span className="cc-count">3</span></div>
+          <div className="cc-panel-head"><h3>Overdue</h3><span className="cc-count">{overdue.length}</span></div>
           <div className="cc-rowlist">
-            <Row dot="urgent" overdue title="Print Solid Suki Card samples" sub="Bodega ni Suki" time="Aug 9" />
-            <Row dot="high" overdue title="Review weekly priorities" sub="Personal" time="Aug 10" />
-            <Row dot="high" overdue title="Respond to J&T complaint" sub="Operations" time="Aug 9" />
+            {overdue.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Wala kang overdue na task. 🎉</p>}
+            {overdue.slice(0, 5).map((t: any) => (
+              <Row key={t.id} dot={priorityDot(t.priority)} overdue title={t.title} sub={t.category || ''} time={t.due_date} />
+            ))}
           </div>
         </div>
 
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Tasks Due Today</h3><span className="cc-count">6</span></div>
+          <div className="cc-panel-head"><h3>Tasks Due Today</h3><span className="cc-count">{dueToday.length}</span></div>
           <div className="cc-rowlist">
-            <Row dot="urgent" title="Approve marketing creative" sub="Bodega ni Suki" time="2:00 PM" />
-            <Row dot="high" title="Follow up supplier" sub="SEDO" time="10:00 AM" />
-            <Row dot="normal" title="Update product catalog draft" sub="RPJ" time="3:30 PM" />
+            {dueToday.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Walang due ngayong araw.</p>}
+            {dueToday.slice(0, 5).map((t: any) => (
+              <Row key={t.id} dot={priorityDot(t.priority)} title={t.title} sub={t.category || ''} time={t.due_time || ''} />
+            ))}
           </div>
         </div>
 
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Follow-Ups Waiting</h3><span className="cc-count">3</span></div>
+          <div className="cc-panel-head"><h3>Follow-Ups Waiting</h3><span className="cc-count">{followupsWaiting.length}</span></div>
           <div className="cc-rowlist">
-            <Row title="J&T Complaint" sub="Waiting for response" time="Aug 14" />
-            <Row title="Supplier Quotation" sub="Waiting" time="Tomorrow" />
-            <Row title="Financing Application" sub="Waiting for approval" time="Aug 18" />
+            {followupsWaiting.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Wala kang follow-ups na naghihintay.</p>}
+            {followupsWaiting.slice(0, 5).map((f: any) => (
+              <Row key={f.id} title={f.title} sub={f.status_note || 'Waiting'} time={f.follow_up_date || ''} />
+            ))}
           </div>
         </div>
 
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Meetings / Calendar</h3><span className="cc-count">1</span></div>
+          <div className="cc-panel-head"><h3>Meetings / Calendar</h3><span className="cc-count">{data.meetingsToday.length}</span></div>
           <div className="cc-rowlist">
-            <Row title="SEDO Partners check-in call" sub="Video call" time="11:00 AM" />
+            <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Walang calendar sync pa — check Calendar tab para sa upcoming dates.</p>
           </div>
         </div>
 
         <div className="cc-card cc-panel">
-          <div className="cc-panel-head"><h3>Completed Today</h3><span className="cc-count">4</span></div>
+          <div className="cc-panel-head"><h3>Completed Today</h3><span className="cc-count">{completedToday.length}</span></div>
           <div className="cc-rowlist">
-            <Row done title="Post Bodega Flash Sale teaser" sub="Marketing" time="9:10 AM" />
-            <Row done title="Pay Meralco bill" sub="Personal" time="8:45 AM" />
-            <Row done title="Confirm SEDO call schedule" sub="SEDO" time="8:20 AM" />
+            {completedToday.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--cc-text-faint)' }}>Wala pang tapos ngayong araw.</p>}
+            {completedToday.map((t: any) => (
+              <Row key={t.id} done title={t.title} sub={t.category || ''} time={t.completed_at ? t.completed_at.slice(11, 16) : ''} />
+            ))}
           </div>
         </div>
       </div>
@@ -436,32 +384,43 @@ function Row({ rank, dot, title, sub, time, done, overdue }: {
 }
 
 // ============================================================================
-// AI SECRETARY
+// GOLDIE (AI Secretary)
 // ============================================================================
-function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
-  const [messages, setMessages] = useState<ChatMsg[]>(SEED_MESSAGES);
+function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) => void; goldieMessages: { id: string; text: string }[] }) {
+  const [messages, setMessages] = useState<ChatMsg[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognizerRef = useRef<any>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastGoldieCount = useRef(0);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages]);
 
-  const updatePreview = (msgId: string, previewId: string, status: PreviewCard['status']) => {
+  // Proactive reminders announced while on another tab still land here as
+  // plain AI bubbles once the owner switches back to Goldie, so there's a
+  // written trail, not just an audio blip they might have missed.
+  useEffect(() => {
+    if (goldieMessages.length <= lastGoldieCount.current) return;
+    const fresh = goldieMessages.slice(lastGoldieCount.current);
+    lastGoldieCount.current = goldieMessages.length;
+    setMessages(prev => [...prev, ...fresh.map(g => ({ id: g.id, role: 'ai' as const, text: g.text }))]);
+  }, [goldieMessages]);
+
+  const updatePreview = (msgId: string, previewId: string, patch: Partial<PreviewCard>) => {
     setMessages(prev => prev.map(m =>
       m.id === msgId && m.previews
-        ? { ...m, previews: m.previews.map(p => p.id === previewId ? { ...p, status } : p) }
+        ? { ...m, previews: m.previews.map(p => p.id === previewId ? { ...p, ...patch } : p) }
         : m
     ));
   };
 
-  const updatePlanSummary = (msgId: string, status: PlanSummary['status']) => {
+  const updatePlanSummary = (msgId: string, patch: Partial<PlanSummary>) => {
     setMessages(prev => prev.map(m =>
-      m.id === msgId && m.planSummary ? { ...m, planSummary: { ...m.planSummary, status } } : m
+      m.id === msgId && m.planSummary ? { ...m, planSummary: { ...m.planSummary, ...patch } } : m
     ));
   };
 
@@ -480,7 +439,68 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     return null;
   };
 
-  const process = (text: string, viaVoice: boolean) => {
+  const confirm = async (msgId: string, previewId: string) => {
+    const msg = messages.find(m => m.id === msgId);
+    const pc = msg?.previews?.find(p => p.id === previewId);
+    if (!pc) return;
+    try {
+      const res = await fetch(SAVE_ENDPOINTS[pc.saveKind], {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pc.savePayload),
+      });
+      if (!res.ok) throw new Error('save failed');
+      const data = await res.json();
+      updatePreview(msgId, previewId, { status: 'saved', dbId: data.id });
+      showToast(`Saved to ${pc.listLabel}`);
+    } catch {
+      showToast('Hindi na-save — subukan ulit.');
+    }
+  };
+
+  const cancelPreview = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, { status: 'undone' }); showToast('Cancelled'); };
+  const editPreview = (msgId: string, previewId: string, taskText: string) => {
+    updatePreview(msgId, previewId, { status: 'undone' });
+    setInput(taskText);
+    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
+    textareaRef.current?.focus();
+  };
+  const undo = async (msgId: string, previewId: string) => {
+    const msg = messages.find(m => m.id === msgId);
+    const pc = msg?.previews?.find(p => p.id === previewId);
+    updatePreview(msgId, previewId, { status: 'undone' });
+    showToast('Inalis sa list');
+    speak('Okay boss, I removed that.');
+    if (pc?.dbId) {
+      fetch(`${SAVE_ENDPOINTS[pc.saveKind]}/${pc.dbId}`, { method: 'DELETE' }).catch(() => {});
+    }
+  };
+
+  const confirmPlan = async (msgId: string) => {
+    const msg = messages.find(m => m.id === msgId);
+    const ps = msg?.planSummary;
+    if (!ps) return;
+    const { isoDate } = resolveDueDate(ps.deadline, new Date());
+    const title = ps.goal.length > 60 ? ps.goal.slice(0, 60) + '…' : ps.goal;
+    try {
+      const res = await fetch('/api/command-center/plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, goal: ps.goal, deadline: isoDate, tasks: ps.steps }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      updatePlanSummary(msgId, { status: 'saved' });
+      showToast('Saved as new Plan');
+    } catch {
+      showToast('Hindi na-save ang plan — subukan ulit.');
+    }
+  };
+  const cancelPlan = (msgId: string) => { updatePlanSummary(msgId, { status: 'cancelled' }); showToast('Cancelled'); };
+  const editPlan = (msgId: string, goalText: string) => {
+    updatePlanSummary(msgId, { status: 'cancelled' });
+    setInput(goalText);
+    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
+    textareaRef.current?.focus();
+  };
+
+  const process = async (text: string, viaVoice: boolean) => {
     const trimmed = text.trim();
 
     if (viaVoice && (CONFIRM_WORDS.test(trimmed) || CANCEL_WORDS.test(trimmed))) {
@@ -488,19 +508,19 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
       const pending = findPending();
       setMessages(prev => [...prev, { id: nextId(), role: 'user', text }]);
 
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!pending) {
           showToast(isConfirm ? 'Walang naka-pending na i-co-confirm.' : 'Walang naka-pending na i-ca-cancel.');
           speak(isConfirm ? "There's nothing pending to confirm, boss." : "There's nothing pending to cancel, boss.");
           return;
         }
         if (isConfirm) {
-          if (pending.kind === 'plan') confirmPlan(pending.msgId);
-          else confirm(pending.msgId, pending.previewId!);
+          if (pending.kind === 'plan') await confirmPlan(pending.msgId);
+          else await confirm(pending.msgId, pending.previewId!);
           speak('Confirmed and saved, boss.');
         } else {
-          if (pending.kind === 'plan') { updatePlanSummary(pending.msgId, 'cancelled'); showToast('Cancelled (mockup)'); }
-          else undo(pending.msgId, pending.previewId!);
+          if (pending.kind === 'plan') cancelPlan(pending.msgId);
+          else { updatePreview(pending.msgId, pending.previewId!, { status: 'undone' }); showToast('Cancelled'); }
           speak('Okay boss, cancelled.');
         }
       }, 350);
@@ -510,7 +530,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     const userMsg: ChatMsg = { id: nextId(), role: 'user', text };
     setMessages(prev => [...prev, userMsg]);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (isPlanNarration(text)) {
         const { goal, steps, deadline, deadlineUnsure } = buildPlanSummary(text);
         const aiMsg: ChatMsg = {
@@ -528,10 +548,15 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
       }
 
       if (isScheduleQuery(text)) {
-        const { text: answer, spoken } = buildScheduleAnswer();
-        const aiMsg: ChatMsg = { id: nextId(), role: 'ai', text: answer };
-        setMessages(prev => [...prev, aiMsg]);
-        if (viaVoice) speak(spoken);
+        try {
+          const snapshot: ScheduleSnapshot = await fetch('/api/command-center/dashboard').then(r => r.json());
+          const { text: answer, spoken } = buildScheduleAnswer(snapshot);
+          const aiMsg: ChatMsg = { id: nextId(), role: 'ai', text: answer };
+          setMessages(prev => [...prev, aiMsg]);
+          if (viaVoice) speak(spoken);
+        } catch {
+          showToast('Hindi ma-check ang schedule mo ngayon — subukan ulit.');
+        }
         return;
       }
 
@@ -540,21 +565,30 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
         ['Task', text.length > 46 ? text.slice(0, 46) + '…' : text],
         ['Due', p.due],
         ['Priority', p.priority],
-        ['Category', 'Uncategorized'],
       ];
+      const { kind, payload } = buildSavePayload(p, text);
 
       if (viaVoice && !p.unsure) {
-        const aiMsg: ChatMsg = {
-          id: nextId(), role: 'ai', text: 'Naitala ko na, boss — diretso ko nang idinagdag:',
-          previews: [{ id: nextId(), type: p.type, rows, mode: 'auto', listLabel: p.listLabel, status: 'saved' }],
-        };
-        setMessages(prev => [...prev, aiMsg]);
-        speak(`Added to your ${p.listLabel}, boss. ${rows[0][1]}, due ${p.due}.`);
+        try {
+          const res = await fetch(SAVE_ENDPOINTS[kind], {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          const aiMsg: ChatMsg = {
+            id: nextId(), role: 'ai', text: 'Naitala ko na, boss — diretso ko nang idinagdag:',
+            previews: [{ id: nextId(), type: p.type, rows, mode: 'auto', listLabel: p.listLabel, status: 'saved', saveKind: kind, savePayload: payload, dbId: data.id }],
+          };
+          setMessages(prev => [...prev, aiMsg]);
+          speak(`Added to your ${p.listLabel}, boss. ${rows[0][1]}, due ${p.due}.`);
+        } catch {
+          showToast('Hindi na-save — subukan ulit.');
+          speak('Sorry boss, may problema sa pag-save.');
+        }
       } else {
         const aiMsg: ChatMsg = {
           id: nextId(), role: 'ai',
           text: p.unsure ? 'Naintindihan ko, boss — pero paki-confirm muna itong detail bago ko i-save:' : 'Narito ang na-detect ko, paki-check bago ma-save:',
-          previews: [{ id: nextId(), type: p.type, rows, warn: p.unsure ? 'Hindi sigurado ang exact date/time — paki-confirm o i-edit muna.' : undefined, mode: 'confirm', listLabel: p.listLabel, status: 'pending' }],
+          previews: [{ id: nextId(), type: p.type, rows, warn: p.unsure ? 'Hindi sigurado ang exact date/time — paki-confirm o i-edit muna.' : undefined, mode: 'confirm', listLabel: p.listLabel, status: 'pending', saveKind: kind, savePayload: payload }],
         };
         setMessages(prev => [...prev, aiMsg]);
         if (viaVoice) speak("I'm not totally sure about the date, boss. Please confirm before I save it.");
@@ -620,36 +654,18 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     }
   };
 
-  const confirm = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'saved'); showToast('Saved (mockup preview)'); };
-  const cancelPreview = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Cancelled'); };
-  const editPreview = (msgId: string, previewId: string, taskText: string) => {
-    updatePreview(msgId, previewId, 'undone');
-    setInput(taskText);
-    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
-    textareaRef.current?.focus();
-  };
-  const undo = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Inalis sa list (mockup)'); speak('Okay boss, I removed that.'); };
-  const confirmPlan = (msgId: string) => { updatePlanSummary(msgId, 'saved'); showToast('Saved as new Plan (mockup preview)'); };
-  const cancelPlan = (msgId: string) => { updatePlanSummary(msgId, 'cancelled'); showToast('Cancelled'); };
-  const editPlan = (msgId: string, goalText: string) => {
-    updatePlanSummary(msgId, 'cancelled');
-    setInput(goalText);
-    showToast('Cancelled — i-edit yung text sa baba tapos i-send ulit');
-    textareaRef.current?.focus();
-  };
-
   return (
     <div className="cc-secretary-wrap">
       <div className="cc-card cc-chat-card">
         <div className="cc-chat-head">
           <span className="cc-dotlive" />
-          <div><h3>Ask your AI Secretary</h3><p>Nag-uunawa ng Taglish · Bawat gawa ay may confirmation bago ma-save</p></div>
+          <div><h3>Ask Goldie</h3><p>Nag-uunawa ng Taglish · Bawat gawa ay may confirmation bago ma-save</p></div>
         </div>
 
         <div className="cc-chat-body" ref={bodyRef}>
           {messages.map(m => (
             <div key={m.id} className={`cc-bubble-row ${m.role === 'user' ? 'user' : 'ai'}`}>
-              <div className="cc-bubble-avatar">{m.role === 'user' ? 'JC' : 'AI'}</div>
+              <div className="cc-bubble-avatar">{m.role === 'user' ? 'JC' : 'G'}</div>
               <div>
                 <div className="cc-bubble">{m.text}</div>
                 {m.previews?.map(pc => (
@@ -738,15 +754,14 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
           <h4>Try saying...</h4>
           <div className="cc-chip-list">
             <button className="cc-chip" onClick={() => setInput('Remind me tomorrow 10AM tawagan supplier.')}>&quot;Remind me tomorrow 10AM tawagan supplier.&quot;</button>
-            <button className="cc-chip" onClick={() => setInput('Add this to September Marketing Plan.')}>&quot;Add this to September Marketing Plan.&quot;</button>
+            <button className="cc-chip" onClick={() => setInput('Follow up J&T after 3 days.')}>&quot;Follow up J&amp;T after 3 days.&quot;</button>
             <button className="cc-chip" onClick={() => setInput('High priority ito.')}>&quot;High priority ito.&quot;</button>
-            <button className="cc-chip" onClick={() => setInput('Move this task to Friday.')}>&quot;Move this task to Friday.&quot;</button>
-            <button className="cc-chip" onClick={() => setInput('Done na ito.')}>&quot;Done na ito.&quot;</button>
+            <button className="cc-chip" onClick={() => setInput('Ano schedule ko today?')}>&quot;Ano schedule ko today?&quot;</button>
             <button className="cc-chip" onClick={() => setInput('Gusto kong ilunch yung Solid Suki Card sa August 30. Kailangan muna tapusin yung design, tapos i-print, tapos i-train yung staff, tapos i-announce sa customers.')}>&quot;Gusto kong ilunch yung Solid Suki Card sa August 30. Kailangan muna tapusin yung design, tapos i-print...&quot; (plan narration)</button>
           </div>
         </div>
         <div className="cc-card">
-          <h4>AI detects</h4>
+          <h4>Goldie detects</h4>
           <div className="cc-legend-row"><span className="cc-pdot normal" />Task</div>
           <div className="cc-legend-row"><span className="cc-pdot high" />Reminder</div>
           <div className="cc-legend-row"><span className="cc-pdot urgent" />Follow-up</div>
@@ -760,24 +775,27 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
 // ============================================================================
 // MY TASKS
 // ============================================================================
-const TASK_ROWS: { dot: 'urgent' | 'high' | 'normal' | 'low'; title: string; desc?: string; tag: string; due: string; status: 'To Do' | 'In Progress' | 'Waiting' | 'Completed' }[] = [
-  { dot: 'urgent', title: 'Approve marketing creative for Flash Sale', desc: 'Final review before Thursday launch', tag: 'Bodega ni Suki', due: 'Today, 2:00 PM', status: 'In Progress' },
-  { dot: 'high', title: 'Follow up supplier for quotation', tag: 'SEDO', due: 'Today, 10:00 AM', status: 'To Do' },
-  { dot: 'high', title: 'Check tarp for Thursday sale', tag: 'Bodega ni Suki', due: 'Wed, Aug 12', status: 'To Do' },
-  { dot: 'normal', title: 'Review weekly priorities', tag: 'Personal', due: 'Mon, Aug 10', status: 'Waiting' },
-  { dot: 'normal', title: 'Finalize Solid Suki Card design', tag: 'Bodega ni Suki', due: 'This Week', status: 'Waiting' },
-  { dot: 'low', title: 'Update product catalog', tag: 'RPJ', due: 'Fri, Aug 14', status: 'To Do' },
-  { dot: 'low', title: 'Post Bodega Flash Sale teaser', tag: 'Marketing', due: 'Today, 9:10 AM', status: 'Completed' },
-];
 const STATUS_CLASS: Record<string, string> = { 'To Do': 'cc-status-todo', 'In Progress': 'cc-status-progress', 'Waiting': 'cc-status-waiting', 'Completed': 'cc-status-done' };
+const PRIORITY_DOT: Record<string, 'urgent' | 'high' | 'normal' | 'low'> = { Urgent: 'urgent', High: 'high', Normal: 'normal', Low: 'low' };
+const FILTER_TO_WHEN: Record<string, string> = { Today: 'today', Tomorrow: 'tomorrow', 'This Week': 'week', Overdue: 'overdue', Completed: 'completed' };
 
 function TasksTab() {
   const [filter, setFilter] = useState('Today');
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/command-center/tasks?when=${FILTER_TO_WHEN[filter]}`)
+      .then(r => r.json())
+      .then(d => { setRows(d); setLoading(false); });
+  }, [filter]);
+
   return (
     <>
       <div className="cc-page-head">
         <h1>My Tasks</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm">+ New Task</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to add tasks for now"><Plus size={14} /> New Task</button>
       </div>
       <div className="cc-filter-row">
         {['Today', 'Tomorrow', 'This Week', 'Overdue', 'Completed'].map(f => (
@@ -795,17 +813,52 @@ function TasksTab() {
           <table className="cc-task-table">
             <thead><tr><th>Task</th><th>Business / Project</th><th>Due</th><th>Status</th></tr></thead>
             <tbody>
-              {TASK_ROWS.map((r, i) => (
-                <tr key={i}>
+              {!loading && rows.length === 0 && (
+                <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--cc-text-faint)', padding: '20px 0' }}>Walang task dito.</td></tr>
+              )}
+              {rows.map((r) => (
+                <tr key={r.id}>
                   <td>
                     <div className="cc-task-title-cell">
-                      <span className={`cc-pdot ${r.dot}`} />
-                      <div><strong>{r.title}</strong>{r.desc && <div style={{ fontSize: 11.5, color: 'var(--cc-text-faint)', marginTop: 2 }}>{r.desc}</div>}</div>
+                      <span className={`cc-pdot ${PRIORITY_DOT[r.priority] || 'normal'}`} />
+                      <div><strong>{r.title}</strong>{r.description && <div style={{ fontSize: 11.5, color: 'var(--cc-text-faint)', marginTop: 2 }}>{r.description}</div>}</div>
                     </div>
                   </td>
-                  <td><span className="cc-tag">{r.tag}</span></td>
-                  <td className="cc-num">{r.due}</td>
-                  <td><span className={`cc-status-badge ${STATUS_CLASS[r.status]}`}>{r.status}</span></td>
+                  <td>{r.category && <span className="cc-tag">{r.category}</span>}</td>
+                  <td className="cc-num">{r.due_date || ''}{r.due_time ? `, ${r.due_time}` : ''}</td>
+                  <td><span className={`cc-status-badge ${STATUS_CLASS[r.status] || 'cc-status-todo'}`}>{r.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// COMPLETED (full history)
+// ============================================================================
+function CompletedTab() {
+  const [rows, setRows] = useState<any[]>([]);
+  useEffect(() => {
+    fetch('/api/command-center/tasks?when=completed').then(r => r.json()).then(setRows);
+  }, []);
+  return (
+    <>
+      <div className="cc-page-head"><h1>Completed</h1></div>
+      <div className="cc-table-wrap">
+        <div className="cc-table-scroll">
+          <table className="cc-task-table">
+            <thead><tr><th>Task</th><th>Business / Project</th><th>Completed</th></tr></thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--cc-text-faint)', padding: '20px 0' }}>Wala pang natatapos.</td></tr>}
+              {rows.map((r: any) => (
+                <tr key={r.id}>
+                  <td><div className="cc-task-title-cell"><span className="cc-pdot low" /><strong>{r.title}</strong></div></td>
+                  <td>{r.category && <span className="cc-tag">{r.category}</span>}</td>
+                  <td className="cc-num">{r.completed_at ? r.completed_at.slice(0, 16).replace('T', ' ') : ''}</td>
                 </tr>
               ))}
             </tbody>
@@ -820,33 +873,52 @@ function TasksTab() {
 // FOLLOW-UPS
 // ============================================================================
 function FollowUpsTab({ showToast }: { showToast: (m: string) => void }) {
-  const items = [
-    { title: 'Loyalty Card Printer Quotation', status: 'Waiting for reply · SEDO Prints', tag: 'Bodega ni Suki', due: 'Aug 9 · Overdue', overdue: true },
-    { title: 'J&T Complaint', status: 'Waiting for response', tag: 'Operations', due: 'Aug 14', overdue: false },
-    { title: 'Supplier Quotation', status: 'Waiting', tag: 'SEDO', due: 'Tomorrow', overdue: false },
-    { title: 'Financing Application', status: 'Waiting for approval', tag: 'Finance', due: 'Aug 18', overdue: false },
-  ];
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => fetch('/api/command-center/follow-ups').then(r => r.json()).then(d => { setItems(d); setLoading(false); });
+  useEffect(() => { load(); }, []);
+
+  const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const overdueCount = items.filter(it => it.follow_up_date && it.follow_up_date < today).length;
+
+  const markFollowedUp = async (id: number) => {
+    await fetch(`/api/command-center/follow-ups/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }),
+    });
+    showToast('Marked as followed up');
+    load();
+  };
+
   return (
     <>
       <div className="cc-page-head">
         <h1>Waiting / Follow-Ups</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm">+ New Follow-Up</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to add follow-ups for now"><Plus size={14} /> New Follow-Up</button>
       </div>
-      <div className="cc-overdue-banner"><AlertTriangle size={16} />1 follow-up is overdue and needs your attention</div>
+      {overdueCount > 0 && (
+        <div className="cc-overdue-banner"><AlertTriangle size={16} />{overdueCount} follow-up{overdueCount > 1 ? 's are' : ' is'} overdue and needs your attention</div>
+      )}
       <div className="cc-followup-grid">
-        {items.map((it, i) => (
-          <div key={i} className={`cc-card cc-followup-card ${it.overdue ? 'is-overdue' : ''}`}>
-            <div className="cc-fu-main">
-              <div className="cc-fu-icon"><Clock size={16} /></div>
-              <div><p className="cc-fu-title">{it.title}</p><p className="cc-fu-status">{it.status}</p></div>
+        {!loading && items.length === 0 && (
+          <div className="cc-card" style={{ padding: 20, textAlign: 'center', color: 'var(--cc-text-faint)' }}>Wala kang follow-ups ngayon.</div>
+        )}
+        {items.map((it) => {
+          const isOverdue = it.follow_up_date && it.follow_up_date < today;
+          return (
+            <div key={it.id} className={`cc-card cc-followup-card ${isOverdue ? 'is-overdue' : ''}`}>
+              <div className="cc-fu-main">
+                <div className="cc-fu-icon"><Clock size={16} /></div>
+                <div><p className="cc-fu-title">{it.title}</p><p className="cc-fu-status">{it.status_note || 'Waiting'}</p></div>
+              </div>
+              <div className="cc-fu-meta">
+                {it.category && <span className="cc-tag">{it.category}</span>}
+                <div className="cc-fu-date"><div className="lbl">Follow-up</div><div className="val">{it.follow_up_date || '—'}{isOverdue ? ' · Overdue' : ''}</div></div>
+                <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => markFollowedUp(it.id)}>Mark Followed Up</button>
+              </div>
             </div>
-            <div className="cc-fu-meta">
-              <span className="cc-tag">{it.tag}</span>
-              <div className="cc-fu-date"><div className="lbl">Follow-up</div><div className="val">{it.due}</div></div>
-              <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => showToast('Marked as followed up (mockup)')}>Mark Followed Up</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -855,67 +927,80 @@ function FollowUpsTab({ showToast }: { showToast: (m: string) => void }) {
 // ============================================================================
 // PLANS
 // ============================================================================
-const PLANS = [
-  {
-    key: 'solid-suki', tag: 'Bodega ni Suki', title: 'Solid Suki Card Launch', goal: 'Launch Solid Suki Card by August 30',
-    progress: 29, done: 2, total: 7, deadline: 'Aug 30',
-    tasks: [
-      { label: 'Finalize card design', done: true }, { label: 'Print cards', done: true },
-      { label: 'Test registration', active: true }, { label: 'Train staff' },
-      { label: 'Prepare store materials' }, { label: 'Customer announcement' }, { label: 'Launch' },
-    ],
-    notes: 'Card printer quote pending from SEDO Prints — awaiting your approval before printing 500 units.',
-    notes2: 'Staff training tentatively set for Aug 22, after store materials arrive.',
-  },
-  { key: 'sept-marketing', tag: 'Bodega ni Suki', title: 'September Marketing', goal: 'Plan and launch September promo campaign', progress: 40, done: 4, total: 10, deadline: 'Sep 30' },
-  { key: 'q3-ops', tag: 'RPJ', title: 'Q3 Operations Review', goal: 'Review inventory + purchase order workflow', progress: 70, done: 7, total: 10, deadline: 'Sep 15' },
-];
-
 function PlansTab() {
-  const [selected, setSelected] = useState('solid-suki');
-  const plan = PLANS.find(p => p.key === selected) ?? PLANS[0];
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [detail, setDetail] = useState<any | null>(null);
+
+  const loadPlans = () => fetch('/api/command-center/plans').then(r => r.json()).then((d: any[]) => {
+    setPlans(d);
+    if (d.length && selected === null) setSelected(d[0].id);
+  });
+  useEffect(() => { loadPlans(); }, []);
+
+  useEffect(() => {
+    if (selected === null) return;
+    fetch(`/api/command-center/plans/${selected}`).then(r => r.json()).then(setDetail);
+  }, [selected]);
+
+  const toggleStep = async (taskId: number, done: boolean) => {
+    if (selected === null) return;
+    await fetch(`/api/command-center/plans/${selected}/tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done }),
+    });
+    const updated = await fetch(`/api/command-center/plans/${selected}`).then(r => r.json());
+    setDetail(updated);
+    loadPlans();
+  };
+
   return (
     <>
       <div className="cc-page-head">
         <h1>Plans / Projects</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm">+ New Plan</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to narrate a plan for now"><Plus size={14} /> New Plan</button>
       </div>
 
+      {plans.length === 0 && (
+        <div className="cc-card" style={{ padding: 24, textAlign: 'center', color: 'var(--cc-text-faint)', marginBottom: 20 }}>
+          Wala ka pang Plans. Sabihin mo lang kay Goldie ang isang plano nang malaman (hal. "Gusto kong ilunch ang X sa [date]...") at i-summarize niya bilang bagong Plan.
+        </div>
+      )}
+
       <div className="cc-plans-grid">
-        {PLANS.map(p => (
-          <div key={p.key} className={`cc-card cc-plan-card ${selected === p.key ? 'selected' : ''}`} onClick={() => setSelected(p.key)}>
-            <span className="cc-tag">{p.tag}</span>
+        {plans.map(p => (
+          <div key={p.id} className={`cc-card cc-plan-card ${selected === p.id ? 'selected' : ''}`} onClick={() => setSelected(p.id)}>
+            {p.category && <span className="cc-tag">{p.category}</span>}
             <h4>{p.title}</h4>
             <p className="cc-plan-goal">{p.goal}</p>
             <div className="cc-progress-track"><div className="cc-progress-fill" style={{ width: `${p.progress}%` }} /></div>
-            <div className="cc-plan-foot"><span>{p.done} / {p.total} tasks done</span><strong className="cc-num">Due {p.deadline}</strong></div>
+            <div className="cc-plan-foot"><span>{p.task_done} / {p.task_total} tasks done</span><strong className="cc-num">{p.deadline ? `Due ${p.deadline}` : 'No deadline set'}</strong></div>
           </div>
         ))}
       </div>
 
-      {plan.tasks && (
+      {detail && (
         <div className="cc-card cc-plan-detail">
           <div className="cc-plan-detail-head">
             <div>
-              <span className="cc-tag" style={{ marginBottom: 8 }}>{plan.tag}</span>
-              <h2>{plan.title}</h2>
+              {detail.category && <span className="cc-tag" style={{ marginBottom: 8 }}>{detail.category}</span>}
+              <h2>{detail.title}</h2>
               <div className="cc-plan-detail-meta">
-                <div><div className="lbl">Goal</div><div className="val">{plan.goal}</div></div>
-                <div><div className="lbl">Deadline</div><div className="val cc-num">{plan.deadline}, 2026</div></div>
-                <div><div className="lbl">Progress</div><div className="val cc-num">{plan.progress}%</div></div>
+                <div><div className="lbl">Goal</div><div className="val">{detail.goal}</div></div>
+                <div><div className="lbl">Deadline</div><div className="val cc-num">{detail.deadline || 'Not set'}</div></div>
+                <div><div className="lbl">Progress</div><div className="val cc-num">{detail.progress}%</div></div>
               </div>
             </div>
-            <span className="cc-ai-suggest-tag">✨ AI-suggested breakdown</span>
+            <span className="cc-ai-suggest-tag">✨ Goldie-suggested breakdown</span>
           </div>
-          <div className="cc-progress-track" style={{ marginBottom: 6 }}><div className="cc-progress-fill" style={{ width: `${plan.progress}%` }} /></div>
+          <div className="cc-progress-track" style={{ marginBottom: 6 }}><div className="cc-progress-fill" style={{ width: `${detail.progress}%` }} /></div>
 
           <div className="cc-plan-body-grid">
             <div>
-              <div className="cc-panel-head"><h3>Tasks</h3><span className="cc-count">{plan.done} / {plan.total} done</span></div>
+              <div className="cc-panel-head"><h3>Tasks</h3><span className="cc-count">{detail.tasks.filter((t: any) => t.done).length} / {detail.tasks.length} done</span></div>
               <div className="cc-checklist">
-                {plan.tasks.map((t, i) => (
-                  <div key={i} className={`cc-check-row ${t.done ? 'done' : ''} ${(t as any).active ? 'active-step' : ''}`}>
-                    <div className="cc-check-box">{t.done && <Check size={11} />}</div>
+                {detail.tasks.map((t: any) => (
+                  <div key={t.id} className={`cc-check-row ${t.done ? 'done' : ''}`} style={{ cursor: 'pointer' }} onClick={() => toggleStep(t.id, !t.done)}>
+                    <div className="cc-check-box">{t.done ? <Check size={11} /> : null}</div>
                     <span>{t.label}</span>
                   </div>
                 ))}
@@ -924,14 +1009,117 @@ function PlansTab() {
             <div>
               <div className="cc-panel-head"><h3>Notes &amp; Decisions</h3></div>
               <div className="cc-notes-block">
-                <strong>Important decision:</strong> {plan.notes}
-                <br /><br />
-                <strong>Note:</strong> {plan.notes2}
+                {detail.notes || 'Wala pang notes para sa plan na ito.'}
               </div>
             </div>
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// ============================================================================
+// CALENDAR (simple upcoming-dates list — no full grid widget in V1)
+// ============================================================================
+function CalendarTab() {
+  const [items, setItems] = useState<{ date: string; label: string; kind: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/command-center/tasks').then(r => r.json()),
+      fetch('/api/command-center/follow-ups').then(r => r.json()),
+      fetch('/api/command-center/plans').then(r => r.json()),
+    ]).then(([tasks, followups, plans]) => {
+      const rows: { date: string; label: string; kind: string }[] = [];
+      tasks.forEach((t: any) => { if (t.due_date) rows.push({ date: t.due_date, label: t.title, kind: 'Task' }); });
+      followups.forEach((f: any) => { if (f.follow_up_date) rows.push({ date: f.follow_up_date, label: f.title, kind: 'Follow-Up' }); });
+      plans.forEach((p: any) => { if (p.deadline) rows.push({ date: p.deadline, label: p.title, kind: 'Plan Deadline' }); });
+      rows.sort((a, b) => a.date.localeCompare(b.date));
+      setItems(rows);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div className="cc-placeholder-screen"><div className="cc-placeholder-inner"><h3>Loading…</h3></div></div>;
+
+  const grouped = items.reduce<Record<string, typeof items>>((acc, it) => {
+    (acc[it.date] ||= []).push(it);
+    return acc;
+  }, {});
+
+  return (
+    <>
+      <div className="cc-page-head"><h1>Calendar</h1></div>
+      {Object.keys(grouped).length === 0 && (
+        <div className="cc-card" style={{ padding: 24, textAlign: 'center', color: 'var(--cc-text-faint)' }}>Walang naka-schedule na dates.</div>
+      )}
+      <div className="cc-card cc-panel">
+        <div className="cc-rowlist">
+          {Object.entries(grouped).map(([date, rows]) => (
+            <div key={date} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cc-text-faint)', textTransform: 'uppercase', letterSpacing: .3, padding: '6px 6px 2px 6px' }}>{date}</div>
+              {rows.map((r, i) => (
+                <Row key={i} title={r.label} sub={r.kind} time="" />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ============================================================================
+// SETTINGS (category / tag manager)
+// ============================================================================
+function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [newName, setNewName] = useState('');
+
+  const load = () => fetch('/api/command-center/categories').then(r => r.json()).then(setCategories);
+  useEffect(() => { load(); }, []);
+
+  const addCategory = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const res = await fetch('/api/command-center/categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    });
+    if (res.ok) { setNewName(''); load(); }
+    else { const d = await res.json(); showToast(d.error || 'Hindi na-add.'); }
+  };
+
+  const deleteCategory = async (id: number) => {
+    await fetch(`/api/command-center/categories/${id}`, { method: 'DELETE' });
+    load();
+  };
+
+  return (
+    <>
+      <div className="cc-page-head"><h1>Settings</h1></div>
+      <div className="cc-card" style={{ padding: 20, maxWidth: 480 }}>
+        <h3 style={{ marginBottom: 4 }}>Business / Project Tags</h3>
+        <p style={{ fontSize: 12.5, color: 'var(--cc-text-muted)', marginBottom: 14 }}>Ito ang mga tag na magagamit para i-categorize ang tasks, reminders, follow-ups, at plans.</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {categories.map(c => (
+            <span key={c.id} className="cc-tag" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px' }}>
+              {c.name}
+              <button onClick={() => deleteCategory(c.id)} style={{ display: 'flex', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cc-text-faint)' }}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text" value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addCategory(); }}
+            placeholder="Bagong tag..."
+            style={{ flex: 1, border: '1px solid var(--cc-border)', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
+          />
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={addCategory}><Plus size={14} /> Add</button>
+        </div>
+      </div>
     </>
   );
 }
