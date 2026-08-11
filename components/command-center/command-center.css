@@ -63,6 +63,22 @@
 
 .cc-card { background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: var(--cc-radius); box-shadow: var(--cc-shadow-sm); }
 
+/* ---------- Goldie alarm banner (repeats until Stop is tapped) ---------- */
+.cc-alarm-banner {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--cc-urgent-soft); border: 1px solid var(--cc-urgent);
+  border-radius: 12px; padding: 10px 16px; margin-bottom: 18px;
+  box-shadow: var(--cc-shadow-md);
+}
+.cc-alarm-bell { color: var(--cc-urgent); flex-shrink: 0; animation: cc-alarm-ring 1.1s ease-in-out infinite; }
+@keyframes cc-alarm-ring { 0%, 100% { transform: rotate(0deg); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(11deg); } 60% { transform: rotate(-7deg); } 80% { transform: rotate(4deg); } }
+.cc-alarm-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+.cc-alarm-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; color: var(--cc-urgent); }
+.cc-alarm-stop, .cc-alarm-stop-all { font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--cc-urgent); background: var(--cc-surface); color: var(--cc-urgent); white-space: nowrap; }
+.cc-alarm-stop:hover, .cc-alarm-stop-all:hover { background: var(--cc-urgent); color: #fff; }
+.cc-alarm-stop-all { background: var(--cc-urgent); color: #fff; }
+.cc-alarm-stop-all:hover { opacity: .85; }
+
 /* Tabs (replaces the mockup's own embedded sidebar — the real app sidebar already has one Command Center entry) */
 .cc-tabs { display: flex; gap: 6px; margin-bottom: 22px; flex-wrap: wrap; background: var(--cc-surface-2); border: 1px solid var(--cc-border-soft); border-radius: 12px; padding: 5px; }
 .cc-tab { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 9px; background: transparent; border: none; color: var(--cc-text-muted); }

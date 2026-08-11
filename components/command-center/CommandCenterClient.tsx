@@ -57,6 +57,9 @@ interface PlanSummary {
   deadlineUnsure: boolean;
   status: 'pending' | 'saved' | 'cancelled';
 }
+// A due task/reminder that's currently "alarming" — Goldie keeps re-speaking
+// it on a loop until the owner taps Stop, instead of announcing it once.
+interface ActiveAlarm { key: string; type: 'task' | 'reminder'; entityId: number; title: string; }
 interface ChatMsg {
   id: string;
   role: 'user' | 'ai';
@@ -145,8 +148,29 @@ function speak(text: string) {
     if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
     utter.rate = 1.0;
     utter.pitch = 1.05;
+    utter.volume = 1;
     window.speechSynthesis.speak(utter);
   } catch { /* speech synthesis unavailable — silent no-op, text reply still shown */ }
+}
+
+// Same as speak(), but queues several utterances back-to-back instead of
+// replacing one another — used for the repeating alarm loop, where multiple
+// due items may be alarming at once. Volume is already maxed at 1 — the Web
+// Speech API has no "louder than the device's own volume" setting.
+function speakMany(texts: string[]) {
+  if (typeof window === 'undefined' || !window.speechSynthesis || texts.length === 0) return;
+  try {
+    window.speechSynthesis.cancel();
+    for (const text of texts) {
+      const utter = new SpeechSynthesisUtterance(text);
+      const voice = pickVoice();
+      if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
+      utter.rate = 1.0;
+      utter.pitch = 1.05;
+      utter.volume = 1;
+      window.speechSynthesis.speak(utter);
+    }
+  } catch { /* speech synthesis unavailable */ }
 }
 
 export default function CommandCenterClient() {
@@ -168,31 +192,67 @@ export default function CommandCenterClient() {
   }, []);
 
   // Goldie's proactive voice reminders — while this page is open, poll for
-  // due tasks/reminders every ~60s and speak + show a chat bubble + toast
-  // for each. Only works while the tab is open in the browser (not a true
-  // closed-app alarm — see plan doc). Lives at this top level (not inside
-  // SecretaryTab) so it keeps running even while viewing other tabs.
+  // due tasks/reminders every ~60s. Each newly-due item becomes an "active
+  // alarm": Goldie speaks it in English right away, then keeps re-speaking
+  // it every ~15s — like a real alarm, not a one-off announcement — until
+  // the owner taps Stop on it. Only works while the tab is open in the
+  // browser (not a true closed-app alarm — see plan doc). Lives at this top
+  // level (not inside SecretaryTab) so it keeps running even while viewing
+  // other tabs.
   const [goldieMessages, setGoldieMessages] = useState<{ id: string; text: string }[]>([]);
+  const [activeAlarms, setActiveAlarms] = useState<ActiveAlarm[]>([]);
+  const activeAlarmsRef = useRef<ActiveAlarm[]>([]);
+  useEffect(() => { activeAlarmsRef.current = activeAlarms; }, [activeAlarms]);
+
+  const alarmSpeech = (a: ActiveAlarm) =>
+    a.type === 'task' ? `Boss, check ${a.title} now.` : `Boss, reminder — ${a.title}.`;
+
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
       try {
         const { due } = await fetch('/api/command-center/due-now').then(r => r.json());
         if (cancelled || !due?.length) return;
-        for (const item of due) {
-          const line = item.type === 'task'
-            ? `Boss, ${item.title} — ito ang task mo ngayon, dapat mo tapusin.`
-            : `Boss, paalala — ${item.title}.`;
-          speak(line);
-          showToast(`🔔 Goldie: ${item.title}`);
-          setGoldieMessages(prev => [...prev, { id: nextId(), text: line }]);
-        }
+        const existingKeys = new Set(activeAlarmsRef.current.map(a => a.key));
+        const fresh: ActiveAlarm[] = due
+          .map((item: any) => ({ key: `${item.type}:${item.id}`, type: item.type, entityId: item.id, title: item.title }))
+          .filter((a: ActiveAlarm) => !existingKeys.has(a.key));
+        if (!fresh.length) return;
+        setActiveAlarms(prev => [...prev, ...fresh]);
+        speakMany(fresh.map(alarmSpeech));
+        fresh.forEach(a => {
+          showToast(`🔔 Goldie Alarm: ${a.title}`);
+          setGoldieMessages(prev => [...prev, { id: nextId(), text: alarmSpeech(a) }]);
+        });
       } catch { /* offline or not logged in — skip this tick, try again next poll */ }
     };
     const interval = setInterval(poll, 60_000);
     const initial = setTimeout(poll, 5_000); // small delay so it doesn't fire before the page has settled
     return () => { cancelled = true; clearInterval(interval); clearTimeout(initial); };
   }, []);
+
+  // The "won't stop until I turn it off" part — re-speaks every currently
+  // active alarm every ~15s. Independent of the 60s due-now poll above,
+  // which only ever ADDS new alarms (the server already dedupes by day, so
+  // it won't hand back the same item twice).
+  useEffect(() => {
+    const repeat = setInterval(() => {
+      if (activeAlarmsRef.current.length === 0) return;
+      speakMany(activeAlarmsRef.current.map(alarmSpeech));
+    }, 15_000);
+    return () => clearInterval(repeat);
+  }, []);
+
+  const stopAlarm = (key: string) => {
+    setActiveAlarms(prev => prev.filter(a => a.key !== key));
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    showToast('Alarm stopped');
+  };
+  const stopAllAlarms = () => {
+    setActiveAlarms([]);
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    showToast('All alarms stopped');
+  };
 
   const requestNotificationPermission = () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -207,6 +267,23 @@ export default function CommandCenterClient() {
   return (
     <div className="cc-root">
       <div className="cc-preview-pill"><span className="cc-dot" />Command Center — Goldie is live · voice alerts work while this tab stays open</div>
+
+      {activeAlarms.length > 0 && (
+        <div className="cc-alarm-banner">
+          <Bell size={16} className="cc-alarm-bell" />
+          <div className="cc-alarm-list">
+            {activeAlarms.map(a => (
+              <div key={a.key} className="cc-alarm-item">
+                <span>{a.type === 'task' ? 'TASK' : 'REMINDER'} — {a.title}</span>
+                <button className="cc-alarm-stop" onClick={() => stopAlarm(a.key)}>Stop</button>
+              </div>
+            ))}
+          </div>
+          {activeAlarms.length > 1 && (
+            <button className="cc-alarm-stop-all" onClick={stopAllAlarms}>Stop All</button>
+          )}
+        </div>
+      )}
 
       <div className="cc-tabs">
         {TABS.map(t => {
