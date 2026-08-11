@@ -100,13 +100,38 @@ function parseMessage(msg: string) {
   return { type, priority, due, unsure, listLabel };
 }
 
+// Browsers ship several TTS voices (locally installed OS voices, plus
+// higher-quality "Natural"/"Neural"/"Online" ones on Edge/Chrome) but
+// default to whichever is first alphabetically, which is usually the
+// flattest-sounding one. Picking a better voice here is free — the real
+// jump in quality (a natural Filipino voice, consistent across every
+// device) needs a paid TTS API wired in on the backend later, not this
+// client-only mockup.
+let cachedVoices: SpeechSynthesisVoice[] = [];
+function refreshVoices() {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  cachedVoices = window.speechSynthesis.getVoices();
+}
+function pickVoice(): SpeechSynthesisVoice | null {
+  if (!cachedVoices.length) return null;
+  const fil = cachedVoices.find(v => /^fil|^tl/i.test(v.lang));
+  if (fil) return fil;
+  const natural = cachedVoices.find(v => /natural|neural|online/i.test(v.name) && /^en/i.test(v.lang));
+  if (natural) return natural;
+  const branded = cachedVoices.find(v => /Google|Microsoft/i.test(v.name) && /^en/i.test(v.lang));
+  if (branded) return branded;
+  return cachedVoices.find(v => /^en/i.test(v.lang)) || cachedVoices[0];
+}
+
 function speak(text: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'fil-PH';
-    utter.rate = 1.02;
+    const voice = pickVoice();
+    if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'fil-PH'; }
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
     window.speechSynthesis.speak(utter);
   } catch { /* speech synthesis unavailable — silent no-op, text reply still shown */ }
 }
@@ -121,6 +146,13 @@ export default function CommandCenterClient() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2400);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    refreshVoices();
+    window.speechSynthesis.onvoiceschanged = refreshVoices;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
 
   return (
     <div className="cc-root">
