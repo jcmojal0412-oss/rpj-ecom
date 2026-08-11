@@ -75,6 +75,25 @@
 .cc-modal-body { font-size: 13.5px; line-height: 1.7; color: var(--cc-text); white-space: pre-line; overflow-y: auto; }
 .cc-modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 
+/* ---------- New Task / Follow-Up / Plan forms (share the modal shell above) ---------- */
+.cc-form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.cc-form-row-pair { display: flex; gap: 12px; }
+.cc-form-row-pair .cc-form-row { flex: 1; }
+.cc-form-label { font-size: 11.5px; font-weight: 600; color: var(--cc-text-muted); text-transform: uppercase; letter-spacing: .3px; }
+.cc-form-input, .cc-form-select, .cc-form-textarea {
+  font-family: inherit; font-size: 13.5px; color: var(--cc-text); background: var(--cc-surface-2);
+  border: 1px solid var(--cc-border); border-radius: 8px; padding: 9px 12px;
+}
+.cc-form-input:focus, .cc-form-select:focus, .cc-form-textarea:focus { outline: none; border-color: var(--cc-gold); background: var(--cc-surface); }
+.cc-form-textarea { resize: vertical; min-height: 60px; }
+.cc-form-steps { display: flex; flex-direction: column; gap: 8px; }
+.cc-form-step-row { display: flex; gap: 8px; align-items: center; }
+.cc-form-step-row .cc-form-input { flex: 1; }
+.cc-form-step-remove { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--cc-border); background: var(--cc-surface); color: var(--cc-text-faint); flex-shrink: 0; }
+.cc-form-step-remove:hover { border-color: var(--cc-urgent); color: var(--cc-urgent); }
+.cc-form-add-step { align-self: flex-start; font-size: 12.5px; font-weight: 600; color: var(--cc-gold-ink); background: none; border: none; padding: 4px 0; }
+.cc-form-add-step:hover { text-decoration: underline; }
+
 /* ---------- Goldie alarm banner (repeats until Stop is tapped) ---------- */
 .cc-alarm-banner {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;

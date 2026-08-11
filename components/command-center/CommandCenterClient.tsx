@@ -946,19 +946,21 @@ function TasksTab() {
   const [filter, setFilter] = useState('Today');
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     fetch(`/api/command-center/tasks?when=${FILTER_TO_WHEN[filter]}`)
       .then(r => r.json())
       .then(d => { setRows(d); setLoading(false); });
-  }, [filter]);
+  };
+  useEffect(load, [filter]);
 
   return (
     <>
       <div className="cc-page-head">
         <h1>My Tasks</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to add tasks for now"><Plus size={14} /> New Task</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={() => setShowNew(true)}><Plus size={14} /> New Task</button>
       </div>
       <div className="cc-filter-row">
         {['Today', 'Tomorrow', 'This Week', 'Overdue', 'Completed'].map(f => (
@@ -996,7 +998,70 @@ function TasksTab() {
           </table>
         </div>
       </div>
+
+      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />}
     </>
+  );
+}
+
+function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('');
+  const [priority, setPriority] = useState('Normal');
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    await fetch('/api/command-center/tasks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority, status: 'To Do', source: 'typed' }),
+    });
+    onCreated();
+  };
+
+  return (
+    <div className="cc-modal-backdrop" onClick={onClose}>
+      <div className="cc-card cc-modal" onClick={e => e.stopPropagation()}>
+        <div className="cc-modal-head"><h3>New Task</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Task</label>
+          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Check FB ads" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+        </div>
+        <div className="cc-form-row-pair">
+          <div className="cc-form-row">
+            <label className="cc-form-label">Due Date</label>
+            <input type="date" className="cc-form-input" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+          </div>
+          <div className="cc-form-row">
+            <label className="cc-form-label">Due Time</label>
+            <input type="time" className="cc-form-input" value={dueTime} onChange={e => setDueTime(e.target.value)} />
+          </div>
+        </div>
+        <div className="cc-form-row-pair">
+          <div className="cc-form-row">
+            <label className="cc-form-label">Priority</label>
+            <select className="cc-form-select" value={priority} onChange={e => setPriority(e.target.value)}>
+              <option>Normal</option><option>Low</option><option>High</option><option>Urgent</option>
+            </select>
+          </div>
+          <div className="cc-form-row">
+            <label className="cc-form-label">Business / Project</label>
+            <input className="cc-form-input" list="cc-category-list" value={category} onChange={e => setCategory(e.target.value)} placeholder="Optional" />
+          </div>
+        </div>
+        <datalist id="cc-category-list">{categories.map(c => <option key={c.id} value={c.name} />)}</datalist>
+        <div className="cc-modal-actions">
+          <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={onClose}>Cancel</button>
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : 'Save Task'}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1038,6 +1103,7 @@ function CompletedTab() {
 function FollowUpsTab({ showToast }: { showToast: (m: string) => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
 
   const load = () => fetch('/api/command-center/follow-ups').then(r => r.json()).then(d => { setItems(d); setLoading(false); });
   useEffect(() => { load(); }, []);
@@ -1057,7 +1123,7 @@ function FollowUpsTab({ showToast }: { showToast: (m: string) => void }) {
     <>
       <div className="cc-page-head">
         <h1>Waiting / Follow-Ups</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to add follow-ups for now"><Plus size={14} /> New Follow-Up</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={() => setShowNew(true)}><Plus size={14} /> New Follow-Up</button>
       </div>
       {overdueCount > 0 && (
         <div className="cc-overdue-banner"><AlertTriangle size={16} />{overdueCount} follow-up{overdueCount > 1 ? 's are' : ' is'} overdue and needs your attention</div>
@@ -1083,7 +1149,61 @@ function FollowUpsTab({ showToast }: { showToast: (m: string) => void }) {
           );
         })}
       </div>
+
+      {showNew && <NewFollowUpModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />}
     </>
+  );
+}
+
+function NewFollowUpModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [statusNote, setStatusNote] = useState('');
+  const [category, setCategory] = useState('');
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    await fetch('/api/command-center/follow-ups', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim(), status_note: statusNote || null, category: category || null, follow_up_date: followUpDate || null }),
+    });
+    onCreated();
+  };
+
+  return (
+    <div className="cc-modal-backdrop" onClick={onClose}>
+      <div className="cc-card cc-modal" onClick={e => e.stopPropagation()}>
+        <div className="cc-modal-head"><h3>New Follow-Up</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Ano ang hinihintay</label>
+          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Follow up J&amp;T courier" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+        </div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Status Note</label>
+          <input className="cc-form-input" value={statusNote} onChange={e => setStatusNote(e.target.value)} placeholder="Hal. Waiting for response" />
+        </div>
+        <div className="cc-form-row-pair">
+          <div className="cc-form-row">
+            <label className="cc-form-label">Follow-up Date</label>
+            <input type="date" className="cc-form-input" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)} />
+          </div>
+          <div className="cc-form-row">
+            <label className="cc-form-label">Business / Project</label>
+            <input className="cc-form-input" list="cc-category-list" value={category} onChange={e => setCategory(e.target.value)} placeholder="Optional" />
+          </div>
+        </div>
+        <datalist id="cc-category-list">{categories.map(c => <option key={c.id} value={c.name} />)}</datalist>
+        <div className="cc-modal-actions">
+          <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={onClose}>Cancel</button>
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : 'Save Follow-Up'}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1094,6 +1214,7 @@ function PlansTab() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
   const loadPlans = () => fetch('/api/command-center/plans').then(r => r.json()).then((d: any[]) => {
     setPlans(d);
@@ -1120,7 +1241,7 @@ function PlansTab() {
     <>
       <div className="cc-page-head">
         <h1>Plans / Projects</h1>
-        <button className="cc-btn cc-btn-gold cc-btn-sm" disabled title="Use Goldie to narrate a plan for now"><Plus size={14} /> New Plan</button>
+        <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={() => setShowNew(true)}><Plus size={14} /> New Plan</button>
       </div>
 
       {plans.length === 0 && (
@@ -1178,7 +1299,93 @@ function PlansTab() {
           </div>
         </div>
       )}
+
+      {showNew && (
+        <NewPlanModal
+          onClose={() => setShowNew(false)}
+          onCreated={(newId: number) => { setShowNew(false); setSelected(newId); loadPlans(); }}
+        />
+      )}
     </>
+  );
+}
+
+function NewPlanModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
+  const [title, setTitle] = useState('');
+  const [goal, setGoal] = useState('');
+  const [category, setCategory] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [notes, setNotes] = useState('');
+  const [steps, setSteps] = useState<string[]>(['']);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
+
+  const updateStep = (i: number, value: string) => setSteps(prev => prev.map((s, idx) => idx === i ? value : s));
+  const removeStep = (i: number) => setSteps(prev => prev.filter((_, idx) => idx !== i));
+  const addStep = () => setSteps(prev => [...prev, '']);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    const res = await fetch('/api/command-center/plans', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title.trim(), goal: goal.trim() || null, category: category || null,
+        deadline: deadline || null, notes: notes.trim() || null,
+        tasks: steps.map(s => s.trim()).filter(Boolean),
+      }),
+    });
+    const data = await res.json();
+    onCreated(data.id);
+  };
+
+  return (
+    <div className="cc-modal-backdrop" onClick={onClose}>
+      <div className="cc-card cc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="cc-modal-head"><h3>New Plan</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Plan Title</label>
+          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Solid Suki Card Launch" autoFocus />
+        </div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Goal</label>
+          <input className="cc-form-input" value={goal} onChange={e => setGoal(e.target.value)} placeholder="Ano ang gusto mong makamit" />
+        </div>
+        <div className="cc-form-row-pair">
+          <div className="cc-form-row">
+            <label className="cc-form-label">Deadline</label>
+            <input type="date" className="cc-form-input" value={deadline} onChange={e => setDeadline(e.target.value)} />
+          </div>
+          <div className="cc-form-row">
+            <label className="cc-form-label">Business / Project</label>
+            <input className="cc-form-input" list="cc-category-list" value={category} onChange={e => setCategory(e.target.value)} placeholder="Optional" />
+          </div>
+        </div>
+        <datalist id="cc-category-list">{categories.map(c => <option key={c.id} value={c.name} />)}</datalist>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Steps</label>
+          <div className="cc-form-steps">
+            {steps.map((s, i) => (
+              <div className="cc-form-step-row" key={i}>
+                <input className="cc-form-input" value={s} onChange={e => updateStep(i, e.target.value)} placeholder={`Step ${i + 1}`} />
+                {steps.length > 1 && <button className="cc-form-step-remove" onClick={() => removeStep(i)} title="Remove step"><X size={13} /></button>}
+              </div>
+            ))}
+            <button className="cc-form-add-step" onClick={addStep}>+ Add another step</button>
+          </div>
+        </div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Notes</label>
+          <textarea className="cc-form-textarea" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" />
+        </div>
+        <div className="cc-modal-actions">
+          <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={onClose}>Cancel</button>
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : 'Save Plan'}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
