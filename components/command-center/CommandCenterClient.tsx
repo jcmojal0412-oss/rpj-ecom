@@ -46,7 +46,7 @@ interface PlanSummary {
   steps: string[];
   deadline: string;
   deadlineUnsure: boolean;
-  status: 'pending' | 'saved';
+  status: 'pending' | 'saved' | 'cancelled';
 }
 interface ChatMsg {
   id: string;
@@ -131,6 +131,12 @@ function buildScheduleAnswer() {
 // (long narration in, structured Goal + Steps out, review before saving)
 // so it can be reviewed now.
 const PLAN_CONNECTORS = /\b(?:tapos|then|after that|after|saka|dagdag|also|next|kailangan|need|una|first|finally|lastly)\b/gi;
+
+// A short standalone "Confirm"/"Cancel" said out loud acts on whatever
+// preview or plan-summary card is still pending, instead of being parsed as
+// a brand-new task titled "confirm".
+const CONFIRM_WORDS = /^(confirm|yes|oo|tama|correct|save|i-?save|sige|go)\.?$/i;
+const CANCEL_WORDS = /^(cancel|no|hindi|huwag)\.?$/i;
 function isPlanNarration(text: string) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const connectorHits = (text.match(PLAN_CONNECTORS) || []).length;
@@ -457,7 +463,48 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
     ));
   };
 
+  // Finds the most recent AI message that still has something waiting on a
+  // Confirm tap — either a single preview card or a plan summary — so a
+  // spoken "Confirm"/"Cancel" knows what to act on.
+  const findPending = () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== 'ai') continue;
+      if (m.planSummary?.status === 'pending') return { msgId: m.id, kind: 'plan' as const };
+      const pendingPreview = m.previews?.find(p => p.mode === 'confirm' && p.status === 'pending');
+      if (pendingPreview) return { msgId: m.id, previewId: pendingPreview.id, kind: 'preview' as const };
+      break; // only the most recent AI message counts — older resolved ones don't
+    }
+    return null;
+  };
+
   const process = (text: string, viaVoice: boolean) => {
+    const trimmed = text.trim();
+
+    if (viaVoice && (CONFIRM_WORDS.test(trimmed) || CANCEL_WORDS.test(trimmed))) {
+      const isConfirm = CONFIRM_WORDS.test(trimmed);
+      const pending = findPending();
+      setMessages(prev => [...prev, { id: nextId(), role: 'user', text }]);
+
+      setTimeout(() => {
+        if (!pending) {
+          showToast(isConfirm ? 'Walang naka-pending na i-co-confirm.' : 'Walang naka-pending na i-ca-cancel.');
+          speak(isConfirm ? "There's nothing pending to confirm, boss." : "There's nothing pending to cancel, boss.");
+          return;
+        }
+        if (isConfirm) {
+          if (pending.kind === 'plan') confirmPlan(pending.msgId);
+          else confirm(pending.msgId, pending.previewId!);
+          speak('Confirmed and saved, boss.');
+        } else {
+          if (pending.kind === 'plan') { updatePlanSummary(pending.msgId, 'cancelled'); showToast('Cancelled (mockup)'); }
+          else undo(pending.msgId, pending.previewId!);
+          speak('Okay boss, cancelled.');
+        }
+      }, 350);
+      return;
+    }
+
     const userMsg: ChatMsg = { id: nextId(), role: 'user', text };
     setMessages(prev => [...prev, userMsg]);
 
@@ -564,6 +611,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
   const confirm = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'saved'); showToast('Saved (mockup preview)'); };
   const dismiss = () => showToast('Edit / Cancel — wired up once backend is approved');
   const undo = (msgId: string, previewId: string) => { updatePreview(msgId, previewId, 'undone'); showToast('Inalis sa list (mockup)'); speak('Okay boss, I removed that.'); };
+  const confirmPlan = (msgId: string) => { updatePlanSummary(msgId, 'saved'); showToast('Saved as new Plan (mockup preview)'); };
 
   return (
     <div className="cc-secretary-wrap">
@@ -610,7 +658,7 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
                 ))}
 
                 {m.planSummary && (
-                  <div className={`cc-preview-card ${m.planSummary.status === 'saved' ? 'saved' : ''}`} style={{ maxWidth: 380 }}>
+                  <div className={`cc-preview-card ${m.planSummary.status === 'saved' ? 'saved' : ''} ${m.planSummary.status === 'cancelled' ? 'undone' : ''}`} style={{ maxWidth: 380 }}>
                     <div className="cc-pc-type">📋 Plan Summary</div>
                     <div className="cc-pc-row"><span className="k">Goal</span><span className="v">{m.planSummary.goal}</span></div>
                     <div className="cc-pc-row"><span className="k">Deadline</span><span className="v">{m.planSummary.deadline}</span></div>
@@ -629,11 +677,14 @@ function SecretaryTab({ showToast }: { showToast: (m: string) => void }) {
                       <div className="cc-pc-actions">
                         <button className="cc-pc-btn cancel" onClick={dismiss}>Cancel</button>
                         <button className="cc-pc-btn" onClick={dismiss}>Edit</button>
-                        <button className="cc-pc-btn confirm" onClick={() => { updatePlanSummary(m.id, 'saved'); showToast('Saved as new Plan (mockup preview)'); }}>Save as New Plan</button>
+                        <button className="cc-pc-btn confirm" onClick={() => confirmPlan(m.id)}>Save as New Plan</button>
                       </div>
                     )}
                     {m.planSummary.status === 'saved' && (
                       <div className="cc-pc-saved"><Check size={15} />Saved as new Plan</div>
+                    )}
+                    {m.planSummary.status === 'cancelled' && (
+                      <div className="cc-pc-saved" style={{ color: 'var(--cc-text-faint)' }}>Cancelled</div>
                     )}
                   </div>
                 )}
