@@ -73,6 +73,57 @@ export function detectDeadline(text: string): { deadline: string; unsure: boolea
   return { deadline: 'Not specified', unsure: true };
 }
 
+// Turns a rambling raw message ("Hey Goldie please remind me of FB ads
+// itse-check ko i will check later at 7:18pm today remind me okay") into a
+// short English-leaning title ("Check FB ads") for the saved title — shown
+// in the preview card, My Tasks/Reminders list, and what Goldie's alarm
+// speaks. This is filler-stripping + a small Tagalog->English word swap,
+// NOT real translation or paraphrasing — a true "professional secretary"
+// summary needs real AI understanding, which the owner chose to skip for V1
+// to avoid a per-message AI cost (see isPlanNarration's comment above and
+// the plan doc). Garbled voice-to-text input still needs the Edit button.
+const FILLER_PHRASES: RegExp[] = [
+  /\bhey goldie\b/gi, /\bhi goldie\b/gi, /\bgoldie\b/gi,
+  /\bremind me (?:to|of|about)\b/gi, /\bremind me\b/gi, /\bpaalala\b/gi,
+  /\bplease\b/gi, /\bpaki\b/gi, /\bpakisuyo\b/gi, /\bsana\b/gi,
+  /\bi will\b/gi, /\bi'll\b/gi, /\bi am going to\b/gi, /\bi'm going to\b/gi,
+  /\bokay\b/gi, /\bok\b/gi, /\bsige\b/gi,
+  /\blater\b/gi, /\bmamaya\b/gi, /\bmuna\b/gi, /\bna lang\b/gi, /\bnalang\b/gi,
+  /\bnaman\b/gi, /\bpo\b/gi, /\bho\b/gi, /\bko(?:ng)?\b/gi, /\bsi\b/gi, /\bito\b/gi,
+];
+
+// Common Taglish task verbs -> English, so the result leans English even
+// though it's word-substitution, not translation.
+const VERB_TRANSLATIONS: [RegExp, string][] = [
+  [/\bitse-?check\b/gi, 'Check'], [/\bi-?check\b/gi, 'Check'], [/\btignan\b/gi, 'Check'], [/\bcheck mo\b/gi, 'Check'],
+  [/\bgawin\b/gi, 'Do'], [/\btapusin\b/gi, 'Finish'], [/\bayusin\b/gi, 'Fix'],
+  [/\btawagan\b/gi, 'Call'], [/\bsagutin\b/gi, 'Reply to'],
+  [/\bi-?post\b/gi, 'Post'], [/\bi-?update\b/gi, 'Update'], [/\bi-?send\b/gi, 'Send'], [/\bipadala\b/gi, 'Send'],
+  [/\bbayaran\b/gi, 'Pay'],
+];
+
+function stripDateTimeMentions(text: string): string {
+  return text
+    .replace(new RegExp(`\\b(?:on\\s+)?(${MONTHS.join('|')})\\s+\\d{1,2}(?:st|nd|rd|th)?\\b`, 'gi'), ' ')
+    .replace(/\btomorrow\b/gi, ' ').replace(/\bbukas\b/gi, ' ')
+    .replace(/\btoday\b/gi, ' ').replace(/\bngayon\b/gi, ' ')
+    .replace(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, ' ')
+    .replace(/\bend of (?:the )?month\b/gi, ' ')
+    .replace(/\b(?:this|next) week\b/gi, ' ')
+    .replace(/\b(?:at|ng|sa)?\s*\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/gi, ' ');
+}
+
+export function summarizeTitle(rawText: string): string {
+  let out = stripDateTimeMentions(rawText);
+  for (const re of FILLER_PHRASES) out = out.replace(re, ' ');
+  for (const [re, replacement] of VERB_TRANSLATIONS) out = out.replace(re, replacement);
+  out = out.replace(/\s+/g, ' ').trim().replace(/^[-,.\s]+|[-,.\s]+$/g, '');
+  // Collapse immediate repeats left over from stripping (e.g. "check ... check")
+  out = out.split(' ').filter((w, i, arr) => i === 0 || w.toLowerCase() !== arr[i - 1].toLowerCase()).join(' ');
+  if (out.length < 3) out = rawText.trim(); // heuristic over-stripped everything — fall back to the raw text
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 export function buildPlanSummary(text: string): { goal: string; steps: string[]; deadline: string; deadlineUnsure: boolean } {
   const segments = text
     .split(new RegExp(`[.,;]|${PLAN_CONNECTORS.source}`, 'gi'))

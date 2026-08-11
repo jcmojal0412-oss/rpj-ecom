@@ -9,7 +9,7 @@ import {
 import './command-center.css';
 import {
   parseMessage, isScheduleQuery, buildScheduleAnswer, isPlanNarration, buildPlanSummary,
-  resolveDueDate, CONFIRM_WORDS, CANCEL_WORDS, type ScheduleSnapshot,
+  resolveDueDate, summarizeTitle, CONFIRM_WORDS, CANCEL_WORDS, type ScheduleSnapshot,
 } from '@/lib/command-center';
 
 // ============================================================================
@@ -81,7 +81,8 @@ const WELCOME_MESSAGE: ChatMsg = {
 // needs "now" (for resolveDueDate) at call time, not as a pure function of
 // text alone.
 function buildSavePayload(p: ReturnType<typeof parseMessage>, rawText: string): { kind: SaveKind; payload: Record<string, any> } {
-  const title = rawText.length > 120 ? rawText.slice(0, 120) : rawText;
+  const cleaned = summarizeTitle(rawText);
+  const title = cleaned.length > 120 ? cleaned.slice(0, 120) : cleaned;
   const { isoDate } = resolveDueDate(p.due, new Date());
   const isRecurring = p.type.includes('Recurring');
   const isReminder = p.type.includes('Reminder');
@@ -123,9 +124,12 @@ function refreshVoices() {
 }
 // Known pleasant-sounding female English voice names across platforms —
 // Samantha (Safari/macOS/iOS, the closest thing to "Siri's voice" exposed
-// to the web), Zira/Aria/Jenny (Windows/Edge), Google US English (Chrome,
-// female by default).
-const FEMALE_VOICE_NAMES = /samantha|zira|aria|jenny|susan|female|google us english|karen|moira|tessa/i;
+// to the web), Zira/Aria/Jenny/Ava/Emma (Windows — Ava and Emma are the
+// "Online (Natural)" voices Windows 11 can install for free, noticeably
+// less robotic than the older default Zira/David voices — see Settings >
+// Time & Language > Speech > Manage voices > Add voices), Google US English
+// (Chrome, female by default).
+const FEMALE_VOICE_NAMES = /samantha|zira|aria|jenny|ava|emma|susan|female|google us english|karen|moira|tessa/i;
 function pickVoice(): SpeechSynthesisVoice | null {
   if (!cachedVoices.length) return null;
   const femaleNatural = cachedVoices.find(v => FEMALE_VOICE_NAMES.test(v.name) && /natural|neural|online/i.test(v.name) && /^en/i.test(v.lang));
@@ -146,8 +150,8 @@ function speak(text: string) {
     const utter = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
     if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
-    utter.rate = 1.0;
-    utter.pitch = 1.05;
+    utter.rate = 0.97;
+    utter.pitch = 1.0;
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
   } catch { /* speech synthesis unavailable — silent no-op, text reply still shown */ }
@@ -638,12 +642,13 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
       }
 
       const p = parseMessage(text);
+      const { kind, payload } = buildSavePayload(p, text);
+      const cleanTitle: string = payload.title;
       const rows: [string, string][] = [
-        ['Task', text.length > 46 ? text.slice(0, 46) + '…' : text],
+        ['Task', cleanTitle.length > 46 ? cleanTitle.slice(0, 46) + '…' : cleanTitle],
         ['Due', p.due],
         ['Priority', p.priority],
       ];
-      const { kind, payload } = buildSavePayload(p, text);
 
       if (viaVoice && !p.unsure) {
         try {
