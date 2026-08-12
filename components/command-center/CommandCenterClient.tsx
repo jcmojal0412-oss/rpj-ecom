@@ -807,6 +807,18 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
 
       const p = parseMessage(text);
       const { kind, payload } = buildSavePayload(p, text);
+      // AI grammar-fix + summarize pass — turns a garbled voice transcript
+      // ("Hey goldi an for the tas at 5:05 p.m check the mvids FB ads") into
+      // a clean title before it ever reaches the preview card or gets
+      // saved. Cheap short-text-only call (not the TTS cost story); silently
+      // keeps the free summarizeTitle() heuristic's result if it fails.
+      try {
+        const cleanupRes = await fetch('/api/command-center/clean-text', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: payload.title }),
+        });
+        const { cleaned } = await cleanupRes.json();
+        if (cleaned) payload.title = cleaned;
+      } catch { /* AI cleanup unavailable — keep the free heuristic's title */ }
       const cleanTitle: string = payload.title;
       const rows: [string, string][] = [
         ['Task', cleanTitle.length > 46 ? cleanTitle.slice(0, 46) + '…' : cleanTitle],
@@ -1152,6 +1164,7 @@ function NewTaskModal({ onClose, onCreated, showToast, editing }: {
   const [repeat, setRepeat] = useState<'none' | 'daily'>(isEditingReminder ? 'daily' : 'none');
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const isDaily = repeat === 'daily';
   // Only a 'once' reminder has a single remind_date to edit — daily reminders
   // don't use it, and weekly/monthly use recurrence_day instead (not editable
@@ -1159,6 +1172,28 @@ function NewTaskModal({ onClose, onCreated, showToast, editing }: {
   const showDueDate = isEditingReminder ? editing!.row.recurrence === 'once' : !isDaily;
 
   useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
+
+  // Fixes an already-saved garbled title (e.g. from a mangled voice
+  // transcript) in place — same AI cleanup Goldie's chat now runs before
+  // saving, exposed here for entries that got saved before it existed or
+  // via the auto-save-on-voice path (which skips the confirm preview
+  // entirely).
+  const cleanupTitle = async () => {
+    if (!title.trim() || cleaning) return;
+    setCleaning(true);
+    try {
+      const res = await fetch('/api/command-center/clean-text', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: title }),
+      });
+      const { cleaned } = await res.json();
+      if (cleaned) setTitle(cleaned);
+      else showToast('Hindi na-clean — subukan ulit o i-edit mo na lang manual.');
+    } catch {
+      showToast('Hindi na-clean — subukan ulit o i-edit mo na lang manual.');
+    } finally {
+      setCleaning(false);
+    }
+  };
 
   const submit = async () => {
     if (!title.trim()) return;
@@ -1204,7 +1239,16 @@ function NewTaskModal({ onClose, onCreated, showToast, editing }: {
         </div>
         <div className="cc-form-row">
           <label className="cc-form-label">{isDaily ? 'Reminder' : 'Task'}</label>
-          <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Check FB ads" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input className="cc-form-input" style={{ flex: 1 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Check FB ads" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+            <button
+              type="button" onClick={cleanupTitle} disabled={cleaning || !title.trim()}
+              className="cc-btn cc-btn-outline cc-btn-sm" title="Ayusin ang grammar/spelling gamit ang AI"
+              style={{ flexShrink: 0, padding: '0 12px' }}
+            >
+              {cleaning ? '…' : '✨'}
+            </button>
+          </div>
         </div>
         {!isEditing && (
           <div className="cc-form-row">
