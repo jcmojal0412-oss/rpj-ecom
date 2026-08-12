@@ -8,7 +8,7 @@ import {
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
-  ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass,
+  ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
@@ -95,15 +95,51 @@ function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
+const COLLAPSE_STORAGE_KEY = 'rpj-sidebar-collapsed-groups';
+
+// Clickable group header with a chevron on the right — click anywhere on the
+// row to collapse/expand that group's links, so a long sidebar (Inventory,
+// Catalog, Reports, etc.) can be shortened to just the groups in use.
+function GroupHeader({ label, collapsed, onToggle }: { label: string; collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between px-3 mb-1.5 py-0.5 rounded hover:bg-gray-50"
+    >
+      <span className="text-[10px] font-bold tracking-widest text-blue-500">{label}</span>
+      <ChevronDown size={12} className={`text-blue-400 transition-transform shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+    </button>
+  );
+}
+
 export default function Sidebar() {
   const pathname  = usePathname();
   const router    = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUser(u); });
   }, []);
+
+  // Read saved collapse state after hydration (not during initial render,
+  // to keep the server-rendered and first client-rendered markup identical).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSE_STORAGE_KEY);
+      if (saved) setCollapsedGroups(new Set(JSON.parse(saved)));
+    } catch { /* ignore malformed/unavailable storage */ }
+  }, []);
+
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  };
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -126,12 +162,11 @@ export default function Sidebar() {
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(item => hasAccess(item.module));
           if (visibleItems.length === 0) return null;
+          const isCollapsed = collapsedGroups.has(group.label);
           return (
             <div key={group.label} className="mb-4">
-              <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
-                {group.label}
-              </p>
-              {visibleItems.map((item) => {
+              <GroupHeader label={group.label} collapsed={isCollapsed} onToggle={() => toggleGroup(group.label)} />
+              {!isCollapsed && visibleItems.map((item) => {
                 const Icon   = item.icon;
                 const active = item.href === '/'
                   ? pathname === '/'
@@ -176,42 +211,42 @@ export default function Sidebar() {
         {/* Owner only */}
         {user?.role === 'owner' && (
           <div className="mb-4">
-            <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
-              EXECUTIVE
-            </p>
-            <Link
-              href="/command-center"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                pathname.startsWith('/command-center')
-                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <Compass size={17} className={pathname.startsWith('/command-center') ? 'text-white' : 'text-gray-400'} />
-              Command Center
-            </Link>
+            <GroupHeader label="EXECUTIVE" collapsed={collapsedGroups.has('EXECUTIVE')} onToggle={() => toggleGroup('EXECUTIVE')} />
+            {!collapsedGroups.has('EXECUTIVE') && (
+              <Link
+                href="/command-center"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  pathname.startsWith('/command-center')
+                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Compass size={17} className={pathname.startsWith('/command-center') ? 'text-white' : 'text-gray-400'} />
+                Command Center
+              </Link>
+            )}
           </div>
         )}
 
         {/* Owner only */}
         {user?.role === 'owner' && (
           <div className="mb-4">
-            <p className="text-[10px] font-bold tracking-widest text-blue-500 px-3 mb-1.5">
-              SETTINGS
-            </p>
-            <Link
-              href="/settings/users"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                pathname.startsWith('/settings')
-                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <Users size={17} className={pathname.startsWith('/settings') ? 'text-white' : 'text-gray-400'} />
-              User Management
-            </Link>
+            <GroupHeader label="SETTINGS" collapsed={collapsedGroups.has('SETTINGS')} onToggle={() => toggleGroup('SETTINGS')} />
+            {!collapsedGroups.has('SETTINGS') && (
+              <Link
+                href="/settings/users"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  pathname.startsWith('/settings')
+                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Users size={17} className={pathname.startsWith('/settings') ? 'text-white' : 'text-gray-400'} />
+                User Management
+              </Link>
+            )}
           </div>
         )}
       </nav>
