@@ -1112,7 +1112,7 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
                 key={r.id} title={r.title} sub={reminderSchedule(r)} time=""
                 action={
                   <span style={{ display: 'flex', gap: 4 }}>
-                    <button className="cc-row-dismiss" onClick={() => markReminderDone(r.id)} title="Markahan bilang tapos"><Check size={13} /></button>
+                    <button className="cc-row-dismiss" onClick={() => markReminderDone(r.id)} title="Mark as done"><Check size={13} /></button>
                     <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'reminder', row: r })} title="Edit reminder"><Pencil size={13} /></button>
                     <button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>
                   </span>
@@ -1150,7 +1150,7 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
                   <td>
                     <span style={{ display: 'flex', gap: 4 }}>
                       {r.status !== 'Completed' && (
-                        <button className="cc-row-dismiss" onClick={() => markTaskDone(r.id)} title="Markahan bilang tapos"><Check size={13} /></button>
+                        <button className="cc-row-dismiss" onClick={() => markTaskDone(r.id)} title="Mark as done"><Check size={13} /></button>
                       )}
                       <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'task', row: r })} title="Edit task"><Pencil size={13} /></button>
                     </span>
