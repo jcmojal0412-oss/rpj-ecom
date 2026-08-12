@@ -21,6 +21,15 @@ const NAV_GROUPS = [
       { label: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
     ],
   },
+  // Owner-only — '_owner' sentinel matches middleware.ts's gate on
+  // /command-center, checked specially in hasAccess() below (never granted
+  // via a staff permission string, unlike the other module keys).
+  {
+    label: 'EXECUTIVE',
+    items: [
+      { label: 'Command Center', href: '/command-center', icon: Compass, module: '_owner' },
+    ],
+  },
   {
     label: 'CATALOG',
     items: [
@@ -146,8 +155,10 @@ export default function Sidebar() {
     router.push('/login');
   };
 
-  const hasAccess = (module: string) =>
-    module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
+  const hasAccess = (module: string) => {
+    if (module === '_owner') return user?.role === 'owner'; // never granted via a staff permission string
+    return module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
+  };
 
   const NavContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
@@ -207,27 +218,6 @@ export default function Sidebar() {
             </div>
           );
         })}
-
-        {/* Owner only */}
-        {user?.role === 'owner' && (
-          <div className="mb-4">
-            <GroupHeader label="EXECUTIVE" collapsed={collapsedGroups.has('EXECUTIVE')} onToggle={() => toggleGroup('EXECUTIVE')} />
-            {!collapsedGroups.has('EXECUTIVE') && (
-              <Link
-                href="/command-center"
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  pathname.startsWith('/command-center')
-                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Compass size={17} className={pathname.startsWith('/command-center') ? 'text-white' : 'text-gray-400'} />
-                Command Center
-              </Link>
-            )}
-          </div>
-        )}
 
         {/* Owner only */}
         {user?.role === 'owner' && (
