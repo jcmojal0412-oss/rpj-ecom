@@ -375,7 +375,7 @@ export default function CommandCenterClient() {
       {tab === 'secretary' && <SecretaryTab showToast={showToast} goldieMessages={goldieMessages} />}
       {tab === 'tasks' && <TasksTab showToast={showToast} />}
       {tab === 'followups' && <FollowUpsTab showToast={showToast} />}
-      {tab === 'plans' && <PlansTab />}
+      {tab === 'plans' && <PlansTab showToast={showToast} />}
       {tab === 'calendar' && <CalendarTab />}
       {tab === 'completed' && <CompletedTab />}
       {tab === 'settings' && <SettingsTab showToast={showToast} />}
@@ -1073,6 +1073,25 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
     loadReminders();
   };
 
+  // 'done' vs 'cancelled' (dismissReminder above) — done means it actually
+  // got carried out, cancelled means it no longer applies. Same distinction
+  // most to-do apps make between "complete" and "delete".
+  const markReminderDone = async (id: number) => {
+    await fetch(`/api/command-center/reminders/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }),
+    });
+    showToast('Tapos na ang reminder!');
+    loadReminders();
+  };
+
+  const markTaskDone = async (id: number) => {
+    await fetch(`/api/command-center/tasks/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'Completed' }),
+    });
+    showToast('Tapos na ang task!');
+    load();
+  };
+
   return (
     <>
       <div className="cc-page-head">
@@ -1093,6 +1112,7 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
                 key={r.id} title={r.title} sub={reminderSchedule(r)} time=""
                 action={
                   <span style={{ display: 'flex', gap: 4 }}>
+                    <button className="cc-row-dismiss" onClick={() => markReminderDone(r.id)} title="Markahan bilang tapos"><Check size={13} /></button>
                     <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'reminder', row: r })} title="Edit reminder"><Pencil size={13} /></button>
                     <button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>
                   </span>
@@ -1128,7 +1148,12 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
                   <td className="cc-num">{r.due_date || ''}{r.due_time ? `, ${r.due_time}` : ''}</td>
                   <td><span className={`cc-status-badge ${STATUS_CLASS[r.status] || 'cc-status-todo'}`}>{r.status}</span></td>
                   <td>
-                    <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'task', row: r })} title="Edit task"><Pencil size={13} /></button>
+                    <span style={{ display: 'flex', gap: 4 }}>
+                      {r.status !== 'Completed' && (
+                        <button className="cc-row-dismiss" onClick={() => markTaskDone(r.id)} title="Markahan bilang tapos"><Check size={13} /></button>
+                      )}
+                      <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'task', row: r })} title="Edit task"><Pencil size={13} /></button>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -1448,7 +1473,7 @@ function NewFollowUpModal({ onClose, onCreated }: { onClose: () => void; onCreat
 // ============================================================================
 // PLANS
 // ============================================================================
-function PlansTab() {
+function PlansTab({ showToast }: { showToast: (m: string) => void }) {
   const [plans, setPlans] = useState<any[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
@@ -1475,6 +1500,20 @@ function PlansTab() {
     loadPlans();
   };
 
+  // Marks the whole plan done — separate from toggling individual steps,
+  // since a plan can be considered finished even with a step or two left
+  // unchecked (or the owner just wants to close it out).
+  const markPlanDone = async () => {
+    if (selected === null) return;
+    await fetch(`/api/command-center/plans/${selected}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }),
+    });
+    const updated = await fetch(`/api/command-center/plans/${selected}`).then(r => r.json());
+    setDetail(updated);
+    showToast('Tapos na ang plan!');
+    loadPlans();
+  };
+
   return (
     <>
       <div className="cc-page-head">
@@ -1491,7 +1530,10 @@ function PlansTab() {
       <div className="cc-plans-grid">
         {plans.map(p => (
           <div key={p.id} className={`cc-card cc-plan-card ${selected === p.id ? 'selected' : ''}`} onClick={() => setSelected(p.id)}>
-            {p.category && <span className="cc-tag">{p.category}</span>}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {p.category && <span className="cc-tag">{p.category}</span>}
+              {p.status === 'completed' && <span className="cc-status-badge cc-status-done">Completed</span>}
+            </div>
             <h4>{p.title}</h4>
             <p className="cc-plan-goal">{p.goal}</p>
             <div className="cc-progress-track"><div className="cc-progress-fill" style={{ width: `${p.progress}%` }} /></div>
@@ -1512,7 +1554,14 @@ function PlansTab() {
                 <div><div className="lbl">Progress</div><div className="val cc-num">{detail.progress}%</div></div>
               </div>
             </div>
-            <span className="cc-ai-suggest-tag">✨ Goldie-suggested breakdown</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              <span className="cc-ai-suggest-tag">✨ Goldie-suggested breakdown</span>
+              {detail.status === 'completed' ? (
+                <span className="cc-status-badge cc-status-done">✓ Completed</span>
+              ) : (
+                <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={markPlanDone}><Check size={14} /> Mark as Done</button>
+              )}
+            </div>
           </div>
           <div className="cc-progress-track" style={{ marginBottom: 6 }}><div className="cc-progress-fill" style={{ width: `${detail.progress}%` }} /></div>
 
