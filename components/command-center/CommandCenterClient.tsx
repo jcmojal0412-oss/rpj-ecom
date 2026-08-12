@@ -966,6 +966,11 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  // Daily/weekly/monthly reminders live in a separate table (cc_reminders,
+  // not cc_tasks) since they don't have a single due date — but a reminder
+  // created from this tab's "New Task" modal (Repeat: Daily) should still be
+  // visible here, not only on the Dashboard, or it looks like it vanished.
+  const [reminders, setReminders] = useState<any[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -973,7 +978,17 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
       .then(r => r.json())
       .then(d => { setRows(d); setLoading(false); });
   };
+  const loadReminders = () => fetch('/api/command-center/reminders').then(r => r.json()).then(setReminders);
   useEffect(load, [filter]);
+  useEffect(() => { loadReminders(); }, []);
+
+  const dismissReminder = async (id: number) => {
+    await fetch(`/api/command-center/reminders/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }),
+    });
+    showToast('Reminder dismissed');
+    loadReminders();
+  };
 
   return (
     <>
@@ -986,6 +1001,19 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
           <button key={f} className={`cc-filter-pill ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f}</button>
         ))}
       </div>
+      {reminders.length > 0 && (
+        <div className="cc-card cc-panel" style={{ marginBottom: 14 }}>
+          <div className="cc-panel-head"><h3>Daily &amp; Recurring Reminders</h3><span className="cc-count">{reminders.length}</span></div>
+          <div className="cc-rowlist">
+            {reminders.map((r: any) => (
+              <Row
+                key={r.id} title={r.title} sub={reminderSchedule(r)} time=""
+                action={<button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>}
+              />
+            ))}
+          </div>
+        </div>
+      )}
       <div className="cc-priority-key">
         <div className="cc-legend-row"><span className="cc-pdot urgent" />Urgent</div>
         <div className="cc-legend-row"><span className="cc-pdot high" />High</div>
@@ -1018,7 +1046,7 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
         </div>
       </div>
 
-      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} showToast={showToast} />}
+      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); loadReminders(); }} showToast={showToast} />}
     </>
   );
 }
