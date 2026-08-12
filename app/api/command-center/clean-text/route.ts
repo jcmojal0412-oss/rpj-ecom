@@ -27,8 +27,11 @@ export async function POST(req: NextRequest) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    // No key configured — caller falls back to the free heuristic, save flow never blocks on this.
-    return NextResponse.json({ cleaned: null });
+    // No key configured — caller falls back to the free heuristic, save flow
+    // never blocks on this. `reason: 'not_configured'` lets the UI show an
+    // honest "not set up" message instead of a "try again" one that would
+    // never actually help.
+    return NextResponse.json({ cleaned: null, reason: 'not_configured' });
   }
 
   let text: string;
@@ -52,7 +55,11 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 60,
+        // Token budget, not character budget — Taglish/mixed-language text
+        // tokenizes less efficiently than plain English, so this leaves
+        // headroom above the ~60-character title the prompt asks for
+        // instead of risking a mid-word cutoff on longer garbled input.
+        max_tokens: 120,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text.slice(0, 500) }],
       }),

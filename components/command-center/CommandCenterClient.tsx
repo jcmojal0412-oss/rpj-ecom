@@ -1165,6 +1165,8 @@ function NewTaskModal({ onClose, onCreated, showToast, editing }: {
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   const isDaily = repeat === 'daily';
   // Only a 'once' reminder has a single remind_date to edit — daily reminders
   // don't use it, and weekly/monthly use recurrence_day instead (not editable
@@ -1185,13 +1187,15 @@ function NewTaskModal({ onClose, onCreated, showToast, editing }: {
       const res = await fetch('/api/command-center/clean-text', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: title }),
       });
-      const { cleaned } = await res.json();
+      const { cleaned, reason } = await res.json();
+      if (!mountedRef.current) return; // modal closed while the request was in flight
       if (cleaned) setTitle(cleaned);
+      else if (reason === 'not_configured') showToast('Hindi pa naka-set up ang AI cleanup sa server na ito.');
       else showToast('Hindi na-clean — subukan ulit o i-edit mo na lang manual.');
     } catch {
-      showToast('Hindi na-clean — subukan ulit o i-edit mo na lang manual.');
+      if (mountedRef.current) showToast('Hindi na-clean — subukan ulit o i-edit mo na lang manual.');
     } finally {
-      setCleaning(false);
+      if (mountedRef.current) setCleaning(false);
     }
   };
 
