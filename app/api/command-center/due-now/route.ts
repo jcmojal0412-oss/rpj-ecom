@@ -41,44 +41,44 @@ export async function GET() {
   const dayOfMonth = currentDayOfMonth();
 
   const dueTasks = db.prepare(`
-    SELECT id, title FROM cc_tasks
+    SELECT id, title, category, priority FROM cc_tasks
     WHERE due_date = ? AND status NOT IN ('Completed','Cancelled')
       AND (due_time IS NULL OR due_time <= ?)
-  `).all(today, nowTime) as { id: number; title: string }[];
+  `).all(today, nowTime) as { id: number; title: string; category: string | null; priority: string }[];
 
   const dueOnceReminders = db.prepare(`
-    SELECT id, title FROM cc_reminders
+    SELECT id, title, category FROM cc_reminders
     WHERE status = 'active' AND recurrence = 'once' AND remind_date = ?
       AND (remind_time IS NULL OR remind_time <= ?)
-  `).all(today, nowTime) as { id: number; title: string }[];
+  `).all(today, nowTime) as { id: number; title: string; category: string | null }[];
 
   const dueDailyReminders = db.prepare(`
-    SELECT id, title FROM cc_reminders
+    SELECT id, title, category FROM cc_reminders
     WHERE status = 'active' AND recurrence = 'daily'
       AND (remind_time IS NULL OR remind_time <= ?)
-  `).all(nowTime) as { id: number; title: string }[];
+  `).all(nowTime) as { id: number; title: string; category: string | null }[];
 
   const dueWeeklyReminders = db.prepare(`
-    SELECT id, title FROM cc_reminders
+    SELECT id, title, category FROM cc_reminders
     WHERE status = 'active' AND recurrence = 'weekly' AND recurrence_day = ?
       AND (remind_time IS NULL OR remind_time <= ?)
-  `).all(weekday, nowTime) as { id: number; title: string }[];
+  `).all(weekday, nowTime) as { id: number; title: string; category: string | null }[];
 
   const dueMonthlyReminders = db.prepare(`
-    SELECT id, title FROM cc_reminders
+    SELECT id, title, category FROM cc_reminders
     WHERE status = 'active' AND recurrence = 'monthly' AND recurrence_day = ?
       AND (remind_time IS NULL OR remind_time <= ?)
-  `).all(dayOfMonth, nowTime) as { id: number; title: string }[];
+  `).all(dayOfMonth, nowTime) as { id: number; title: string; category: string | null }[];
 
   const insertNotif = db.prepare(`INSERT OR IGNORE INTO cc_notifications (entity_type, entity_id, fired_for_date, spoken_text) VALUES (?, ?, ?, ?)`);
   const closeOnceReminder = db.prepare(`UPDATE cc_reminders SET status = 'done' WHERE id = ?`);
 
-  const due: { type: 'task' | 'reminder'; id: number; title: string }[] = [];
+  const due: { type: 'task' | 'reminder'; id: number; title: string; category: string | null; priority?: string }[] = [];
 
   for (const t of dueTasks) {
     const spoken = `Boss, ${t.title} — ito ang task mo ngayon, dapat mo tapusin.`;
     const info = insertNotif.run('task', t.id, today, spoken);
-    if (info.changes > 0) due.push({ type: 'task', id: t.id, title: t.title });
+    if (info.changes > 0) due.push({ type: 'task', id: t.id, title: t.title, category: t.category, priority: t.priority });
   }
 
   const allReminders = [...dueOnceReminders, ...dueDailyReminders, ...dueWeeklyReminders, ...dueMonthlyReminders];
@@ -86,7 +86,7 @@ export async function GET() {
     const spoken = `Boss, paalala — ${r.title}.`;
     const info = insertNotif.run('reminder', r.id, today, spoken);
     if (info.changes > 0) {
-      due.push({ type: 'reminder', id: r.id, title: r.title });
+      due.push({ type: 'reminder', id: r.id, title: r.title, category: r.category });
       if (dueOnceReminders.some(x => x.id === r.id)) closeOnceReminder.run(r.id);
     }
   }

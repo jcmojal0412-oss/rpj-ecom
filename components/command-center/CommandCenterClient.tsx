@@ -60,7 +60,7 @@ interface PlanSummary {
 }
 // A due task/reminder that's currently "alarming" — Goldie keeps re-speaking
 // it on a loop until the owner taps Stop, instead of announcing it once.
-interface ActiveAlarm { key: string; type: 'task' | 'reminder'; entityId: number; title: string; }
+interface ActiveAlarm { key: string; type: 'task' | 'reminder'; entityId: number; title: string; category?: string | null; priority?: string; }
 interface ChatMsg {
   id: string;
   role: 'user' | 'ai';
@@ -209,8 +209,26 @@ export default function CommandCenterClient() {
   const activeAlarmsRef = useRef<ActiveAlarm[]>([]);
   useEffect(() => { activeAlarmsRef.current = activeAlarms; }, [activeAlarms]);
 
-  const alarmSpeech = (a: ActiveAlarm) =>
-    a.type === 'task' ? `Boss, check ${a.title} now.` : `Boss, reminder — ${a.title}.`;
+  // What Goldie SAYS out loud — kept short since it repeats every ~15s while
+  // the alarm is active; a browser TTS voice droning a long sentence on
+  // loop gets annoying fast. English only (see refreshVoices()/speak() —
+  // no Filipino voice reads Tagalog cleanly on most browsers).
+  const alarmSpeech = (a: ActiveAlarm) => {
+    const ctx = a.category ? ` for ${a.category}` : '';
+    return a.type === 'task' ? `Boss, quick reminder — time to work on ${a.title}${ctx}.` : `Boss, here's your reminder — ${a.title}${ctx}.`;
+  };
+  // What Goldie WRITES — the banner and the chat trail are read, not
+  // listened to on a loop, so this is the fuller "secretary reporting in"
+  // version: warmer framing, category context, and (for tasks) priority,
+  // instead of a bare "TASK — title" label.
+  const alarmReportText = (a: ActiveAlarm) => {
+    const ctx = a.category ? ` (${a.category})` : '';
+    if (a.type === 'task') {
+      const urgency = a.priority && a.priority !== 'Normal' ? ` — ${a.priority.toLowerCase()} priority` : '';
+      return `Paalala ko, boss — oras na para simulan ang "${a.title}"${ctx}${urgency}. Nasa listahan mo ito para ngayong araw.`;
+    }
+    return `Paalala, boss — panahon na para sa "${a.title}"${ctx}, ayon sa naka-set mong reminder.`;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -239,14 +257,14 @@ export default function CommandCenterClient() {
         if (!due?.length) return;
         const existingKeys = new Set(activeAlarmsRef.current.map(a => a.key));
         const fresh: ActiveAlarm[] = due
-          .map((item: any) => ({ key: `${item.type}:${item.id}`, type: item.type, entityId: item.id, title: item.title }))
+          .map((item: any) => ({ key: `${item.type}:${item.id}`, type: item.type, entityId: item.id, title: item.title, category: item.category, priority: item.priority }))
           .filter((a: ActiveAlarm) => !existingKeys.has(a.key));
         if (!fresh.length) return;
         setActiveAlarms(prev => [...prev, ...fresh]);
         speakMany(fresh.map(alarmSpeech));
         fresh.forEach(a => {
           showToast(`🔔 Goldie Alarm: ${a.title}`);
-          setGoldieMessages(prev => [...prev, { id: nextId(), text: alarmSpeech(a) }]);
+          setGoldieMessages(prev => [...prev, { id: nextId(), text: alarmReportText(a) }]);
         });
       } catch { /* offline or not logged in — skip this tick, try again next poll */ }
     };
@@ -298,7 +316,10 @@ export default function CommandCenterClient() {
           <div className="cc-alarm-list">
             {activeAlarms.map(a => (
               <div key={a.key} className="cc-alarm-item">
-                <span>{a.type === 'task' ? 'TASK' : 'REMINDER'} — {a.title}</span>
+                <div className="cc-alarm-copy">
+                  <span className="cc-alarm-type-tag">{a.type === 'task' ? 'TASK' : 'REMINDER'}</span>
+                  <span className="cc-alarm-text">{alarmReportText(a)}</span>
+                </div>
                 <button className="cc-alarm-stop" onClick={() => stopAlarm(a.key)}>Stop</button>
               </div>
             ))}
