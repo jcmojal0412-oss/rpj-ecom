@@ -1672,7 +1672,7 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
         <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
           {voiceInfo.current || 'Walang na-detect na voice — baka hindi supported ng browser mo ang speech synthesis.'}
         </p>
-        <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => speak('Hi boss, ganito ang boses ko ngayon.')}>🔊 Test Voice</button>
+        <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => speak("Hi boss, this is what I sound like right now.")}>🔊 Test Voice</button>
         {voiceInfo.options.length > 1 && (
           <details style={{ marginTop: 12, fontSize: 12, color: 'var(--cc-text-muted)' }}>
             <summary style={{ cursor: 'pointer' }}>Lahat ng English voices na naka-install ({voiceInfo.options.length})</summary>
