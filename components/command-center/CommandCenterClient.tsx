@@ -137,8 +137,22 @@ function refreshVoices() {
 // Time & Language > Speech > Manage voices > Add voices), Google US English
 // (Chrome, female by default).
 const FEMALE_VOICE_NAMES = /samantha|zira|aria|jenny|ava|emma|susan|female|google us english|karen|moira|tessa/i;
+// Owner can pick a specific installed voice from Settings instead of
+// trusting auto-detection — stored per-browser (voice availability differs
+// by device/browser anyway, so a server-side setting wouldn't travel with
+// it). pickVoice() always checks this first.
+const VOICE_PREF_KEY = 'rpj-goldie-voice-name';
 function pickVoice(): SpeechSynthesisVoice | null {
   if (!cachedVoices.length) return null;
+  if (typeof window !== 'undefined') {
+    try {
+      const preferred = localStorage.getItem(VOICE_PREF_KEY);
+      if (preferred) {
+        const match = cachedVoices.find(v => v.name === preferred);
+        if (match) return match;
+      }
+    } catch { /* localStorage unavailable — fall through to auto-detect */ }
+  }
   const femaleNatural = cachedVoices.find(v => FEMALE_VOICE_NAMES.test(v.name) && /natural|neural|online/i.test(v.name) && /^en/i.test(v.lang));
   if (femaleNatural) return femaleNatural;
   const female = cachedVoices.find(v => FEMALE_VOICE_NAMES.test(v.name) && /^en/i.test(v.lang));
@@ -150,18 +164,25 @@ function pickVoice(): SpeechSynthesisVoice | null {
   return cachedVoices.find(v => /^en/i.test(v.lang)) || cachedVoices[0];
 }
 
-function speak(text: string) {
+// Shared by speak()/speakMany() and Settings' per-voice "▶" preview button —
+// voiceName lets the preview button hear a specific voice without changing
+// the saved preference, while omitting it uses pickVoice()'s normal choice.
+function speakWithVoice(text: string, voiceName?: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    const voice = pickVoice();
+    const voice = voiceName ? cachedVoices.find(v => v.name === voiceName) : pickVoice();
     if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
     utter.rate = 0.93;
     utter.pitch = 1.0;
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
   } catch { /* speech synthesis unavailable — silent no-op, text reply still shown */ }
+}
+
+function speak(text: string) {
+  speakWithVoice(text);
 }
 
 // Same as speak(), but queues several utterances back-to-back instead of
@@ -1624,11 +1645,13 @@ function CalendarTab() {
 function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [newName, setNewName] = useState('');
-  // Which TTS voice the browser actually picked, surfaced in-app so the
-  // owner can check it without opening devtools — the single biggest lever
-  // for "robotic-sounding Goldie" is the underlying OS voice, not rate/pitch
-  // tuning (see speak()/pickVoice() above).
-  const [voiceInfo, setVoiceInfo] = useState<{ current: string | null; options: string[] }>({ current: null, options: [] });
+  // Every installed English voice, surfaced as pickable buttons so the
+  // owner can choose Goldie's voice directly instead of trusting
+  // auto-detection — the single biggest lever for "robotic-sounding
+  // Goldie" is the underlying OS voice, not rate/pitch tuning (see
+  // speak()/pickVoice() above). Selection persists via VOICE_PREF_KEY.
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<string>('');
 
   const load = () => fetch('/api/command-center/categories').then(r => r.json()).then(setCategories);
   useEffect(() => { load(); }, []);
@@ -1637,14 +1660,20 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     const update = () => {
       refreshVoices();
-      const v = pickVoice();
-      const enVoices = cachedVoices.filter(x => /^en/i.test(x.lang)).map(x => `${x.name} (${x.lang})`);
-      setVoiceInfo({ current: v ? `${v.name} (${v.lang})` : null, options: enVoices });
+      setVoices(cachedVoices.filter(x => /^en/i.test(x.lang)));
+      setSelectedVoice(pickVoice()?.name ?? '');
     };
     update();
     window.speechSynthesis.onvoiceschanged = update;
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
+
+  const chooseVoice = (name: string) => {
+    try { localStorage.setItem(VOICE_PREF_KEY, name); } catch {}
+    setSelectedVoice(name);
+    speakWithVoice("Hi boss, this is what I sound like right now.", name);
+    showToast('Naka-set na ang boses ni Goldie');
+  };
 
   const addCategory = async () => {
     const name = newName.trim();
@@ -1666,21 +1695,46 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
       <div className="cc-page-head"><h1>Settings</h1></div>
       <div className="cc-card" style={{ padding: 20, maxWidth: 480, marginBottom: 20 }}>
         <h3 style={{ marginBottom: 4 }}>Goldie's Voice</h3>
-        <p style={{ fontSize: 12.5, color: 'var(--cc-text-muted)', marginBottom: 10 }}>
-          Ito ang boses na kasalukuyang ginagamit ni Goldie sa browser mo. Kung robotic pa rin, mag-install ng "Online (Natural)" voice sa Windows (Settings → Time &amp; Language → Speech → Manage voices → Add voices — hanapin ang "Ava" o "Emma" Online Natural), tapos i-reload ang page na ito.
+        <p style={{ fontSize: 12.5, color: 'var(--cc-text-muted)', marginBottom: 12 }}>
+          I-tap ang ▶ para pakinggan ang bawat boses, tapos i-tap ang pangalan para gawing default ni Goldie. Kung robotic pa rin lahat, mag-install ng "Online (Natural)" voice sa Windows (Settings → Time &amp; Language → Speech → Manage voices → Add voices — hanapin ang "Ava" o "Emma" Online Natural), tapos i-reload ang page na ito.
         </p>
-        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-          {voiceInfo.current || 'Walang na-detect na voice — baka hindi supported ng browser mo ang speech synthesis.'}
-        </p>
-        <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => speak("Hi boss, this is what I sound like right now.")}>🔊 Test Voice</button>
-        {voiceInfo.options.length > 1 && (
-          <details style={{ marginTop: 12, fontSize: 12, color: 'var(--cc-text-muted)' }}>
-            <summary style={{ cursor: 'pointer' }}>Lahat ng English voices na naka-install ({voiceInfo.options.length})</summary>
-            <ul style={{ marginTop: 6, paddingLeft: 18 }}>
-              {voiceInfo.options.map(o => <li key={o}>{o}</li>)}
-            </ul>
-          </details>
+        {voices.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--cc-text-faint)' }}>Walang na-detect na voice — baka hindi supported ng browser mo ang speech synthesis.</p>
         )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {voices.map(v => {
+            const isSelected = v.name === selectedVoice;
+            return (
+              <div
+                key={v.name}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8,
+                  background: isSelected ? 'var(--cc-gold-soft)' : 'var(--cc-surface-2)',
+                  border: `1px solid ${isSelected ? 'var(--cc-gold-soft-border)' : 'transparent'}`,
+                }}
+              >
+                <button
+                  onClick={() => speakWithVoice("Hi boss, this is what I sound like right now.", v.name)}
+                  title="Pakinggan"
+                  style={{
+                    width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid var(--cc-border)', background: 'var(--cc-surface)', color: 'var(--cc-text-muted)', cursor: 'pointer', fontSize: 11,
+                  }}
+                >▶</button>
+                <button
+                  onClick={() => chooseVoice(v.name)}
+                  style={{
+                    flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: isSelected ? 700 : 500,
+                    color: isSelected ? 'var(--cc-gold-ink)' : 'var(--cc-text)',
+                  }}
+                >
+                  {v.name} <span style={{ color: 'var(--cc-text-faint)', fontWeight: 400 }}>({v.lang})</span>{isSelected && ' ✓'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
       <div className="cc-card" style={{ padding: 20, maxWidth: 480 }}>
         <h3 style={{ marginBottom: 4 }}>Business / Project Tags</h3>
