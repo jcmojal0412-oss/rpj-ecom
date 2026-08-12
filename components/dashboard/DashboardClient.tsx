@@ -140,7 +140,7 @@ export default function DashboardClient() {
   const totalInvValue = summary.reduce((s, r) => s + r.inventory_value, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">CEO Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -236,7 +236,7 @@ export default function DashboardClient() {
               );
 
               return (
-                <div key={item.id} className={`flex items-center justify-between border rounded-lg px-4 py-3 ${borderColor}`}>
+                <div key={item.id} className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 border rounded-lg px-4 py-3 ${borderColor}`}>
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className="text-xs font-mono font-semibold text-gray-600 bg-white/70 px-2 py-0.5 rounded shrink-0">
                       {item.sku}
@@ -244,7 +244,7 @@ export default function DashboardClient() {
                     <span className="text-sm font-medium text-gray-900 truncate">{item.name}</span>
                     {badge}
                   </div>
-                  <div className="flex items-center gap-4 text-sm shrink-0 ml-4">
+                  <div className="flex items-center gap-4 text-sm shrink-0 sm:ml-4">
                     <div className="text-right">
                       <p className={`font-bold ${isOut ? 'text-red-700' : isCritical ? 'text-orange-700' : 'text-amber-700'}`}>
                         {item.quantity} units
@@ -440,7 +440,7 @@ function CogsOutCard({ period, onPeriodChange, from, to, onFromChange, onToChang
       </div>
 
       {period === 'custom' && (
-        <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex items-center flex-wrap gap-1.5 mb-2">
           <input
             type="date" value={from} max={to || todayStr}
             onChange={e => onFromChange(e.target.value)}

@@ -81,7 +81,7 @@ export default function InventoryClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
@@ -94,9 +94,9 @@ export default function InventoryClient() {
 
       {/* Inventory Table */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
           <h2 className="text-base font-semibold text-gray-900 shrink-0">Inventory Table</h2>
-          <div className="relative flex-1 max-w-xs">
+          <div className="relative flex-1 w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
             <input
               className="form-input pl-9"

@@ -69,7 +69,7 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">SKU *</label>
           <input
@@ -97,7 +97,7 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
         </div>
 
         {isCustomCategory && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="form-label">Custom Category Name</label>
             <input
               className="form-input"
@@ -109,7 +109,7 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
           </div>
         )}
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Product Name *</label>
           <input
             className="form-input"
@@ -147,7 +147,7 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
         </div>
 
         {margin !== null && (
-          <div className="col-span-2 bg-gray-50 rounded-lg px-4 py-2 flex items-center justify-between text-sm">
+          <div className="sm:col-span-2 bg-gray-50 rounded-lg px-4 py-2 flex items-center justify-between text-sm">
             <span className="text-gray-600">Gross Margin</span>
             <span className={`font-bold text-lg ${parseFloat(margin) >= 30 ? 'text-blue-700' : parseFloat(margin) >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
               {margin}%

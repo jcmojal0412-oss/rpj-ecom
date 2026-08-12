@@ -112,10 +112,10 @@ export default function ProductsClient() {
   }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-sm text-gray-500 mt-1">Manage your product catalog</p>
@@ -157,12 +157,12 @@ export default function ProductsClient() {
 
       <div className="card">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input
-                className="form-input pl-9 w-64"
+                className="form-input pl-9 w-full sm:w-64"
                 placeholder="Search SKU, name, category..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -175,7 +175,7 @@ export default function ProductsClient() {
 
           {/* Bulk action bar */}
           {someSelected && (
-            <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            <div className="flex items-center flex-wrap gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
               <span className="text-sm font-medium text-red-700">
                 {selected.size} selected
               </span>
