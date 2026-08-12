@@ -18,7 +18,8 @@ Panuntunan:
 - Panatilihin ang orihinal na wika/pagkakahalo (Taglish manatiling Taglish, English manatiling English) — huwag i-translate.
 - Alisin ang mga filler word ("hey goldie", "please", "paki", atbp.) at date/time mentions.
 - Kung malinaw naman ang orihinal, panatilihin lang halos kapareho, i-clean lang ang grammar/spelling.
-- Sumagot lang ng cleaned title mismo. Walang quotes, walang paliwanag, walang ibang text.`;
+- Kahit maikli, malabo, o parang tanong/pambungad ang input (hal. "test", "hello", isang salita lang) — ITUTURING mo pa rin itong TITULO na kailangang ayusin, HINDI mo ito sasagutin bilang chatbot at HINDI ka magtatanong pabalik o magbibigay ng paliwanag.
+- Sumagot lang ng cleaned title mismo. Walang quotes, walang paliwanag, walang emoji, walang ibang text — kahit ano pa ang input.`;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -67,7 +68,14 @@ export async function POST(req: NextRequest) {
     });
     if (!res.ok) return NextResponse.json({ cleaned: null }); // silent fallback, not a hard error
     const data = await res.json();
-    const cleaned = String(data?.content?.[0]?.text ?? '').trim().replace(/^["']+|["']+$/g, '');
+    let cleaned = String(data?.content?.[0]?.text ?? '').trim().replace(/^["']+|["']+$/g, '');
+    // Defense in depth against the prompt's "reply with only the title"
+    // instruction slipping — seen live on a bare one-word input ("test"),
+    // where the model answered conversationally instead ("I'm ready! Send
+    // me..."). A title this long, or containing a question mark, is almost
+    // certainly a chat reply, not a cleaned title — fall back rather than
+    // risk saving a chatbot response as the task/reminder title.
+    if (cleaned.length > 120 || cleaned.includes('?')) cleaned = '';
     return NextResponse.json({ cleaned: cleaned || null });
   } catch {
     return NextResponse.json({ cleaned: null }); // timeout/network — fall back, don't block the save
