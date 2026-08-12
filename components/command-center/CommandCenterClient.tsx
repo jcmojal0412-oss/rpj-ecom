@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, MessageSquare, ListChecks, Clock, FolderKanban, CalendarClock,
   CheckCircle2, Settings as SettingsIcon, AlertTriangle,
-  Mic, Send, Sun, Moon, Check, Bell, Plus, X,
+  Mic, Send, Sun, Moon, Check, Bell, Plus, X, Pencil,
 } from 'lucide-react';
 import './command-center.css';
 import {
@@ -157,7 +157,7 @@ function speak(text: string) {
     const utter = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
     if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
-    utter.rate = 0.97;
+    utter.rate = 0.93;
     utter.pitch = 1.0;
     utter.volume = 1;
     window.speechSynthesis.speak(utter);
@@ -176,8 +176,8 @@ function speakMany(texts: string[]) {
       const utter = new SpeechSynthesisUtterance(text);
       const voice = pickVoice();
       if (voice) { utter.voice = voice; utter.lang = voice.lang; } else { utter.lang = 'en-US'; }
-      utter.rate = 1.0;
-      utter.pitch = 1.05;
+      utter.rate = 0.93;
+      utter.pitch = 1.0;
       utter.volume = 1;
       window.speechSynthesis.speak(utter);
     }
@@ -1017,6 +1017,10 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
   // created from this tab's "New Task" modal (Repeat: Daily) should still be
   // visible here, not only on the Dashboard, or it looks like it vanished.
   const [reminders, setReminders] = useState<any[]>([]);
+  // What's being edited, if anything — a garbled voice title (or wrong
+  // date/time) has no way to get fixed once saved otherwise; deleting and
+  // retyping loses the rest of the row's details.
+  const [editing, setEditing] = useState<{ kind: 'task' | 'reminder'; row: any } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -1054,7 +1058,12 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
             {reminders.map((r: any) => (
               <Row
                 key={r.id} title={r.title} sub={reminderSchedule(r)} time=""
-                action={<button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>}
+                action={
+                  <span style={{ display: 'flex', gap: 4 }}>
+                    <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'reminder', row: r })} title="Edit reminder"><Pencil size={13} /></button>
+                    <button className="cc-row-dismiss" onClick={() => dismissReminder(r.id)} title="Dismiss reminder"><X size={13} /></button>
+                  </span>
+                }
               />
             ))}
           </div>
@@ -1069,10 +1078,10 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
       <div className="cc-table-wrap">
         <div className="cc-table-scroll">
           <table className="cc-task-table">
-            <thead><tr><th>Task</th><th>Business / Project</th><th>Due</th><th>Status</th></tr></thead>
+            <thead><tr><th>Task</th><th>Business / Project</th><th>Due</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--cc-text-faint)', padding: '20px 0' }}>Walang task dito.</td></tr>
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--cc-text-faint)', padding: '20px 0' }}>Walang task dito.</td></tr>
               )}
               {rows.map((r) => (
                 <tr key={r.id}>
@@ -1085,6 +1094,9 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
                   <td>{r.category && <span className="cc-tag">{r.category}</span>}</td>
                   <td className="cc-num">{r.due_date || ''}{r.due_time ? `, ${r.due_time}` : ''}</td>
                   <td><span className={`cc-status-badge ${STATUS_CLASS[r.status] || 'cc-status-todo'}`}>{r.status}</span></td>
+                  <td>
+                    <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'task', row: r })} title="Edit task"><Pencil size={13} /></button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1093,24 +1105,37 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
       </div>
 
       {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); loadReminders(); }} showToast={showToast} />}
+      {editing && <NewTaskModal editing={editing} onClose={() => setEditing(null)} onCreated={() => { setEditing(null); load(); loadReminders(); }} showToast={showToast} />}
     </>
   );
 }
 
-function NewTaskModal({ onClose, onCreated, showToast }: { onClose: () => void; onCreated: () => void; showToast: (m: string) => void }) {
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('');
-  const [priority, setPriority] = useState('Normal');
+function NewTaskModal({ onClose, onCreated, showToast, editing }: {
+  onClose: () => void; onCreated: () => void; showToast: (m: string) => void;
+  editing?: { kind: 'task' | 'reminder'; row: any } | null;
+}) {
+  const isEditingReminder = editing?.kind === 'reminder';
+  const isEditingTask = editing?.kind === 'task';
+  const isEditing = !!editing;
+
+  const [title, setTitle] = useState(editing?.row.title ?? '');
+  const [category, setCategory] = useState(editing?.row.category ?? '');
+  const [dueDate, setDueDate] = useState(isEditingReminder ? (editing!.row.remind_date ?? '') : (editing?.row.due_date ?? ''));
+  const [dueTime, setDueTime] = useState(isEditingReminder ? (editing!.row.remind_time ?? '') : (editing?.row.due_time ?? ''));
+  const [priority, setPriority] = useState(editing?.row.priority ?? 'Normal');
   // 'none' = one-time task (cc_tasks, shown in this table). 'daily' = a
   // recurring cc_reminders row instead — Goldie speaks it every day at
   // remind_time via the due-now poller, so it lives in Dashboard's Active
-  // Reminders panel rather than here.
-  const [repeat, setRepeat] = useState<'none' | 'daily'>('none');
+  // Reminders panel rather than here. Fixed (not user-changeable) while
+  // editing — converting between task and reminder isn't this modal's job.
+  const [repeat, setRepeat] = useState<'none' | 'daily'>(isEditingReminder ? 'daily' : 'none');
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const isDaily = repeat === 'daily';
+  // Only a 'once' reminder has a single remind_date to edit — daily reminders
+  // don't use it, and weekly/monthly use recurrence_day instead (not editable
+  // from this quick modal — delete and recreate for a schedule-type change).
+  const showDueDate = isEditingReminder ? editing!.row.recurrence === 'once' : !isDaily;
 
   useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
 
@@ -1118,7 +1143,20 @@ function NewTaskModal({ onClose, onCreated, showToast }: { onClose: () => void; 
     if (!title.trim()) return;
     setSaving(true);
     try {
-      if (isDaily) {
+      if (isEditingReminder) {
+        const body: Record<string, any> = { title: title.trim(), category: category || null, remind_time: dueTime || null };
+        if (editing!.row.recurrence === 'once') body.remind_date = dueDate || null;
+        await fetch(`/api/command-center/reminders/${editing!.row.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        showToast('Na-update ang reminder');
+      } else if (isEditingTask) {
+        await fetch(`/api/command-center/tasks/${editing!.row.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority }),
+        });
+        showToast('Na-update ang task');
+      } else if (isDaily) {
         await fetch('/api/command-center/reminders', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: title.trim(), category: category || null, remind_time: dueTime || null, recurrence: 'daily' }),
@@ -1139,20 +1177,25 @@ function NewTaskModal({ onClose, onCreated, showToast }: { onClose: () => void; 
   return (
     <div className="cc-modal-backdrop" onClick={onClose}>
       <div className="cc-card cc-modal" onClick={e => e.stopPropagation()}>
-        <div className="cc-modal-head"><h3>{isDaily ? 'New Daily Reminder' : 'New Task'}</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
+        <div className="cc-modal-head">
+          <h3>{isEditingReminder ? 'Edit Reminder' : isEditingTask ? 'Edit Task' : isDaily ? 'New Daily Reminder' : 'New Task'}</h3>
+          <button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button>
+        </div>
         <div className="cc-form-row">
           <label className="cc-form-label">{isDaily ? 'Reminder' : 'Task'}</label>
           <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Check FB ads" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
         </div>
-        <div className="cc-form-row">
-          <label className="cc-form-label">Repeat</label>
-          <select className="cc-form-select" value={repeat} onChange={e => setRepeat(e.target.value as 'none' | 'daily')}>
-            <option value="none">One-time task</option>
-            <option value="daily">Daily reminder</option>
-          </select>
-        </div>
+        {!isEditing && (
+          <div className="cc-form-row">
+            <label className="cc-form-label">Repeat</label>
+            <select className="cc-form-select" value={repeat} onChange={e => setRepeat(e.target.value as 'none' | 'daily')}>
+              <option value="none">One-time task</option>
+              <option value="daily">Daily reminder</option>
+            </select>
+          </div>
+        )}
         <div className="cc-form-row-pair">
-          {!isDaily && (
+          {showDueDate && (
             <div className="cc-form-row">
               <label className="cc-form-label">Due Date</label>
               <input type="date" className="cc-form-input" value={dueDate} onChange={e => setDueDate(e.target.value)} />
@@ -1180,7 +1223,7 @@ function NewTaskModal({ onClose, onCreated, showToast }: { onClose: () => void; 
         <datalist id="cc-category-list">{categories.map(c => <option key={c.id} value={c.name} />)}</datalist>
         <div className="cc-modal-actions">
           <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={onClose}>Cancel</button>
-          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : isDaily ? 'Save Reminder' : 'Save Task'}</button>
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : isDaily ? 'Save Reminder' : 'Save Task'}</button>
         </div>
       </div>
     </div>
