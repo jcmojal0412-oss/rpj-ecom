@@ -325,7 +325,7 @@ export default function CommandCenterClient() {
 
       {tab === 'dashboard' && <DashboardTab showToast={showToast} />}
       {tab === 'secretary' && <SecretaryTab showToast={showToast} goldieMessages={goldieMessages} />}
-      {tab === 'tasks' && <TasksTab />}
+      {tab === 'tasks' && <TasksTab showToast={showToast} />}
       {tab === 'followups' && <FollowUpsTab showToast={showToast} />}
       {tab === 'plans' && <PlansTab />}
       {tab === 'calendar' && <CalendarTab />}
@@ -961,7 +961,7 @@ const STATUS_CLASS: Record<string, string> = { 'To Do': 'cc-status-todo', 'In Pr
 const PRIORITY_DOT: Record<string, 'urgent' | 'high' | 'normal' | 'low'> = { Urgent: 'urgent', High: 'high', Normal: 'normal', Low: 'low' };
 const FILTER_TO_WHEN: Record<string, string> = { Today: 'today', Tomorrow: 'tomorrow', 'This Week': 'week', Overdue: 'overdue', Completed: 'completed' };
 
-function TasksTab() {
+function TasksTab({ showToast }: { showToast: (m: string) => void }) {
   const [filter, setFilter] = useState('Today');
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1018,19 +1018,25 @@ function TasksTab() {
         </div>
       </div>
 
-      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />}
+      {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} showToast={showToast} />}
     </>
   );
 }
 
-function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NewTaskModal({ onClose, onCreated, showToast }: { onClose: () => void; onCreated: () => void; showToast: (m: string) => void }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [dueTime, setDueTime] = useState('');
   const [priority, setPriority] = useState('Normal');
+  // 'none' = one-time task (cc_tasks, shown in this table). 'daily' = a
+  // recurring cc_reminders row instead — Goldie speaks it every day at
+  // remind_time via the due-now poller, so it lives in Dashboard's Active
+  // Reminders panel rather than here.
+  const [repeat, setRepeat] = useState<'none' | 'daily'>('none');
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const isDaily = repeat === 'daily';
 
   useEffect(() => { fetch('/api/command-center/categories').then(r => r.json()).then(setCategories); }, []);
 
@@ -1038,10 +1044,18 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     if (!title.trim()) return;
     setSaving(true);
     try {
-      await fetch('/api/command-center/tasks', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority, status: 'To Do', source: 'typed' }),
-      });
+      if (isDaily) {
+        await fetch('/api/command-center/reminders', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), category: category || null, remind_time: dueTime || null, recurrence: 'daily' }),
+        });
+        showToast('Naka-set na — i-aanunsyo ito ni Goldie araw-araw.');
+      } else {
+        await fetch('/api/command-center/tasks', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), category: category || null, due_date: dueDate || null, due_time: dueTime || null, priority, status: 'To Do', source: 'typed' }),
+        });
+      }
       onCreated();
     } catch {
       setSaving(false); // network failure — let the owner retry instead of leaving Save stuck disabled
@@ -1051,28 +1065,39 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   return (
     <div className="cc-modal-backdrop" onClick={onClose}>
       <div className="cc-card cc-modal" onClick={e => e.stopPropagation()}>
-        <div className="cc-modal-head"><h3>New Task</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
+        <div className="cc-modal-head"><h3>{isDaily ? 'New Daily Reminder' : 'New Task'}</h3><button className="cc-row-dismiss" onClick={onClose} title="Close"><X size={15} /></button></div>
         <div className="cc-form-row">
-          <label className="cc-form-label">Task</label>
+          <label className="cc-form-label">{isDaily ? 'Reminder' : 'Task'}</label>
           <input className="cc-form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Hal. Check FB ads" autoFocus onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
         </div>
+        <div className="cc-form-row">
+          <label className="cc-form-label">Repeat</label>
+          <select className="cc-form-select" value={repeat} onChange={e => setRepeat(e.target.value as 'none' | 'daily')}>
+            <option value="none">One-time task</option>
+            <option value="daily">Daily reminder</option>
+          </select>
+        </div>
         <div className="cc-form-row-pair">
+          {!isDaily && (
+            <div className="cc-form-row">
+              <label className="cc-form-label">Due Date</label>
+              <input type="date" className="cc-form-input" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            </div>
+          )}
           <div className="cc-form-row">
-            <label className="cc-form-label">Due Date</label>
-            <input type="date" className="cc-form-input" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-          </div>
-          <div className="cc-form-row">
-            <label className="cc-form-label">Due Time</label>
+            <label className="cc-form-label">{isDaily ? 'Remind Time' : 'Due Time'}</label>
             <input type="time" className="cc-form-input" value={dueTime} onChange={e => setDueTime(e.target.value)} />
           </div>
         </div>
         <div className="cc-form-row-pair">
-          <div className="cc-form-row">
-            <label className="cc-form-label">Priority</label>
-            <select className="cc-form-select" value={priority} onChange={e => setPriority(e.target.value)}>
-              <option>Normal</option><option>Low</option><option>High</option><option>Urgent</option>
-            </select>
-          </div>
+          {!isDaily && (
+            <div className="cc-form-row">
+              <label className="cc-form-label">Priority</label>
+              <select className="cc-form-select" value={priority} onChange={e => setPriority(e.target.value)}>
+                <option>Normal</option><option>Low</option><option>High</option><option>Urgent</option>
+              </select>
+            </div>
+          )}
           <div className="cc-form-row">
             <label className="cc-form-label">Business / Project</label>
             <input className="cc-form-input" list="cc-category-list" value={category} onChange={e => setCategory(e.target.value)} placeholder="Optional" />
@@ -1081,7 +1106,7 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         <datalist id="cc-category-list">{categories.map(c => <option key={c.id} value={c.name} />)}</datalist>
         <div className="cc-modal-actions">
           <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={onClose}>Cancel</button>
-          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : 'Save Task'}</button>
+          <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={submit} disabled={!title.trim() || saving}>{saving ? 'Saving…' : isDaily ? 'Save Reminder' : 'Save Task'}</button>
         </div>
       </div>
     </div>
