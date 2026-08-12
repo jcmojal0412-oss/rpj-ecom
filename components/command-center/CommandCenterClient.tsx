@@ -1624,9 +1624,27 @@ function CalendarTab() {
 function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [newName, setNewName] = useState('');
+  // Which TTS voice the browser actually picked, surfaced in-app so the
+  // owner can check it without opening devtools — the single biggest lever
+  // for "robotic-sounding Goldie" is the underlying OS voice, not rate/pitch
+  // tuning (see speak()/pickVoice() above).
+  const [voiceInfo, setVoiceInfo] = useState<{ current: string | null; options: string[] }>({ current: null, options: [] });
 
   const load = () => fetch('/api/command-center/categories').then(r => r.json()).then(setCategories);
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const update = () => {
+      refreshVoices();
+      const v = pickVoice();
+      const enVoices = cachedVoices.filter(x => /^en/i.test(x.lang)).map(x => `${x.name} (${x.lang})`);
+      setVoiceInfo({ current: v ? `${v.name} (${v.lang})` : null, options: enVoices });
+    };
+    update();
+    window.speechSynthesis.onvoiceschanged = update;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
 
   const addCategory = async () => {
     const name = newName.trim();
@@ -1646,6 +1664,24 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
   return (
     <>
       <div className="cc-page-head"><h1>Settings</h1></div>
+      <div className="cc-card" style={{ padding: 20, maxWidth: 480, marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 4 }}>Goldie's Voice</h3>
+        <p style={{ fontSize: 12.5, color: 'var(--cc-text-muted)', marginBottom: 10 }}>
+          Ito ang boses na kasalukuyang ginagamit ni Goldie sa browser mo. Kung robotic pa rin, mag-install ng "Online (Natural)" voice sa Windows (Settings → Time &amp; Language → Speech → Manage voices → Add voices — hanapin ang "Ava" o "Emma" Online Natural), tapos i-reload ang page na ito.
+        </p>
+        <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+          {voiceInfo.current || 'Walang na-detect na voice — baka hindi supported ng browser mo ang speech synthesis.'}
+        </p>
+        <button className="cc-btn cc-btn-outline cc-btn-sm" onClick={() => speak('Hi boss, ganito ang boses ko ngayon.')}>🔊 Test Voice</button>
+        {voiceInfo.options.length > 1 && (
+          <details style={{ marginTop: 12, fontSize: 12, color: 'var(--cc-text-muted)' }}>
+            <summary style={{ cursor: 'pointer' }}>Lahat ng English voices na naka-install ({voiceInfo.options.length})</summary>
+            <ul style={{ marginTop: 6, paddingLeft: 18 }}>
+              {voiceInfo.options.map(o => <li key={o}>{o}</li>)}
+            </ul>
+          </details>
+        )}
+      </div>
       <div className="cc-card" style={{ padding: 20, maxWidth: 480 }}>
         <h3 style={{ marginBottom: 4 }}>Business / Project Tags</h3>
         <p style={{ fontSize: 12.5, color: 'var(--cc-text-muted)', marginBottom: 14 }}>Ito ang mga tag na magagamit para i-categorize ang tasks, reminders, follow-ups, at plans.</p>
