@@ -225,6 +225,8 @@
 .cc-pc-btn.confirm:hover { background: var(--cc-gold-ink); }
 .cc-pc-btn.cancel:hover { color: var(--cc-urgent); border-color: var(--cc-urgent-soft); }
 .cc-pc-btn:hover:not(.confirm) { color: var(--cc-text); }
+.cc-pc-btn.edit-emphasis { background: var(--cc-high-soft); border-color: var(--cc-high); color: var(--cc-high); }
+.cc-pc-btn.edit-emphasis:hover { background: var(--cc-high); color: #fff; }
 .cc-pc-saved { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--cc-low); padding: 8px 0 2px 0; justify-content: space-between; }
 .cc-pc-saved svg { width: 15px; height: 15px; }
 .cc-voice-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--cc-urgent); background: var(--cc-urgent-soft); padding: 2px 7px; border-radius: 999px; margin-left: 7px; }

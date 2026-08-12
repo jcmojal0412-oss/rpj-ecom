@@ -49,6 +49,12 @@ interface PreviewCard {
   saveKind: SaveKind;
   savePayload: Record<string, any>;
   dbId?: number;
+  // True when this preview came from a voice message rather than typed
+  // text. Browser voice-to-text has no Filipino-accent tuning and regularly
+  // mishears words ("add" -> "an", "task" -> "tas") — there's no real AI
+  // pass to clean that up (see lib/command-center.ts's summarizeTitle
+  // comment), so the UI leans on the owner catching it via Edit instead.
+  isVoice?: boolean;
 }
 interface PlanSummary {
   id: string;
@@ -597,6 +603,10 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
   const recognizerRef = useRef<any>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastGoldieCount = useRef(0);
+  // In-flight preview/plan-summary saves — blocks a double-tap/double-click
+  // on Confirm from firing two POSTs before the first response re-renders
+  // the button away.
+  const confirmingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
@@ -642,9 +652,15 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
   };
 
   const confirm = async (msgId: string, previewId: string) => {
+    // Guards against a double-tap/double-click firing two POSTs before the
+    // first one's response re-renders the button away — without this, a
+    // fast re-tap (common on mobile, or over a slow connection) saves the
+    // same reminder/task/follow-up twice.
+    if (confirmingRef.current.has(previewId)) return;
     const msg = messages.find(m => m.id === msgId);
     const pc = msg?.previews?.find(p => p.id === previewId);
-    if (!pc) return;
+    if (!pc || pc.status !== 'pending') return;
+    confirmingRef.current.add(previewId);
     try {
       const res = await fetch(SAVE_ENDPOINTS[pc.saveKind], {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pc.savePayload),
@@ -655,6 +671,8 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
       showToast(`Saved to ${pc.listLabel}`);
     } catch {
       showToast('Hindi na-save — subukan ulit.');
+    } finally {
+      confirmingRef.current.delete(previewId);
     }
   };
 
@@ -677,9 +695,11 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
   };
 
   const confirmPlan = async (msgId: string) => {
+    if (confirmingRef.current.has(msgId)) return;
     const msg = messages.find(m => m.id === msgId);
     const ps = msg?.planSummary;
-    if (!ps) return;
+    if (!ps || ps.status !== 'pending') return;
+    confirmingRef.current.add(msgId);
     const { isoDate } = resolveDueDate(ps.deadline, new Date());
     const title = ps.goal.length > 60 ? ps.goal.slice(0, 60) + '…' : ps.goal;
     try {
@@ -692,6 +712,8 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
       showToast('Saved as new Plan');
     } catch {
       showToast('Hindi na-save ang plan — subukan ulit.');
+    } finally {
+      confirmingRef.current.delete(msgId);
     }
   };
   const cancelPlan = (msgId: string) => { updatePlanSummary(msgId, { status: 'cancelled' }); showToast('Cancelled'); };
@@ -791,7 +813,7 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
         const aiMsg: ChatMsg = {
           id: nextId(), role: 'ai',
           text: p.unsure ? 'Naintindihan ko, boss — pero paki-confirm muna itong detail bago ko i-save:' : 'Narito ang na-detect ko, paki-check bago ma-save:',
-          previews: [{ id: nextId(), type: p.type, rows, warn: p.unsure ? 'Hindi sigurado ang exact date/time — paki-confirm o i-edit muna.' : undefined, mode: 'confirm', listLabel: p.listLabel, status: 'pending', saveKind: kind, savePayload: payload }],
+          previews: [{ id: nextId(), type: p.type, rows, warn: p.unsure ? 'Hindi sigurado ang exact date/time — paki-confirm o i-edit muna.' : undefined, mode: 'confirm', listLabel: p.listLabel, status: 'pending', saveKind: kind, savePayload: payload, isVoice: viaVoice }],
         };
         setMessages(prev => [...prev, aiMsg]);
         if (viaVoice) speak("I'm not totally sure about the date, boss. Please confirm before I save it.");
@@ -873,16 +895,19 @@ function SecretaryTab({ showToast, goldieMessages }: { showToast: (m: string) =>
                 <div className="cc-bubble">{m.text}</div>
                 {m.previews?.map(pc => (
                   <div key={pc.id} className={`cc-preview-card ${pc.mode === 'auto' ? 'auto-saved' : ''} ${pc.status === 'saved' && pc.mode !== 'auto' ? 'saved' : ''} ${pc.status === 'undone' ? 'undone' : ''}`}>
-                    <div className="cc-pc-type">{pc.type}{pc.mode === 'auto' && <span className="cc-voice-badge">🎙 Voice</span>}</div>
+                    <div className="cc-pc-type">{pc.type}{(pc.mode === 'auto' || pc.isVoice) && <span className="cc-voice-badge">🎙 Voice</span>}</div>
                     {pc.rows.map(([k, v]) => (
                       <div className="cc-pc-row" key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
                     ))}
                     {pc.warn && <div className="cc-pc-warn"><AlertTriangle size={13} /><span>{pc.warn}</span></div>}
+                    {pc.mode === 'confirm' && pc.status === 'pending' && pc.isVoice && !pc.warn && (
+                      <div className="cc-pc-warn"><AlertTriangle size={13} /><span>Galing sa boses ito — minsan mali ang pagkarinig ng browser. Paki-check muna, i-Edit kung mali.</span></div>
+                    )}
 
                     {pc.mode === 'confirm' && pc.status === 'pending' && (
                       <div className="cc-pc-actions">
                         <button className="cc-pc-btn cancel" onClick={() => cancelPreview(m.id, pc.id)}>Cancel</button>
-                        <button className="cc-pc-btn" onClick={() => editPreview(m.id, pc.id, pc.rows[0][1])}>Edit</button>
+                        <button className={`cc-pc-btn ${pc.isVoice ? 'edit-emphasis' : ''}`} onClick={() => editPreview(m.id, pc.id, pc.rows[0][1])}>Edit</button>
                         <button className="cc-pc-btn confirm" onClick={() => confirm(m.id, pc.id)}>Confirm</button>
                       </div>
                     )}
