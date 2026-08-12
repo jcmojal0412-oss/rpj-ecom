@@ -128,11 +128,11 @@ function GroupHeader({ label, icon: Icon, collapsed, onToggle }: { label: string
       onClick={onToggle}
       className="group w-full flex items-center gap-2 px-3 py-1.5 mb-0.5 rounded-md hover:bg-slate-50 transition-colors"
     >
-      <Icon size={13} className="text-slate-400 group-hover:text-slate-500 shrink-0" />
-      <span className="flex-1 text-left text-[10.5px] font-semibold tracking-[0.09em] text-slate-400 group-hover:text-slate-600">
+      <Icon size={13} className="text-slate-500 group-hover:text-slate-700 shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-bold tracking-[0.07em] text-slate-600 group-hover:text-slate-800">
         {label}
       </span>
-      <ChevronDown size={13} className={`text-slate-300 group-hover:text-slate-500 transition-transform duration-200 shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+      <ChevronDown size={13} className={`text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
     </button>
   );
 }
