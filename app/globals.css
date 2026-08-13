@@ -8,6 +8,30 @@
   }
 }
 
+/* Sidebar nav scroll — minimal, near-invisible until hovered (see
+   components/ui/Sidebar.tsx). Scoped to this one class, not a global
+   scrollbar override. */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: #D8DCE2 transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: #D8DCE2;
+}
+
 @layer components {
   .card {
     @apply bg-white rounded-xl shadow-sm border border-blue-100 p-6;

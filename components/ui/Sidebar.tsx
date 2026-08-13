@@ -3,16 +3,23 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { Inter } from 'next/font/google';
 import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
-  Sparkles, ShoppingBag, Music2, Vault, LineChart, Wrench, CalendarClock, Landmark,
+  Sparkles, Wrench, CalendarClock, Landmark,
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
+  MoreVertical,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AVATAR_HEX } from '@/lib/auth-helpers';
 import type { SessionUser } from '@/lib/auth-helpers';
+
+// Self-hosted via next/font (no external request, no CSP/privacy concern) —
+// scoped to just this component via inter.className below, not applied
+// app-wide, per "redesign ONLY the sidebar UI."
+const inter = Inter({ subsets: ['latin'], weight: ['500', '600', '700'], display: 'swap' });
 
 const NAV_GROUPS = [
   {
@@ -29,7 +36,7 @@ const NAV_GROUPS = [
     label: 'EXECUTIVE',
     groupIcon: Compass,
     items: [
-      { label: 'Command Center', href: '/command-center', icon: Compass, module: '_owner', gold: true },
+      { label: 'Command Center', href: '/command-center', icon: Compass, module: '_owner' },
     ],
   },
   {
@@ -119,20 +126,19 @@ const COLLAPSE_STORAGE_KEY = 'rpj-sidebar-collapsed-groups';
 // Clickable group header with an icon + chevron on the right — click
 // anywhere on the row to collapse/expand that group's links, so a long
 // sidebar (Inventory, Catalog, Reports, etc.) can be shortened to just the
-// groups in use. Neutral slate tone (not the orange brand accent, which is
-// reserved for the active-page state) keeps headers as quiet structure
-// rather than competing for attention with the links themselves.
+// groups in use. Muted, uppercase, small — quiet structure that stays out
+// of the way of the links themselves, per the enterprise-sidebar spec.
 function GroupHeader({ label, icon: Icon, collapsed, onToggle }: { label: string; icon: React.ElementType; collapsed: boolean; onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
-      className="group w-full flex items-center gap-2 px-3 py-1.5 mb-0.5 rounded-md hover:bg-slate-50 transition-colors"
+      className="group w-full flex items-center gap-2 px-4 h-8 rounded-md hover:bg-gray-50 transition-colors"
     >
-      <Icon size={13} className="text-slate-500 group-hover:text-slate-700 shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-bold tracking-[0.07em] text-slate-600 group-hover:text-slate-800">
+      <Icon size={14} className="text-[#7B8797] group-hover:text-[#4B5768] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] group-hover:text-[#4B5768]">
         {label}
       </span>
-      <ChevronDown size={13} className={`text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+      <ChevronDown size={14} className={`text-[#9AA5B1] group-hover:text-[#4B5768] transition-transform duration-200 shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
     </button>
   );
 }
@@ -143,6 +149,8 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUser(u); });
@@ -156,6 +164,18 @@ export default function Sidebar() {
       if (saved) setCollapsedGroups(new Set(JSON.parse(saved)));
     } catch { /* ignore malformed/unavailable storage */ }
   }, []);
+
+  // Close the account menu on an outside click — it's an absolutely
+  // positioned popover, not a native <select>, so there's no built-in
+  // dismiss behavior.
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [profileMenuOpen]);
 
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => {
@@ -176,119 +196,131 @@ export default function Sidebar() {
     return module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
   };
 
+  const itemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-4 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
+    active
+      ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
+      : 'font-medium text-[#7B8797] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
+  }`;
+  const iconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9AA5B1] group-hover:text-[#4B5768] shrink-0';
+
   const NavContent = () => (
-    <div className="flex flex-col h-full bg-white border-r border-gray-100">
+    <div className={`${inter.className} flex flex-col h-full bg-white border-r border-[#E8EBEF]`}>
 
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-center bg-white">
-        <Image src="/logo.png" alt="RPJ Corp" width={124} height={62} className="object-contain" priority />
+      <div className="px-5 py-4 flex flex-col items-center justify-center border-b border-[#E8EBEF]">
+        <Image src="/logo.png" alt="RPJ Corp" width={100} height={50} className="object-contain" priority />
+        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7B8797]">E-Commerce System</p>
       </div>
 
       {/* Nav groups */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3.5">
+      <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(item => hasAccess(item.module));
           if (visibleItems.length === 0) return null;
           const isCollapsed = collapsedGroups.has(group.label);
           return (
-            <div key={group.label} className="mb-3.5">
+            <div key={group.label} className="mb-6">
               <GroupHeader label={group.label} icon={group.groupIcon} collapsed={isCollapsed} onToggle={() => toggleGroup(group.label)} />
-              {!isCollapsed && visibleItems.map((item) => {
-                const Icon   = item.icon;
-                const isGold = (item as any).gold === true;
-                const active = item.href === '/'
-                  ? pathname === '/'
-                  : item.href !== '#' && pathname.startsWith(item.href);
+              {!isCollapsed && (
+                <div className="mt-0.5 space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon   = item.icon;
+                    const active = item.href === '/'
+                      ? pathname === '/'
+                      : item.href !== '#' && pathname.startsWith(item.href);
 
-                if ((item as any).disabled) {
-                  return (
-                    <div
-                      key={item.label}
-                      title="Coming soon"
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 text-gray-300 cursor-not-allowed"
-                    >
-                      <span className="flex items-center gap-3">
-                        <Icon size={17} className="text-gray-300" />
+                    if ((item as any).disabled) {
+                      return (
+                        <div
+                          key={item.label}
+                          title="Coming soon"
+                          className="flex items-center justify-between gap-3 h-10 px-4 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed border-l-[3px] border-l-transparent"
+                        >
+                          <span className="flex items-center gap-3">
+                            <Icon size={18} className="text-gray-300" />
+                            {item.label}
+                          </span>
+                          <span className="text-[9px] font-bold tracking-wide bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">SOON</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={itemClasses(active)}
+                      >
+                        <Icon size={18} className={iconClasses(active)} />
                         {item.label}
-                      </span>
-                      <span className="text-[9px] font-bold tracking-wide bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">SOON</span>
-                    </div>
-                  );
-                }
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-all duration-150 ${
-                      active
-                        ? isGold
-                          ? 'bg-gradient-to-r from-[#8A6A1E] to-[#AD8526] text-white shadow-sm shadow-amber-200/70'
-                          : 'bg-orange-500 text-white shadow-sm shadow-orange-200/70'
-                        : isGold
-                          ? 'text-[#8A6A1E] bg-[#F4E9CC]/40 hover:bg-[#F4E9CC]/70'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    <Icon size={17} className={active ? 'text-white' : isGold ? 'text-[#AD8526]' : 'text-gray-400'} />
-                    {item.label}
-                  </Link>
-                );
-              })}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
 
         {/* Owner only */}
         {user?.role === 'owner' && (
-          <div className="mb-3.5">
+          <div className="mb-6">
             <GroupHeader label="SETTINGS" icon={Settings} collapsed={collapsedGroups.has('SETTINGS')} onToggle={() => toggleGroup('SETTINGS')} />
             {!collapsedGroups.has('SETTINGS') && (
-              <Link
-                href="/settings/users"
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  pathname.startsWith('/settings')
-                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-200/70'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Users size={17} className={pathname.startsWith('/settings') ? 'text-white' : 'text-gray-400'} />
-                User Management
-              </Link>
+              <div className="mt-0.5">
+                <Link
+                  href="/settings/users"
+                  onClick={() => setMobileOpen(false)}
+                  className={itemClasses(pathname.startsWith('/settings'))}
+                >
+                  <Users size={18} className={iconClasses(pathname.startsWith('/settings'))} />
+                  User Management
+                </Link>
+              </div>
             )}
           </div>
         )}
       </nav>
 
-      {/* User + Logout */}
+      {/* Owner profile — small avatar + name/role + a three-dot menu that
+          reveals Sign out, instead of always showing the logout icon. */}
       {user && (
-        <div className="px-3 py-3 border-t border-gray-100">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition-colors">
+        <div className="relative px-3 py-3 border-t border-[#E8EBEF]" ref={profileRef}>
+          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-white shadow-sm"
-              style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#3b82f6' }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+              style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#233653' }}
             >
               {initials(user.name)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-900 truncate">{user.name}</p>
-              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{user.role}</p>
+              <p className="text-[13px] font-semibold text-[#233653] truncate">{user.name}</p>
+              <p className="text-[10.5px] font-medium text-[#7B8797] capitalize">{user.role}</p>
             </div>
             <button
-              onClick={logout}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-              title="Sign out"
+              onClick={() => setProfileMenuOpen(o => !o)}
+              className="p-1 rounded hover:bg-gray-200/70 transition-colors shrink-0 text-[#7B8797]"
+              title="Account menu"
             >
-              <LogOut size={14} />
+              <MoreVertical size={16} />
             </button>
           </div>
+          {profileMenuOpen && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-[#E8EBEF] rounded-lg shadow-md overflow-hidden">
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-left text-[#B8452E] hover:bg-red-50 transition-colors"
+              >
+                <LogOut size={15} /> Sign out
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="px-5 py-2.5 border-t border-gray-100">
-        <p className="text-[10px] text-slate-300 tracking-wide">© 2026 RPJ CORPORATION</p>
+      <div className="px-5 py-2.5 border-t border-[#E8EBEF]">
+        <p className="text-[10px] tracking-wide text-[#B0B7C1]">© 2026 RPJ CORPORATION</p>
       </div>
     </div>
   );
@@ -296,13 +328,13 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden lg:flex flex-col w-56 h-screen shrink-0">
+      <aside className="hidden lg:flex flex-col w-64 h-screen shrink-0">
         <NavContent />
       </aside>
 
       {/* Mobile toggle */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-gray-200 text-gray-700 shadow-sm"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-[#E8EBEF] text-[#233653] shadow-sm"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -311,7 +343,7 @@ export default function Sidebar() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <aside className="flex flex-col w-56 h-full shadow-2xl">
+          <aside className="flex flex-col w-64 max-w-[85vw] h-full shadow-lg">
             <NavContent />
           </aside>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
