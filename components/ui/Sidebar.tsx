@@ -225,16 +225,17 @@ export default function Sidebar() {
   // they read as primary nav, not as a collapsible section's children.
   const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
-      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#F5B800]'
+      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
       : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
-  const pinnedIconClasses = (active: boolean) => active ? 'text-[#F5B800] shrink-0' : 'text-[#9CA7BC]/70 group-hover:text-[#F7F8FC] shrink-0';
+  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9CA7BC]/70 group-hover:text-[#F7F8FC] shrink-0';
 
   // Accordion children — no icon (avoids duplicating the section's own
-  // icon), indented under their group header, visually secondary to it.
-  const childItemClasses = (active: boolean) => `flex items-center h-10 pl-8 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
+  // icon), indented further than pinned items so parent vs. child is
+  // unambiguous at a glance.
+  const childItemClasses = (active: boolean) => `flex items-center h-10 pl-10 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
     active
-      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#F5B800]'
+      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
       : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
 
@@ -245,8 +246,8 @@ export default function Sidebar() {
           solid white background (no transparency), so it sits on a small
           white card rather than directly on the dark sidebar. */}
       <div className="px-5 py-3 flex flex-col items-center justify-center border-b border-white/[0.06] shrink-0">
-        <div className="bg-white rounded-lg px-3 py-1.5">
-          <Image src="/logo.png" alt="RPJ Corp" width={80} height={40} className="object-contain" priority />
+        <div className="bg-white rounded px-2.5 py-1">
+          <Image src="/logo.png" alt="RPJ Corp" width={72} height={36} className="object-contain" priority />
         </div>
         <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7F91AE]">E-Commerce System</p>
       </div>
