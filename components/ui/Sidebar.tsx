@@ -144,8 +144,8 @@ function isHrefActive(pathname: string, href: string) {
 function SectionLabel({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
   return (
     <div className="flex items-center gap-2 px-3.5 h-8">
-      <Icon size={14} className="text-[#7F91AE] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7F91AE] truncate" title={label}>
+      <Icon size={14} className="text-[#5C6B85] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#5C6B85] truncate" title={label}>
         {label}
       </span>
     </div>
@@ -163,11 +163,11 @@ function GroupHeader({ label, icon: Icon, open, onToggle }: { label: string; ico
       className="group w-full flex items-center gap-2 px-3.5 h-8 rounded-md hover:bg-[#1F2234] transition-colors"
       aria-expanded={open}
     >
-      <Icon size={14} className="text-[#7F91AE] group-hover:text-[#F7F8FC] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7F91AE] group-hover:text-[#F7F8FC] truncate" title={label}>
+      <Icon size={14} className="text-[#5C6B85] group-hover:text-[#F7F8FC] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#5C6B85] group-hover:text-[#F7F8FC] truncate" title={label}>
         {label}
       </span>
-      <ChevronDown size={14} className={`text-[#7F91AE] group-hover:text-[#F7F8FC] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
+      <ChevronDown size={14} className={`text-[#5C6B85] group-hover:text-[#F7F8FC] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
     </button>
   );
 }
