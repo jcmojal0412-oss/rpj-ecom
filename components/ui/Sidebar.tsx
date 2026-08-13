@@ -144,8 +144,8 @@ function isHrefActive(pathname: string, href: string) {
 function SectionLabel({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
   return (
     <div className="flex items-center gap-2 px-3.5 h-8">
-      <Icon size={14} className="text-[#7B8797] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] truncate" title={label}>
+      <Icon size={14} className="text-[#7F91AE] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7F91AE] truncate" title={label}>
         {label}
       </span>
     </div>
@@ -160,14 +160,14 @@ function GroupHeader({ label, icon: Icon, open, onToggle }: { label: string; ico
   return (
     <button
       onClick={onToggle}
-      className="group w-full flex items-center gap-2 px-3.5 h-8 rounded-md hover:bg-gray-50 transition-colors"
+      className="group w-full flex items-center gap-2 px-3.5 h-8 rounded-md hover:bg-[#1F2234] transition-colors"
       aria-expanded={open}
     >
-      <Icon size={14} className="text-[#7B8797] group-hover:text-[#4B5768] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] group-hover:text-[#4B5768] truncate" title={label}>
+      <Icon size={14} className="text-[#7F91AE] group-hover:text-[#F7F8FC] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7F91AE] group-hover:text-[#F7F8FC] truncate" title={label}>
         {label}
       </span>
-      <ChevronDown size={14} className={`text-[#9AA5B1] group-hover:text-[#4B5768] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
+      <ChevronDown size={14} className={`text-[#7F91AE] group-hover:text-[#F7F8FC] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
     </button>
   );
 }
@@ -225,26 +225,30 @@ export default function Sidebar() {
   // they read as primary nav, not as a collapsible section's children.
   const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
-      ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
-      : 'font-medium text-[#5B6472] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
+      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#F5B800]'
+      : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
-  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9AA5B1] group-hover:text-[#4B5768] shrink-0';
+  const pinnedIconClasses = (active: boolean) => active ? 'text-[#F5B800] shrink-0' : 'text-[#9CA7BC]/70 group-hover:text-[#F7F8FC] shrink-0';
 
   // Accordion children — no icon (avoids duplicating the section's own
   // icon), indented under their group header, visually secondary to it.
   const childItemClasses = (active: boolean) => `flex items-center h-10 pl-8 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
     active
-      ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
-      : 'font-medium text-[#5B6472] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
+      ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#F5B800]'
+      : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
 
   const NavContent = () => (
-    <div className={`${inter.className} flex flex-col h-full bg-white border-r border-[#E8EBEF]`}>
+    <div className={`${inter.className} flex flex-col h-full bg-[#171928] border-r border-white/[0.06]`}>
 
-      {/* Logo — fixed, never part of the scroll area */}
-      <div className="px-5 py-3 flex flex-col items-center justify-center border-b border-[#E8EBEF] shrink-0">
-        <Image src="/logo.png" alt="RPJ Corp" width={88} height={44} className="object-contain" priority />
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7B8797]">E-Commerce System</p>
+      {/* Logo — fixed, never part of the scroll area. The source file has a
+          solid white background (no transparency), so it sits on a small
+          white card rather than directly on the dark sidebar. */}
+      <div className="px-5 py-3 flex flex-col items-center justify-center border-b border-white/[0.06] shrink-0">
+        <div className="bg-white rounded-lg px-3 py-1.5">
+          <Image src="/logo.png" alt="RPJ Corp" width={80} height={40} className="object-contain" priority />
+        </div>
+        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7F91AE]">E-Commerce System</p>
       </div>
 
       {/* Nav groups — independently scrollable; owner profile + footer below
@@ -312,8 +316,8 @@ export default function Sidebar() {
       {/* Owner profile — small avatar + name/role + a three-dot menu that
           reveals Sign out, instead of always showing the logout icon. */}
       {user && (
-        <div className="relative px-3 py-2.5 border-t border-[#E8EBEF] shrink-0" ref={profileRef}>
-          <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+        <div className="relative px-3 py-2.5 border-t border-white/[0.06] shrink-0" ref={profileRef}>
+          <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-[#1F2234] transition-colors">
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#233653' }}
@@ -321,22 +325,22 @@ export default function Sidebar() {
               {initials(user.name)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-[#233653] truncate">{user.name}</p>
-              <p className="text-[10.5px] font-medium text-[#7B8797] capitalize">{user.role}</p>
+              <p className="text-[13px] font-semibold text-[#F7F8FC] truncate">{user.name}</p>
+              <p className="text-[10.5px] font-medium text-[#7F91AE] capitalize">{user.role}</p>
             </div>
             <button
               onClick={() => setProfileMenuOpen(o => !o)}
-              className="p-1 rounded hover:bg-gray-200/70 transition-colors shrink-0 text-[#7B8797]"
+              className="p-1 rounded hover:bg-white/10 transition-colors shrink-0 text-[#7F91AE]"
               title="Account menu"
             >
               <MoreVertical size={16} />
             </button>
           </div>
           {profileMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-[#E8EBEF] rounded-lg shadow-md overflow-hidden">
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-[#1F2234] border border-white/[0.06] rounded-lg shadow-md overflow-hidden">
               <button
                 onClick={logout}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-left text-[#B8452E] hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-left text-[#FF6B5B] hover:bg-white/5 transition-colors"
               >
                 <LogOut size={15} /> Sign out
               </button>
@@ -345,8 +349,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      <div className="px-5 py-2 border-t border-[#E8EBEF] shrink-0">
-        <p className="text-[10px] tracking-wide text-[#B0B7C1]">© 2026 RPJ CORPORATION</p>
+      <div className="px-5 py-2 border-t border-white/[0.06] shrink-0">
+        <p className="text-[10px] tracking-wide text-[#4B5468]">© 2026 RPJ CORPORATION</p>
       </div>
     </div>
   );
