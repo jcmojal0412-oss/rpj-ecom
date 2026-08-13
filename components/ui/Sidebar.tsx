@@ -144,8 +144,8 @@ function isHrefActive(pathname: string, href: string) {
 function SectionLabel({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
   return (
     <div className="flex items-center gap-2 px-3.5 h-8">
-      <Icon size={14} className="text-[#5C6B85] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#5C6B85] truncate" title={label}>
+      <Icon size={14} className="text-[#B8C4D9] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-[0.07em] text-[#B8C4D9] truncate" title={label}>
         {label}
       </span>
     </div>
@@ -154,8 +154,8 @@ function SectionLabel({ label, icon: Icon }: { label: string; icon: React.Elemen
 
 // Clickable accordion header — click anywhere on the row to open that
 // section, which auto-closes whichever other section was open (single-open
-// accordion, see openGroup state in Sidebar()). Muted, uppercase, small —
-// quiet structure that stays out of the way of the links themselves.
+// accordion, see openGroup state in Sidebar()). Bright + bold — reads as a
+// real heading, clearly stronger than the (lighter) child links under it.
 function GroupHeader({ label, icon: Icon, open, onToggle }: { label: string; icon: React.ElementType; open: boolean; onToggle: () => void }) {
   return (
     <button
@@ -163,11 +163,11 @@ function GroupHeader({ label, icon: Icon, open, onToggle }: { label: string; ico
       className="group w-full flex items-center gap-2 px-3.5 h-8 rounded-md hover:bg-[#1F2234] transition-colors"
       aria-expanded={open}
     >
-      <Icon size={14} className="text-[#5C6B85] group-hover:text-[#F7F8FC] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#5C6B85] group-hover:text-[#F7F8FC] truncate" title={label}>
+      <Icon size={14} className="text-[#B8C4D9] group-hover:text-[#F7F8FC] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-[0.07em] text-[#B8C4D9] group-hover:text-[#F7F8FC] truncate" title={label}>
         {label}
       </span>
-      <ChevronDown size={14} className={`text-[#5C6B85] group-hover:text-[#F7F8FC] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
+      <ChevronDown size={14} className={`text-[#B8C4D9] group-hover:text-[#F7F8FC] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
     </button>
   );
 }
@@ -226,17 +226,19 @@ export default function Sidebar() {
   const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
-      : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
+      : 'font-normal text-[#7F91AE] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
-  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9CA7BC]/70 group-hover:text-[#F7F8FC] shrink-0';
+  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#7F91AE]/70 group-hover:text-[#F7F8FC] shrink-0';
 
   // Accordion children — no icon (avoids duplicating the section's own
   // icon), indented further than pinned items so parent vs. child is
-  // unambiguous at a glance.
+  // unambiguous at a glance. Deliberately lighter-weight/dimmer than the
+  // bold, bright section header above them — the header should read as the
+  // stronger element, children as its quieter sub-items.
   const childItemClasses = (active: boolean) => `flex items-center h-10 pl-10 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
-      : 'font-medium text-[#9CA7BC] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
+      : 'font-normal text-[#7F91AE] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
 
   const NavContent = () => (
