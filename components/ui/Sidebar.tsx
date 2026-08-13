@@ -134,6 +134,14 @@ function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
+// Falls back to "Owner Account" only when the stored name is literally a
+// duplicate of the role (e.g. an account whose name field was never set
+// past its "Owner" default) — never a hardcoded name, just avoids the
+// "Owner / Owner" double-up when the real name genuinely isn't set yet.
+function profileDisplayName(user: SessionUser) {
+  return user.name.trim().toLowerCase() === user.role.trim().toLowerCase() ? 'Owner Account' : user.name;
+}
+
 function isHrefActive(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : href !== '#' && pathname.startsWith(href);
 }
@@ -223,22 +231,22 @@ export default function Sidebar() {
 
   // Pinned/top-level items (Dashboard, Command Center) keep their icon —
   // they read as primary nav, not as a collapsible section's children.
-  const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
+  const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
-      : 'font-normal text-[#7F91AE] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
+      : 'font-normal text-[#95AACF] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
-  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#7F91AE]/70 group-hover:text-[#F7F8FC] shrink-0';
+  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#95AACF]/70 group-hover:text-[#F7F8FC] shrink-0';
 
   // Accordion children — no icon (avoids duplicating the section's own
   // icon), indented further than pinned items so parent vs. child is
   // unambiguous at a glance. Deliberately lighter-weight/dimmer than the
   // bold, bright section header above them — the header should read as the
   // stronger element, children as its quieter sub-items.
-  const childItemClasses = (active: boolean) => `flex items-center h-10 pl-10 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
+  const childItemClasses = (active: boolean) => `flex items-center h-10 pl-10 pr-3 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#FFFFFF] bg-[#202334] border-l-[#B68B3C]'
-      : 'font-normal text-[#7F91AE] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
+      : 'font-normal text-[#95AACF] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
 
   const NavContent = () => (
@@ -325,10 +333,10 @@ export default function Sidebar() {
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#233653' }}
             >
-              {initials(user.name)}
+              {initials(profileDisplayName(user))}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-[#F7F8FC] truncate">{user.name}</p>
+              <p className="text-[13px] font-semibold text-[#F7F8FC] truncate">{profileDisplayName(user)}</p>
               <p className="text-[10.5px] font-medium text-[#7F91AE] capitalize">{user.role}</p>
             </div>
             <button
