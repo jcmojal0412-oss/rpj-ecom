@@ -132,7 +132,7 @@ function GroupHeader({ label, icon: Icon, collapsed, onToggle }: { label: string
   return (
     <button
       onClick={onToggle}
-      className="group w-full flex items-center gap-2 px-4 h-8 rounded-md hover:bg-gray-50 transition-colors"
+      className="group w-full flex items-center gap-2 px-3.5 h-7 rounded-md hover:bg-gray-50 transition-colors"
     >
       <Icon size={14} className="text-[#7B8797] group-hover:text-[#4B5768] shrink-0" />
       <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] group-hover:text-[#4B5768]">
@@ -196,10 +196,10 @@ export default function Sidebar() {
     return module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
   };
 
-  const itemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-4 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
+  const itemClasses = (active: boolean) => `group flex items-center gap-3 h-[34px] px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
-      : 'font-medium text-[#7B8797] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
+      : 'font-medium text-[#5B6472] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
   }`;
   const iconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9AA5B1] group-hover:text-[#4B5768] shrink-0';
 
@@ -207,19 +207,20 @@ export default function Sidebar() {
     <div className={`${inter.className} flex flex-col h-full bg-white border-r border-[#E8EBEF]`}>
 
       {/* Logo */}
-      <div className="px-5 py-4 flex flex-col items-center justify-center border-b border-[#E8EBEF]">
-        <Image src="/logo.png" alt="RPJ Corp" width={100} height={50} className="object-contain" priority />
-        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7B8797]">E-Commerce System</p>
+      <div className="px-5 py-3 flex flex-col items-center justify-center border-b border-[#E8EBEF] shrink-0">
+        <Image src="/logo.png" alt="RPJ Corp" width={88} height={44} className="object-contain" priority />
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7B8797]">E-Commerce System</p>
       </div>
 
-      {/* Nav groups */}
-      <nav className="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
+      {/* Nav groups — independently scrollable; owner profile + footer below
+          stay fixed since they're siblings outside this flex-1 scroll area. */}
+      <nav className="sidebar-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(item => hasAccess(item.module));
           if (visibleItems.length === 0) return null;
           const isCollapsed = collapsedGroups.has(group.label);
           return (
-            <div key={group.label} className="mb-6">
+            <div key={group.label} className="mb-5">
               <GroupHeader label={group.label} icon={group.groupIcon} collapsed={isCollapsed} onToggle={() => toggleGroup(group.label)} />
               {!isCollapsed && (
                 <div className="mt-0.5 space-y-0.5">
@@ -234,7 +235,7 @@ export default function Sidebar() {
                         <div
                           key={item.label}
                           title="Coming soon"
-                          className="flex items-center justify-between gap-3 h-10 px-4 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed border-l-[3px] border-l-transparent"
+                          className="flex items-center justify-between gap-3 h-[34px] px-3.5 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed border-l-[3px] border-l-transparent"
                         >
                           <span className="flex items-center gap-3">
                             <Icon size={18} className="text-gray-300" />
@@ -265,7 +266,7 @@ export default function Sidebar() {
 
         {/* Owner only */}
         {user?.role === 'owner' && (
-          <div className="mb-6">
+          <div className="mb-5">
             <GroupHeader label="SETTINGS" icon={Settings} collapsed={collapsedGroups.has('SETTINGS')} onToggle={() => toggleGroup('SETTINGS')} />
             {!collapsedGroups.has('SETTINGS') && (
               <div className="mt-0.5">
@@ -286,10 +287,10 @@ export default function Sidebar() {
       {/* Owner profile — small avatar + name/role + a three-dot menu that
           reveals Sign out, instead of always showing the logout icon. */}
       {user && (
-        <div className="relative px-3 py-3 border-t border-[#E8EBEF]" ref={profileRef}>
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div className="relative px-3 py-2.5 border-t border-[#E8EBEF] shrink-0" ref={profileRef}>
+          <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ backgroundColor: AVATAR_HEX[user.avatar_color] ?? '#233653' }}
             >
               {initials(user.name)}
@@ -319,7 +320,7 @@ export default function Sidebar() {
         </div>
       )}
 
-      <div className="px-5 py-2.5 border-t border-[#E8EBEF]">
+      <div className="px-5 py-2 border-t border-[#E8EBEF] shrink-0">
         <p className="text-[10px] tracking-wide text-[#B0B7C1]">© 2026 RPJ CORPORATION</p>
       </div>
     </div>
@@ -328,7 +329,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden lg:flex flex-col w-64 h-screen shrink-0">
+      <aside className="hidden lg:flex flex-col w-[210px] h-screen shrink-0">
         <NavContent />
       </aside>
 
@@ -343,7 +344,7 @@ export default function Sidebar() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <aside className="flex flex-col w-64 max-w-[85vw] h-full shadow-lg">
+          <aside className="flex flex-col w-[210px] max-w-[85vw] h-full shadow-lg">
             <NavContent />
           </aside>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
