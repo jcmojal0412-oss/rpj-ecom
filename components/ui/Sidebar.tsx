@@ -21,20 +21,26 @@ import type { SessionUser } from '@/lib/auth-helpers';
 // app-wide, per "redesign ONLY the sidebar UI."
 const inter = Inter({ subsets: ['latin'], weight: ['500', '600', '700'], display: 'swap' });
 
+// `pinned` groups (MAIN, EXECUTIVE) are always visible, single-item primary
+// destinations — no accordion toggle, icon kept on the item itself. Every
+// other group is an accordion section: collapsed by default, one open at a
+// time, auto-following whichever section holds the active route. SETTINGS
+// lives here too (not as a separately-rendered block) so it participates in
+// the same accordion state — gated by the '_owner' module sentinel below,
+// same pattern as Command Center.
 const NAV_GROUPS = [
   {
     label: 'MAIN',
     groupIcon: LayoutDashboard,
+    pinned: true,
     items: [
       { label: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
     ],
   },
-  // Owner-only — '_owner' sentinel matches middleware.ts's gate on
-  // /command-center, checked specially in hasAccess() below (never granted
-  // via a staff permission string, unlike the other module keys).
   {
     label: 'EXECUTIVE',
     groupIcon: Compass,
+    pinned: true,
     items: [
       { label: 'Command Center', href: '/command-center', icon: Compass, module: '_owner' },
     ],
@@ -115,30 +121,53 @@ const NAV_GROUPS = [
       { label: 'Product Research', href: '/product-research', icon: FlaskConical, module: 'product_research' },
     ],
   },
+  {
+    label: 'SETTINGS',
+    groupIcon: Settings,
+    items: [
+      { label: 'User Management', href: '/settings/users', icon: Users, module: '_owner' },
+    ],
+  },
 ];
 
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
-const COLLAPSE_STORAGE_KEY = 'rpj-sidebar-collapsed-groups';
+function isHrefActive(pathname: string, href: string) {
+  return href === '/' ? pathname === '/' : href !== '#' && pathname.startsWith(href);
+}
 
-// Clickable group header with an icon + chevron on the right — click
-// anywhere on the row to collapse/expand that group's links, so a long
-// sidebar (Inventory, Catalog, Reports, etc.) can be shortened to just the
-// groups in use. Muted, uppercase, small — quiet structure that stays out
-// of the way of the links themselves, per the enterprise-sidebar spec.
-function GroupHeader({ label, icon: Icon, collapsed, onToggle }: { label: string; icon: React.ElementType; collapsed: boolean; onToggle: () => void }) {
+// Static section label for pinned groups (MAIN, EXECUTIVE) — same quiet
+// muted/uppercase treatment as the accordion header below, minus the
+// button/chevron, since these never collapse.
+function SectionLabel({ label, icon: Icon }: { label: string; icon: React.ElementType }) {
+  return (
+    <div className="flex items-center gap-2 px-3.5 h-8">
+      <Icon size={14} className="text-[#7B8797] shrink-0" />
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] truncate" title={label}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// Clickable accordion header — click anywhere on the row to open that
+// section, which auto-closes whichever other section was open (single-open
+// accordion, see openGroup state in Sidebar()). Muted, uppercase, small —
+// quiet structure that stays out of the way of the links themselves.
+function GroupHeader({ label, icon: Icon, open, onToggle }: { label: string; icon: React.ElementType; open: boolean; onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
-      className="group w-full flex items-center gap-2 px-3.5 h-7 rounded-md hover:bg-gray-50 transition-colors"
+      className="group w-full flex items-center gap-2 px-3.5 h-8 rounded-md hover:bg-gray-50 transition-colors"
+      aria-expanded={open}
     >
       <Icon size={14} className="text-[#7B8797] group-hover:text-[#4B5768] shrink-0" />
-      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] group-hover:text-[#4B5768]">
+      <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-[#7B8797] group-hover:text-[#4B5768] truncate" title={label}>
         {label}
       </span>
-      <ChevronDown size={14} className={`text-[#9AA5B1] group-hover:text-[#4B5768] transition-transform duration-200 shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+      <ChevronDown size={14} className={`text-[#9AA5B1] group-hover:text-[#4B5768] transition-transform duration-200 shrink-0 ${open ? '' : '-rotate-90'}`} />
     </button>
   );
 }
@@ -148,7 +177,12 @@ export default function Sidebar() {
   const router    = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Single-open accordion — at most one non-pinned group's label is here at
+  // a time. Re-derived from the active route below, so the section holding
+  // the current page auto-expands on load and on every navigation; a plain
+  // header click can still open a different group to browse without
+  // navigating first.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -156,14 +190,10 @@ export default function Sidebar() {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUser(u); });
   }, []);
 
-  // Read saved collapse state after hydration (not during initial render,
-  // to keep the server-rendered and first client-rendered markup identical).
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(COLLAPSE_STORAGE_KEY);
-      if (saved) setCollapsedGroups(new Set(JSON.parse(saved)));
-    } catch { /* ignore malformed/unavailable storage */ }
-  }, []);
+    const activeGroup = NAV_GROUPS.find(g => !g.pinned && g.items.some(item => isHrefActive(pathname, item.href)));
+    setOpenGroup(activeGroup ? activeGroup.label : null);
+  }, [pathname]);
 
   // Close the account menu on an outside click — it's an absolutely
   // positioned popover, not a native <select>, so there's no built-in
@@ -178,12 +208,7 @@ export default function Sidebar() {
   }, [profileMenuOpen]);
 
   const toggleGroup = (label: string) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
-      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(Array.from(next))); } catch {}
-      return next;
-    });
+    setOpenGroup(prev => prev === label ? null : label);
   };
 
   const logout = async () => {
@@ -196,64 +221,83 @@ export default function Sidebar() {
     return module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
   };
 
-  const itemClasses = (active: boolean) => `group flex items-center gap-3 h-[34px] px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
+  // Pinned/top-level items (Dashboard, Command Center) keep their icon —
+  // they read as primary nav, not as a collapsible section's children.
+  const pinnedItemClasses = (active: boolean) => `group flex items-center gap-3 h-10 px-3.5 rounded-md text-sm transition-colors duration-150 border-l-[3px] ${
     active
       ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
       : 'font-medium text-[#5B6472] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
   }`;
-  const iconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9AA5B1] group-hover:text-[#4B5768] shrink-0';
+  const pinnedIconClasses = (active: boolean) => active ? 'text-[#B68B3C] shrink-0' : 'text-[#9AA5B1] group-hover:text-[#4B5768] shrink-0';
+
+  // Accordion children — no icon (avoids duplicating the section's own
+  // icon), indented under their group header, visually secondary to it.
+  const childItemClasses = (active: boolean) => `flex items-center h-10 pl-8 pr-3.5 rounded-md text-sm truncate transition-colors duration-150 border-l-[3px] ${
+    active
+      ? 'font-semibold text-[#233653] bg-[#FBF8F1] border-l-[#B68B3C]'
+      : 'font-medium text-[#5B6472] border-l-transparent hover:bg-gray-50 hover:text-[#233653]'
+  }`;
 
   const NavContent = () => (
     <div className={`${inter.className} flex flex-col h-full bg-white border-r border-[#E8EBEF]`}>
 
-      {/* Logo */}
+      {/* Logo — fixed, never part of the scroll area */}
       <div className="px-5 py-3 flex flex-col items-center justify-center border-b border-[#E8EBEF] shrink-0">
         <Image src="/logo.png" alt="RPJ Corp" width={88} height={44} className="object-contain" priority />
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7B8797]">E-Commerce System</p>
       </div>
 
       {/* Nav groups — independently scrollable; owner profile + footer below
-          stay fixed since they're siblings outside this flex-1 scroll area. */}
+          stay fixed since they're siblings outside this flex-1 scroll area.
+          min-h-0 is required so this flex child can actually shrink and
+          scroll instead of pushing the owner profile off-screen. */}
       <nav className="sidebar-scroll flex-1 min-h-0 overflow-y-auto px-3 py-3">
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter(item => hasAccess(item.module));
           if (visibleItems.length === 0) return null;
-          const isCollapsed = collapsedGroups.has(group.label);
-          return (
-            <div key={group.label} className="mb-5">
-              <GroupHeader label={group.label} icon={group.groupIcon} collapsed={isCollapsed} onToggle={() => toggleGroup(group.label)} />
-              {!isCollapsed && (
+
+          if (group.pinned) {
+            return (
+              <div key={group.label} className="mb-4">
+                <SectionLabel label={group.label} icon={group.groupIcon} />
                 <div className="mt-0.5 space-y-0.5">
                   {visibleItems.map((item) => {
-                    const Icon   = item.icon;
-                    const active = item.href === '/'
-                      ? pathname === '/'
-                      : item.href !== '#' && pathname.startsWith(item.href);
-
-                    if ((item as any).disabled) {
-                      return (
-                        <div
-                          key={item.label}
-                          title="Coming soon"
-                          className="flex items-center justify-between gap-3 h-[34px] px-3.5 rounded-md text-sm font-medium text-gray-300 cursor-not-allowed border-l-[3px] border-l-transparent"
-                        >
-                          <span className="flex items-center gap-3">
-                            <Icon size={18} className="text-gray-300" />
-                            {item.label}
-                          </span>
-                          <span className="text-[9px] font-bold tracking-wide bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">SOON</span>
-                        </div>
-                      );
-                    }
-
+                    const Icon = item.icon;
+                    const active = isHrefActive(pathname, item.href);
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
                         onClick={() => setMobileOpen(false)}
-                        className={itemClasses(active)}
+                        className={pinnedItemClasses(active)}
+                        title={item.label}
                       >
-                        <Icon size={18} className={iconClasses(active)} />
+                        <Icon size={18} className={pinnedIconClasses(active)} />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          const isOpen = openGroup === group.label;
+          return (
+            <div key={group.label} className="mb-4">
+              <GroupHeader label={group.label} icon={group.groupIcon} open={isOpen} onToggle={() => toggleGroup(group.label)} />
+              {isOpen && (
+                <div className="mt-0.5 space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const active = isHrefActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={childItemClasses(active)}
+                        title={item.label}
+                      >
                         {item.label}
                       </Link>
                     );
@@ -263,25 +307,6 @@ export default function Sidebar() {
             </div>
           );
         })}
-
-        {/* Owner only */}
-        {user?.role === 'owner' && (
-          <div className="mb-5">
-            <GroupHeader label="SETTINGS" icon={Settings} collapsed={collapsedGroups.has('SETTINGS')} onToggle={() => toggleGroup('SETTINGS')} />
-            {!collapsedGroups.has('SETTINGS') && (
-              <div className="mt-0.5">
-                <Link
-                  href="/settings/users"
-                  onClick={() => setMobileOpen(false)}
-                  className={itemClasses(pathname.startsWith('/settings'))}
-                >
-                  <Users size={18} className={iconClasses(pathname.startsWith('/settings'))} />
-                  User Management
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
       </nav>
 
       {/* Owner profile — small avatar + name/role + a three-dot menu that
@@ -329,7 +354,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden lg:flex flex-col w-[210px] h-screen shrink-0">
+      <aside className="hidden lg:flex flex-col w-[270px] h-screen shrink-0">
         <NavContent />
       </aside>
 
@@ -344,7 +369,7 @@ export default function Sidebar() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <aside className="flex flex-col w-[210px] max-w-[85vw] h-full shadow-lg">
+          <aside className="flex flex-col w-[270px] max-w-[85vw] h-full shadow-lg">
             <NavContent />
           </aside>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
