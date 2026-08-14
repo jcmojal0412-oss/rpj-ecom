@@ -45,18 +45,22 @@ export default function PerformanceDashboardClient() {
   const [appliedCustom, setAppliedCustom] = useState({ from: todayISO(), to: todayISO() });
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(false);
     const params = new URLSearchParams({ period });
     if (period === 'custom') {
       params.set('from', appliedCustom.from);
       params.set('to', appliedCustom.to);
     }
     fetch(`/api/marketing-analytics/dashboard?${params.toString()}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); });
-  }, [period, appliedCustom]);
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => { setLoadError(true); setLoading(false); });
+  }, [period, appliedCustom, reloadToken]);
 
   return (
     <div className="p-6 space-y-6">
@@ -95,8 +99,13 @@ export default function PerformanceDashboardClient() {
         )}
       </div>
 
-      {loading || !data ? (
+      {loading ? (
         <div className="text-center py-20 text-sm text-gray-400">Loading marketing performance…</div>
+      ) : loadError || !data ? (
+        <div className="text-center py-20">
+          <p className="text-sm text-red-500 mb-3">Couldn't load marketing performance. Check your connection and try again.</p>
+          <button onClick={() => setReloadToken(t => t + 1)} className="btn-secondary">Retry</button>
+        </div>
       ) : (
         <DashboardBody data={data} />
       )}
@@ -136,9 +145,11 @@ function DashboardBody({ data }: { data: DashboardResponse }) {
           <FunnelStep label="Conversion Rate" value={pctStr(kpis.conversion_rate)} tone="gold" />
         </div>
         <p className="text-xs text-gray-400 text-center mt-4">
-          {kpis.conversion_rate != null && kpis.conversion_rate < 15
-            ? 'Conversion is on the lower side — the gap looks more like a traffic-to-buyer problem than a traffic problem.'
-            : 'Traffic is converting reasonably well into buyers for the selected period.'}
+          {kpis.conversion_rate == null
+            ? 'No store visits logged for this period yet — add a Daily Record to see conversion.'
+            : kpis.conversion_rate < 15
+              ? 'Conversion is on the lower side — the gap looks more like a traffic-to-buyer problem than a traffic problem.'
+              : 'Traffic is converting reasonably well into buyers for the selected period.'}
         </p>
       </div>
 

@@ -1,30 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { validateRecord } from '@/lib/marketing-analytics';
 
 export const dynamic = 'force-dynamic';
-
-function validateRecord(body: any) {
-  const { entry_date, marketing_spend, gross_sales, total_buyers, new_customers, store_visits } = body;
-
-  if (!entry_date || typeof entry_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry_date)) {
-    return 'A valid date is required.';
-  }
-  const spend = Number(marketing_spend);
-  const sales = Number(gross_sales);
-  const buyers = Number(total_buyers);
-  const newCust = Number(new_customers);
-  const visits = Number(store_visits);
-
-  if (isNaN(spend) || spend < 0) return 'Marketing spend must be a valid, non-negative amount.';
-  if (isNaN(sales) || sales < 0) return 'Gross sales must be a valid, non-negative amount.';
-  if (!Number.isInteger(buyers) || buyers < 0) return 'Total buyers must be a non-negative whole number.';
-  if (!Number.isInteger(newCust) || newCust < 0) return 'New customers must be a non-negative whole number.';
-  if (!Number.isInteger(visits) || visits < 0) return 'Store visits must be a non-negative whole number.';
-  if (newCust > buyers) return 'New customers cannot exceed total buyers.';
-
-  return null;
-}
 
 export async function GET(req: NextRequest) {
   const db = getDb();

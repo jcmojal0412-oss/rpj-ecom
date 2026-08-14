@@ -32,16 +32,24 @@ export default function DailyRecordsClient() {
   const { toast, showToast, clearToast } = useToast();
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Record | null>(null);
   const [deleting, setDeleting] = useState<Record | null>(null);
 
   const fetchRecords = () => {
     setLoading(true);
-    fetch('/api/marketing-analytics/records').then(r => r.json()).then(d => {
-      setRecords(Array.isArray(d) ? d : []);
-      setLoading(false);
-    });
+    setLoadError(false);
+    fetch('/api/marketing-analytics/records')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => {
+        setRecords(Array.isArray(d) ? d : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoadError(true);
+        setLoading(false);
+      });
   };
 
   useEffect(fetchRecords, []);
@@ -78,6 +86,11 @@ export default function DailyRecordsClient() {
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+        ) : loadError ? (
+          <div className="text-center py-16">
+            <p className="text-sm text-red-500 mb-3">Couldn't load records. Check your connection and try again.</p>
+            <button onClick={fetchRecords} className="btn-secondary">Retry</button>
+          </div>
         ) : records.length === 0 ? (
           <div className="text-center py-16">
             <Megaphone className="mx-auto text-gray-200 mb-3" size={36} />

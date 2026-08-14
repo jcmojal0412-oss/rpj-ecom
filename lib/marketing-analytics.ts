@@ -1,7 +1,9 @@
 // Pure calculation + date-range logic for the Marketing Analytics module.
-// No DB/network access here — keeps the KPI math and period resolution
+// No DB access here — keeps the KPI math and period resolution
 // independently testable and reused identically by both the dashboard API
 // route and (for validation messaging) the Daily Records form.
+
+import { todayISO } from '@/lib/utils';
 
 export type PeriodKey =
   | 'today' | 'yesterday'
@@ -39,10 +41,17 @@ function addDaysISO(iso: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return utcToISO(d);
 }
+// Adds `months` to `iso`, clamping to the last real day of the target month
+// instead of letting JS Date roll overflow days into the following month
+// (e.g. Mar 31 - 1 month must land on Feb 28, not overflow to Mar 3).
 function addMonthsISO(iso: string, months: number): string {
   const d = isoToUTC(iso);
-  const nd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, d.getUTCDate()));
-  return utcToISO(nd);
+  const totalMonths = d.getUTCFullYear() * 12 + d.getUTCMonth() + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+  const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(d.getUTCDate(), daysInTargetMonth);
+  return utcToISO(new Date(Date.UTC(targetYear, targetMonth, clampedDay)));
 }
 function startOfWeekMondayISO(iso: string): string {
   const d = isoToUTC(iso);
@@ -112,8 +121,13 @@ export function resolvePeriod(key: PeriodKey, today: string, customFrom?: string
       const prevAnchor = addMonthsISO(from, -1);
       prevFrom = startOfMonthISO(prevAnchor);
       // Compare the same number of days into last month, so a month-to-date
-      // total isn't unfairly measured against the whole of last month.
-      prevTo = addDaysISO(prevFrom, dayIndex - 1);
+      // total isn't unfairly measured against the whole of last month —
+      // but never past last month's actual last day (e.g. comparing Mar
+      // 1-31 month-to-date against a short February must stop at Feb 28,
+      // not spill into March).
+      const prevMonthEnd = endOfMonthISO(prevAnchor);
+      const uncappedPrevTo = addDaysISO(prevFrom, dayIndex - 1);
+      prevTo = uncappedPrevTo > prevMonthEnd ? prevMonthEnd : uncappedPrevTo;
       break;
     }
     case 'last_month': {
@@ -185,12 +199,6 @@ export function computeAvgSpendPerBuyer(grossSales: number, totalBuyers: number)
 export function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return current === 0 ? 0 : null;
   return ((current - previous) / previous) * 100;
-}
-
-// For CAC, a decrease is the positive/good direction; every other metric
-// here is "higher is better."
-export function isGoodChange(metric: 'cac' | 'other', pct: number): boolean {
-  return metric === 'cac' ? pct < 0 : pct > 0;
 }
 
 // ── Chart bucketing ──────────────────────────────────────────────────────
@@ -270,4 +278,39 @@ export function sumRows(rows: DailyRow[]): PeriodSummary {
     new_customers: acc.new_customers + r.new_customers,
     store_visits: acc.store_visits + r.store_visits,
   }), { marketing_spend: 0, gross_sales: 0, total_buyers: 0, new_customers: 0, store_visits: 0 });
+}
+
+// ── Record validation ────────────────────────────────────────────────────
+// Shared by both the POST (create) and PUT (edit) API routes so the two
+// can never silently drift apart on what they accept.
+export function validateRecord(body: any): string | null {
+  const { entry_date, marketing_spend, gross_sales, total_buyers, new_customers, store_visits } = body;
+
+  if (!entry_date || typeof entry_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry_date)) {
+    return 'A valid date is required.';
+  }
+  // Reject calendar-invalid dates (e.g. 2026-02-30) that pass the regex
+  // shape but don't round-trip through a real Date.
+  const parsed = isoToUTC(entry_date);
+  if (isNaN(parsed.getTime()) || utcToISO(parsed) !== entry_date) {
+    return 'A valid date is required.';
+  }
+  if (entry_date > todayISO()) {
+    return 'Date cannot be in the future.';
+  }
+
+  const spend = Number(marketing_spend);
+  const sales = Number(gross_sales);
+  const buyers = Number(total_buyers);
+  const newCust = Number(new_customers);
+  const visits = Number(store_visits);
+
+  if (isNaN(spend) || spend < 0) return 'Marketing spend must be a valid, non-negative amount.';
+  if (isNaN(sales) || sales < 0) return 'Gross sales must be a valid, non-negative amount.';
+  if (!Number.isInteger(buyers) || buyers < 0) return 'Total buyers must be a non-negative whole number.';
+  if (!Number.isInteger(newCust) || newCust < 0) return 'New customers must be a non-negative whole number.';
+  if (!Number.isInteger(visits) || visits < 0) return 'Store visits must be a non-negative whole number.';
+  if (newCust > buyers) return 'New customers cannot exceed total buyers.';
+
+  return null;
 }

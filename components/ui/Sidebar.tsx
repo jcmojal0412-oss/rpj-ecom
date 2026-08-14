@@ -21,6 +21,21 @@ import type { SessionUser } from '@/lib/auth-helpers';
 // app-wide, per "redesign ONLY the sidebar UI."
 const inter = Inter({ subsets: ['latin'], weight: ['500', '600', '700'], display: 'swap' });
 
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  module: string;
+  // Opts a route out of prefix-matching — see isHrefActive() below.
+  exact?: boolean;
+}
+interface NavGroup {
+  label: string;
+  groupIcon: React.ElementType;
+  pinned?: boolean;
+  items: NavItem[];
+}
+
 // `pinned` groups (MAIN, EXECUTIVE) are always visible, single-item primary
 // destinations — no accordion toggle, icon kept on the item itself. Every
 // other group is an accordion section: collapsed by default, one open at a
@@ -28,7 +43,7 @@ const inter = Inter({ subsets: ['latin'], weight: ['500', '600', '700'], display
 // lives here too (not as a separately-rendered block) so it participates in
 // the same accordion state — gated by the '_owner' module sentinel below,
 // same pattern as Command Center.
-const NAV_GROUPS = [
+const NAV_GROUPS: NavGroup[] = [
   {
     label: 'MAIN',
     groupIcon: LayoutDashboard,
@@ -292,7 +307,7 @@ export default function Sidebar() {
                 <div className="mt-0.5 space-y-0.5">
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
-                    const active = isHrefActive(pathname, item.href, (item as any).exact);
+                    const active = isHrefActive(pathname, item.href, item.exact);
                     return (
                       <Link
                         key={item.href}
@@ -318,7 +333,7 @@ export default function Sidebar() {
               {isOpen && (
                 <div className="mt-0.5 space-y-0.5">
                   {visibleItems.map((item) => {
-                    const active = isHrefActive(pathname, item.href, (item as any).exact);
+                    const active = isHrefActive(pathname, item.href, item.exact);
                     return (
                       <Link
                         key={item.href}
