@@ -17,10 +17,10 @@ export default function MovingChart({ title, data, color }: Props) {
   }));
 
   return (
-    <div className="card">
-      <h2 className="text-sm font-semibold text-gray-700 mb-4">{title}</h2>
+    <div className="bg-white border border-[#E5EAF0] rounded-xl p-5 sm:p-6">
+      <h2 className="text-sm font-semibold text-[#16233B] mb-4">{title}</h2>
       {data.length === 0 ? (
-        <div className="h-48 flex items-center justify-center text-gray-400 text-sm">No data available</div>
+        <div className="h-48 flex items-center justify-center text-[#94A2B4] text-sm">No data available</div>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
