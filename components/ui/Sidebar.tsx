@@ -302,7 +302,7 @@ export default function Sidebar() {
         <div className="bg-white rounded px-2.5 py-1">
           <Image src="/logo.png" alt="RPJ Corp" width={72} height={36} className="object-contain" priority />
         </div>
-        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7F91AE]">E-Commerce System</p>
+        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7F91AE]">RPJ Management System</p>
       </div>
 
       {/* Nav groups — independently scrollable; owner profile + footer below
