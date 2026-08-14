@@ -278,7 +278,15 @@ export default function Sidebar() {
       : 'font-normal text-[#95AACF] border-l-transparent hover:bg-[#1F2234] hover:text-[#F7F8FC]'
   }`;
 
-  const NavContent = () => (
+  // A plain JSX value, NOT a component function — defining this as
+  // `const NavContent = () => (...)` (a new function on every render) made
+  // React treat <NavContent /> as a brand-new component type on every
+  // re-render (any accordion click, any navigation), so it unmounted and
+  // remounted the whole <nav> subtree each time — silently resetting its
+  // scroll position to 0. Reusing the same JSX value in both the desktop
+  // and mobile drawer slots below avoids that: React reconciles the
+  // existing DOM nodes instead of tearing them down.
+  const navContent = (
     <div className={`${inter.className} flex flex-col h-full bg-[#171928] border-r border-white/[0.06]`}>
 
       {/* Logo — fixed, never part of the scroll area. The source file has a
@@ -399,7 +407,7 @@ export default function Sidebar() {
     <>
       {/* Desktop */}
       <aside className="hidden lg:flex flex-col w-[270px] h-screen shrink-0">
-        <NavContent />
+        {navContent}
       </aside>
 
       {/* Mobile toggle */}
@@ -414,7 +422,7 @@ export default function Sidebar() {
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <aside className="flex flex-col w-[270px] max-w-[85vw] h-full shadow-lg">
-            <NavContent />
+            {navContent}
           </aside>
           <div className="flex-1 bg-black/30" onClick={() => setMobileOpen(false)} />
         </div>
