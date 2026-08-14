@@ -17,21 +17,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ available: false, total: 0, prevTotal: null });
   }
 
-  const db = getDb();
-  const today = todayISO();
-  const { searchParams } = req.nextUrl;
-  const from = searchParams.get('from') || today;
-  const to = searchParams.get('to') || today;
-  const prevFrom = searchParams.get('prevFrom');
-  const prevTo = searchParams.get('prevTo');
+  try {
+    const db = getDb();
+    const today = todayISO();
+    const { searchParams } = req.nextUrl;
+    const from = searchParams.get('from') || today;
+    const to = searchParams.get('to') || today;
+    const prevFrom = searchParams.get('prevFrom');
+    const prevTo = searchParams.get('prevTo');
 
-  const sumRange = (f: string, t: string) => (db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM financing_sales
-    WHERE sale_date IS NOT NULL AND sale_date BETWEEN ? AND ?
-  `).get(f, t) as { total: number }).total;
+    const sumRange = (f: string, t: string) => (db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) as total FROM financing_sales
+      WHERE sale_date IS NOT NULL AND sale_date BETWEEN ? AND ?
+    `).get(f, t) as { total: number }).total;
 
-  const total = sumRange(from, to);
-  const prevTotal = (prevFrom && prevTo) ? sumRange(prevFrom, prevTo) : null;
+    const total = sumRange(from, to);
+    const prevTotal = (prevFrom && prevTo) ? sumRange(prevFrom, prevTo) : null;
 
-  return NextResponse.json({ available: true, total, prevTotal });
+    return NextResponse.json({ available: true, total, prevTotal });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }

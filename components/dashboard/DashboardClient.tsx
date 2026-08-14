@@ -104,8 +104,12 @@ export default function DashboardClient() {
   const fetchPeriodKpis = useCallback(async (from: string, to: string, prevFrom: string, prevTo: string) => {
     setKpiLoading(true);
     const params = new URLSearchParams({ from, to, prevFrom, prevTo });
+    // Each fetch has its own fallback so a network failure on either call
+    // can't leave kpiLoading stuck true forever (Promise.all would otherwise
+    // reject as a whole and skip the setKpiLoading(false) below).
     const [k, fin] = await Promise.all([
-      fetch(`/api/dashboard/kpis?${params}`).then(r => r.json()),
+      fetch(`/api/dashboard/kpis?${params}`).then(r => r.json())
+        .catch(() => ({ inventoryValue: 0, totalSkus: 0, stockIn: 0, stockOut: 0, prevStockIn: null, prevStockOut: null })),
       fetch(`/api/dashboard/financing-summary?${params}`).then(r => r.json())
         .catch(() => ({ available: false, total: 0, prevTotal: null })),
     ]);
@@ -523,7 +527,7 @@ function KpiCard({ label, value, unit, icon: Icon, iconColor, iconBg, changePct,
       <p className="text-xl sm:text-2xl font-bold text-[#16233B] whitespace-nowrap">
         {loading ? '…' : value}{unit && <span className="text-sm font-normal text-[#66758A] ml-1">{unit}</span>}
       </p>
-      {changePct != null && (
+      {!loading && changePct != null && (
         <div className={`flex items-center gap-1 mt-1.5 text-xs font-semibold ${changePct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
           {changePct >= 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
           {Math.abs(changePct).toFixed(1)}% vs previous period
