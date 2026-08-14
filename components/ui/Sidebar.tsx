@@ -137,7 +137,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   // AI PRODUCT RESEARCHER group hidden — re-add when ready
   {
-    label: 'TOOLS',
+    label: 'ECOM TOOLS',
     groupIcon: Calculator,
     items: [
       { label: 'Ecom Calculator',  href: '/calculator',       icon: Calculator,   module: 'calculator'       },
