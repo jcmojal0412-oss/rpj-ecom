@@ -18,6 +18,12 @@ const SESSION_COOKIE = 'rpj_session';
 
 export { SESSION_COOKIE };
 
+// Shared avatar-initials formatter — was duplicated verbatim across
+// Sidebar.tsx, UserManager.tsx, and LoginPage.tsx.
+export function initials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+}
+
 // ── Password ──────────────────────────────────────────────────────────────────
 
 export function hashPassword(password: string): string {

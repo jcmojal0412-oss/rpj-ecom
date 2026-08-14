@@ -12,8 +12,8 @@ import {
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
   MoreVertical,
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
-import { AVATAR_HEX } from '@/lib/auth-helpers';
+import { useState, useEffect } from 'react';
+import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
 import type { SessionUser } from '@/lib/auth-helpers';
 
 // Self-hosted via next/font (no external request, no CSP/privacy concern) —
@@ -153,10 +153,6 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function initials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-}
-
 // Falls back to "Owner Account" only when the stored name is literally a
 // duplicate of the role (e.g. an account whose name field was never set
 // past its "Owner" default) — never a hardcoded name, just avoids the
@@ -221,7 +217,6 @@ export default function Sidebar() {
   // navigating first.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUser(u); });
@@ -234,11 +229,18 @@ export default function Sidebar() {
 
   // Close the account menu on an outside click — it's an absolutely
   // positioned popover, not a native <select>, so there's no built-in
-  // dismiss behavior.
+  // dismiss behavior. Uses a data-attribute + closest() rather than a
+  // useRef: navContent (below) is the same JSX value rendered into both
+  // the desktop aside and the mobile drawer, so a single ref object would
+  // get reattached/nulled every time either instance mounts or unmounts
+  // (e.g. opening then closing the mobile drawer would leave the ref
+  // stuck null, silently breaking outside-click-to-close on desktop).
+  // closest() works correctly no matter which instance the click actually
+  // landed in.
   useEffect(() => {
     if (!profileMenuOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileMenuOpen(false);
+      if (!(e.target as Element).closest?.('[data-profile-menu]')) setProfileMenuOpen(false);
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
@@ -255,7 +257,11 @@ export default function Sidebar() {
 
   const hasAccess = (module: string) => {
     if (module === '_owner') return user?.role === 'owner'; // never granted via a staff permission string
-    return module === '_any' || !user || user.role === 'owner' || user.permissions.includes(module);
+    // While `user` hasn't loaded yet (the /api/auth/me fetch above is still
+    // in flight), default to NOT showing permission-gated items — briefly
+    // hiding a module a staff member does have is harmless (it appears a
+    // moment later), but briefly showing one they don't have isn't.
+    return module === '_any' || (!!user && (user.role === 'owner' || user.permissions.includes(module)));
   };
 
   // Pinned/top-level items (Dashboard, Command Center) keep their icon —
@@ -364,7 +370,7 @@ export default function Sidebar() {
       {/* Owner profile — small avatar + name/role + a three-dot menu that
           reveals Sign out, instead of always showing the logout icon. */}
       {user && (
-        <div className="relative px-3 py-2.5 border-t border-white/[0.06] shrink-0" ref={profileRef}>
+        <div className="relative px-3 py-2.5 border-t border-white/[0.06] shrink-0" data-profile-menu>
           <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-[#1F2234] transition-colors">
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"

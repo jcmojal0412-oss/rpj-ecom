@@ -4,17 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
-import { MODULES, AVATAR_COLORS, AVATAR_HEX } from '@/lib/auth-helpers';
+import { MODULES, AVATAR_COLORS, AVATAR_HEX, initials } from '@/lib/auth-helpers';
 import Spinner from '@/components/ui/Spinner';
 
 interface AppUser {
   id: number; name: string; username: string;
   role: 'owner' | 'staff'; avatar_color: string;
   active: number; permissions: string[];
-}
-
-function initials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
 export default function UserManager() {

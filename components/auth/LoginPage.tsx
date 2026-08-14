@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff, ArrowLeft, ChevronRight } from 'lucide-react';
-import { AVATAR_HEX } from '@/lib/auth-helpers';
+import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
 
 interface StaffUser {
   id: number;
@@ -20,10 +20,6 @@ function getGreeting() {
   if (h < 12) return 'Good morning.';
   if (h < 17) return 'Good afternoon.';
   return 'Good evening.';
-}
-
-function initials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
 export default function LoginPage() {
