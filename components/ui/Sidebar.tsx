@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart,
   FlaskConical, BarChart3, Menu, X, Tag,
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
-  Sparkles, Wrench, CalendarClock, Landmark,
+  Sparkles, Wrench, CalendarClock, Landmark, Megaphone,
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
   MoreVertical,
 } from 'lucide-react';
@@ -67,6 +67,14 @@ const NAV_GROUPS = [
     items: [
       { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'   },
       { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'expenses'  },
+    ],
+  },
+  {
+    label: 'MARKETING ANALYTICS',
+    groupIcon: Megaphone,
+    items: [
+      { label: 'Performance Dashboard', href: '/marketing-analytics',         icon: Megaphone, module: 'marketing_analytics', exact: true },
+      { label: 'Daily Records',         href: '/marketing-analytics/records', icon: Megaphone, module: 'marketing_analytics' },
     ],
   },
   {
@@ -142,8 +150,14 @@ function profileDisplayName(user: SessionUser) {
   return user.name.trim().toLowerCase() === user.role.trim().toLowerCase() ? 'Owner Account' : user.name;
 }
 
-function isHrefActive(pathname: string, href: string) {
-  return href === '/' ? pathname === '/' : href !== '#' && pathname.startsWith(href);
+// `exact` opts a route out of prefix-matching — needed whenever a group has
+// a sibling item whose href is itself a prefix of another item's href (e.g.
+// '/marketing-analytics' vs '/marketing-analytics/records'), so only the
+// page actually being viewed lights up, not both.
+function isHrefActive(pathname: string, href: string, exact?: boolean) {
+  if (href === '/') return pathname === '/';
+  if (href === '#') return false;
+  return exact ? pathname === href : pathname.startsWith(href);
 }
 
 // Static section label for pinned groups (MAIN, EXECUTIVE) — same quiet
@@ -278,7 +292,7 @@ export default function Sidebar() {
                 <div className="mt-0.5 space-y-0.5">
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
-                    const active = isHrefActive(pathname, item.href);
+                    const active = isHrefActive(pathname, item.href, (item as any).exact);
                     return (
                       <Link
                         key={item.href}
@@ -304,7 +318,7 @@ export default function Sidebar() {
               {isOpen && (
                 <div className="mt-0.5 space-y-0.5">
                   {visibleItems.map((item) => {
-                    const active = isHrefActive(pathname, item.href);
+                    const active = isHrefActive(pathname, item.href, (item as any).exact);
                     return (
                       <Link
                         key={item.href}

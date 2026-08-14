@@ -52,6 +52,8 @@ const ROUTE_MODULES: [string, string][] = [
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
+  ['/marketing-analytics',     'marketing_analytics'],
+  ['/api/marketing-analytics', 'marketing_analytics'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
   // Booking-settings APIs are partners-gated (same population as Discovery
   // Calls), so these must come before the generic '/api/settings' owner-only

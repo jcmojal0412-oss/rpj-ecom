@@ -937,6 +937,28 @@ function migrateSchema() {
     );
   `);
 
+  // Marketing Analytics — one row per calendar day of marketing/store
+  // performance, entered manually via the Daily Records page. Derived KPIs
+  // (CAC, conversion rate, ROAS, avg spend/buyer) are intentionally NOT
+  // stored — always computed from these raw fields (see lib/marketing-analytics.ts)
+  // so they can never drift out of sync with the source numbers.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS marketing_performance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_date TEXT NOT NULL UNIQUE,
+      marketing_spend REAL NOT NULL DEFAULT 0,
+      gross_sales REAL NOT NULL DEFAULT 0,
+      total_buyers INTEGER NOT NULL DEFAULT 0,
+      new_customers INTEGER NOT NULL DEFAULT 0,
+      store_visits INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_marketing_performance_date ON marketing_performance(entry_date);
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 
