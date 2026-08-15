@@ -53,9 +53,17 @@ function parseReportFilenameRange(filename: string): { from: string; to: string 
 // Reads the POS's "Product Item Sales Report" export (.xlsx/.csv) and pulls
 // the Gross Sales figure straight from its own "TOTAL SALES" column on the
 // TOTAL row — the report's own arithmetic, not re-derived from line items.
+// Deliberately refuses multi-day exports: Daily Records is one row per day,
+// and silently filling a multi-day TOTAL SALES into a single day's field
+// would overstate that day and understate every other day in the range.
 async function parseSalesReportFile(file: File): Promise<{ grossSales: number; dateRange: { from: string; to: string } | null }> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
+  let wb: XLSX.WorkBook;
+  try {
+    const buf = await file.arrayBuffer();
+    wb = XLSX.read(buf, { type: 'array' });
+  } catch {
+    throw new Error('Could not read this file — make sure it\'s an unmodified .xlsx or .csv export from the report page.');
+  }
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: true });
 
@@ -70,7 +78,14 @@ async function parseSalesReportFile(file: File): Promise<{ grossSales: number; d
   const grossSales = Number(raw);
   if (!raw || isNaN(grossSales)) throw new Error('The TOTAL SALES value in this report is not a valid number.');
 
-  return { grossSales, dateRange: parseReportFilenameRange(file.name) };
+  const dateRange = parseReportFilenameRange(file.name);
+  if (dateRange && dateRange.from !== dateRange.to) {
+    throw new Error(
+      `This report covers ${dateRange.from} to ${dateRange.to}, not a single day — its TOTAL SALES is a multi-day sum and can't be used for one Daily Record. Re-export with the Date Created filter set to a single day.`
+    );
+  }
+
+  return { grossSales, dateRange };
 }
 
 export default function DailyRecordsClient() {
@@ -249,11 +264,9 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
       const { grossSales: parsedSales, dateRange } = await parseSalesReportFile(file);
       setGrossSales(String(parsedSales));
       let note = `Imported Gross Sales ${formatCurrency(parsedSales)} from "${file.name}".`;
-      if (dateRange && dateRange.from === dateRange.to) {
+      if (dateRange) {
         setEntryDate(dateRange.from);
         note += ` Date set to ${formatDate(dateRange.from)}.`;
-      } else if (dateRange) {
-        note += ` This report spans ${formatDate(dateRange.from)}–${formatDate(dateRange.to)} — please confirm the Date field yourself.`;
       } else {
         note += ' Please confirm the Date field yourself.';
       }
@@ -342,7 +355,7 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
-          <input type="date" className="form-input" value={entryDate} max={todayISO()} onChange={e => setEntryDate(e.target.value)} />
+          <input type="date" className="form-input" value={entryDate} max={todayISO()} onChange={e => { setEntryDate(e.target.value); setImportedNote(null); }} />
           {dateAlreadyUsed && <p className="text-xs text-red-600 mt-1">A record for this date already exists — edit it instead.</p>}
         </div>
 
@@ -352,7 +365,7 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Gross Sales (₱)</label>
-          <input type="number" min={0} step="0.01" className="form-input" value={grossSales} onChange={e => setGrossSales(e.target.value)} />
+          <input type="number" min={0} step="0.01" className="form-input" value={grossSales} onChange={e => { setGrossSales(e.target.value); setImportedNote(null); }} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Total Buyers</label>
