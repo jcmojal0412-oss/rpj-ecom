@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, Megaphone } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Pencil, Trash2, Loader2, Megaphone, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { computeCAC, computeConversionRate, computeROAS, computeAvgSpendPerBuyer } from '@/lib/marketing-analytics';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -26,6 +27,50 @@ function money(n: number | null): string {
 }
 function times(n: number | null): string {
   return n == null ? '—' : `${n.toFixed(2)}x`;
+}
+
+const MONTH_INDEX: { [key: string]: number } = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+// The Bodega ni Suki POS's exported filename looks like
+// "Product Item Sales Report Aug 14, 2026 - Aug 14, 2026.xlsx" — parsed as
+// plain strings (not new Date(...)) to avoid local-timezone day-shift bugs.
+function parseReportFilenameRange(filename: string): { from: string; to: string } | null {
+  const m = filename.match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2}),\s*(\d{4})\s*-\s*([A-Za-z]{3})[a-z]*\s+(\d{1,2}),\s*(\d{4})/);
+  if (!m) return null;
+  const toISO = (mon: string, day: string, year: string): string | null => {
+    const mi = MONTH_INDEX[mon.toLowerCase()];
+    if (mi == null) return null;
+    return `${year}-${String(mi + 1).padStart(2, '0')}-${String(Number(day)).padStart(2, '0')}`;
+  };
+  const from = toISO(m[1], m[2], m[3]);
+  const to = toISO(m[4], m[5], m[6]);
+  return from && to ? { from, to } : null;
+}
+
+// Reads the POS's "Product Item Sales Report" export (.xlsx/.csv) and pulls
+// the Gross Sales figure straight from its own "TOTAL SALES" column on the
+// TOTAL row — the report's own arithmetic, not re-derived from line items.
+async function parseSalesReportFile(file: File): Promise<{ grossSales: number; dateRange: { from: string; to: string } | null }> {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, raw: true });
+
+  const headerRow = rows.find(r => Array.isArray(r) && r.some(c => String(c ?? '').trim().toUpperCase() === 'TOTAL SALES'));
+  if (!headerRow) throw new Error('Could not find a "TOTAL SALES" column — make sure this is a Product Sales Report export.');
+  const colIndex = headerRow.findIndex(c => String(c ?? '').trim().toUpperCase() === 'TOTAL SALES');
+
+  const totalRow = rows.find(r => Array.isArray(r) && String(r[0] ?? '').trim().toUpperCase() === 'TOTAL');
+  if (!totalRow) throw new Error('Could not find the TOTAL row in this report.');
+
+  const raw = String(totalRow[colIndex] ?? '').replace(/,/g, '');
+  const grossSales = Number(raw);
+  if (!raw || isNaN(grossSales)) throw new Error('The TOTAL SALES value in this report is not a valid number.');
+
+  return { grossSales, dateRange: parseReportFilenameRange(file.name) };
 }
 
 export default function DailyRecordsClient() {
@@ -191,6 +236,36 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importedNote, setImportedNote] = useState<string | null>(null);
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    setImportError(null);
+    setImportedNote(null);
+    try {
+      const { grossSales: parsedSales, dateRange } = await parseSalesReportFile(file);
+      setGrossSales(String(parsedSales));
+      let note = `Imported Gross Sales ${formatCurrency(parsedSales)} from "${file.name}".`;
+      if (dateRange && dateRange.from === dateRange.to) {
+        setEntryDate(dateRange.from);
+        note += ` Date set to ${formatDate(dateRange.from)}.`;
+      } else if (dateRange) {
+        note += ` This report spans ${formatDate(dateRange.from)}–${formatDate(dateRange.to)} — please confirm the Date field yourself.`;
+      } else {
+        note += ' Please confirm the Date field yourself.';
+      }
+      setImportedNote(note);
+    } catch (e: any) {
+      setImportError(e?.message || 'Failed to read this file.');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const spend = parseFloat(marketingSpend) || 0;
   const sales = parseFloat(grossSales) || 0;
   const buyers = parseInt(totalBuyers, 10) || 0;
@@ -239,6 +314,30 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
   return (
     <div className="space-y-3">
       {error && <div className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>}
+
+      <div className="bg-[#F6F8FC] border border-[#E5EAF0] rounded-lg p-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg hover:bg-[#F0F3F8] transition-colors disabled:opacity-50"
+        >
+          {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} className="text-[#66758A]" />}
+          {importing ? 'Reading file...' : 'Import Gross Sales from POS Report'}
+        </button>
+        <p className="text-[11px] text-[#66758A] mt-1.5">
+          Upload the Bodega ni Suki Product Sales Report export (.xlsx/.csv) to auto-fill Gross Sales from its TOTAL SALES total. Other fields still need manual entry.
+        </p>
+        {importedNote && <p className="text-xs text-green-700 mt-1.5">{importedNote}</p>}
+        {importError && <p className="text-xs text-red-600 mt-1.5">{importError}</p>}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
