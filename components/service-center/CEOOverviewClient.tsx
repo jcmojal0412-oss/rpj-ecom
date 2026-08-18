@@ -16,11 +16,24 @@ import type { Repair } from './ServiceCenterClient';
 import type { MarketingExpense } from '@/lib/service-center-marketing';
 import {
   toLocalISO, weekStart, weekLabel, payoutDate, shortDate, shortWeekRange,
-  monthStart, monthEnd, monthLabel, monthLabelShort, shiftMonth,
+  monthStart, monthEnd, monthLabel, monthLabelShort, shiftMonth, yearStart, yearEnd,
 } from './weekUtils';
 
-const PERIOD_TYPES = ['Weekly', 'Monthly', 'Custom'] as const;
-type PeriodType = typeof PERIOD_TYPES[number];
+type PeriodType = 'Weekly' | 'Monthly' | 'Quarter' | 'Year' | 'Custom';
+
+// One row of quick presets — each sets both the period type and where it's
+// anchored in one click. "Weekly"/"Monthly" (shift 0) land on the current
+// one; arrows still work afterward to browse further back/forward from
+// wherever a preset lands.
+const PRESETS: { key: string; label: string; type: PeriodType; shift: number }[] = [
+  { key: 'weekly',     label: 'Weekly',        type: 'Weekly',  shift: 0 },
+  { key: 'last_week',  label: 'Last Week',     type: 'Weekly',  shift: -1 },
+  { key: 'this_month', label: 'This Month',    type: 'Monthly', shift: 0 },
+  { key: 'last_month', label: 'Last Month',    type: 'Monthly', shift: -1 },
+  { key: 'last_3mo',   label: 'Last 3 Months', type: 'Quarter', shift: 0 },
+  { key: 'this_year',  label: 'This Year',     type: 'Year',    shift: 0 },
+  { key: 'custom',     label: 'Custom',        type: 'Custom',  shift: 0 },
+];
 
 const ICON_BOX = 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0';
 const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-3.5';
@@ -97,6 +110,7 @@ export default function CEOOverviewClient() {
   const [repairs, setRepairs]   = useState<Repair[]>([]);
   const [expenses, setExpenses] = useState<MarketingExpense[]>([]);
   const [periodType, setPeriodType] = useState<PeriodType>('Weekly');
+  const [activePreset, setActivePreset] = useState<string>('weekly');
   const [anchor, setAnchor]     = useState(todayISO());
   const [customFrom, setCustomFrom] = useState(todayISO());
   const [customTo, setCustomTo]     = useState(todayISO());
@@ -122,25 +136,43 @@ export default function CEOOverviewClient() {
   const weeklySunday  = (() => { const d = new Date(weeklyMonday); d.setDate(weeklyMonday.getDate() + 6); return d; })();
   const monthlyFirst  = monthStart(anchor);
   const monthlyLast   = monthEnd(monthlyFirst);
+  // "Last 3 Months" = the current calendar month plus the 2 full months
+  // before it (e.g. viewed in August: Jun–Aug), same rolling convention as
+  // This Month/Last Month rather than fixed Q1–Q4 quarters.
+  const quarterFirst  = shiftMonth(monthlyFirst, -2);
+  const quarterLast   = monthlyLast;
+  const yearlyFirst    = yearStart(anchor);
+  const yearlyLast     = yearEnd(yearlyFirst);
 
   const range: DateRange = periodType === 'Weekly'
     ? { from: toLocalISO(weeklyMonday), to: toLocalISO(weeklySunday) }
     : periodType === 'Monthly'
     ? { from: toLocalISO(monthlyFirst), to: toLocalISO(monthlyLast) }
+    : periodType === 'Quarter'
+    ? { from: toLocalISO(quarterFirst), to: toLocalISO(quarterLast) }
+    : periodType === 'Year'
+    ? { from: toLocalISO(yearlyFirst), to: toLocalISO(yearlyLast) }
     : { from: customFrom, to: customTo };
 
   const periodLabel = periodType === 'Weekly' ? weekLabel(weeklyMonday)
     : periodType === 'Monthly' ? monthLabel(monthlyFirst)
+    : periodType === 'Quarter' ? `${monthLabelShort(quarterFirst)} – ${monthLabel(quarterLast)}`
+    : periodType === 'Year' ? String(yearlyFirst.getFullYear())
     : `${formatDate(customFrom)} – ${formatDate(customTo)}`;
 
   const isCurrentPeriod = periodType === 'Weekly' ? toLocalISO(weeklyMonday) === toLocalISO(weekStart(todayISO()))
     : periodType === 'Monthly' ? toLocalISO(monthlyFirst) === toLocalISO(monthStart(todayISO()))
+    : periodType === 'Quarter' ? toLocalISO(quarterLast) === toLocalISO(monthEnd(monthStart(todayISO())))
+    : periodType === 'Year' ? yearlyFirst.getFullYear() === yearStart(todayISO()).getFullYear()
     : true;
 
   const shiftPeriod = (dir: 1 | -1) => {
+    setActivePreset('');
     const d = new Date(anchor + 'T00:00:00');
     if (periodType === 'Weekly') d.setDate(d.getDate() + dir * 7);
-    else d.setMonth(d.getMonth() + dir);
+    else if (periodType === 'Monthly') d.setMonth(d.getMonth() + dir);
+    else if (periodType === 'Quarter') d.setMonth(d.getMonth() + dir * 3);
+    else d.setFullYear(d.getFullYear() + dir);
     setAnchor(toLocalISO(d));
   };
 
@@ -154,6 +186,15 @@ export default function CEOOverviewClient() {
       const prevFirst = shiftMonth(monthlyFirst, -1);
       return { from: toLocalISO(prevFirst), to: toLocalISO(monthEnd(prevFirst)) };
     }
+    if (periodType === 'Quarter') {
+      const prevFirst = shiftMonth(quarterFirst, -3);
+      const prevLast = monthEnd(shiftMonth(prevFirst, 2));
+      return { from: toLocalISO(prevFirst), to: toLocalISO(prevLast) };
+    }
+    if (periodType === 'Year') {
+      const prevFirst = new Date(yearlyFirst.getFullYear() - 1, 0, 1);
+      return { from: toLocalISO(prevFirst), to: toLocalISO(yearEnd(prevFirst)) };
+    }
     const fromD = new Date(customFrom + 'T00:00:00');
     const toD   = new Date(customTo + 'T00:00:00');
     const spanDays = Math.max(1, Math.round((toD.getTime() - fromD.getTime()) / 86400000) + 1);
@@ -162,8 +203,32 @@ export default function CEOOverviewClient() {
     return { from: toLocalISO(prevFrom), to: toLocalISO(prevTo) };
   })();
 
-  const vsLabel = periodType === 'Weekly' ? 'vs last week' : periodType === 'Monthly' ? 'vs last month' : 'vs previous period';
-  const comparisonLabel = periodType === 'Weekly' ? 'This Week vs Last Week' : periodType === 'Monthly' ? 'This Month vs Last Month' : 'This Period vs Previous Period';
+  const vsLabel = periodType === 'Weekly' ? 'vs last week'
+    : periodType === 'Monthly' ? 'vs last month'
+    : periodType === 'Quarter' ? 'vs previous 3 months'
+    : periodType === 'Year' ? 'vs last year'
+    : 'vs previous period';
+  const comparisonLabel = periodType === 'Weekly' ? 'This Week vs Last Week'
+    : periodType === 'Monthly' ? 'This Month vs Last Month'
+    : periodType === 'Quarter' ? 'Last 3 Months vs Previous 3 Months'
+    : periodType === 'Year' ? 'This Year vs Last Year'
+    : 'This Period vs Previous Period';
+
+  const applyPreset = (preset: typeof PRESETS[number]) => {
+    setPeriodType(preset.type);
+    setActivePreset(preset.key);
+    if (preset.type === 'Custom') return;
+    const base = todayISO();
+    if (preset.type === 'Weekly') {
+      const d = new Date(base + 'T00:00:00'); d.setDate(d.getDate() + preset.shift * 7);
+      setAnchor(toLocalISO(d));
+    } else if (preset.type === 'Monthly') {
+      const d = new Date(base + 'T00:00:00'); d.setMonth(d.getMonth() + preset.shift);
+      setAnchor(toLocalISO(d));
+    } else {
+      setAnchor(base);
+    }
+  };
 
   // ---- Period-scoped data ----
   const periodRepairs = repairs.filter(r => inRange(r.repair_date, range));
@@ -260,16 +325,16 @@ export default function CEOOverviewClient() {
       <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-sm font-semibold text-gray-700">Period</p>
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
-            {PERIOD_TYPES.map(p => (
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 flex-wrap">
+            {PRESETS.map(p => (
               <button
-                key={p}
-                onClick={() => { setPeriodType(p); if (p !== 'Custom') setAnchor(todayISO()); }}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                  periodType === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                key={p.key}
+                onClick={() => applyPreset(p)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                  activePreset === p.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {p}
+                {p.label}
               </button>
             ))}
           </div>
@@ -298,7 +363,10 @@ export default function CEOOverviewClient() {
               <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Monday–Sunday Cutoff</p>
             )}
             {!isCurrentPeriod && (
-              <button onClick={() => setAnchor(todayISO())} className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-1">
+              <button
+                onClick={() => { setAnchor(todayISO()); setActivePreset(PRESETS.find(p => p.type === periodType && p.shift === 0)?.key ?? ''); }}
+                className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-1"
+              >
                 Back to Today
               </button>
             )}

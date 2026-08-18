@@ -70,3 +70,12 @@ export function monthLabelShort(monthFirst: Date): string {
 export function shiftMonth(monthFirst: Date, dir: number): Date {
   return new Date(monthFirst.getFullYear(), monthFirst.getMonth() + dir, 1);
 }
+
+export function yearStart(dateStr: string): Date {
+  const d = new Date(dateStr + 'T00:00:00');
+  return new Date(d.getFullYear(), 0, 1);
+}
+
+export function yearEnd(yearFirst: Date): Date {
+  return new Date(yearFirst.getFullYear(), 11, 31);
+}
