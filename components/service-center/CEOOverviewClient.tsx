@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
-  Banknote, PiggyBank, Megaphone, Wrench, Wallet, AlertTriangle,
+  Banknote, Package, PiggyBank, Megaphone, Wrench, Wallet, AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
@@ -238,6 +238,8 @@ export default function CEOOverviewClient() {
 
   const repairSales     = sum(periodRepairs.map(r => r.cs_payment));
   const prevRepairSales = sum(prevRepairs.map(r => r.cs_payment));
+  const cogsTotal     = sum(periodRepairs.map(r => r.cogs));
+  const prevCogsTotal = sum(prevRepairs.map(r => r.cogs));
   const bnsIncome        = sum(periodRepairs.map(r => r.bns_share));
   const prevBnsIncome    = sum(prevRepairs.map(r => r.bns_share));
   const marketingExpense     = sum(periodExpenses.map(e => e.amount));
@@ -258,6 +260,7 @@ export default function CEOOverviewClient() {
   const globalOutstandingCount = outstandingRepairs.length;
 
   const salesDelta     = computeDelta(repairSales, prevRepairSales);
+  const cogsDelta      = computeDelta(cogsTotal, prevCogsTotal);
   const bnsDelta       = computeDelta(bnsIncome, prevBnsIncome);
   const marketingDelta = computeDelta(marketingExpense, prevMarketingExpense);
   const netDelta       = computeDelta(netIncome, prevNetIncome);
@@ -389,6 +392,18 @@ export default function CEOOverviewClient() {
         </div>
 
         <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-gray-100`}><Package className="text-gray-500" size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">COGS (Parts Cost)</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(cogsTotal)}</p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <DeltaBadge delta={cogsDelta} tone="expense" />
+              <span className="text-[11px] text-gray-400">{vsLabel}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={STAT_CARD}>
           <div className={`${ICON_BOX} bg-green-50`}><PiggyBank className="text-green-600" size={20} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">BNS Income</p>
@@ -499,6 +514,7 @@ export default function CEOOverviewClient() {
           <p className="text-xs text-gray-400 mb-4">{comparisonLabel}</p>
           <div className="space-y-3">
             <ComparisonRow label="Repair Sales" curr={repairSales} prev={prevRepairSales} delta={salesDelta} />
+            <ComparisonRow label="COGS (Parts Cost)" curr={cogsTotal} prev={prevCogsTotal} delta={cogsDelta} tone="expense" />
             <ComparisonRow label="BNS Income" curr={bnsIncome} prev={prevBnsIncome} delta={bnsDelta} />
             <ComparisonRow label="Marketing Expense" curr={marketingExpense} prev={prevMarketingExpense} delta={marketingDelta} tone="expense" />
             <ComparisonRow label="Net Income" curr={netIncome} prev={prevNetIncome} delta={netDelta} />
@@ -584,6 +600,7 @@ export default function CEOOverviewClient() {
         <p className="text-xs text-gray-400 mb-4">{periodLabel}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 text-sm">
           <SummaryLine label="Repair Sales" value={formatCurrency(repairSales)} />
+          <SummaryLine label="COGS (Parts Cost)" value={formatCurrency(cogsTotal)} />
           <SummaryLine label="BNS Income" value={formatCurrency(bnsIncome)} />
           <SummaryLine label="Marketing Expense" value={formatCurrency(marketingExpense)} />
           <SummaryLine label="Net Income" value={formatCurrency(netIncome)} />
