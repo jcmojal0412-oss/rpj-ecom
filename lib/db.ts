@@ -959,6 +959,11 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_marketing_performance_date ON marketing_performance(entry_date);
   `);
 
+  // Service Center repairs — order/receipt reference numbers
+  const repairCols = (db.prepare('PRAGMA table_info(service_repairs)').all() as { name: string }[]).map(c => c.name);
+  if (!repairCols.includes('order_no'))   db.exec('ALTER TABLE service_repairs ADD COLUMN order_no TEXT');
+  if (!repairCols.includes('receipt_no')) db.exec('ALTER TABLE service_repairs ADD COLUMN receipt_no TEXT');
+
   seedCcCategoriesIfEmpty();
 }
 

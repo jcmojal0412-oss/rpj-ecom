@@ -11,7 +11,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const db = getDb();
     const {
       repair_date, repair_details, unit_model, cs_payment, cogs,
-      dp, status, paid_to_tech, tech_paid_date,
+      dp, status, paid_to_tech, tech_paid_date, order_no, receipt_no,
     } = await req.json();
 
     const csNum   = cs_payment ? parseFloat(cs_payment) : 0;
@@ -23,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const info = db.prepare(`
       UPDATE service_repairs SET
         repair_date=?, repair_details=?, unit_model=?, cs_payment=?, cogs=?, labor_amount=?,
-        bns_share=?, gerald_share=?, dp=?, status=?, paid_to_tech=?, tech_paid_date=?
+        bns_share=?, gerald_share=?, dp=?, status=?, paid_to_tech=?, tech_paid_date=?, order_no=?, receipt_no=?
       WHERE id=?
     `).run(
       repair_date, repair_details ?? null, unit_model ?? null,
@@ -32,6 +32,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       status ?? 'ONGOING',
       paid_to_tech ? 1 : 0,
       tech_paid_date ?? null,
+      order_no?.trim() || null,
+      receipt_no?.trim() || null,
       params.id,
     );
 

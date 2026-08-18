@@ -35,6 +35,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             repair_date: r.repair_date, repair_details: r.repair_details, unit_model: r.unit_model,
+            order_no: r.order_no, receipt_no: r.receipt_no,
             cs_payment: r.cs_payment, cogs: r.cogs, dp: r.dp, status: 'CUSTOMER PAID',
             paid_to_tech: r.paid_to_tech, tech_paid_date: r.tech_paid_date,
           }),

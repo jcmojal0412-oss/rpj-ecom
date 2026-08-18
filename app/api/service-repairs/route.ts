@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const {
       repair_date, repair_details, unit_model, cs_payment, cogs,
-      dp, status, paid_to_tech, tech_paid_date,
+      dp, status, paid_to_tech, tech_paid_date, order_no, receipt_no,
     } = await req.json();
 
     if (!repair_date) {
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
     const info = db.prepare(`
       INSERT INTO service_repairs
         (repair_date, repair_details, unit_model, cs_payment, cogs, labor_amount,
-         bns_share, gerald_share, dp, status, paid_to_tech, tech_paid_date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+         bns_share, gerald_share, dp, status, paid_to_tech, tech_paid_date, order_no, receipt_no)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       repair_date, repair_details ?? null, unit_model ?? null,
       csNum, cogsNum, labor, bns, gerald,
@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
       status ?? 'ONGOING',
       paid_to_tech ? 1 : 0,
       tech_paid_date ?? null,
+      order_no?.trim() || null,
+      receipt_no?.trim() || null,
     );
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });

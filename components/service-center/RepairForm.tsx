@@ -17,6 +17,8 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
   const [repairDate,    setRepairDate]    = useState(initial?.repair_date?.slice(0, 10) ?? todayISO());
   const [repairDetails, setRepairDetails] = useState(initial?.repair_details ?? '');
   const [unitModel,     setUnitModel]     = useState(initial?.unit_model ?? '');
+  const [orderNo,       setOrderNo]       = useState(initial?.order_no ?? '');
+  const [receiptNo,     setReceiptNo]     = useState(initial?.receipt_no ?? '');
   const [csPayment,     setCsPayment]     = useState(initial?.cs_payment ? String(initial.cs_payment) : '');
   const [cogs,          setCogs]          = useState(initial?.cogs ? String(initial.cogs) : '');
   const [dp,            setDp]            = useState(initial?.dp ? String(initial.dp) : '');
@@ -41,6 +43,8 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
         repair_date: repairDate,
         repair_details: repairDetails.trim() || null,
         unit_model: unitModel.trim() || null,
+        order_no: orderNo.trim() || null,
+        receipt_no: receiptNo.trim() || null,
         cs_payment: csNum,
         cogs: cogsNum,
         dp: dp ? parseFloat(dp) : 0,
@@ -73,6 +77,15 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
         <div className="col-span-2">
           <label className="form-label">Repair Details</label>
           <input className="form-input" placeholder="e.g. ORDER LCD, FUSE PROBLEM..." value={repairDetails} onChange={e => setRepairDetails(e.target.value)} />
+        </div>
+
+        <div>
+          <label className="form-label">Order No.</label>
+          <input className="form-input" placeholder="e.g. ORD-1024" value={orderNo} onChange={e => setOrderNo(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">Receipt No.</label>
+          <input className="form-input" placeholder="e.g. OR-00231" value={receiptNo} onChange={e => setReceiptNo(e.target.value)} />
         </div>
 
         <div>

@@ -23,6 +23,7 @@ export interface Repair {
   cs_payment: number; cogs: number; labor_amount: number;
   bns_share: number; gerald_share: number; dp: number;
   status: 'ONGOING' | 'CUSTOMER PAID'; paid_to_tech: number; tech_paid_date: string | null;
+  order_no: string | null; receipt_no: string | null;
 }
 
 export default function ServiceCenterClient() {
@@ -138,7 +139,7 @@ export default function ServiceCenterClient() {
   const statusBadge = (s: string) =>
     s === 'CUSTOMER PAID' ? <span className="badge-green">Customer Paid</span> : <span className="badge-amber">Ongoing</span>;
 
-  const HEADERS = ['Date', 'Repair Details', 'Unit/Model', 'CS Payment', 'COGS', 'Labor', 'BNS', 'Technician', 'DP', 'Status', 'Tech Paid', 'Actions'];
+  const HEADERS = ['Date', 'Repair Details', 'Unit/Model', 'Order No.', 'Receipt No.', 'CS Payment', 'COGS', 'Labor', 'BNS', 'Technician', 'DP', 'Status', 'Tech Paid', 'Actions'];
 
   return (
     <div className="p-6 space-y-6">
@@ -320,6 +321,8 @@ export default function ServiceCenterClient() {
                     <td className="table-cell text-gray-500 whitespace-nowrap">{r.repair_date ? formatDate(r.repair_date) : '—'}</td>
                     <td className="table-cell font-medium">{r.repair_details || '—'}</td>
                     <td className="table-cell text-gray-600">{r.unit_model || '—'}</td>
+                    <td className="table-cell text-gray-500 whitespace-nowrap">{r.order_no || '—'}</td>
+                    <td className="table-cell text-gray-500 whitespace-nowrap">{r.receipt_no || '—'}</td>
                     <td className="table-cell font-semibold">{formatCurrency(r.cs_payment)}</td>
                     <td className="table-cell text-gray-500">{formatCurrency(r.cogs)}</td>
                     <td className="table-cell">{formatCurrency(r.labor_amount)}</td>
