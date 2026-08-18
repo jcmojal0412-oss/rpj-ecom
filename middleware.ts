@@ -51,9 +51,15 @@ const ROUTE_MODULES: [string, string][] = [
   // /payslips and /api/payslips paths, deliberately left unlisted here so
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
+  // CEO Overview is owner-only (income, marketing spend, net income) —
+  // this must come before the generic '/service-center' rule below, since
+  // ROUTE_MODULES matches on the first startsWith() hit. Repair Monitoring
+  // and the repair-records API stay on the regular 'service_center'
+  // permission so technicians can still log/update repairs.
+  ['/service-center/ceo-overview', '_owner'],
+  ['/api/service-center',          '_owner'],
   ['/service-center',   'service_center'],
   ['/api/service-repairs', 'service_center'],
-  ['/api/service-center', 'service_center'],
   ['/marketing-analytics',     'marketing_analytics'],
   ['/api/marketing-analytics', 'marketing_analytics'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
