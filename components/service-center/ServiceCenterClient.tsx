@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Wrench, Banknote, PiggyBank, Users2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wrench, Banknote, PiggyBank, Users2, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -9,8 +9,14 @@ import Spinner from '@/components/ui/Spinner';
 import RepairForm from './RepairForm';
 import PendingPayout from './PendingPayout';
 import LateCustomerPayments from './LateCustomerPayments';
-import { toLocalISO, weekStart, weekLabel, payoutDate, shortDate } from './weekUtils';
+import { toLocalISO, weekStart, weekLabel, payoutDate, shortDate, isCurrentWeek } from './weekUtils';
 import { todayISO } from '@/lib/utils';
+
+// Shared visual system for the five summary tiles — one icon-box size, one
+// label/amount type scale, so the row reads as a single unified card system
+// instead of five ad-hoc cards.
+const ICON_BOX = 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0';
+const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-3.5';
 
 const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
 type DatePreset = typeof DATE_PRESETS[number];
@@ -112,6 +118,24 @@ export default function ServiceCenterClient() {
       ? `${shortDate(monday)}–${dayOnly(sunday)}`
       : `${shortDate(monday)}–${shortDate(sunday)}`;
   };
+  // Still the current cutoff (accruing toward next Monday) vs an older,
+  // already-passed cutoff that's now overdue.
+  const payoutBadge = oldestPendingWeek
+    ? isCurrentWeek(oldestPendingWeek)
+      ? { label: 'Next Monday', cls: 'bg-amber-100 text-amber-700' }
+      : { label: 'Payout Due', cls: 'bg-red-100 text-red-700' }
+    : null;
+
+  const periodOverviewLabel = summaryPeriod === 'Daily' ? 'Daily performance overview'
+    : summaryPeriod === 'Weekly' ? 'Weekly performance overview'
+    : 'Monthly performance overview';
+
+  const weeklyStats = {
+    total:          summaryRepairs.length,
+    customerPaid:   summaryRepairs.filter(r => r.status === 'CUSTOMER PAID').length,
+    ongoing:        summaryRepairs.filter(r => r.status === 'ONGOING').length,
+    forTechPayout:  summaryRepairs.filter(r => r.status === 'CUSTOMER PAID' && !r.paid_to_tech).length,
+  };
 
   const filtered = repairs.filter(r => {
     const d = r.repair_date ? r.repair_date.slice(0, 10) : '';
@@ -167,114 +191,144 @@ export default function ServiceCenterClient() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Service Center Monitoring</h1>
-          <p className="text-sm text-gray-500 mt-1">Track repair jobs, costs, and technician revenue split</p>
+          <p className="text-sm text-gray-500 mt-0.5">Track repair jobs, customer balances, labor split, and technician payouts</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} className="btn-primary">
           <Plus size={16} /> Add Repair
         </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-sm font-semibold text-gray-700">Summary</p>
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
-          {SUMMARY_PERIODS.map(p => (
-            <button
-              key={p}
-              onClick={() => { setSummaryPeriod(p); setSummaryAnchor(todayISO()); }}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                summaryPeriod === p
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {p}
+      {/* Summary heading + period controls — grouped tightly as one block */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Summary</p>
+            <p className="text-xs text-gray-400 mt-0.5">{periodOverviewLabel} for the selected period</p>
+          </div>
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+            {SUMMARY_PERIODS.map(p => (
+              <button
+                key={p}
+                onClick={() => { setSummaryPeriod(p); setSummaryAnchor(todayISO()); }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  summaryPeriod === p
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Period navigation — the selected range is the focal point, the
+            jump-to-date picker stays visually secondary. */}
+        <div className="flex flex-col items-center gap-1 pt-1">
+          <div className="flex items-center gap-3">
+            <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+              <ChevronLeft size={18} />
             </button>
-          ))}
+            <span className="text-lg font-bold text-gray-900 text-center tabular-nums">{summaryLabel}</span>
+            <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+              <ChevronRight size={18} />
+            </button>
+          </div>
+          {summaryPeriod === 'Weekly' && (
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Monday–Sunday Cutoff</p>
+          )}
+          <div className="flex items-center gap-2 mt-1.5">
+            {summaryPeriod === 'Monthly' ? (
+              <input
+                type="month"
+                className="text-xs text-gray-400 border border-gray-200 rounded-md px-2 py-1 bg-gray-50 w-auto focus:outline-none focus:ring-1 focus:ring-orange-300"
+                value={summaryAnchor.slice(0, 7)}
+                onChange={e => e.target.value && setSummaryAnchor(`${e.target.value}-01`)}
+              />
+            ) : (
+              <input
+                type="date"
+                className="text-xs text-gray-400 border border-gray-200 rounded-md px-2 py-1 bg-gray-50 w-auto focus:outline-none focus:ring-1 focus:ring-orange-300"
+                value={summaryAnchor}
+                onChange={e => e.target.value && setSummaryAnchor(e.target.value)}
+              />
+            )}
+            {!isCurrentPeriod && (
+              <button
+                onClick={() => setSummaryAnchor(todayISO())}
+                className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+              >
+                Back to Today
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Period navigation */}
-      <div className="flex items-center justify-center flex-wrap gap-3">
-        <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
-          <ChevronLeft size={16} />
-        </button>
-        <span className="text-sm font-semibold text-gray-800 text-center">{summaryLabel}</span>
-        <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
-          <ChevronRight size={16} />
-        </button>
-
-        {summaryPeriod === 'Monthly' ? (
-          <input
-            type="month"
-            className="form-input py-1.5 text-sm w-auto"
-            value={summaryAnchor.slice(0, 7)}
-            onChange={e => e.target.value && setSummaryAnchor(`${e.target.value}-01`)}
-          />
-        ) : (
-          <input
-            type="date"
-            className="form-input py-1.5 text-sm w-auto"
-            value={summaryAnchor}
-            onChange={e => e.target.value && setSummaryAnchor(e.target.value)}
-          />
-        )}
-
-        {!isCurrentPeriod && (
-          <button
-            onClick={() => setSummaryAnchor(todayISO())}
-            className="text-xs text-orange-600 hover:text-orange-800 font-medium"
-          >
-            Back to Today
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-blue-50"><Banknote className="text-blue-500" size={22} /></div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">Total Repair Amount</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_cs_payment)}</p>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-green-50"><PiggyBank className="text-green-600" size={22} /></div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">Total Labor Amount</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_labor)}</p>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">BNS Share</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_bns)}</p>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-amber-50"><Users2 className="text-amber-600" size={22} /></div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">Technician Share</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(totals.total_gerald)}</p>
-          </div>
-        </div>
-        <div className="card flex items-start gap-4">
-          <div className="p-3 rounded-xl bg-red-50 shrink-0"><Wrench className="text-red-500" size={22} /></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-blue-50`}><Banknote className="text-blue-500" size={20} /></div>
           <div className="min-w-0">
-            <p className="text-xs text-gray-500 font-medium">For Tech Payout</p>
-            <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(techPayoutTotal)}</p>
+            <p className="text-xs font-medium text-gray-500">Total Repair Amount</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totals.total_cs_payment)}</p>
+          </div>
+        </div>
+        <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-green-50`}><PiggyBank className="text-green-600" size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">Total Labor Amount</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totals.total_labor)}</p>
+          </div>
+        </div>
+        <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-amber-50`}><Users2 className="text-amber-600" size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">BNS Share</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totals.total_bns)}</p>
+          </div>
+        </div>
+        <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-orange-50`}><Wrench className="text-orange-600" size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">Technician Share</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totals.total_gerald)}</p>
+          </div>
+        </div>
+        <div className={STAT_CARD}>
+          <div className={`${ICON_BOX} bg-red-50`}><Wallet className="text-red-500" size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-gray-500">For Tech Payout</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(techPayoutTotal)}</p>
             {oldestPendingWeek ? (
-              <p className="text-xs text-gray-500 mt-1 leading-snug">
-                {pendingTech.length} job{pendingTech.length > 1 ? 's' : ''}<br />
-                Cutoff: {shortWeekRange(oldestPendingWeek)}<br />
-                Pay on {shortDate(payoutDate(oldestPendingWeek))}
-              </p>
+              <>
+                <p className="text-xs text-gray-500 mt-1 leading-snug">
+                  {pendingTech.length} job{pendingTech.length > 1 ? 's' : ''}<br />
+                  Cutoff: {shortWeekRange(oldestPendingWeek)}<br />
+                  Pay on {shortDate(payoutDate(oldestPendingWeek))}
+                </p>
+                {payoutBadge && (
+                  <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${payoutBadge.cls}`}>
+                    {payoutBadge.label}
+                  </span>
+                )}
+              </>
             ) : (
               <p className="text-xs text-gray-400 mt-1">Nothing pending</p>
             )}
           </div>
         </div>
       </div>
+
+      {/* Compact at-a-glance line — intentionally not another row of cards */}
+      <p className="text-xs text-gray-500 -mt-2">
+        <span className="font-semibold text-gray-800">{weeklyStats.total}</span> Repair{weeklyStats.total === 1 ? '' : 's'}
+        <span className="text-gray-300 mx-1.5">•</span>
+        <span className="font-semibold text-gray-800">{weeklyStats.customerPaid}</span> Customer Paid
+        <span className="text-gray-300 mx-1.5">•</span>
+        <span className="font-semibold text-gray-800">{weeklyStats.ongoing}</span> Ongoing
+        <span className="text-gray-300 mx-1.5">•</span>
+        <span className="font-semibold text-gray-800">{weeklyStats.forTechPayout}</span> For Tech Payout
+      </p>
 
       <LateCustomerPayments repairs={repairs} onSettled={fetchData} />
 
@@ -290,8 +344,8 @@ export default function ServiceCenterClient() {
               onClick={() => applyPreset(p)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
                 activePreset === p
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-800'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {p}
