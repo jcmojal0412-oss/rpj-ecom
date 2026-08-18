@@ -27,3 +27,14 @@ export function weekLabel(monday: Date): string {
 export function isCurrentWeek(monday: Date): boolean {
   return toLocalISO(monday) === toLocalISO(weekStart(todayISO()));
 }
+
+// Technicians are paid the Monday after their Mon–Sun cutoff closes.
+export function payoutDate(monday: Date): Date {
+  const d = new Date(monday);
+  d.setDate(monday.getDate() + 7);
+  return d;
+}
+
+export function shortDate(d: Date): string {
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+}

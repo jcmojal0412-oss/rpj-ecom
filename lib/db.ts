@@ -1056,6 +1056,44 @@ function migrateSchema() {
     backfill(legacyRows);
   }
 
+  // Service Center revert — the app is going back to the simple ONGOING /
+  // CUSTOMER PAID status model (repair_status and the payment/payout ledger
+  // tables above are no longer read by the app going forward), so any repair
+  // created or edited while the richer model was live needs its
+  // status/dp/paid_to_tech/tech_paid_date resynced from the real ledger data
+  // once, or that state would silently be lost. Guarded so it only ever runs
+  // a single time; every write after this point goes through the simple
+  // fields directly again.
+  const statusResynced = db.prepare(`SELECT value FROM app_settings WHERE key='service_center_status_resynced'`).get();
+  if (!statusResynced) {
+    const resyncRows = db.prepare(`
+      SELECT r.id, r.cs_payment, r.gerald_share,
+        COALESCE(p.collected, 0) as collected,
+        COALESCE(t.paid_out, 0) as paid_out,
+        t.last_payout_date
+      FROM service_repairs r
+      LEFT JOIN (SELECT repair_id, SUM(amount) as collected FROM service_repair_payments GROUP BY repair_id) p ON p.repair_id = r.id
+      LEFT JOIN (SELECT repair_id, SUM(amount) as paid_out, MAX(payment_date) as last_payout_date FROM service_repair_tech_payouts GROUP BY repair_id) t ON t.repair_id = r.id
+    `).all() as { id: number; cs_payment: number; gerald_share: number; collected: number; paid_out: number; last_payout_date: string | null }[];
+
+    const updateResync = db.prepare(`UPDATE service_repairs SET status=?, dp=?, paid_to_tech=?, tech_paid_date=? WHERE id=?`);
+    const resync = db.transaction((rows: typeof resyncRows) => {
+      for (const r of rows) {
+        const isPaid = r.cs_payment > 0 ? r.collected >= r.cs_payment - 0.005 : r.collected > 0;
+        const isTechPaid = r.gerald_share > 0 && r.paid_out >= r.gerald_share - 0.005;
+        updateResync.run(
+          isPaid ? 'CUSTOMER PAID' : 'ONGOING',
+          r.collected,
+          isTechPaid ? 1 : 0,
+          isTechPaid ? r.last_payout_date : null,
+          r.id,
+        );
+      }
+    });
+    resync(resyncRows);
+    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('service_center_status_resynced', '1')`).run();
+  }
+
   seedCcCategoriesIfEmpty();
 }
 
