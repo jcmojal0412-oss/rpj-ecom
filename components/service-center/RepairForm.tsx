@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatCurrency, todayISO } from '@/lib/utils';
 import type { Repair } from './ServiceCenterClient';
 
@@ -27,6 +27,17 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
   const [paidToTech,     setPaidToTech]     = useState(!!initial?.paid_to_tech);
   const [techPaidDate,   setTechPaidDate]   = useState(initial?.tech_paid_date?.slice(0, 10) ?? '');
   const [submitting,     setSubmitting]     = useState(false);
+
+  // New repairs get a suggested Order No. (BNS-{year}-####) prefilled as
+  // soon as the form opens — still editable, but the field is required so
+  // every new job gets one. Existing repairs keep whatever they already
+  // have, including none, so editing an old legacy entry never forces this.
+  useEffect(() => {
+    if (initial) return;
+    fetch('/api/service-repairs/next-order-no')
+      .then(r => r.json())
+      .then(d => { if (d.order_no) setOrderNo(prev => prev || d.order_no); });
+  }, [initial]);
 
   const csNum   = parseFloat(csPayment) || 0;
   const cogsNum = parseFloat(cogs) || 0;
@@ -88,8 +99,8 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
         <div />
 
         <div>
-          <label className="form-label">Order No.</label>
-          <input className="form-input" placeholder="e.g. ORD-1024" value={orderNo} onChange={e => setOrderNo(e.target.value)} />
+          <label className="form-label">Order No. {!initial && '*'}</label>
+          <input className="form-input" placeholder="e.g. BNS-2026-0888" value={orderNo} onChange={e => setOrderNo(e.target.value)} required={!initial} />
         </div>
         <div>
           <label className="form-label">Receipt No.</label>

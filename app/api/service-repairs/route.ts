@@ -43,6 +43,12 @@ export async function POST(req: NextRequest) {
     if (!repair_date) {
       return NextResponse.json({ error: 'repair_date is required' }, { status: 400 });
     }
+    // Required for new repairs going forward only — existing repairs saved
+    // before this rule (many have no order_no at all) are edited via PUT,
+    // which never enforces this, so they're never blocked from being updated.
+    if (!order_no || !order_no.trim()) {
+      return NextResponse.json({ error: 'Order No. is required' }, { status: 400 });
+    }
 
     const csNum   = cs_payment ? parseFloat(cs_payment) : 0;
     const cogsNum = cogs ? parseFloat(cogs) : 0;
