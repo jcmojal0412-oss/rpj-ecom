@@ -38,3 +38,35 @@ export function payoutDate(monday: Date): Date {
 export function shortDate(d: Date): string {
   return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
+
+// Compact "Aug 17–23" (same month) or "Jul 27–Aug 2" (crossing months) —
+// the month is only repeated when the week actually spans two of them.
+export function shortWeekRange(monday: Date): string {
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const dayOnly = (d: Date) => d.toLocaleDateString('en-PH', { day: 'numeric' });
+  return monday.getMonth() === sunday.getMonth()
+    ? `${shortDate(monday)}–${dayOnly(sunday)}`
+    : `${shortDate(monday)}–${shortDate(sunday)}`;
+}
+
+export function monthStart(dateStr: string): Date {
+  const d = new Date(dateStr + 'T00:00:00');
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+export function monthEnd(monthFirst: Date): Date {
+  return new Date(monthFirst.getFullYear(), monthFirst.getMonth() + 1, 0);
+}
+
+export function monthLabel(monthFirst: Date): string {
+  return monthFirst.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+}
+
+export function monthLabelShort(monthFirst: Date): string {
+  return monthFirst.toLocaleDateString('en-PH', { month: 'long' });
+}
+
+export function shiftMonth(monthFirst: Date, dir: number): Date {
+  return new Date(monthFirst.getFullYear(), monthFirst.getMonth() + dir, 1);
+}

@@ -1094,6 +1094,22 @@ function migrateSchema() {
     db.prepare(`INSERT INTO app_settings (key, value) VALUES ('service_center_status_resynced', '1')`).run();
   }
 
+  // CEO Overview — Service Center marketing spend, tracked separately from
+  // repair records so the overview can weigh BNS income against what it
+  // cost to generate that income.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_center_marketing_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expense_date TEXT NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      reference TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_sc_marketing_expenses_date ON service_center_marketing_expenses(expense_date);
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 

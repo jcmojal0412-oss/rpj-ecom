@@ -96,7 +96,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'SERVICE CENTER',
     groupIcon: Wrench,
     items: [
-      { label: 'Repair Monitoring', href: '/service-center', icon: Wrench, module: 'service_center' },
+      { label: 'Repair Monitoring', href: '/service-center', icon: Wrench, module: 'service_center', exact: true },
+      { label: 'CEO Overview',      href: '/service-center/ceo-overview', icon: TrendingUp, module: 'service_center' },
     ],
   },
   {
