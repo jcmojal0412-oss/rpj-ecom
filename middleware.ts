@@ -52,6 +52,7 @@ const ROUTE_MODULES: [string, string][] = [
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
   ['/service-center',   'service_center'],
+  ['/api/service-repairs', 'service_center'],
   ['/marketing-analytics',     'marketing_analytics'],
   ['/api/marketing-analytics', 'marketing_analytics'],
   // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready

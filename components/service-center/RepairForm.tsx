@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { formatCurrency, todayISO } from '@/lib/utils';
-import type { Repair } from './ServiceCenterClient';
+import { computeSplit, REPAIR_STATUSES } from '@/lib/service-center';
+import type { Repair } from './types';
 
 interface Props {
   initial?: Repair;
@@ -10,48 +11,47 @@ interface Props {
   onCancel: () => void;
 }
 
-const SPLIT_BNS = 0.6;
-const SPLIT_GERALD = 0.4;
-
 export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
-  const [repairDate,    setRepairDate]    = useState(initial?.repair_date?.slice(0, 10) ?? todayISO());
-  const [repairDetails, setRepairDetails] = useState(initial?.repair_details ?? '');
-  const [unitModel,     setUnitModel]     = useState(initial?.unit_model ?? '');
-  const [orderNo,       setOrderNo]       = useState(initial?.order_no ?? '');
-  const [receiptNo,     setReceiptNo]     = useState(initial?.receipt_no ?? '');
-  const [csPayment,     setCsPayment]     = useState(initial?.cs_payment ? String(initial.cs_payment) : '');
-  const [cogs,          setCogs]          = useState(initial?.cogs ? String(initial.cogs) : '');
-  const [dp,            setDp]            = useState(initial?.dp ? String(initial.dp) : '');
-  const [status,        setStatus]        = useState<Repair['status']>(initial?.status ?? 'ONGOING');
-  const [paidToTech,    setPaidToTech]    = useState(!!initial?.paid_to_tech);
-  const [techPaidDate,  setTechPaidDate]  = useState(initial?.tech_paid_date?.slice(0, 10) ?? '');
-  const [submitting,    setSubmitting]    = useState(false);
+  const [repairDate,     setRepairDate]     = useState(initial?.repair_date?.slice(0, 10) ?? todayISO());
+  const [customerName,   setCustomerName]   = useState(initial?.customer_name ?? '');
+  const [contactNumber,  setContactNumber]  = useState(initial?.contact_number ?? '');
+  const [unitModel,      setUnitModel]      = useState(initial?.unit_model ?? '');
+  const [repairDetails,  setRepairDetails]  = useState(initial?.repair_details ?? '');
+  const [orderNo,        setOrderNo]        = useState(initial?.order_no ?? '');
+  const [receiptNo,      setReceiptNo]      = useState(initial?.receipt_no ?? '');
+  const [technicianName, setTechnicianName] = useState(initial?.technician_name ?? 'Gerald');
+  const [repairAmount,   setRepairAmount]   = useState(initial?.repair_amount ? String(initial.repair_amount) : '');
+  const [cogs,           setCogs]           = useState(initial?.cogs ? String(initial.cogs) : '');
+  const [dp,             setDp]             = useState('');
+  const [repairStatus,   setRepairStatus]   = useState(initial?.repair_status ?? 'Received');
+  const [notes,          setNotes]          = useState(initial?.notes ?? '');
+  const [submitting,     setSubmitting]     = useState(false);
 
-  const csNum   = parseFloat(csPayment) || 0;
+  const csNum = parseFloat(repairAmount) || 0;
   const cogsNum = parseFloat(cogs) || 0;
-  const labor   = csNum - cogsNum;
-  const bns     = labor * SPLIT_BNS;
-  const gerald  = labor * SPLIT_GERALD;
-  const hasValues = csPayment !== '';
+  const { labor, bns, tech } = computeSplit(csNum, cogsNum);
+  const hasValues = repairAmount !== '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repairDate) return;
     setSubmitting(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         repair_date: repairDate,
-        repair_details: repairDetails.trim() || null,
+        customer_name: customerName.trim() || null,
+        contact_number: contactNumber.trim() || null,
         unit_model: unitModel.trim() || null,
+        repair_details: repairDetails.trim() || null,
         order_no: orderNo.trim() || null,
         receipt_no: receiptNo.trim() || null,
-        cs_payment: csNum,
+        technician_name: technicianName.trim() || null,
+        repair_amount: csNum,
         cogs: cogsNum,
-        dp: dp ? parseFloat(dp) : 0,
-        status,
-        paid_to_tech: paidToTech,
-        tech_paid_date: paidToTech ? (techPaidDate || null) : null,
+        repair_status: repairStatus,
+        notes: notes.trim() || null,
       };
+      if (!initial) body.dp = dp ? parseFloat(dp) : 0;
 
       const url = initial ? `/api/service-repairs/${initial.id}` : '/api/service-repairs';
       const method = initial ? 'PUT' : 'POST';
@@ -74,6 +74,15 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           <input className="form-input" placeholder="e.g. IPHONE 13" value={unitModel} onChange={e => setUnitModel(e.target.value)} />
         </div>
 
+        <div>
+          <label className="form-label">Customer Name</label>
+          <input className="form-input" placeholder="e.g. Juan Dela Cruz" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">Contact Number</label>
+          <input className="form-input" placeholder="e.g. 0917 123 4567" value={contactNumber} onChange={e => setContactNumber(e.target.value)} />
+        </div>
+
         <div className="col-span-2">
           <label className="form-label">Repair Details</label>
           <input className="form-input" placeholder="e.g. ORDER LCD, FUSE PROBLEM..." value={repairDetails} onChange={e => setRepairDetails(e.target.value)} />
@@ -88,9 +97,14 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           <input className="form-input" placeholder="e.g. OR-00231" value={receiptNo} onChange={e => setReceiptNo(e.target.value)} />
         </div>
 
+        <div className="col-span-2">
+          <label className="form-label">Technician</label>
+          <input className="form-input" placeholder="e.g. Gerald" value={technicianName} onChange={e => setTechnicianName(e.target.value)} />
+        </div>
+
         <div>
-          <label className="form-label">CS Payment (₱)</label>
-          <input type="number" step="0.01" min="0" className="form-input" placeholder="0.00" value={csPayment} onChange={e => setCsPayment(e.target.value)} />
+          <label className="form-label">Repair Amount (₱)</label>
+          <input type="number" step="0.01" min="0" className="form-input" placeholder="0.00" value={repairAmount} onChange={e => setRepairAmount(e.target.value)} />
         </div>
         <div>
           <label className="form-label">COGS — Parts Cost (₱)</label>
@@ -100,44 +114,36 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
         {/* Auto-computed split preview */}
         <div className="col-span-2 bg-gray-50 rounded-xl px-4 py-3 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Labor Amount (CS Payment − COGS)</span>
+            <span className="text-gray-600">Labor Amount (Repair Amount − COGS)</span>
             <span className="font-bold text-gray-900">{hasValues ? formatCurrency(labor) : '—'}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-blue-600">BNS Share (60%)</span>
+            <span className="text-blue-600">BNS Earnings (60%)</span>
             <span className="font-bold text-blue-700">{hasValues ? formatCurrency(bns) : '—'}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-amber-600">Technician Share (40%)</span>
-            <span className="font-bold text-amber-700">{hasValues ? formatCurrency(gerald) : '—'}</span>
+            <span className="text-amber-600">Technician Earnings (40%)</span>
+            <span className="font-bold text-amber-700">{hasValues ? formatCurrency(tech) : '—'}</span>
           </div>
         </div>
 
-        <div>
-          <label className="form-label">Down Payment (₱)</label>
-          <input type="number" step="0.01" min="0" className="form-input" placeholder="0.00" value={dp} onChange={e => setDp(e.target.value)} />
-        </div>
-        <div>
-          <label className="form-label">Status</label>
-          <select className="form-input" value={status} onChange={e => setStatus(e.target.value as Repair['status'])}>
-            <option value="ONGOING">Ongoing</option>
-            <option value="CUSTOMER PAID">Customer Paid</option>
+        {!initial && (
+          <div>
+            <label className="form-label">Down Payment (₱)</label>
+            <input type="number" step="0.01" min="0" className="form-input" placeholder="0.00" value={dp} onChange={e => setDp(e.target.value)} />
+            <p className="text-xs text-gray-400 mt-1">Recorded as an initial payment at intake, if any.</p>
+          </div>
+        )}
+        <div className={initial ? 'col-span-2' : ''}>
+          <label className="form-label">Repair Status</label>
+          <select className="form-input" value={repairStatus} onChange={e => setRepairStatus(e.target.value as typeof repairStatus)}>
+            {REPAIR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 
-        <div className="col-span-2 flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-          <input
-            type="checkbox"
-            id="paidToTech"
-            checked={paidToTech}
-            onChange={e => setPaidToTech(e.target.checked)}
-            className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400"
-          />
-          <label htmlFor="paidToTech" className="text-sm font-medium text-gray-700 flex-1">Paid to Technician</label>
-          {paidToTech && (
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={techPaidDate}
-              onChange={e => setTechPaidDate(e.target.value)} />
-          )}
+        <div className="col-span-2">
+          <label className="form-label">Notes</label>
+          <textarea className="form-input" rows={2} placeholder="Optional notes / activity" value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
       </div>
 

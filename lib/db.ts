@@ -964,6 +964,98 @@ function migrateSchema() {
   if (!repairCols.includes('order_no'))   db.exec('ALTER TABLE service_repairs ADD COLUMN order_no TEXT');
   if (!repairCols.includes('receipt_no')) db.exec('ALTER TABLE service_repairs ADD COLUMN receipt_no TEXT');
 
+  // Service Center rework — independent repair/collection/payout tracking.
+  // repair_status replaces the old binary status ('ONGOING'/'CUSTOMER PAID')
+  // as the operational-progress field. Customer payment status and
+  // technician payout status are now DERIVED (never stored) from these two
+  // ledger tables, so partial payments/payouts are representable — the old
+  // status field is left in place, untouched, for backward compatibility,
+  // but is no longer read by the application.
+  if (!repairCols.includes('repair_status'))     db.exec('ALTER TABLE service_repairs ADD COLUMN repair_status TEXT');
+  if (!repairCols.includes('technician_name'))   db.exec('ALTER TABLE service_repairs ADD COLUMN technician_name TEXT');
+  if (!repairCols.includes('customer_name'))     db.exec('ALTER TABLE service_repairs ADD COLUMN customer_name TEXT');
+  if (!repairCols.includes('contact_number'))    db.exec('ALTER TABLE service_repairs ADD COLUMN contact_number TEXT');
+  if (!repairCols.includes('notes'))             db.exec('ALTER TABLE service_repairs ADD COLUMN notes TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_repair_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repair_id INTEGER NOT NULL REFERENCES service_repairs(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      payment_date TEXT NOT NULL,
+      payment_method TEXT,
+      reference_notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_service_repair_payments_repair ON service_repair_payments(repair_id);
+
+    CREATE TABLE IF NOT EXISTS service_repair_tech_payouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repair_id INTEGER NOT NULL REFERENCES service_repairs(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      payment_date TEXT NOT NULL,
+      payment_method TEXT,
+      reference_notes TEXT,
+      processed_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_service_repair_tech_payouts_repair ON service_repair_tech_payouts(repair_id);
+  `);
+
+  // One-time backfill — only touches rows whose repair_status is still NULL,
+  // i.e. rows that existed before this migration (every row created going
+  // forward always gets an explicit repair_status from the API, so this
+  // WHERE clause naturally never re-fires once the backfill has run).
+  // Reconstructs history from the only two signals the old schema actually
+  // had: `dp` (a real partial payment collected at intake — verified against
+  // production data, e.g. a ₱2,500 job with dp=500 genuinely meant ₱500
+  // collected / ₱2,000 owed) and `status`/`paid_to_tech` (binary flags with
+  // no partial-payment or exact-date granularity, so the remaining balance
+  // on a legacy 'CUSTOMER PAID' row is recorded as settled on repair_date —
+  // the closest available date — and tech payouts use the already-reliable
+  // tech_paid_date).
+  const needsBackfill = (db.prepare(
+    `SELECT COUNT(*) as c FROM service_repairs WHERE repair_status IS NULL`
+  ).get() as { c: number }).c;
+
+  if (needsBackfill > 0) {
+    const legacyRows = db.prepare(`
+      SELECT id, cs_payment, dp, status, repair_date, tech_paid_date, gerald_share, paid_to_tech
+      FROM service_repairs WHERE repair_status IS NULL
+    `).all() as {
+      id: number; cs_payment: number; dp: number; status: string; repair_date: string;
+      tech_paid_date: string | null; gerald_share: number; paid_to_tech: number;
+    }[];
+
+    const insertPayment = db.prepare(`
+      INSERT INTO service_repair_payments (repair_id, amount, payment_date, payment_method, reference_notes)
+      VALUES (?,?,?,?,?)
+    `);
+    const insertPayout = db.prepare(`
+      INSERT INTO service_repair_tech_payouts (repair_id, amount, payment_date, payment_method, reference_notes)
+      VALUES (?,?,?,?,?)
+    `);
+    const updateStatus = db.prepare(`UPDATE service_repairs SET repair_status=? WHERE id=?`);
+
+    const backfill = db.transaction((rows: typeof legacyRows) => {
+      for (const r of rows) {
+        const dp = r.dp || 0;
+        const cs = r.cs_payment || 0;
+        if (dp > 0) {
+          insertPayment.run(r.id, dp, r.repair_date, 'Down Payment (migrated)', 'Migrated from existing Down Payment field');
+        }
+        if (r.status === 'CUSTOMER PAID' && cs > dp) {
+          insertPayment.run(r.id, cs - dp, r.repair_date, 'Legacy', 'Migrated — balance settled (previously marked Customer Paid)');
+        }
+        if (r.paid_to_tech) {
+          insertPayout.run(r.id, r.gerald_share, r.tech_paid_date || r.repair_date, 'Legacy', 'Migrated from previous system');
+        }
+        updateStatus.run(r.status === 'CUSTOMER PAID' ? 'Completed' : 'Received', r.id);
+      }
+    });
+    backfill(legacyRows);
+  }
+
   seedCcCategoriesIfEmpty();
 }
 
