@@ -24,12 +24,25 @@ type DatePreset = typeof DATE_PRESETS[number];
 const SUMMARY_PERIODS = ['Daily', 'Weekly', 'Monthly'] as const;
 type SummaryPeriod = typeof SUMMARY_PERIODS[number];
 
+export const REPAIR_STATUSES = ['ONGOING', 'CUSTOMER PAID', 'VOID', 'CANCELLED', 'REFUND'] as const;
+export type RepairStatus = typeof REPAIR_STATUSES[number];
+
 export interface Repair {
   id: number; repair_date: string; repair_details: string | null; unit_model: string | null;
   technician_name: string | null; order_no: string | null; receipt_no: string | null;
   cs_payment: number; cogs: number; labor_amount: number;
   bns_share: number; gerald_share: number; dp: number;
-  status: 'ONGOING' | 'CUSTOMER PAID'; paid_to_tech: number; tech_paid_date: string | null;
+  status: RepairStatus; paid_to_tech: number; tech_paid_date: string | null;
+}
+
+// Void / Cancelled / Refund repairs stay visible in the records table below
+// for a full audit trail, but they never represent real completed business
+// — they're excluded from every revenue, cost, or share total (here and in
+// CEO Overview). Customer Outstanding and Pending Payout already only ever
+// pick up exact 'ONGOING'/'CUSTOMER PAID' matches, so those two sections
+// exclude the new statuses automatically without any change.
+export function isRevenueStatus(status: string): boolean {
+  return status === 'ONGOING' || status === 'CUSTOMER PAID';
 }
 
 export default function ServiceCenterClient() {
@@ -87,6 +100,7 @@ export default function ServiceCenterClient() {
   };
 
   const summaryRepairs = repairs.filter(r => {
+    if (!isRevenueStatus(r.status)) return false;
     const d = r.repair_date ? r.repair_date.slice(0, 10) : '';
     return d >= summaryRange.from && d <= summaryRange.to;
   });
@@ -179,8 +193,15 @@ export default function ServiceCenterClient() {
     fetchData();
   };
 
-  const statusBadge = (s: string) =>
-    s === 'CUSTOMER PAID' ? <span className="badge-green">Customer Paid</span> : <span className="badge-amber">Ongoing</span>;
+  const statusBadge = (s: RepairStatus) => {
+    switch (s) {
+      case 'CUSTOMER PAID': return <span className="badge-green">Customer Paid</span>;
+      case 'VOID':           return <span className="badge-gray">Void</span>;
+      case 'CANCELLED':      return <span className="badge-gray">Cancelled</span>;
+      case 'REFUND':         return <span className="badge-red">Refund</span>;
+      default:                return <span className="badge-amber">Ongoing</span>;
+    }
+  };
 
   const HEADERS = ['Date', 'Repair Details', 'Unit / Model', 'Repair Amount', 'COGS', 'Labor', 'BNS', 'Technician', 'DP', 'Status', 'Tech Paid', 'Actions'];
 

@@ -12,7 +12,7 @@ import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import AddMarketingExpenseModal from './AddMarketingExpenseModal';
-import type { Repair } from './ServiceCenterClient';
+import { isRevenueStatus, type Repair } from './ServiceCenterClient';
 import type { MarketingExpense } from '@/lib/service-center-marketing';
 import {
   toLocalISO, weekStart, weekLabel, payoutDate, shortDate, shortWeekRange,
@@ -231,8 +231,11 @@ export default function CEOOverviewClient() {
   };
 
   // ---- Period-scoped data ----
-  const periodRepairs = repairs.filter(r => inRange(r.repair_date, range));
-  const prevRepairs   = repairs.filter(r => inRange(r.repair_date, prevRange));
+  // Void/Cancelled/Refund repairs are excluded here (same rule as Service
+  // Center Monitoring's summary cards) — they never contributed real
+  // revenue, so they shouldn't count toward any total below.
+  const periodRepairs = repairs.filter(r => isRevenueStatus(r.status) && inRange(r.repair_date, range));
+  const prevRepairs   = repairs.filter(r => isRevenueStatus(r.status) && inRange(r.repair_date, prevRange));
   const periodExpenses = expenses.filter(e => inRange(e.expense_date, range));
   const prevExpenses   = expenses.filter(e => inRange(e.expense_date, prevRange));
 
@@ -276,6 +279,7 @@ export default function CEOOverviewClient() {
   // selection (Custom has no natural weekly/monthly anchor, so it falls
   // back to today). ----
   const chartAnchor = periodType === 'Custom' ? todayISO() : anchor;
+  const revenueRepairs = repairs.filter(r => isRevenueStatus(r.status));
   const chartData = (() => {
     const points: { label: string; bns: number; marketing: number; isCurrent: boolean }[] = [];
     if (chartPeriod === 'Weekly') {
@@ -286,7 +290,7 @@ export default function CEOOverviewClient() {
         const r = { from: toLocalISO(monday), to: toLocalISO(sunday) };
         points.push({
           label: shortWeekRange(monday),
-          bns: sum(repairs.filter(x => inRange(x.repair_date, r)).map(x => x.bns_share)),
+          bns: sum(revenueRepairs.filter(x => inRange(x.repair_date, r)).map(x => x.bns_share)),
           marketing: sum(expenses.filter(x => inRange(x.expense_date, r)).map(x => x.amount)),
           isCurrent: i === 0,
         });
@@ -299,7 +303,7 @@ export default function CEOOverviewClient() {
         const r = { from: toLocalISO(first), to: toLocalISO(last) };
         points.push({
           label: monthLabelShort(first),
-          bns: sum(repairs.filter(x => inRange(x.repair_date, r)).map(x => x.bns_share)),
+          bns: sum(revenueRepairs.filter(x => inRange(x.repair_date, r)).map(x => x.bns_share)),
           marketing: sum(expenses.filter(x => inRange(x.expense_date, r)).map(x => x.amount)),
           isCurrent: i === 0,
         });

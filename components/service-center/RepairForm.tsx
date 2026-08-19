@@ -141,6 +141,9 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           <select className="form-input" value={status} onChange={e => setStatus(e.target.value as Repair['status'])}>
             <option value="ONGOING">Ongoing</option>
             <option value="CUSTOMER PAID">Customer Paid</option>
+            <option value="VOID">Void</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="REFUND">Refund</option>
           </select>
         </div>
 
