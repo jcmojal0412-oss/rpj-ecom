@@ -96,6 +96,30 @@ export default function AddExpenseTab({ onSaved }: Props) {
 
   const canSubmit = !!businessId && !!category && !!date && !!amount && paidTo.trim() !== '';
 
+  // "Confirm & Save" resolves required fields directly from the just-captured
+  // AI values merged with whatever's already in state (not from state alone,
+  // which hasn't committed yet) — if something required is still missing,
+  // populate the form and stop, with a specific toast, instead of firing a
+  // save that the server will reject anyway.
+  const handleAIConfirmSave = (fields: AICapturedFields) => {
+    handleAICaptured(fields);
+    const resolvedBusinessId = fields.suggested_business_id ? String(fields.suggested_business_id) : businessId;
+    const resolvedCategory = fields.suggested_category || category;
+    const resolvedDate = fields.date || date;
+    const resolvedAmount = fields.amount || amount;
+    const resolvedPaidTo = (fields.paid_to || paidTo).trim();
+    if (!resolvedBusinessId || !resolvedCategory || !resolvedDate || !resolvedAmount || !resolvedPaidTo) {
+      showToast('AI couldn’t fill in everything — finish the missing fields below, then click Save Expense', 'error');
+      return;
+    }
+    setPendingAIConfirm(true);
+  };
+
+  const handleSkipAI = (path: string) => {
+    setReceiptPath(path);
+    showToast('Receipt attached — fill in the details below');
+  };
+
   return (
     <div className="max-w-2xl space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
@@ -106,7 +130,8 @@ export default function AddExpenseTab({ onSaved }: Props) {
         <AIReceiptCapture
           businesses={businesses}
           onCaptured={handleAICaptured}
-          onConfirmSave={fields => { handleAICaptured(fields); setPendingAIConfirm(true); }}
+          onConfirmSave={handleAIConfirmSave}
+          onSkipAI={handleSkipAI}
         />
       </div>
 

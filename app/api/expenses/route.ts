@@ -63,41 +63,49 @@ export async function POST(req: NextRequest) {
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum <= 0) return NextResponse.json({ error: 'A positive amount is required' }, { status: 400 });
 
-    // Lightweight duplicate check — same business+amount+date, or a matching
-    // non-empty reference number. No image hashing (kept intentionally simple).
-    if (!force) {
-      const dupClauses = ['e.deleted_at IS NULL', '(e.business_id = ? AND e.amount = ? AND e.date = ?)'];
-      const dupParams: (string | number)[] = [business_id, amountNum, date];
-      if (reference_no && reference_no.trim()) {
-        dupClauses[1] = `(${dupClauses[1]} OR e.reference_no = ?)`;
-        dupParams.push(reference_no.trim());
-      }
-      const existing = db.prepare(`
-        SELECT e.*, b.name as business_name FROM expenses e
-        LEFT JOIN businesses b ON b.id = e.business_id
-        WHERE ${dupClauses.join(' AND ')} LIMIT 1
-      `).get(...dupParams);
-      if (existing) {
-        return NextResponse.json({ possible_duplicate: existing }, { status: 409 });
-      }
-    }
-
     const status = ai_processed ? 'For Review' : 'Verified';
 
-    const info = db.prepare(`
-      INSERT INTO expenses
-        (date, amount, description, category, reference_no, paid_to, payment_method,
-         business_id, receipt_path, ai_processed, ai_confidence, status, created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(
-      date, amountNum, notes?.trim() || null, category,
-      reference_no?.trim() || null, paid_to.trim(), payment_method?.trim() || null,
-      business_id, receipt_path?.trim() || null,
-      ai_processed ? 1 : 0, ai_confidence ? JSON.stringify(ai_confidence) : null,
-      status, session.id,
-    );
+    // Duplicate check + insert run inside one transaction so two
+    // near-simultaneous submissions for the same real payment can't both
+    // pass the check before either commits — same business+amount+date, or
+    // a matching non-empty reference number. No image hashing (kept
+    // intentionally simple).
+    const runInsert = db.transaction(() => {
+      if (!force) {
+        const dupClauses = ['e.deleted_at IS NULL', '(e.business_id = ? AND e.amount = ? AND e.date = ?)'];
+        const dupParams: (string | number)[] = [business_id, amountNum, date];
+        if (reference_no && reference_no.trim()) {
+          dupClauses[1] = `(${dupClauses[1]} OR e.reference_no = ?)`;
+          dupParams.push(reference_no.trim());
+        }
+        const existing = db.prepare(`
+          SELECT e.*, b.name as business_name FROM expenses e
+          LEFT JOIN businesses b ON b.id = e.business_id
+          WHERE ${dupClauses.join(' AND ')} LIMIT 1
+        `).get(...dupParams);
+        if (existing) return { duplicate: existing };
+      }
 
-    return NextResponse.json({ id: info.lastInsertRowid, status }, { status: 201 });
+      const info = db.prepare(`
+        INSERT INTO expenses
+          (date, amount, description, category, reference_no, paid_to, payment_method,
+           business_id, receipt_path, ai_processed, ai_confidence, status, created_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        date, amountNum, notes?.trim() || null, category,
+        reference_no?.trim() || null, paid_to.trim(), payment_method?.trim() || null,
+        business_id, receipt_path?.trim() || null,
+        ai_processed ? 1 : 0, ai_confidence ? JSON.stringify(ai_confidence) : null,
+        status, session.id,
+      );
+      return { id: info.lastInsertRowid };
+    });
+
+    const result = runInsert();
+    if ('duplicate' in result) {
+      return NextResponse.json({ possible_duplicate: result.duplicate }, { status: 409 });
+    }
+    return NextResponse.json({ id: result.id, status }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

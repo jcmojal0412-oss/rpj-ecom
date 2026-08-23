@@ -54,6 +54,10 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
   const rpjEcom = businesses.find(b => b.name === 'RPJ ECOM');
   const totalBodega = sum(scoped.filter(e => bodega && e.business_id === bodega.id).map(e => e.amount));
   const totalRpjEcom = sum(scoped.filter(e => rpjEcom && e.business_id === rpjEcom.id).map(e => e.amount));
+  // Expenses recorded before this module existed have no business attached
+  // (never fabricated) — call that gap out explicitly so Total visibly not
+  // matching Bodega + RPJ ECOM doesn't read as the dashboard being wrong.
+  const totalUnassigned = sum(scoped.filter(e => !e.business_id).map(e => e.amount));
 
   const categoryTotals = EXPENSE_CATEGORIES.map(c => ({
     category: c,
@@ -139,6 +143,12 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
           </div>
         </div>
       </div>
+
+      {totalUnassigned > 0 && (
+        <p className="text-xs text-gray-400 -mt-2">
+          Includes {formatCurrency(totalUnassigned)} from expenses recorded before business tracking (unassigned) — not counted in either business card above.
+        </p>
+      )}
 
       {/* Category cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">

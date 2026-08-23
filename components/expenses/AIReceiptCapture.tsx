@@ -22,37 +22,55 @@ interface Props {
   onCaptured: (fields: AICapturedFields) => void;
   /** "Confirm & Save" — populate the form AND save immediately. */
   onConfirmSave: (fields: AICapturedFields) => void;
+  /** Scan failed but the receipt itself is safely stored — hand its path up so it isn't orphaned. */
+  onSkipAI: (receiptPath: string) => void;
 }
 
 type Stage = 'idle' | 'uploading' | 'scanning' | 'review' | 'error';
 
-export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave }: Props) {
+// The prompt asks the model to only ever use these exact names, but LLM
+// instruction-following isn't 100% reliable — normalize common variants
+// (spacing/casing/synonyms) rather than trust the raw strings, so a field
+// that really was undetected still gets flagged even if the model drifts
+// slightly from the requested spelling.
+const KNOWN_FIELDS = ['date', 'amount', 'paid_to', 'reference_number', 'payment_method', 'suggested_category'];
+const FIELD_ALIASES: Record<string, string> = {
+  paidto: 'paid_to',
+  referencenumber: 'reference_number', reference_no: 'reference_number', reference: 'reference_number',
+  paymentmethod: 'payment_method',
+  category: 'suggested_category', suggestedcategory: 'suggested_category',
+};
+function normalizeUnableToDetect(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const key = item.trim().toLowerCase().replace(/\s+/g, '_');
+    const mapped = FIELD_ALIASES[key] ?? key;
+    if (KNOWN_FIELDS.includes(mapped)) out.add(mapped);
+  }
+  return [...out];
+}
+
+export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave, onSkipAI }: Props) {
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
   const [receiptPath, setReceiptPath] = useState('');
+  const [uploadedFilename, setUploadedFilename] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [unableToDetect, setUnableToDetect] = useState<string[]>([]);
   const [suggestedBusinessId, setSuggestedBusinessId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = async (file: File) => {
+  const runScan = async (filename: string) => {
     setError('');
-    setStage('uploading');
-    setPreview(URL.createObjectURL(file));
+    setStage('scanning');
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const uploadRes = await fetch('/api/upload/receipt', { method: 'POST', body: form });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
-      setReceiptPath(uploadData.path);
-
-      setStage('scanning');
       const scanRes = await fetch('/api/expenses/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: uploadData.filename }),
+        body: JSON.stringify({ filename }),
       });
       const scanData = await scanRes.json();
       if (!scanRes.ok) throw new Error(scanData.error || 'AI scan failed');
@@ -66,7 +84,7 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
         payment_method: ex.payment_method || '',
         suggested_category: ex.suggested_category || '',
       });
-      setUnableToDetect(Array.isArray(ex.unable_to_detect) ? ex.unable_to_detect : []);
+      setUnableToDetect(normalizeUnableToDetect(ex.unable_to_detect));
       const matchedBusiness = ex.suggested_business
         ? businesses.find(b => b.name.toLowerCase() === String(ex.suggested_business).toLowerCase())
         : null;
@@ -78,6 +96,32 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
     }
   };
 
+  const handleFile = async (file: File) => {
+    setError('');
+    setStage('uploading');
+    setPreview(URL.createObjectURL(file));
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploadRes = await fetch('/api/upload/receipt', { method: 'POST', body: form });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+      setReceiptPath(uploadData.path);
+      setUploadedFilename(uploadData.filename);
+      await runScan(uploadData.filename);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong uploading this image.');
+      setStage('error');
+    }
+  };
+
+  // If the upload already succeeded, retry only re-runs the scan on the
+  // same stored file — no need to re-upload, and nothing gets orphaned.
+  const retry = () => {
+    if (uploadedFilename) runScan(uploadedFilename);
+    else reset();
+  };
+
   const buildFields = (): AICapturedFields => ({
     date: fields.date || '', amount: fields.amount || '', paid_to: fields.paid_to || '',
     reference_number: fields.reference_number || '', payment_method: fields.payment_method || '',
@@ -86,7 +130,7 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
   });
 
   const reset = () => {
-    setStage('idle'); setError(''); setPreview(null); setReceiptPath('');
+    setStage('idle'); setError(''); setPreview(null); setReceiptPath(''); setUploadedFilename('');
     setFields({}); setUnableToDetect([]); setSuggestedBusinessId(null);
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -119,7 +163,17 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <AlertTriangle className="text-red-400" size={24} />
           <p className="text-sm text-red-600">{error}</p>
-          <button type="button" onClick={reset} className="btn-secondary text-xs">Try Again</button>
+          {receiptPath && (
+            <p className="text-xs text-gray-400">Your receipt was uploaded successfully — only reading it with AI failed.</p>
+          )}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={retry} className="btn-secondary text-xs">Try Again</button>
+            {receiptPath && (
+              <button type="button" onClick={() => { onSkipAI(receiptPath); reset(); }} className="btn-primary text-xs">
+                Use This Receipt Without AI
+              </button>
+            )}
+          </div>
         </div>
       )}
 

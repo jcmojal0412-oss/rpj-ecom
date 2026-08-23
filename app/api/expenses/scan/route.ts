@@ -26,11 +26,16 @@ Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
   "payment_method": one of ["Cash","GCash","Maya","Bank Transfer","Credit Card","Debit Card","Check","Other"] or null,
   "suggested_category": one of ["Products / Inventory","Payroll","FB Ads Spent","Loan","Rent","Bills","Others"] or null,
   "suggested_business": "Bodega ni Suki" or "RPJ ECOM" or null,
-  "unable_to_detect": ["field","names","that","were","unclear"]
+  "unable_to_detect": ["date","amount","paid_to","reference_number","payment_method","suggested_category"]
 }
 
 CRITICAL: Never guess or invent a value. If a field genuinely cannot be read
-from the image, set it to null and add its key name to "unable_to_detect".
+from the image, set it to null and add its key name to "unable_to_detect" —
+"unable_to_detect" must ONLY ever contain values from this exact set, spelled
+exactly like this (lowercase, underscores, no spaces): date, amount, paid_to,
+reference_number, payment_method, suggested_category. Do not invent other
+names, do not use spaces or capital letters, and only include a name there if
+that exact field is null.
 Only set "suggested_business" when the image explicitly names one of the two
 businesses ("Bodega ni Suki" or "RPJ ECOM") — otherwise leave it null; do not
 infer the business from the type of purchase alone.
