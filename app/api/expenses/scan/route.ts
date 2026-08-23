@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, unlink } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
@@ -13,19 +13,28 @@ const UPLOAD_DIR = process.env.DATABASE_PATH
   ? path.join(path.dirname(process.env.DATABASE_PATH), 'receipts')
   : path.join(process.cwd(), 'public', 'receipts');
 
-const PROMPT = `Extract payment information from this bank transfer or receipt screenshot.
+const PROMPT = `Extract expense payment information from this image — it could be a physical
+receipt, a GCash/Maya/bank transfer screenshot, a supplier invoice, an FB/Meta
+Ads payment screenshot, a payroll payment screenshot, or other proof of payment.
+
 Return ONLY valid JSON (no markdown, no prose) with exactly these keys:
 {
   "date": "YYYY-MM-DD or null",
   "amount": number in PHP or null,
-  "description": "brief description or null",
-  "category": one of ["Supplier Payment","Ads Budget","Shipping Fee","Utilities","Salary","Rent","Office Supplies","Others"],
-  "reference_no": "transaction/reference number or null",
-  "bank_from": "sender bank or account name or null",
-  "bank_to": "recipient bank or account name or null",
-  "supplier_name": "the name of the person or business being paid (recipient name) or null"
+  "paid_to": "the merchant, supplier, or recipient name or null",
+  "reference_number": "transaction/reference number or null",
+  "payment_method": one of ["Cash","GCash","Maya","Bank Transfer","Credit Card","Debit Card","Check","Other"] or null,
+  "suggested_category": one of ["Products / Inventory","Payroll","FB Ads Spent","Loan","Rent","Bills","Others"] or null,
+  "suggested_business": "Bodega ni Suki" or "RPJ ECOM" or null,
+  "unable_to_detect": ["field","names","that","were","unclear"]
 }
-For amounts, extract the numeric value in PHP only. If unclear, use null.
+
+CRITICAL: Never guess or invent a value. If a field genuinely cannot be read
+from the image, set it to null and add its key name to "unable_to_detect".
+Only set "suggested_business" when the image explicitly names one of the two
+businesses ("Bodega ni Suki" or "RPJ ECOM") — otherwise leave it null; do not
+infer the business from the type of purchase alone.
+For amounts, extract the numeric value in PHP only (no currency symbol/commas).
 For dates, always output YYYY-MM-DD format.`;
 
 export async function POST(req: NextRequest) {
@@ -106,8 +115,9 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(match[0]);
     console.log('[scan] result:', parsed);
 
-    // Delete the temp file after extracting — no need to keep it
-    if (filePath) unlink(filePath).catch(() => {});
+    // Unlike the old flow, the uploaded file is NOT deleted here — it's the
+    // expense's permanent receipt attachment (saved via /api/upload/receipt
+    // before this scan runs), not a disposable OCR scratch copy.
 
     return NextResponse.json({ expense: parsed });
   } catch (e: any) {

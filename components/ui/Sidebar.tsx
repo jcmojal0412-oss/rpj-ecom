@@ -77,11 +77,18 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'EXPENSES',
+    groupIcon: Wallet,
+    pinned: true,
+    items: [
+      { label: 'Expenses', href: '/expenses', icon: Wallet, module: 'expenses' },
+    ],
+  },
+  {
     label: 'REPORTS',
     groupIcon: BarChart3,
     items: [
       { label: 'Reports',           href: '/reports',     icon: BarChart3,  module: 'reports'   },
-      { label: 'Monthly Expenses',  href: '/expenses',    icon: Wallet,     module: 'expenses'  },
     ],
   },
   {

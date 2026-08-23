@@ -1110,7 +1110,73 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_sc_marketing_expenses_date ON service_center_marketing_expenses(expense_date);
   `);
 
+  // Expense Management Module — businesses this covers (more can be added
+  // later by inserting rows; no admin UI for that in V1), and the columns
+  // the old ad-hoc "Monthly Expenses" table never had. Added additively so
+  // every existing expense row keeps working unchanged.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS businesses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+  seedBusinessesIfEmpty();
+
+  const expenseCols = (db.prepare('PRAGMA table_info(expenses)').all() as { name: string }[]).map(c => c.name);
+  if (!expenseCols.includes('business_id'))     db.exec('ALTER TABLE expenses ADD COLUMN business_id INTEGER REFERENCES businesses(id)');
+  if (!expenseCols.includes('paid_to'))          db.exec('ALTER TABLE expenses ADD COLUMN paid_to TEXT');
+  if (!expenseCols.includes('payment_method'))   db.exec('ALTER TABLE expenses ADD COLUMN payment_method TEXT');
+  if (!expenseCols.includes('receipt_path'))     db.exec('ALTER TABLE expenses ADD COLUMN receipt_path TEXT');
+  if (!expenseCols.includes('ai_processed'))     db.exec('ALTER TABLE expenses ADD COLUMN ai_processed INTEGER DEFAULT 0');
+  if (!expenseCols.includes('ai_confidence'))    db.exec('ALTER TABLE expenses ADD COLUMN ai_confidence TEXT');
+  if (!expenseCols.includes('status'))           db.exec("ALTER TABLE expenses ADD COLUMN status TEXT DEFAULT 'Verified'");
+  if (!expenseCols.includes('created_by'))       db.exec('ALTER TABLE expenses ADD COLUMN created_by INTEGER REFERENCES users(id)');
+  if (!expenseCols.includes('deleted_at'))       db.exec('ALTER TABLE expenses ADD COLUMN deleted_at TEXT');
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_business ON expenses(business_id);
+    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+    CREATE INDEX IF NOT EXISTS idx_expenses_status ON expenses(status);
+  `);
+
+  // One-time remap of the old ad-hoc category strings to the new 7-category
+  // taxonomy. Existing rows keep their status ('Verified' default from the
+  // ALTER above is correct — they were manually entered and already trusted)
+  // and stay unassigned to a business (never fabricated — shown as "—" and
+  // only counted under "All Businesses").
+  const categoriesRemapped = db.prepare(`SELECT value FROM app_settings WHERE key='expense_categories_remapped'`).get();
+  if (!categoriesRemapped) {
+    const remap: Record<string, string> = {
+      'Supplier Payment': 'Products / Inventory',
+      'Ads Budget': 'FB Ads Spent',
+      'Salary': 'Payroll',
+      'Utilities': 'Bills',
+      'Rent': 'Rent',
+      'Shipping Fee': 'Others',
+      'Office Supplies': 'Others',
+      'Others': 'Others',
+    };
+    const updateCategory = db.prepare('UPDATE expenses SET category=? WHERE category=?');
+    for (const [oldCat, newCat] of Object.entries(remap)) {
+      if (oldCat !== newCat) updateCategory.run(newCat, oldCat);
+    }
+    // Anything outside the known legacy set (or NULL) becomes 'Others' too,
+    // so every row always has one of the 7 valid category values going forward.
+    const validCats = ['Products / Inventory', 'Payroll', 'FB Ads Spent', 'Loan', 'Rent', 'Bills', 'Others'];
+    db.prepare(`UPDATE expenses SET category='Others' WHERE category IS NULL OR category NOT IN (${validCats.map(() => '?').join(',')})`).run(...validCats);
+    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('expense_categories_remapped', '1')`).run();
+  }
+
   seedCcCategoriesIfEmpty();
+}
+
+function seedBusinessesIfEmpty() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM businesses').get() as { c: number }).c;
+  if (count > 0) return;
+  const insert = db.prepare('INSERT OR IGNORE INTO businesses (name) VALUES (?)');
+  for (const name of ['Bodega ni Suki', 'RPJ ECOM']) insert.run(name);
 }
 
 function seedCcCategoriesIfEmpty() {

@@ -18,6 +18,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/product-research', 'product_research'],
   ['/reports',          'reports'],
   ['/expenses',         'expenses'],
+  ['/api/expenses',     'expenses'],
+  ['/api/businesses',   'expenses'],
   ['/discovery-calls',  'partners'],
   ['/sedo-bookings',    'partners'],
   ['/partners',         'partners'],
