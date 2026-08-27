@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const {
       business_id, category, date, amount, paid_to, payment_method,
-      reference_no, notes, receipt_path, ai_processed, ai_confidence, force,
+      reference_no, notes, receipt_path, ai_processed, ai_confidence, force, shift_id,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
@@ -89,14 +89,14 @@ export async function POST(req: NextRequest) {
       const info = db.prepare(`
         INSERT INTO expenses
           (date, amount, description, category, reference_no, paid_to, payment_method,
-           business_id, receipt_path, ai_processed, ai_confidence, status, created_by)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           business_id, receipt_path, ai_processed, ai_confidence, status, created_by, shift_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         date, amountNum, notes?.trim() || null, category,
         reference_no?.trim() || null, paid_to.trim(), payment_method?.trim() || null,
         business_id, receipt_path?.trim() || null,
         ai_processed ? 1 : 0, ai_confidence ? JSON.stringify(ai_confidence) : null,
-        status, session.id,
+        status, session.id, shift_id || null,
       );
       return { id: info.lastInsertRowid };
     });

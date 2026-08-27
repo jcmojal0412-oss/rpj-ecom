@@ -17,13 +17,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       LEFT JOIN businesses b ON b.id = s.business_id
       WHERE s.id = ?
     `).get(params.id) as
-      { id: number; cashier_id: number; status: string; starting_cash: number; time_in: string; cashier_name: string | null; business_name: string | null } | undefined;
+      { id: number; cashier_id: number; status: string; starting_cash: number; time_in: string; cashier_name: string | null; business_name: string | null; notes: string | null } | undefined;
     if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
     if (shift.status === 'Closed') return NextResponse.json({ error: 'Shift is already closed' }, { status: 400 });
     if (shift.cashier_id !== session.id) return NextResponse.json({ error: 'This is not your shift' }, { status: 403 });
 
-    const { actual_cash } = await req.json();
+    const { actual_cash, notes } = await req.json();
     const actualCashNum = actual_cash ? parseFloat(actual_cash) : 0;
+    const combinedNotes = [shift.notes, notes?.trim() ? `End: ${notes.trim()}` : null].filter(Boolean).join(' | ') || null;
 
     const totals = db.prepare(
       `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount
@@ -50,15 +51,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     db.prepare(`
       UPDATE pos_shifts SET
-        time_out = datetime('now'), status = 'Closed',
+        time_out = datetime('now'), status = 'Closed', notes = ?,
         cash_sales = ?, online_sales = ?, expected_cash = ?, actual_cash = ?, discrepancy = ?
       WHERE id = ?
-    `).run(totals.cash_sales, totals.online_sales, expectedCash, actualCashNum, discrepancy, shift.id);
+    `).run(combinedNotes, totals.cash_sales, totals.online_sales, expectedCash, actualCashNum, discrepancy, shift.id);
 
     return NextResponse.json({
       ok: true,
       business_name: shift.business_name, cashier_name: shift.cashier_name,
-      time_in: shift.time_in, time_out: timeOut,
+      time_in: shift.time_in, time_out: timeOut, notes: combinedNotes,
       starting_cash: shift.starting_cash, transaction_count: totals.transaction_count,
       cash_sales: totals.cash_sales, online_sales: totals.online_sales, total_sales: totals.total_sales,
       total_discount: totals.total_discount, void_count: voidTotals.void_count, void_amount: voidTotals.void_amount,

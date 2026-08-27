@@ -110,6 +110,11 @@ export interface Shift {
 
 export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
 
+// A closed shift's |discrepancy| at or above this gets flagged in the
+// Cashier's Report — the closest thing to an "owner alert" without building
+// a push/SMS/email delivery channel: visible next time the report is opened.
+export const LARGE_DISCREPANCY_THRESHOLD = 100;
+
 // Grouped to match the reference POS's exact card layout: a 4-across row,
 // a standalone full-width row, then a 5-across row. These are display
 // labels only — no real payment-gateway integration behind any of them.

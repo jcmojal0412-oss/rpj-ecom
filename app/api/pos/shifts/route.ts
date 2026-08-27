@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const db = getDb();
-    const { business_id, starting_cash } = await req.json();
+    const { business_id, starting_cash, notes } = await req.json();
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
 
     const existing = db.prepare(
@@ -52,9 +52,9 @@ export async function POST(req: NextRequest) {
 
     const startingCashNum = starting_cash ? parseFloat(starting_cash) : 0;
     const info = db.prepare(`
-      INSERT INTO pos_shifts (business_id, cashier_id, time_in, starting_cash, status)
-      VALUES (?, ?, datetime('now'), ?, 'Open')
-    `).run(business_id, session.id, startingCashNum);
+      INSERT INTO pos_shifts (business_id, cashier_id, time_in, starting_cash, status, notes)
+      VALUES (?, ?, datetime('now'), ?, 'Open', ?)
+    `).run(business_id, session.id, startingCashNum, notes?.trim() ? `Start: ${notes.trim()}` : null);
 
     return NextResponse.json({ id: info.lastInsertRowid }, { status: 201 });
   } catch (e) {

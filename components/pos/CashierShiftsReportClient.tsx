@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, Search, ArrowUpDown, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, Search, ArrowUpDown, ChevronLeft, ChevronRight, Eye, AlertTriangle, RotateCcw } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
-import type { Business, Shift } from './constants';
+import { LARGE_DISCREPANCY_THRESHOLD, type Business, type Shift } from './constants';
 
 interface ShiftRow extends Shift { total_sales: number; total_hours: number; }
 interface ShiftSale { id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; status: string; created_at: string; }
 interface ShiftCashMovement { id: number; type: 'IN' | 'OUT'; amount: number; note: string | null; created_by_name: string | null; created_at: string; }
+interface ShiftExpense { id: number; date: string; amount: number; category: string; paid_to: string | null; description: string | null; created_at: string; }
+const isLargeDiscrepancy = (d: number | null) => d != null && Math.abs(d) >= LARGE_DISCREPANCY_THRESHOLD;
 
 type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'total_sales' | 'starting_cash' | 'actual_cash' | 'discrepancy';
 
@@ -47,8 +49,14 @@ export default function CashierShiftsReportClient() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[] } | null>(null);
+  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[]; expenses: ShiftExpense[] } | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const { toast, showToast, clearToast } = useToast();
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setIsOwner(u.role === 'owner'); });
+  }, []);
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
@@ -103,8 +111,21 @@ export default function CashierShiftsReportClient() {
     const data = await fetch(`/api/pos/shifts/${id}`).then(r => r.json());
     setViewing({
       shift: { ...data.shift, total_sales: (data.shift.cash_sales ?? 0) + (data.shift.online_sales ?? 0), total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
-      sales: data.sales ?? [], cashMovements: data.cashMovements ?? [],
+      sales: data.sales ?? [], cashMovements: data.cashMovements ?? [], expenses: data.expenses ?? [],
     });
+  };
+
+  const reopenShift = async () => {
+    if (!viewing) return;
+    setReopening(true);
+    try {
+      const res = await fetch(`/api/pos/shifts/${viewing.shift.id}/reopen`, { method: 'PUT' });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to reopen shift', 'error'); return; }
+      showToast('Shift reopened — cashier can End Shift again with corrected values');
+      setViewing(null);
+      fetchRows();
+    } finally { setReopening(false); }
   };
 
   const cellValue = (r: ShiftRow, key: SortKey) => {
@@ -241,7 +262,10 @@ export default function CashierShiftsReportClient() {
                     <td className="table-cell tabular-nums">{formatCurrency(r.starting_cash)}</td>
                     <td className="table-cell tabular-nums">{r.actual_cash != null ? formatCurrency(r.actual_cash) : '—'}</td>
                     <td className={`table-cell font-semibold tabular-nums ${r.discrepancy == null ? '' : r.discrepancy === 0 ? 'text-gray-700' : r.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {r.discrepancy != null ? formatCurrency(r.discrepancy) : '—'}
+                      <span className="inline-flex items-center gap-1">
+                        {isLargeDiscrepancy(r.discrepancy) && <AlertTriangle size={13} className="text-red-500" />}
+                        {r.discrepancy != null ? formatCurrency(r.discrepancy) : '—'}
+                      </span>
                     </td>
                     <td className="table-cell print:hidden">
                       <span className={r.status === 'Open' ? 'badge-amber' : 'badge-green'}>{r.status}</span>
@@ -275,6 +299,18 @@ export default function CashierShiftsReportClient() {
       {viewing && (
         <Modal open onClose={() => setViewing(null)} title={`Shift — ${viewing.shift.cashier_name || 'Unknown'}`} size="lg">
           <div className="space-y-4">
+            {isLargeDiscrepancy(viewing.shift.discrepancy) && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+                <AlertTriangle size={16} className="shrink-0" />
+                Large discrepancy on this shift ({formatCurrency(viewing.shift.discrepancy ?? 0)}) — worth a closer look.
+              </div>
+            )}
+            {viewing.shift.notes && (
+              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+                <p className="text-[11px] text-gray-500 font-semibold mb-1">Notes</p>
+                {viewing.shift.notes}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-[11px] text-gray-500">Time-In / Out</p>
@@ -348,7 +384,36 @@ export default function CashierShiftsReportClient() {
               </div>
             )}
 
-            <div className="flex justify-end pt-2">
+            {viewing.expenses.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">Expenses During This Shift ({viewing.expenses.length})</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Time', 'Category', 'Paid To', 'Amount', 'Notes'].map(h => <th key={h} className="table-header">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewing.expenses.map((e, i) => (
+                      <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(e.created_at)}</td>
+                        <td className="table-cell">{e.category}</td>
+                        <td className="table-cell">{e.paid_to || '—'}</td>
+                        <td className="table-cell font-semibold tabular-nums">{formatCurrency(e.amount)}</td>
+                        <td className="table-cell text-gray-500">{e.description || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              {isOwner && viewing.shift.status === 'Closed' && (
+                <button onClick={reopenShift} disabled={reopening} className="btn-secondary">
+                  <RotateCcw size={14} /> {reopening ? 'Reopening...' : 'Reopen Shift'}
+                </button>
+              )}
               <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
             </div>
           </div>

@@ -12,6 +12,7 @@ import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
 import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift } from './constants';
+import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
 interface SessionUser { id: number; name: string; }
 
@@ -127,7 +128,9 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
   const [startingCash, setStartingCash] = useState('');
+  const [startNote, setStartNote] = useState('');
   const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
+  const [endNote, setEndNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [xReading, setXReading] = useState<XReading | null>(null);
   const [zReading, setZReading] = useState<ZReading | null>(null);
@@ -136,6 +139,11 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const [moveType, setMoveType] = useState<'IN' | 'OUT'>('IN');
   const [moveAmount, setMoveAmount] = useState('');
   const [moveNote, setMoveNote] = useState('');
+  const [showExpense, setShowExpense] = useState(false);
+  const [expCategory, setExpCategory] = useState('');
+  const [expPaidTo, setExpPaidTo] = useState('');
+  const [expAmount, setExpAmount] = useState('');
+  const [expNote, setExpNote] = useState('');
 
   const declaredCash = DENOMINATIONS.reduce((sum, d) => sum + d * (parseInt(denomCounts[d]) || 0), 0);
 
@@ -152,12 +160,12 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
     try {
       const res = await fetch('/api/pos/shifts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: Number(businessId), starting_cash: parseFloat(startingCash) || 0 }),
+        body: JSON.stringify({ business_id: Number(businessId), starting_cash: parseFloat(startingCash) || 0, notes: startNote }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to start shift', 'error'); return; }
       showToast('Shift started');
-      setShowStart(false); setStartingCash(''); loadShift();
+      setShowStart(false); setStartingCash(''); setStartNote(''); loadShift();
     } finally { setSubmitting(false); }
   };
 
@@ -182,13 +190,33 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
     } finally { setSubmitting(false); }
   };
 
+  const submitExpense = async () => {
+    if (!shift) return;
+    if (!expCategory || !expPaidTo.trim() || !expAmount) { showToast('Category, Paid To, and Amount are required', 'error'); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: Number(businessId), category: expCategory, date: new Date().toISOString().slice(0, 10),
+          amount: expAmount, paid_to: expPaidTo, payment_method: 'Cash', notes: expNote, shift_id: shift.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 409) { showToast('Possible duplicate expense — check the Expenses page', 'error'); return; }
+      if (!res.ok) { showToast(data.error || 'Failed to record expense', 'error'); return; }
+      showToast('Expense recorded against this shift');
+      setShowExpense(false); setExpCategory(''); setExpPaidTo(''); setExpAmount(''); setExpNote('');
+    } finally { setSubmitting(false); }
+  };
+
   const endShift = async () => {
     if (!shift) return;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/pos/shifts/${shift.id}/close`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actual_cash: declaredCash }),
+        body: JSON.stringify({ actual_cash: declaredCash, notes: endNote }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to end shift', 'error'); return; }
@@ -196,7 +224,7 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
       DENOMINATIONS.forEach(d => { countsSnapshot[d] = parseInt(denomCounts[d]) || 0; });
       setZDenomCounts(countsSnapshot);
       setZReading(data);
-      setShowEnd(false); setDenomCounts({}); loadShift();
+      setShowEnd(false); setDenomCounts({}); setEndNote(''); loadShift();
     } finally { setSubmitting(false); }
   };
 
@@ -215,6 +243,9 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
           <button onClick={() => setShowCashMove(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             Cash In/Out
           </button>
+          <button onClick={() => setShowExpense(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+            Record Expense
+          </button>
         </div>
       ) : (
         <button onClick={() => setShowStart(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
@@ -229,6 +260,10 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
               <label className="form-label">Starting Cash (₱)</label>
               <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={startingCash} onChange={e => setStartingCash(e.target.value)} autoFocus />
               <p className="text-xs text-gray-400 mt-1">Cash you're placing in the drawer at the start of this shift.</p>
+            </div>
+            <div>
+              <label className="form-label">Notes (Optional)</label>
+              <input className="form-input" placeholder="e.g. May sirang bill counter" value={startNote} onChange={e => setStartNote(e.target.value)} />
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowStart(false)} disabled={submitting} className="btn-secondary">Cancel</button>
@@ -259,6 +294,10 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
               </div>
               <p className="text-xs text-gray-400 mt-1">Physically count the cash in the drawer by denomination.</p>
             </div>
+            <div>
+              <label className="form-label">Notes (Optional)</label>
+              <input className="form-input" placeholder="e.g. Kulang ng change fund" value={endNote} onChange={e => setEndNote(e.target.value)} />
+            </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowEnd(false)} disabled={submitting} className="btn-secondary">Cancel</button>
               <button onClick={endShift} disabled={submitting} className="btn-danger">{submitting ? 'Ending...' : 'End Shift'}</button>
@@ -285,6 +324,37 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowCashMove(false)} disabled={submitting} className="btn-secondary">Cancel</button>
               <button onClick={submitCashMove} disabled={submitting} className="btn-primary">{submitting ? 'Saving...' : `Record Cash ${moveType === 'IN' ? 'In' : 'Out'}`}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showExpense && (
+        <Modal open onClose={() => setShowExpense(false)} title="Record Expense" size="sm">
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">Paid out of this shift's cash drawer — recorded in Expenses and linked to this shift.</p>
+            <div>
+              <label className="form-label">Category</label>
+              <select className="form-input" value={expCategory} onChange={e => setExpCategory(e.target.value)} autoFocus>
+                <option value="">— Select category —</option>
+                {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Paid To</label>
+              <input className="form-input" placeholder="e.g. Sari-sari store" value={expPaidTo} onChange={e => setExpPaidTo(e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label">Amount (₱)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={expAmount} onChange={e => setExpAmount(e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label">Notes (Optional)</label>
+              <input className="form-input" placeholder="What was this for?" value={expNote} onChange={e => setExpNote(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowExpense(false)} disabled={submitting} className="btn-secondary">Cancel</button>
+              <button onClick={submitExpense} disabled={submitting} className="btn-primary">{submitting ? 'Saving...' : 'Record Expense'}</button>
             </div>
           </div>
         </Modal>

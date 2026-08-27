@@ -1306,6 +1306,13 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_pos_shift_cash_movements_shift ON pos_shift_cash_movements(shift_id);
   `);
 
+  // Lets an expense paid out of the shift's own cash drawer (e.g. buying
+  // supplies mid-shift) be linked back to that shift for the Cashier's
+  // Report's "View Expenses" detail — nullable, so it never affects any
+  // expense recorded the normal way (unrelated to a POS shift).
+  const expenseCols2 = (db.prepare('PRAGMA table_info(expenses)').all() as { name: string }[]).map(c => c.name);
+  if (!expenseCols2.includes('shift_id')) db.exec('ALTER TABLE expenses ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
+
   seedCcCategoriesIfEmpty();
 }
 

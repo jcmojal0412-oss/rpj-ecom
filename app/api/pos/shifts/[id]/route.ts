@@ -27,7 +27,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       WHERE m.shift_id = ? ORDER BY m.created_at
     `).all(params.id);
 
-    return NextResponse.json({ shift, sales, cashMovements });
+    const expenses = db.prepare(`
+      SELECT e.id, e.date, e.amount, e.category, e.paid_to, e.description, e.created_at
+      FROM expenses e WHERE e.shift_id = ? AND e.deleted_at IS NULL ORDER BY e.created_at
+    `).all(params.id);
+
+    return NextResponse.json({ shift, sales, cashMovements, expenses });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
