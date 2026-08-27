@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw } from 'lucide-react';
+import {
+  Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
+  Banknote, Smartphone, Landmark, CreditCard, MoreHorizontal,
+} from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
@@ -10,6 +13,28 @@ import ReceiptView from './ReceiptView';
 import { CASH_PRESETS, PAYMENT_METHODS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
 
 interface SessionUser { id: number; name: string; }
+
+const PAYMENT_METHOD_ICONS: Record<string, React.ElementType> = {
+  Cash: Banknote, GCash: Smartphone, Maya: Smartphone,
+  'Bank Transfer': Landmark, Card: CreditCard, Other: MoreHorizontal,
+};
+
+// Compact clear-then-edit money/percent field for the dark totals/payment
+// boxes — module scope so it isn't re-created (and re-mounted, losing focus)
+// on every PosClient render.
+function InlineField({ value, onChange, suffix }: { value: string; onChange: (v: string) => void; suffix?: string }) {
+  return (
+    <div className="flex items-center shrink-0">
+      <button type="button" onClick={() => onChange('')} title="Clear"
+        className="w-6 h-6 flex items-center justify-center rounded-l-md border border-r-0 border-white/30 bg-white/10 text-white/70 hover:bg-white/25 shrink-0">
+        <X size={11} />
+      </button>
+      <input type="number" min="0" step="0.01" value={value} onChange={e => onChange(e.target.value)} placeholder="0.00"
+        className="w-20 rounded-r-md border border-white/30 bg-white/10 text-white text-xs text-right px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white/60 placeholder-white/40" />
+      {suffix && <span className="ml-1 text-xs text-white/70">{suffix}</span>}
+    </div>
+  );
+}
 
 export default function PosClient() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -219,12 +244,23 @@ export default function PosClient() {
 
         {/* Cart / payment */}
         <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 flex-wrap gap-2">
             <p className="text-sm font-semibold text-gray-800">Current Order</p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => searchRef.current?.focus()} title="Scan/search barcode" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ScanBarcode size={14} /></button>
-              <button onClick={loadProducts} title="Refresh products" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><RotateCw size={14} /></button>
-              {cart.length > 0 && <button onClick={clearCart} className="text-xs text-red-500 hover:text-red-700 font-medium px-1.5">Clear All</button>}
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => searchRef.current?.focus()}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                <ScanBarcode size={13} /> Barcode
+              </button>
+              <button onClick={loadProducts}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border border-green-300 text-green-700 hover:bg-green-50 transition-colors">
+                <RotateCw size={13} /> Refresh
+              </button>
+              {cart.length > 0 && (
+                <button onClick={clearCart}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-300 text-red-600 hover:bg-red-50 transition-colors">
+                  Clear All
+                </button>
+              )}
             </div>
           </div>
 
@@ -252,79 +288,61 @@ export default function PosClient() {
             )}
           </div>
 
-          <div className="border-t border-gray-100 px-4 py-3 space-y-2 shrink-0 overflow-y-auto max-h-[62vh]">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Discount (₱)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={discount} onChange={e => setDiscount(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Additional Fee (₱)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Tax (%)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Service Charge (₱)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={serviceCharge} onChange={e => setServiceCharge(e.target.value)} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-[11px] text-gray-500 font-medium">Delivery Fee (₱)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} />
-              </div>
+          <div className="border-t border-gray-100 px-4 py-3 space-y-3 shrink-0 overflow-y-auto max-h-[68vh]">
+            {/* Totals — Additional Fee/Discounts/Tax/Service Charge/Delivery Fee are edited inline */}
+            <div className="bg-emerald-600 text-white rounded-xl p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Subtotal</span><span className="tabular-nums font-semibold">{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Additional Fee</span><InlineField value={additionalFee} onChange={setAdditionalFee} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Discounts</span><InlineField value={discount} onChange={setDiscount} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Tax</span><InlineField value={taxPercent} onChange={setTaxPercent} suffix="%" /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Service Charge</span><InlineField value={serviceCharge} onChange={setServiceCharge} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Delivery Fee</span><InlineField value={deliveryFee} onChange={setDeliveryFee} /></div>
+              <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/20"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
             </div>
 
-            <div className="bg-gray-900 text-white rounded-xl p-3 space-y-1">
-              <div className="flex justify-between text-xs text-gray-300"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(subtotal)}</span></div>
-              {discountNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Discount</span><span className="tabular-nums">-{formatCurrency(discountNum)}</span></div>}
-              {feeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Additional Fee</span><span className="tabular-nums">{formatCurrency(feeNum)}</span></div>}
-              {taxAmount > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Tax ({taxPercentNum}%)</span><span className="tabular-nums">{formatCurrency(taxAmount)}</span></div>}
-              {serviceChargeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Service Charge</span><span className="tabular-nums">{formatCurrency(serviceChargeNum)}</span></div>}
-              {deliveryFeeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Delivery Fee</span><span className="tabular-nums">{formatCurrency(deliveryFeeNum)}</span></div>}
-              <div className="flex justify-between text-base font-bold pt-1"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
-            </div>
-
+            {/* Cash presets */}
             <div>
-              <label className="text-[11px] text-gray-500 font-medium">Cash</label>
-              <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
-              <div className="flex items-center gap-1 mt-1 flex-wrap">
-                <button onClick={applyExactCash} className="px-2 py-1 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 hover:bg-orange-100">Exact</button>
-                {CASH_PRESETS.map(amt => (
-                  <button key={amt} onClick={() => addCashPreset(amt)} className="px-2 py-1 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">+{amt}</button>
+              <p className="text-xs font-semibold text-gray-700 mb-1.5">Customer Payment</p>
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                <button onClick={applyExactCash} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-orange-300 text-orange-700 hover:bg-orange-50">Exact</button>
+                {CASH_PRESETS.filter(a => a < 500).map(amt => (
+                  <button key={amt} onClick={() => addCashPreset(amt)} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50">{amt}</button>
                 ))}
-                <button onClick={() => setCashAmount('')} className="px-2 py-1 rounded-md text-[11px] font-semibold text-gray-400 hover:text-gray-600">Clear</button>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                {CASH_PRESETS.filter(a => a >= 500).map(amt => (
+                  <button key={amt} onClick={() => addCashPreset(amt)} className="py-2 rounded-md text-sm font-bold border border-blue-200 text-blue-700 hover:bg-blue-50">{amt}</button>
+                ))}
               </div>
             </div>
-            <div>
-              <label className="text-[11px] text-gray-500 font-medium">Online (GCash / Maya / Bank)</label>
-              <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
-            </div>
 
-            <div className="flex justify-between text-sm pt-1">
-              <span className="text-gray-500">Total Payment</span>
-              <span className="font-semibold text-gray-800 tabular-nums">{formatCurrency(totalPayment)}</span>
-            </div>
-            <div className="flex justify-between text-base">
-              <span className="font-semibold text-gray-700">Change</span>
-              <span className={`font-bold tabular-nums ${changeDue < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatCurrency(Math.max(0, changeDue))}</span>
+            {/* Payment box */}
+            <div className="bg-blue-600 text-white rounded-xl p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Customer's Payment Cash</span><InlineField value={cashAmount} onChange={setCashAmount} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Customer's Payment Online</span><InlineField value={onlineAmount} onChange={setOnlineAmount} /></div>
+              <div className="flex justify-between items-center text-sm pt-1 border-t border-white/20"><span className="text-white/85">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Total Bill</span><span className="tabular-nums">-{formatCurrency(total)}</span></div>
+              <div className="flex justify-between items-center text-lg font-bold pt-1"><span>Change</span><span className={`tabular-nums ${changeDue < 0 ? 'text-red-200' : ''}`}>{formatCurrency(Math.max(0, changeDue))}</span></div>
             </div>
 
             <div>
               <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
-              <input className="form-input py-1.5 text-sm" placeholder="e.g. GCash reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+              <input className="form-input py-1.5 text-sm" placeholder="Input reference number here" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
             </div>
 
             <div>
-              <label className="text-[11px] text-gray-500 font-medium">Payment Method</label>
-              <div className="grid grid-cols-3 gap-1.5 mt-1">
-                {PAYMENT_METHODS.map(m => (
-                  <button key={m} onClick={() => setPaymentMethod(m)}
-                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${paymentMethod === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                    {m}
-                  </button>
-                ))}
+              <p className="text-xs font-semibold text-gray-700 mb-1.5">Payment Method</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PAYMENT_METHODS.map(m => {
+                  const Icon = PAYMENT_METHOD_ICONS[m] ?? MoreHorizontal;
+                  return (
+                    <button key={m} onClick={() => setPaymentMethod(m)}
+                      className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                      <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
+                      <span className={`text-[11px] font-semibold ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
