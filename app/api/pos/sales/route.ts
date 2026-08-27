@@ -101,12 +101,19 @@ export async function POST(req: NextRequest) {
     }
     const changeDue = totalPayment - total;
 
+    // Auto-tag with the cashier's currently open shift for this business, if
+    // any — starting a shift is optional, so this is NULL (and everything
+    // still works exactly as before) when the cashier hasn't started one.
+    const openShift = db.prepare(
+      `SELECT id FROM pos_shifts WHERE business_id = ? AND cashier_id = ? AND status = 'Open'`
+    ).get(business_id, session.id) as { id: number } | undefined;
+
     const insertSale = db.prepare(`
       INSERT INTO pos_sales
         (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
-         payment_method, reference_no, status, cashier_id, notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?)
+         payment_method, reference_no, status, cashier_id, notes, shift_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
@@ -128,7 +135,7 @@ export async function POST(req: NextRequest) {
         business_id, todayISO(), subtotal, discountNum, feeNum, taxPercentNum, taxAmount,
         serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
         payment_method?.trim() || null, reference_no?.trim() || null,
-        session.id, notes?.trim() || null,
+        session.id, notes?.trim() || null, openShift?.id ?? null,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

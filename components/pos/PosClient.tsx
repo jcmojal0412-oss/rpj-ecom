@@ -6,11 +6,12 @@ import {
   Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
   Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
+import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
-import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
+import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift } from './constants';
 
 interface SessionUser { id: number; name: string; }
 
@@ -34,6 +35,123 @@ function InlineField({ value, onChange, suffix }: { value: string; onChange: (v:
         className="w-20 rounded-r-md border border-white/40 bg-white text-gray-800 text-xs text-right px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white placeholder-gray-400" />
       {suffix && <span className="ml-1 text-xs text-white/70">{suffix}</span>}
     </div>
+  );
+}
+
+// Optional clock-in/out with cash-drawer reconciliation. Starting a shift is
+// never required to check out a sale — it's purely additive accountability
+// for cashiers who want it.
+function ShiftControl({ businessId, showToast }: { businessId: string; showToast: (msg: string, type?: 'success' | 'error') => void }) {
+  const [shift, setShift] = useState<Shift | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showStart, setShowStart] = useState(false);
+  const [showEnd, setShowEnd] = useState(false);
+  const [startingCash, setStartingCash] = useState('');
+  const [actualCash, setActualCash] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [closeResult, setCloseResult] = useState<{ expected_cash: number; actual_cash: number; discrepancy: number } | null>(null);
+
+  const loadShift = () => {
+    if (!businessId) return;
+    setLoading(true);
+    fetch(`/api/pos/shifts/current?business_id=${businessId}`).then(r => r.json()).then(d => setShift(d.shift)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadShift(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [businessId]);
+
+  const startShift = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/shifts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: Number(businessId), starting_cash: parseFloat(startingCash) || 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to start shift', 'error'); return; }
+      showToast('Shift started');
+      setShowStart(false); setStartingCash(''); loadShift();
+    } finally { setSubmitting(false); }
+  };
+
+  const endShift = async () => {
+    if (!shift) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/pos/shifts/${shift.id}/close`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actual_cash: parseFloat(actualCash) || 0 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to end shift', 'error'); return; }
+      setCloseResult(data);
+      setShowEnd(false); setActualCash(''); loadShift();
+    } finally { setSubmitting(false); }
+  };
+
+  if (loading) return null;
+
+  return (
+    <>
+      {shift ? (
+        <button onClick={() => setShowEnd(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> On Shift · {formatDate(shift.time_in)} — End Shift
+        </button>
+      ) : (
+        <button onClick={() => setShowStart(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+          Start Shift
+        </button>
+      )}
+
+      {showStart && (
+        <Modal open onClose={() => setShowStart(false)} title="Start Shift" size="sm">
+          <div className="space-y-4">
+            <div>
+              <label className="form-label">Starting Cash (₱)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={startingCash} onChange={e => setStartingCash(e.target.value)} autoFocus />
+              <p className="text-xs text-gray-400 mt-1">Cash you're placing in the drawer at the start of this shift.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowStart(false)} disabled={submitting} className="btn-secondary">Cancel</button>
+              <button onClick={startShift} disabled={submitting} className="btn-primary">{submitting ? 'Starting...' : 'Start Shift'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showEnd && shift && (
+        <Modal open onClose={() => setShowEnd(false)} title="End Shift" size="sm">
+          <div className="space-y-4">
+            <div>
+              <label className="form-label">Actual Cash Counted (₱)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={actualCash} onChange={e => setActualCash(e.target.value)} autoFocus />
+              <p className="text-xs text-gray-400 mt-1">Physically count the cash in the drawer and enter it here.</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowEnd(false)} disabled={submitting} className="btn-secondary">Cancel</button>
+              <button onClick={endShift} disabled={submitting} className="btn-danger">{submitting ? 'Ending...' : 'End Shift'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {closeResult && (
+        <Modal open onClose={() => setCloseResult(null)} title="Shift Closed" size="sm">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-gray-500">Expected Cash</span><span className="font-semibold tabular-nums">{formatCurrency(closeResult.expected_cash)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Actual Cash</span><span className="font-semibold tabular-nums">{formatCurrency(closeResult.actual_cash)}</span></div>
+            <div className="flex justify-between text-base pt-2 border-t border-gray-100">
+              <span className="font-semibold text-gray-700">Discrepancy</span>
+              <span className={`font-bold tabular-nums ${closeResult.discrepancy === 0 ? 'text-gray-900' : closeResult.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {closeResult.discrepancy > 0 ? '+' : ''}{formatCurrency(closeResult.discrepancy)}
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-end pt-4">
+            <button onClick={() => setCloseResult(null)} className="btn-primary">Done</button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -198,6 +316,7 @@ export default function PosClient() {
           <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
             {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+          {businessId && <ShiftControl businessId={businessId} showToast={showToast} />}
         </div>
         <div className="flex items-center gap-3">
           {cashier && <span className="text-xs text-gray-500">Cashier: <span className="font-semibold text-gray-800">{cashier.name}</span></span>}

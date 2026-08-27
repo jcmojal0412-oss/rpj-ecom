@@ -1260,6 +1260,35 @@ function migrateSchema() {
     WHERE (cogs IS NULL OR cogs = 0) AND product_id IS NOT NULL
   `);
 
+  // Cashier shifts — optional clock-in/out with cash-drawer reconciliation.
+  // Starting a shift is never required to use the POS: a sale made with no
+  // open shift just gets shift_id = NULL, exactly like before this feature
+  // existed. cash_sales/expected_cash/actual_cash/discrepancy are computed
+  // once, at the moment a shift is closed (see PUT /api/pos/shifts/[id]/close) —
+  // a later refund does not retroactively edit an already-closed shift.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER REFERENCES businesses(id),
+      cashier_id INTEGER REFERENCES users(id),
+      time_in TEXT NOT NULL,
+      time_out TEXT,
+      starting_cash REAL NOT NULL DEFAULT 0,
+      cash_sales REAL,
+      online_sales REAL,
+      expected_cash REAL,
+      actual_cash REAL,
+      discrepancy REAL,
+      status TEXT NOT NULL DEFAULT 'Open' CHECK(status IN ('Open','Closed')),
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_shifts_cashier ON pos_shifts(cashier_id);
+    CREATE INDEX IF NOT EXISTS idx_pos_shifts_business ON pos_shifts(business_id);
+  `);
+  const posSaleCols2 = (db.prepare('PRAGMA table_info(pos_sales)').all() as { name: string }[]).map(c => c.name);
+  if (!posSaleCols2.includes('shift_id')) db.exec('ALTER TABLE pos_sales ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
+
   seedCcCategoriesIfEmpty();
 }
 

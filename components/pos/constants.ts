@@ -88,6 +88,26 @@ export interface Refund {
   items: RefundItem[];
 }
 
+export interface Shift {
+  id: number;
+  business_id: number | null;
+  business_name: string | null;
+  cashier_id: number | null;
+  cashier_name: string | null;
+  username: string | null;
+  time_in: string;
+  time_out: string | null;
+  starting_cash: number;
+  cash_sales: number | null;
+  online_sales: number | null;
+  expected_cash: number | null;
+  actual_cash: number | null;
+  discrepancy: number | null;
+  status: 'Open' | 'Closed';
+  notes: string | null;
+  created_at: string;
+}
+
 export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
 
 // Grouped to match the reference POS's exact card layout: a 4-across row,
