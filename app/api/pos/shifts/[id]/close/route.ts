@@ -10,8 +10,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const db = getDb();
-    const shift = db.prepare('SELECT * FROM pos_shifts WHERE id = ?').get(params.id) as
-      { id: number; cashier_id: number; status: string; starting_cash: number } | undefined;
+    const shift = db.prepare(`
+      SELECT s.*, u.name as cashier_name, u.username, b.name as business_name
+      FROM pos_shifts s
+      LEFT JOIN users u ON u.id = s.cashier_id
+      LEFT JOIN businesses b ON b.id = s.business_id
+      WHERE s.id = ?
+    `).get(params.id) as
+      { id: number; cashier_id: number; status: string; starting_cash: number; time_in: string; cashier_name: string | null; business_name: string | null } | undefined;
     if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
     if (shift.status === 'Closed') return NextResponse.json({ error: 'Shift is already closed' }, { status: 400 });
     if (shift.cashier_id !== session.id) return NextResponse.json({ error: 'This is not your shift' }, { status: 403 });
@@ -20,12 +26,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const actualCashNum = actual_cash ? parseFloat(actual_cash) : 0;
 
     const totals = db.prepare(
-      `SELECT COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales
+      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount
        FROM pos_sales WHERE shift_id = ? AND status != 'Voided'`
-    ).get(shift.id) as { cash_sales: number; online_sales: number };
+    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number };
+
+    const voidTotals = db.prepare(
+      `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
+    ).get(shift.id) as { void_count: number; void_amount: number };
+
+    const refundTotals = db.prepare(
+      `SELECT COALESCE(SUM(r.total_refund),0) as refund_amount FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id WHERE s.shift_id = ?`
+    ).get(shift.id) as { refund_amount: number };
 
     const expectedCash = shift.starting_cash + totals.cash_sales;
     const discrepancy = actualCashNum - expectedCash;
+    const timeOut = new Date().toISOString();
 
     db.prepare(`
       UPDATE pos_shifts SET
@@ -35,7 +50,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     `).run(totals.cash_sales, totals.online_sales, expectedCash, actualCashNum, discrepancy, shift.id);
 
     return NextResponse.json({
-      ok: true, cash_sales: totals.cash_sales, online_sales: totals.online_sales,
+      ok: true,
+      business_name: shift.business_name, cashier_name: shift.cashier_name,
+      time_in: shift.time_in, time_out: timeOut,
+      starting_cash: shift.starting_cash, transaction_count: totals.transaction_count,
+      cash_sales: totals.cash_sales, online_sales: totals.online_sales, total_sales: totals.total_sales,
+      total_discount: totals.total_discount, void_count: voidTotals.void_count, void_amount: voidTotals.void_amount,
+      refund_amount: refundTotals.refund_amount,
       expected_cash: expectedCash, actual_cash: actualCashNum, discrepancy,
     });
   } catch (e) {

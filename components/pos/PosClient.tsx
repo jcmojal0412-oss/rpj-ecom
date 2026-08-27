@@ -38,6 +38,83 @@ function InlineField({ value, onChange, suffix }: { value: string; onChange: (v:
   );
 }
 
+interface ReadingTotals {
+  transaction_count: number; cash_sales: number; online_sales: number; total_sales: number;
+  total_discount: number; void_count: number; void_amount: number; refund_amount: number;
+  starting_cash: number; expected_cash: number; actual_cash?: number; discrepancy?: number;
+}
+interface XReading extends ReadingTotals { shift: Shift; generated_at: string; }
+interface ZReading extends ReadingTotals {
+  business_name: string | null; cashier_name: string | null; time_in: string; time_out: string;
+  actual_cash: number; discrepancy: number;
+}
+
+// Peso denominations for the physical cash count at End Shift — internal
+// cash-accountability tool only, not a BIR-accredited reading.
+const DENOMINATIONS = [1000, 500, 200, 100, 50, 20, 10, 5, 1, 0.25];
+
+// Printable X/Z Reading layout — X is a non-destructive mid-shift snapshot
+// (can be pulled repeatedly), Z is the final closing summary. Both reuse the
+// same visual shape, just fed different data and a different title. This is
+// an internal cash-accountability report, not a BIR-accredited CRM/POS
+// X-Reading/Z-Reading — it is explicitly labeled as such below.
+function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, denominationCounts }: {
+  title: string; businessName: string | null; cashierName: string | null; timeIn: string; timeOut: string | null;
+  data: ReadingTotals; denominationCounts?: Record<number, number>;
+}) {
+  return (
+    <div className="max-w-xs mx-auto">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <div className="text-center">
+          <p className="font-bold text-gray-900">{businessName || 'RPJ ECOM'}</p>
+          <p className="text-sm font-semibold text-orange-600 mt-1">{title}</p>
+          <p className="text-xs text-gray-400 mt-1">Cashier: {cashierName || '—'}</p>
+          <p className="text-xs text-gray-400">{formatDate(timeIn)} — {timeOut ? formatDate(timeOut) : 'Ongoing'}</p>
+        </div>
+
+        <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+          <div className="flex justify-between text-gray-500"><span>Transactions</span><span className="tabular-nums">{data.transaction_count}</span></div>
+          <div className="flex justify-between text-gray-500"><span>Cash Sales</span><span className="tabular-nums">{formatCurrency(data.cash_sales)}</span></div>
+          <div className="flex justify-between text-gray-500"><span>Online Sales</span><span className="tabular-nums">{formatCurrency(data.online_sales)}</span></div>
+          {data.total_discount > 0 && <div className="flex justify-between text-gray-500"><span>Total Discount</span><span className="tabular-nums">-{formatCurrency(data.total_discount)}</span></div>}
+          {data.void_count > 0 && <div className="flex justify-between text-gray-500"><span>Voided ({data.void_count})</span><span className="tabular-nums">{formatCurrency(data.void_amount)}</span></div>}
+          {data.refund_amount > 0 && <div className="flex justify-between text-gray-500"><span>Refunded</span><span className="tabular-nums">-{formatCurrency(data.refund_amount)}</span></div>}
+          <div className="flex justify-between font-bold text-gray-900 pt-1"><span>Total Sales</span><span className="tabular-nums">{formatCurrency(data.total_sales)}</span></div>
+        </div>
+
+        {denominationCounts && (
+          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Cash Count</p>
+            {DENOMINATIONS.filter(d => (denominationCounts[d] ?? 0) > 0).map(d => (
+              <div key={d} className="flex justify-between text-gray-500 text-xs">
+                <span>₱{d} × {denominationCounts[d]}</span><span className="tabular-nums">{formatCurrency(d * denominationCounts[d])}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+          <div className="flex justify-between text-gray-500"><span>Starting Cash</span><span className="tabular-nums">{formatCurrency(data.starting_cash)}</span></div>
+          <div className="flex justify-between text-gray-500"><span>Expected Cash</span><span className="tabular-nums">{formatCurrency(data.expected_cash)}</span></div>
+          {data.actual_cash != null && (
+            <div className="flex justify-between text-gray-500"><span>Actual Cash</span><span className="tabular-nums">{formatCurrency(data.actual_cash)}</span></div>
+          )}
+          {data.discrepancy != null && (
+            <div className="flex justify-between font-bold pt-1">
+              <span className="text-gray-700">Discrepancy</span>
+              <span className={`tabular-nums ${data.discrepancy === 0 ? 'text-gray-900' : data.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {data.discrepancy > 0 ? '+' : ''}{formatCurrency(data.discrepancy)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <p className="text-center text-[10px] text-gray-400 pt-2 border-t border-dashed border-gray-200">FOR INTERNAL USE ONLY — Not a BIR-accredited document</p>
+      </div>
+    </div>
+  );
+}
+
 // Optional clock-in/out with cash-drawer reconciliation. Starting a shift is
 // never required to check out a sale — it's purely additive accountability
 // for cashiers who want it.
@@ -47,9 +124,13 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
   const [startingCash, setStartingCash] = useState('');
-  const [actualCash, setActualCash] = useState('');
+  const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [closeResult, setCloseResult] = useState<{ expected_cash: number; actual_cash: number; discrepancy: number } | null>(null);
+  const [xReading, setXReading] = useState<XReading | null>(null);
+  const [zReading, setZReading] = useState<ZReading | null>(null);
+  const [zDenomCounts, setZDenomCounts] = useState<Record<number, number>>({});
+
+  const declaredCash = DENOMINATIONS.reduce((sum, d) => sum + d * (parseInt(denomCounts[d]) || 0), 0);
 
   const loadShift = () => {
     if (!businessId) return;
@@ -73,18 +154,27 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
     } finally { setSubmitting(false); }
   };
 
+  const runXReading = async () => {
+    if (!shift) return;
+    const data = await fetch(`/api/pos/shifts/${shift.id}/xreading`).then(r => r.json());
+    setXReading(data);
+  };
+
   const endShift = async () => {
     if (!shift) return;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/pos/shifts/${shift.id}/close`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actual_cash: parseFloat(actualCash) || 0 }),
+        body: JSON.stringify({ actual_cash: declaredCash }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to end shift', 'error'); return; }
-      setCloseResult(data);
-      setShowEnd(false); setActualCash(''); loadShift();
+      const countsSnapshot: Record<number, number> = {};
+      DENOMINATIONS.forEach(d => { countsSnapshot[d] = parseInt(denomCounts[d]) || 0; });
+      setZDenomCounts(countsSnapshot);
+      setZReading(data);
+      setShowEnd(false); setDenomCounts({}); loadShift();
     } finally { setSubmitting(false); }
   };
 
@@ -93,9 +183,14 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   return (
     <>
       {shift ? (
-        <button onClick={() => setShowEnd(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> On Shift · {formatDate(shift.time_in)} — End Shift
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setShowEnd(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> On Shift · {formatDate(shift.time_in)} — End Shift
+          </button>
+          <button onClick={runXReading} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+            X Reading
+          </button>
+        </div>
       ) : (
         <button onClick={() => setShowStart(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
           Start Shift
@@ -122,9 +217,22 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
         <Modal open onClose={() => setShowEnd(false)} title="End Shift" size="sm">
           <div className="space-y-4">
             <div>
-              <label className="form-label">Actual Cash Counted (₱)</label>
-              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={actualCash} onChange={e => setActualCash(e.target.value)} autoFocus />
-              <p className="text-xs text-gray-400 mt-1">Physically count the cash in the drawer and enter it here.</p>
+              <p className="form-label mb-2">Cash Count</p>
+              <div className="space-y-1.5">
+                {DENOMINATIONS.map(d => (
+                  <div key={d} className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-sm text-gray-600">₱{d}</span>
+                    <input type="number" min="0" step="1" className="form-input py-1 text-sm" placeholder="0"
+                      value={denomCounts[d] ?? ''} onChange={e => setDenomCounts(prev => ({ ...prev, [d]: e.target.value }))} />
+                    <span className="text-sm text-gray-500 text-right tabular-nums">{formatCurrency(d * (parseInt(denomCounts[d]) || 0))}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">Total Declared Cash</span>
+                <span className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(declaredCash)}</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Physically count the cash in the drawer by denomination.</p>
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowEnd(false)} disabled={submitting} className="btn-secondary">Cancel</button>
@@ -134,20 +242,26 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
         </Modal>
       )}
 
-      {closeResult && (
-        <Modal open onClose={() => setCloseResult(null)} title="Shift Closed" size="sm">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">Expected Cash</span><span className="font-semibold tabular-nums">{formatCurrency(closeResult.expected_cash)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Actual Cash</span><span className="font-semibold tabular-nums">{formatCurrency(closeResult.actual_cash)}</span></div>
-            <div className="flex justify-between text-base pt-2 border-t border-gray-100">
-              <span className="font-semibold text-gray-700">Discrepancy</span>
-              <span className={`font-bold tabular-nums ${closeResult.discrepancy === 0 ? 'text-gray-900' : closeResult.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {closeResult.discrepancy > 0 ? '+' : ''}{formatCurrency(closeResult.discrepancy)}
-              </span>
-            </div>
+      {xReading && (
+        <Modal open onClose={() => setXReading(null)} title="X Reading" size="sm">
+          <ReadingSlip title="X READING (Interim — Shift Still Open)" businessName={xReading.shift.business_name} cashierName={xReading.shift.cashier_name}
+            timeIn={xReading.shift.time_in} timeOut={null}
+            data={{ ...xReading, starting_cash: xReading.shift.starting_cash }} />
+          <div className="flex justify-center gap-3 mt-4 print:hidden">
+            <button onClick={() => setXReading(null)} className="btn-secondary">Close</button>
+            <button onClick={() => window.print()} className="btn-primary"><Printer size={15} /> Print</button>
           </div>
-          <div className="flex justify-end pt-4">
-            <button onClick={() => setCloseResult(null)} className="btn-primary">Done</button>
+        </Modal>
+      )}
+
+      {zReading && (
+        <Modal open onClose={() => setZReading(null)} title="Z Reading" size="sm">
+          <ReadingSlip title="Z READING (Shift Closed)" businessName={zReading.business_name} cashierName={zReading.cashier_name}
+            timeIn={zReading.time_in} timeOut={zReading.time_out}
+            data={zReading} denominationCounts={zDenomCounts} />
+          <div className="flex justify-center gap-3 mt-4 print:hidden">
+            <button onClick={() => setZReading(null)} className="btn-secondary">Done</button>
+            <button onClick={() => window.print()} className="btn-primary"><Printer size={15} /> Print</button>
           </div>
         </Modal>
       )}
