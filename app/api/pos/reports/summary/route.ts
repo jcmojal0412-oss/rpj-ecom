@@ -19,8 +19,28 @@ export async function GET(req: NextRequest) {
     const saleWhere = saleClauses.join(' AND ');
 
     const totals = db.prepare(
-      `SELECT COALESCE(SUM(total),0) as totalSales, COUNT(*) as totalOrders FROM pos_sales WHERE ${saleWhere}`
-    ).get(...saleParams) as { totalSales: number; totalOrders: number };
+      `SELECT COALESCE(SUM(total),0) as totalSales, COALESCE(SUM(subtotal),0) as grossSales,
+              COALESCE(SUM(discount),0) as discountTotal, COALESCE(SUM(delivery_fee),0) as deliveryFeeTotal,
+              COALESCE(SUM(additional_fee),0) as additionalFeeTotal, COUNT(*) as totalOrders
+       FROM pos_sales WHERE ${saleWhere}`
+    ).get(...saleParams) as {
+      totalSales: number; grossSales: number; discountTotal: number; deliveryFeeTotal: number;
+      additionalFeeTotal: number; totalOrders: number;
+    };
+
+    const cogsRow = db.prepare(
+      `SELECT COALESCE(SUM(i.quantity * i.cogs),0) as cogs
+       FROM pos_sale_items i JOIN pos_sales s ON s.id = i.sale_id WHERE ${saleWhere}`
+    ).get(...saleParams) as { cogs: number };
+
+    const expClauses: string[] = ['e.deleted_at IS NULL'];
+    const expParams: (string | number)[] = [];
+    if (from) { expClauses.push('e.date >= ?'); expParams.push(from); }
+    if (to) { expClauses.push('e.date <= ?'); expParams.push(to); }
+    if (businessId) { expClauses.push('e.business_id = ?'); expParams.push(Number(businessId)); }
+    const expenseRow = db.prepare(
+      `SELECT COALESCE(SUM(amount),0) as totalExpenses FROM expenses e WHERE ${expClauses.join(' AND ')}`
+    ).get(...expParams) as { totalExpenses: number };
 
     const byDay = db.prepare(
       `SELECT sale_date as date, COALESCE(SUM(total),0) as total, COUNT(*) as orders
@@ -39,11 +59,20 @@ export async function GET(req: NextRequest) {
        FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id ${refundWhere}`
     ).get(...refundParams) as { totalRefunds: number };
 
+    const netSales = totals.totalSales - refundTotals.totalRefunds;
+
     return NextResponse.json({
       totalSales: totals.totalSales,
+      grossSales: totals.grossSales,
+      discountTotal: totals.discountTotal,
+      deliveryFeeTotal: totals.deliveryFeeTotal,
+      additionalFeeTotal: totals.additionalFeeTotal,
       totalOrders: totals.totalOrders,
       totalRefunds: refundTotals.totalRefunds,
-      netSales: totals.totalSales - refundTotals.totalRefunds,
+      netSales,
+      cogs: cogsRow.cogs,
+      totalExpenses: expenseRow.totalExpenses,
+      netIncome: netSales - cogsRow.cogs - expenseRow.totalExpenses,
       byDay,
     });
   } catch (e) {
