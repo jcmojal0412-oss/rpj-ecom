@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
+      tax_percent, service_charge, delivery_fee, payment_method, reference_no,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest) {
     const feeNum = additional_fee ? parseFloat(additional_fee) : 0;
     const cashNum = cash_amount ? parseFloat(cash_amount) : 0;
     const onlineNum = online_amount ? parseFloat(online_amount) : 0;
+    const taxPercentNum = tax_percent ? parseFloat(tax_percent) : 0;
+    const serviceChargeNum = service_charge ? parseFloat(service_charge) : 0;
+    const deliveryFeeNum = delivery_fee ? parseFloat(delivery_fee) : 0;
 
     // Re-price and re-check stock server-side for every line — the cart's
     // own numbers are never trusted, same principle used for Service Center
@@ -88,7 +92,9 @@ export async function POST(req: NextRequest) {
     }
 
     const subtotal = lineData.reduce((s, l) => s + l.line_total, 0);
-    const total = Math.max(0, subtotal - discountNum + feeNum);
+    const preTax = Math.max(0, subtotal - discountNum + feeNum);
+    const taxAmount = preTax * (taxPercentNum / 100);
+    const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
     const totalPayment = cashNum + onlineNum;
     if (totalPayment + 0.005 < total) {
       return NextResponse.json({ error: 'Payment is less than the total due' }, { status: 400 });
@@ -97,9 +103,10 @@ export async function POST(req: NextRequest) {
 
     const insertSale = db.prepare(`
       INSERT INTO pos_sales
-        (business_id, sale_date, subtotal, discount, additional_fee, total,
-         cash_amount, online_amount, change_due, status, cashier_id, notes)
-      VALUES (?,?,?,?,?,?,?,?,?, 'Completed', ?, ?)
+        (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
+         service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
+         payment_method, reference_no, status, cashier_id, notes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, quantity, line_total)
@@ -118,8 +125,10 @@ export async function POST(req: NextRequest) {
 
     const saleId = runTransaction(() => {
       const info = insertSale.run(
-        business_id, todayISO(), subtotal, discountNum, feeNum, total,
-        cashNum, onlineNum, changeDue, session.id, notes?.trim() || null,
+        business_id, todayISO(), subtotal, discountNum, feeNum, taxPercentNum, taxAmount,
+        serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
+        payment_method?.trim() || null, reference_no?.trim() || null,
+        session.id, notes?.trim() || null,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

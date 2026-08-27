@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Plus, Minus, Trash2, ArrowLeft, History, Printer } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import ReceiptView from './ReceiptView';
-import { CASH_PRESETS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
+import { CASH_PRESETS, PAYMENT_METHODS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
 
 interface SessionUser { id: number; name: string; }
 
@@ -23,11 +23,17 @@ export default function PosClient() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState('');
   const [additionalFee, setAdditionalFee] = useState('');
+  const [taxPercent, setTaxPercent] = useState('');
+  const [serviceCharge, setServiceCharge] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [onlineAmount, setOnlineAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [referenceNo, setReferenceNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const { toast, showToast, clearToast } = useToast();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const loadProducts = () => fetch('/api/pos/products').then(r => r.json()).then(d => setProducts(d.rows ?? []));
 
@@ -44,10 +50,13 @@ export default function PosClient() {
     ]).finally(() => setLoading(false));
   }, []);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach(p => { if (p.category) set.add(p.category); });
-    return ['All', ...[...set].sort()];
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    products.forEach(p => { if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1); });
+    return [
+      { name: 'All', count: products.length },
+      ...[...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count })),
+    ];
   }, [products]);
 
   const filteredProducts = useMemo(() => {
@@ -83,12 +92,20 @@ export default function PosClient() {
   };
 
   const removeLine = (productId: number) => setCart(prev => prev.filter(l => l.product_id !== productId));
-  const clearCart = () => { setCart([]); setDiscount(''); setAdditionalFee(''); setCashAmount(''); setOnlineAmount(''); };
+  const clearCart = () => {
+    setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
+    setCashAmount(''); setOnlineAmount(''); setPaymentMethod('Cash'); setReferenceNo('');
+  };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
   const discountNum = parseFloat(discount) || 0;
   const feeNum = parseFloat(additionalFee) || 0;
-  const total = Math.max(0, subtotal - discountNum + feeNum);
+  const taxPercentNum = parseFloat(taxPercent) || 0;
+  const serviceChargeNum = parseFloat(serviceCharge) || 0;
+  const deliveryFeeNum = parseFloat(deliveryFee) || 0;
+  const preTax = Math.max(0, subtotal - discountNum + feeNum);
+  const taxAmount = preTax * (taxPercentNum / 100);
+  const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
   const cashNum = parseFloat(cashAmount) || 0;
   const onlineNum = parseFloat(onlineAmount) || 0;
   const totalPayment = cashNum + onlineNum;
@@ -109,7 +126,9 @@ export default function PosClient() {
           business_id: Number(businessId),
           items: cart.map(l => ({ product_id: l.product_id, quantity: l.quantity })),
           discount: discountNum, additional_fee: feeNum,
+          tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
           cash_amount: cashNum, online_amount: onlineNum,
+          payment_method: paymentMethod, reference_no: referenceNo,
         }),
       });
       const data = await res.json();
@@ -165,13 +184,13 @@ export default function PosClient() {
         <div className="flex-1 flex flex-col overflow-hidden p-4">
           <div className="relative mb-3 shrink-0">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input className="form-input pl-9" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input ref={searchRef} className="form-input pl-9" placeholder="Search product or scan barcode..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div className="flex items-center gap-2 mb-3 flex-wrap shrink-0">
-            {categories.map(c => (
-              <button key={c} onClick={() => setCategory(c)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === c ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
-                {c}
+            {categoryCounts.map(c => (
+              <button key={c.name} onClick={() => setCategory(c.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === c.name ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+                {c.name} <span className="opacity-70">({c.count})</span>
               </button>
             ))}
           </div>
@@ -179,16 +198,16 @@ export default function PosClient() {
             {filteredProducts.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-12">No products found.</p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
                 {filteredProducts.map(p => (
                   <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0}
-                    className="bg-white border border-gray-200 rounded-xl p-3 text-left hover:border-orange-300 hover:shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                    <p className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{p.name}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{p.sku}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm font-bold text-orange-600 tabular-nums">{formatCurrency(p.srp ?? 0)}</span>
-                      <span className={`text-[10px] font-semibold ${p.quantity <= 0 ? 'text-red-500' : p.quantity <= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
-                        {p.quantity <= 0 ? 'Out of stock' : `${p.quantity} left`}
+                    className="bg-white border border-gray-200 rounded-lg p-2.5 text-left hover:border-orange-300 hover:shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                    <p className="text-xs font-semibold text-gray-800 leading-snug line-clamp-2 min-h-[2rem]">{p.name}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{p.sku}</p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-xs font-bold text-orange-600 tabular-nums">{formatCurrency(p.srp ?? 0)}</span>
+                      <span className={`text-[9px] font-semibold ${p.quantity <= 0 ? 'text-red-500' : p.quantity <= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
+                        {p.quantity <= 0 ? 'Out' : `${p.quantity} left`}
                       </span>
                     </div>
                   </button>
@@ -199,10 +218,14 @@ export default function PosClient() {
         </div>
 
         {/* Cart / payment */}
-        <div className="w-[380px] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
+        <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
             <p className="text-sm font-semibold text-gray-800">Current Order</p>
-            {cart.length > 0 && <button onClick={clearCart} className="text-xs text-red-500 hover:text-red-700 font-medium">Clear All</button>}
+            <div className="flex items-center gap-1">
+              <button onClick={() => searchRef.current?.focus()} title="Scan/search barcode" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ScanBarcode size={14} /></button>
+              <button onClick={loadProducts} title="Refresh products" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><RotateCw size={14} /></button>
+              {cart.length > 0 && <button onClick={clearCart} className="text-xs text-red-500 hover:text-red-700 font-medium px-1.5">Clear All</button>}
+            </div>
           </div>
 
           <div className="flex-1 overflow-auto px-4 py-2">
@@ -229,7 +252,7 @@ export default function PosClient() {
             )}
           </div>
 
-          <div className="border-t border-gray-100 px-4 py-3 space-y-2 shrink-0">
+          <div className="border-t border-gray-100 px-4 py-3 space-y-2 shrink-0 overflow-y-auto max-h-[62vh]">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] text-gray-500 font-medium">Discount (₱)</label>
@@ -239,12 +262,27 @@ export default function PosClient() {
                 <label className="text-[11px] text-gray-500 font-medium">Additional Fee (₱)</label>
                 <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
               </div>
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Tax (%)</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Service Charge (₱)</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={serviceCharge} onChange={e => setServiceCharge(e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-gray-500 font-medium">Delivery Fee (₱)</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-sm" placeholder="0.00" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} />
+              </div>
             </div>
 
             <div className="bg-gray-900 text-white rounded-xl p-3 space-y-1">
               <div className="flex justify-between text-xs text-gray-300"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(subtotal)}</span></div>
               {discountNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Discount</span><span className="tabular-nums">-{formatCurrency(discountNum)}</span></div>}
               {feeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Additional Fee</span><span className="tabular-nums">{formatCurrency(feeNum)}</span></div>}
+              {taxAmount > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Tax ({taxPercentNum}%)</span><span className="tabular-nums">{formatCurrency(taxAmount)}</span></div>}
+              {serviceChargeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Service Charge</span><span className="tabular-nums">{formatCurrency(serviceChargeNum)}</span></div>}
+              {deliveryFeeNum > 0 && <div className="flex justify-between text-xs text-gray-300"><span>Delivery Fee</span><span className="tabular-nums">{formatCurrency(deliveryFeeNum)}</span></div>}
               <div className="flex justify-between text-base font-bold pt-1"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
             </div>
 
@@ -273,8 +311,25 @@ export default function PosClient() {
               <span className={`font-bold tabular-nums ${changeDue < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatCurrency(Math.max(0, changeDue))}</span>
             </div>
 
+            <div>
+              <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
+              <input className="form-input py-1.5 text-sm" placeholder="e.g. GCash reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-[11px] text-gray-500 font-medium">Payment Method</label>
+              <div className="grid grid-cols-3 gap-1.5 mt-1">
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m} onClick={() => setPaymentMethod(m)}
+                    className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${paymentMethod === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-40">
-              {submitting ? 'Processing...' : 'Complete Sale'}
+              {submitting ? 'Processing...' : 'Place Order'}
             </button>
           </div>
         </div>

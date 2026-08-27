@@ -1207,6 +1207,18 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_pos_sale_items_sale ON pos_sale_items(sale_id);
   `);
 
+  // Extra sale-level fields to match the branch POS UI: tax/service/delivery
+  // as additional adjustable line items, a payment method tag (label only —
+  // no real payment-gateway integration behind it), and an optional external
+  // reference number (e.g. a GCash transaction ID).
+  const posSaleCols = (db.prepare('PRAGMA table_info(pos_sales)').all() as { name: string }[]).map(c => c.name);
+  if (!posSaleCols.includes('tax_percent'))    db.exec('ALTER TABLE pos_sales ADD COLUMN tax_percent REAL DEFAULT 0');
+  if (!posSaleCols.includes('tax_amount'))     db.exec('ALTER TABLE pos_sales ADD COLUMN tax_amount REAL DEFAULT 0');
+  if (!posSaleCols.includes('service_charge')) db.exec('ALTER TABLE pos_sales ADD COLUMN service_charge REAL DEFAULT 0');
+  if (!posSaleCols.includes('delivery_fee'))   db.exec('ALTER TABLE pos_sales ADD COLUMN delivery_fee REAL DEFAULT 0');
+  if (!posSaleCols.includes('payment_method')) db.exec('ALTER TABLE pos_sales ADD COLUMN payment_method TEXT');
+  if (!posSaleCols.includes('reference_no'))   db.exec('ALTER TABLE pos_sales ADD COLUMN reference_no TEXT');
+
   seedCcCategoriesIfEmpty();
 }
 

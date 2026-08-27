@@ -36,10 +36,16 @@ export interface Sale {
   subtotal: number;
   discount: number;
   additional_fee: number;
+  tax_percent: number;
+  tax_amount: number;
+  service_charge: number;
+  delivery_fee: number;
   total: number;
   cash_amount: number;
   online_amount: number;
   change_due: number;
+  payment_method: string | null;
+  reference_no: string | null;
   status: 'Completed' | 'Voided';
   cashier_id: number | null;
   cashier_name: string | null;
@@ -47,4 +53,5 @@ export interface Sale {
   created_at: string;
 }
 
-export const CASH_PRESETS = [20, 50, 100, 200, 500, 1000];
+export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
+export const PAYMENT_METHODS = ['Cash', 'GCash', 'Maya', 'Bank Transfer', 'Card', 'Other'];

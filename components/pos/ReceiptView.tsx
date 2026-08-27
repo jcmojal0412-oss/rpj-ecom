@@ -36,13 +36,18 @@ export default function ReceiptView({ sale, items, children }: Props) {
           <div className="flex justify-between text-gray-500"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(sale.subtotal)}</span></div>
           {sale.discount > 0 && <div className="flex justify-between text-gray-500"><span>Discount</span><span className="tabular-nums">-{formatCurrency(sale.discount)}</span></div>}
           {sale.additional_fee > 0 && <div className="flex justify-between text-gray-500"><span>Additional Fee</span><span className="tabular-nums">{formatCurrency(sale.additional_fee)}</span></div>}
+          {sale.tax_amount > 0 && <div className="flex justify-between text-gray-500"><span>Tax ({sale.tax_percent}%)</span><span className="tabular-nums">{formatCurrency(sale.tax_amount)}</span></div>}
+          {sale.service_charge > 0 && <div className="flex justify-between text-gray-500"><span>Service Charge</span><span className="tabular-nums">{formatCurrency(sale.service_charge)}</span></div>}
+          {sale.delivery_fee > 0 && <div className="flex justify-between text-gray-500"><span>Delivery Fee</span><span className="tabular-nums">{formatCurrency(sale.delivery_fee)}</span></div>}
           <div className="flex justify-between text-base font-bold text-gray-900 pt-1"><span>Total</span><span className="tabular-nums">{formatCurrency(sale.total)}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+          {sale.payment_method && <div className="flex justify-between text-gray-500"><span>Payment Method</span><span>{sale.payment_method}</span></div>}
           {sale.cash_amount > 0 && <div className="flex justify-between text-gray-500"><span>Cash</span><span className="tabular-nums">{formatCurrency(sale.cash_amount)}</span></div>}
           {sale.online_amount > 0 && <div className="flex justify-between text-gray-500"><span>Online</span><span className="tabular-nums">{formatCurrency(sale.online_amount)}</span></div>}
           <div className="flex justify-between font-semibold text-gray-900"><span>Change</span><span className="tabular-nums">{formatCurrency(sale.change_due)}</span></div>
+          {sale.reference_no && <div className="flex justify-between text-gray-500"><span>Reference No.</span><span>{sale.reference_no}</span></div>}
         </div>
 
         {sale.notes && <p className="text-xs text-gray-400 border-t border-dashed border-gray-200 pt-3">{sale.notes}</p>}
