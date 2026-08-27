@@ -333,11 +333,11 @@ export default function PosClient() {
             </div>
 
             {/* Payment box */}
-            <div className="bg-blue-600 text-white rounded-xl p-3 space-y-1.5">
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Customer's Payment Cash</span><InlineField value={cashAmount} onChange={setCashAmount} /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Customer's Payment Online</span><InlineField value={onlineAmount} onChange={setOnlineAmount} /></div>
-              <div className="flex justify-between items-center text-sm pt-1 border-t border-white/20"><span className="text-white/85">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Total Bill</span><span className="tabular-nums">-{formatCurrency(total)}</span></div>
+            <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Customer's Payment Cash</span><InlineField value={cashAmount} onChange={setCashAmount} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Customer's Payment Online</span><InlineField value={onlineAmount} onChange={setOnlineAmount} /></div>
+              <div className="flex justify-between items-center text-sm pt-1"><span className="text-white/90">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Total Bill</span><span className="tabular-nums">-{formatCurrency(total)}</span></div>
               <div className="flex justify-between items-center text-lg font-bold pt-1"><span>Change</span><span className={`tabular-nums ${changeDue < 0 ? 'text-red-200' : ''}`}>{formatCurrency(Math.max(0, changeDue))}</span></div>
             </div>
 
