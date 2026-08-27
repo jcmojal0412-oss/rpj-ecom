@@ -53,6 +53,8 @@ const ROUTE_MODULES: [string, string][] = [
   // /payslips and /api/payslips paths, deliberately left unlisted here so
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
+  ['/pos',              'pos'],
+  ['/api/pos',          'pos'],
   // CEO Overview is owner-only (income, marketing spend, net income) —
   // this must come before the generic '/service-center' rule below, since
   // ROUTE_MODULES matches on the first startsWith() hit. Repair Monitoring

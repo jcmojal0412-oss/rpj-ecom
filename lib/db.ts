@@ -1169,6 +1169,43 @@ function migrateSchema() {
     db.prepare(`INSERT INTO app_settings (key, value) VALUES ('expense_categories_remapped', '1')`).run();
   }
 
+  // Point of Sale — line-itemized sales transactions. Nothing else in this
+  // schema represents a per-product sale (gross_sales/financing_sales are
+  // manually-entered lump sums with no product linkage), so this is new.
+  // products/inventory stay untouched and business-agnostic — the same
+  // shared catalog serves every business's POS.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER REFERENCES businesses(id),
+      sale_date TEXT NOT NULL,
+      subtotal REAL NOT NULL,
+      discount REAL DEFAULT 0,
+      additional_fee REAL DEFAULT 0,
+      total REAL NOT NULL,
+      cash_amount REAL DEFAULT 0,
+      online_amount REAL DEFAULT 0,
+      change_due REAL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'Completed' CHECK(status IN ('Completed','Voided')),
+      cashier_id INTEGER REFERENCES users(id),
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS pos_sale_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL REFERENCES pos_sales(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES products(id),
+      product_name TEXT NOT NULL,
+      sku TEXT,
+      unit_price REAL NOT NULL,
+      quantity INTEGER NOT NULL,
+      line_total REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_sales_date ON pos_sales(sale_date);
+    CREATE INDEX IF NOT EXISTS idx_pos_sales_business ON pos_sales(business_id);
+    CREATE INDEX IF NOT EXISTS idx_pos_sale_items_sale ON pos_sale_items(sale_id);
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 
