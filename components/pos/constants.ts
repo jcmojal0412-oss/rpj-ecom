@@ -53,6 +53,27 @@ export interface Sale {
   created_at: string;
 }
 
+export interface RefundItem {
+  id: number;
+  sale_item_id: number;
+  product_id: number | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+}
+
+export interface Refund {
+  id: number;
+  sale_id: number;
+  refund_date: string;
+  total_refund: number;
+  reason: string | null;
+  cashier_id: number | null;
+  cashier_name: string | null;
+  created_at: string;
+  items: RefundItem[];
+}
+
 export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
 
 // Grouped to match the reference POS's exact card layout: a 4-across row,

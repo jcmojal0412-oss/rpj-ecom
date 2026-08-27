@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Eye, Ban } from 'lucide-react';
+import { ArrowLeft, Eye, Ban, Undo2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import ReceiptView from './ReceiptView';
-import type { Business, Sale, SaleItem } from './constants';
+import RefundModal from './RefundModal';
+import type { Business, Sale, SaleItem, Refund } from './constants';
+
+type SaleDetail = { sale: Sale; items: SaleItem[]; refunds: Refund[] };
 
 export default function SalesHistoryClient() {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -22,9 +25,10 @@ export default function SalesHistoryClient() {
   const [businessId, setBusinessId] = useState('');
   const [status, setStatus] = useState('');
 
-  const [viewing, setViewing] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
+  const [viewing, setViewing] = useState<SaleDetail | null>(null);
   const [voiding, setVoiding] = useState<Sale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
+  const [refunding, setRefunding] = useState<SaleDetail | null>(null);
   const { toast, showToast, clearToast } = useToast();
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
@@ -46,10 +50,10 @@ export default function SalesHistoryClient() {
     fetch('/api/businesses').then(r => r.json()).then(d => setBusinesses(d.rows ?? []));
   }, []);
 
-  const openSale = async (s: Sale) => {
-    const detail = await fetch(`/api/pos/sales/${s.id}`).then(r => r.json());
-    setViewing(detail);
-  };
+  const fetchDetail = (id: number): Promise<SaleDetail> => fetch(`/api/pos/sales/${id}`).then(r => r.json());
+
+  const openSale = async (s: Sale) => setViewing(await fetchDetail(s.id));
+  const openRefund = async (s: Sale) => setRefunding(await fetchDetail(s.id));
 
   const confirmVoid = async () => {
     if (!voiding) return;
@@ -145,7 +149,10 @@ export default function SalesHistoryClient() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => openSale(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="View Receipt"><Eye size={14} /></button>
                         {s.status !== 'Voided' && (
-                          <button onClick={() => setVoiding(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Void Sale"><Ban size={14} /></button>
+                          <>
+                            <button onClick={() => openRefund(s)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-300 hover:text-amber-600" title="Refund Item(s)"><Undo2 size={14} /></button>
+                            <button onClick={() => setVoiding(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Void Sale"><Ban size={14} /></button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -163,12 +170,25 @@ export default function SalesHistoryClient() {
 
       {viewing && (
         <Modal open onClose={() => setViewing(null)} title={`Sale #${String(viewing.sale.id).padStart(6, '0')}`} size="sm">
-          <ReceiptView sale={viewing.sale} items={viewing.items}>
+          <ReceiptView sale={viewing.sale} items={viewing.items} refunds={viewing.refunds}>
             <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
             {viewing.sale.status !== 'Voided' && (
-              <button onClick={() => setVoiding(viewing.sale)} className="btn-danger">Void Sale</button>
+              <>
+                <button onClick={() => setRefunding(viewing)} className="btn-secondary">Refund Item(s)</button>
+                <button onClick={() => setVoiding(viewing.sale)} className="btn-danger">Void Sale</button>
+              </>
             )}
           </ReceiptView>
+        </Modal>
+      )}
+
+      {refunding && (
+        <Modal open onClose={() => setRefunding(null)} title={`Refund — Sale #${String(refunding.sale.id).padStart(6, '0')}`} size="md">
+          <RefundModal
+            sale={refunding.sale} items={refunding.items} refunds={refunding.refunds}
+            onCancel={() => setRefunding(null)}
+            onRefunded={() => { setRefunding(null); setViewing(null); showToast('Refund processed — stock restored'); fetchSales(); }}
+          />
         </Modal>
       )}
 

@@ -20,7 +20,19 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       FROM pos_sale_items WHERE sale_id = ? ORDER BY id
     `).all(params.id);
 
-    return NextResponse.json({ sale, items });
+    const refundRows = db.prepare(`
+      SELECT r.*, u.name as cashier_name
+      FROM pos_refunds r
+      LEFT JOIN users u ON u.id = r.cashier_id
+      WHERE r.sale_id = ? ORDER BY r.id
+    `).all(params.id) as { id: number }[];
+    const getRefundItems = db.prepare(`
+      SELECT id, sale_item_id, product_id, quantity, unit_price, line_total
+      FROM pos_refund_items WHERE refund_id = ? ORDER BY id
+    `);
+    const refunds = refundRows.map(r => ({ ...r, items: getRefundItems.all(r.id) }));
+
+    return NextResponse.json({ sale, items, refunds });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

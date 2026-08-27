@@ -1219,6 +1219,34 @@ function migrateSchema() {
   if (!posSaleCols.includes('payment_method')) db.exec('ALTER TABLE pos_sales ADD COLUMN payment_method TEXT');
   if (!posSaleCols.includes('reference_no'))   db.exec('ALTER TABLE pos_sales ADD COLUMN reference_no TEXT');
 
+  // Partial refunds — kept separate from pos_sales/pos_sale_items so a sale's
+  // own total/line totals stay the immutable historical charge amount. A
+  // sale can receive multiple partial refunds over time; "how much of this
+  // line has been refunded" is derived by summing pos_refund_items per
+  // sale_item_id rather than mutating the original sale.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_refunds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL REFERENCES pos_sales(id),
+      refund_date TEXT NOT NULL,
+      total_refund REAL NOT NULL,
+      reason TEXT,
+      cashier_id INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS pos_refund_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      refund_id INTEGER NOT NULL REFERENCES pos_refunds(id) ON DELETE CASCADE,
+      sale_item_id INTEGER NOT NULL REFERENCES pos_sale_items(id),
+      product_id INTEGER REFERENCES products(id),
+      quantity INTEGER NOT NULL,
+      unit_price REAL NOT NULL,
+      line_total REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_refunds_sale ON pos_refunds(sale_id);
+    CREATE INDEX IF NOT EXISTS idx_pos_refund_items_refund ON pos_refund_items(refund_id);
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 

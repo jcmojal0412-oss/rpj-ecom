@@ -89,8 +89,9 @@ const NAV_GROUPS: NavGroup[] = [
     groupIcon: ScanBarcode,
     pinned: true,
     items: [
-      { label: 'Point of Sale', href: '/pos',       icon: ScanBarcode, module: 'pos', exact: true },
-      { label: 'Sales History', href: '/pos/sales', icon: History,     module: 'pos' },
+      { label: 'Point of Sale', href: '/pos',         icon: ScanBarcode, module: 'pos', exact: true },
+      { label: 'Sales History', href: '/pos/sales',   icon: History,     module: 'pos' },
+      { label: 'Reports',       href: '/pos/reports',  icon: BarChart3,   module: 'pos' },
     ],
   },
   {
