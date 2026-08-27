@@ -26,11 +26,11 @@ function InlineField({ value, onChange, suffix }: { value: string; onChange: (v:
   return (
     <div className="flex items-center shrink-0">
       <button type="button" onClick={() => onChange('')} title="Clear"
-        className="w-6 h-6 flex items-center justify-center rounded-l-md border border-r-0 border-white/30 bg-white/10 text-white/70 hover:bg-white/25 shrink-0">
+        className="w-6 h-6 flex items-center justify-center rounded-l-md border border-r-0 border-white/40 bg-white/90 text-gray-500 hover:bg-white shrink-0">
         <X size={11} />
       </button>
       <input type="number" min="0" step="0.01" value={value} onChange={e => onChange(e.target.value)} placeholder="0.00"
-        className="w-20 rounded-r-md border border-white/30 bg-white/10 text-white text-xs text-right px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white/60 placeholder-white/40" />
+        className="w-20 rounded-r-md border border-white/40 bg-white text-gray-800 text-xs text-right px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white placeholder-gray-400" />
       {suffix && <span className="ml-1 text-xs text-white/70">{suffix}</span>}
     </div>
   );
