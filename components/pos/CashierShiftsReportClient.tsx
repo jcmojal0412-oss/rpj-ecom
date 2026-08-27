@@ -12,6 +12,7 @@ import type { Business, Shift } from './constants';
 
 interface ShiftRow extends Shift { total_sales: number; total_hours: number; }
 interface ShiftSale { id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; status: string; created_at: string; }
+interface ShiftCashMovement { id: number; type: 'IN' | 'OUT'; amount: number; note: string | null; created_by_name: string | null; created_at: string; }
 
 type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'total_sales' | 'starting_cash' | 'actual_cash' | 'discrepancy';
 
@@ -46,7 +47,7 @@ export default function CashierShiftsReportClient() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[] } | null>(null);
+  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[] } | null>(null);
   const { toast, showToast, clearToast } = useToast();
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
@@ -100,7 +101,10 @@ export default function CashierShiftsReportClient() {
 
   const openShift = async (id: number) => {
     const data = await fetch(`/api/pos/shifts/${id}`).then(r => r.json());
-    setViewing({ shift: { ...data.shift, total_sales: (data.shift.cash_sales ?? 0) + (data.shift.online_sales ?? 0), total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) }, sales: data.sales ?? [] });
+    setViewing({
+      shift: { ...data.shift, total_sales: (data.shift.cash_sales ?? 0) + (data.shift.online_sales ?? 0), total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
+      sales: data.sales ?? [], cashMovements: data.cashMovements ?? [],
+    });
   };
 
   const cellValue = (r: ShiftRow, key: SortKey) => {
@@ -319,6 +323,30 @@ export default function CashierShiftsReportClient() {
                 </table>
               )}
             </div>
+
+            {viewing.cashMovements.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">Cash In/Out ({viewing.cashMovements.length})</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Time', 'Type', 'Amount', 'Note', 'By'].map(h => <th key={h} className="table-header">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewing.cashMovements.map((m, i) => (
+                      <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(m.created_at)}</td>
+                        <td className="table-cell"><span className={m.type === 'IN' ? 'badge-green' : 'badge-red'}>{m.type === 'IN' ? 'Cash In' : 'Cash Out'}</span></td>
+                        <td className="table-cell font-semibold tabular-nums">{formatCurrency(m.amount)}</td>
+                        <td className="table-cell text-gray-500">{m.note || '—'}</td>
+                        <td className="table-cell text-gray-500">{m.created_by_name || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="flex justify-end pt-2">
               <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>

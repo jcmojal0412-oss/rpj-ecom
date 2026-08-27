@@ -20,7 +20,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       FROM pos_sales WHERE shift_id = ? ORDER BY created_at
     `).all(params.id);
 
-    return NextResponse.json({ shift, sales });
+    const cashMovements = db.prepare(`
+      SELECT m.*, u.name as created_by_name
+      FROM pos_shift_cash_movements m
+      LEFT JOIN users u ON u.id = m.created_by
+      WHERE m.shift_id = ? ORDER BY m.created_at
+    `).all(params.id);
+
+    return NextResponse.json({ shift, sales, cashMovements });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

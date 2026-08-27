@@ -41,6 +41,7 @@ function InlineField({ value, onChange, suffix }: { value: string; onChange: (v:
 interface ReadingTotals {
   transaction_count: number; cash_sales: number; online_sales: number; total_sales: number;
   total_discount: number; void_count: number; void_amount: number; refund_amount: number;
+  cash_in: number; cash_out: number;
   starting_cash: number; expected_cash: number; actual_cash?: number; discrepancy?: number;
 }
 interface XReading extends ReadingTotals { shift: Shift; generated_at: string; }
@@ -95,6 +96,8 @@ function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, 
 
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
           <div className="flex justify-between text-gray-500"><span>Starting Cash</span><span className="tabular-nums">{formatCurrency(data.starting_cash)}</span></div>
+          {data.cash_in > 0 && <div className="flex justify-between text-gray-500"><span>Cash Added</span><span className="tabular-nums">{formatCurrency(data.cash_in)}</span></div>}
+          {data.cash_out > 0 && <div className="flex justify-between text-gray-500"><span>Cash Drop</span><span className="tabular-nums">-{formatCurrency(data.cash_out)}</span></div>}
           <div className="flex justify-between text-gray-500"><span>Expected Cash</span><span className="tabular-nums">{formatCurrency(data.expected_cash)}</span></div>
           {data.actual_cash != null && (
             <div className="flex justify-between text-gray-500"><span>Actual Cash</span><span className="tabular-nums">{formatCurrency(data.actual_cash)}</span></div>
@@ -129,6 +132,10 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const [xReading, setXReading] = useState<XReading | null>(null);
   const [zReading, setZReading] = useState<ZReading | null>(null);
   const [zDenomCounts, setZDenomCounts] = useState<Record<number, number>>({});
+  const [showCashMove, setShowCashMove] = useState(false);
+  const [moveType, setMoveType] = useState<'IN' | 'OUT'>('IN');
+  const [moveAmount, setMoveAmount] = useState('');
+  const [moveNote, setMoveNote] = useState('');
 
   const declaredCash = DENOMINATIONS.reduce((sum, d) => sum + d * (parseInt(denomCounts[d]) || 0), 0);
 
@@ -160,6 +167,21 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
     setXReading(data);
   };
 
+  const submitCashMove = async () => {
+    if (!shift) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/pos/shifts/${shift.id}/cash-movements`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: moveType, amount: parseFloat(moveAmount) || 0, note: moveNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to record cash movement', 'error'); return; }
+      showToast(moveType === 'IN' ? 'Cash added to drawer' : 'Cash removed from drawer');
+      setShowCashMove(false); setMoveAmount(''); setMoveNote(''); setMoveType('IN');
+    } finally { setSubmitting(false); }
+  };
+
   const endShift = async () => {
     if (!shift) return;
     setSubmitting(true);
@@ -189,6 +211,9 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
           </button>
           <button onClick={runXReading} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             X Reading
+          </button>
+          <button onClick={() => setShowCashMove(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
+            Cash In/Out
           </button>
         </div>
       ) : (
@@ -237,6 +262,29 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowEnd(false)} disabled={submitting} className="btn-secondary">Cancel</button>
               <button onClick={endShift} disabled={submitting} className="btn-danger">{submitting ? 'Ending...' : 'End Shift'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showCashMove && (
+        <Modal open onClose={() => setShowCashMove(false)} title="Cash In/Out" size="sm">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setMoveType('IN')} className={`py-2 rounded-lg text-sm font-semibold border ${moveType === 'IN' ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-500'}`}>Cash In</button>
+              <button onClick={() => setMoveType('OUT')} className={`py-2 rounded-lg text-sm font-semibold border ${moveType === 'OUT' ? 'bg-red-50 border-red-400 text-red-600' : 'bg-white border-gray-200 text-gray-500'}`}>Cash Out</button>
+            </div>
+            <div>
+              <label className="form-label">Amount (₱)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={moveAmount} onChange={e => setMoveAmount(e.target.value)} autoFocus />
+            </div>
+            <div>
+              <label className="form-label">Note (Optional)</label>
+              <input className="form-input" placeholder="e.g. Petty cash top-up, bank deposit" value={moveNote} onChange={e => setMoveNote(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowCashMove(false)} disabled={submitting} className="btn-secondary">Cancel</button>
+              <button onClick={submitCashMove} disabled={submitting} className="btn-primary">{submitting ? 'Saving...' : `Record Cash ${moveType === 'IN' ? 'In' : 'Out'}`}</button>
             </div>
           </div>
         </Modal>

@@ -31,6 +31,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       `SELECT COALESCE(SUM(r.total_refund),0) as refund_amount FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id WHERE s.shift_id = ?`
     ).get(shift.id) as { refund_amount: number };
 
+    const cashMovements = db.prepare(
+      `SELECT COALESCE(SUM(CASE WHEN type='IN' THEN amount ELSE 0 END),0) as cash_in,
+              COALESCE(SUM(CASE WHEN type='OUT' THEN amount ELSE 0 END),0) as cash_out
+       FROM pos_shift_cash_movements WHERE shift_id = ?`
+    ).get(shift.id) as { cash_in: number; cash_out: number };
+
     return NextResponse.json({
       shift,
       transaction_count: totals.transaction_count,
@@ -40,7 +46,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       total_discount: totals.total_discount,
       void_count: voidTotals.void_count, void_amount: voidTotals.void_amount,
       refund_amount: refundTotals.refund_amount,
-      expected_cash: shift.starting_cash + totals.cash_sales,
+      cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out,
+      expected_cash: shift.starting_cash + totals.cash_sales + cashMovements.cash_in - cashMovements.cash_out,
       generated_at: new Date().toISOString(),
     });
   } catch (e) {

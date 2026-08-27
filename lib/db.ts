@@ -1289,6 +1289,23 @@ function migrateSchema() {
   const posSaleCols2 = (db.prepare('PRAGMA table_info(pos_sales)').all() as { name: string }[]).map(c => c.name);
   if (!posSaleCols2.includes('shift_id')) db.exec('ALTER TABLE pos_sales ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
 
+  // Ad-hoc cash-drawer movements during an open shift (petty cash top-ups,
+  // cash pulled out for a bank deposit, etc.) — separate from sales, and
+  // factored into expected_cash at close time (starting_cash + cash_sales +
+  // cash_in - cash_out).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_shift_cash_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id INTEGER NOT NULL REFERENCES pos_shifts(id),
+      type TEXT NOT NULL CHECK(type IN ('IN','OUT')),
+      amount REAL NOT NULL,
+      note TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_shift_cash_movements_shift ON pos_shift_cash_movements(shift_id);
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 
