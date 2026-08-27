@@ -4,19 +4,20 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
-  Banknote, Smartphone, Landmark, CreditCard, MoreHorizontal,
+  Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import ReceiptView from './ReceiptView';
-import { CASH_PRESETS, PAYMENT_METHODS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
+import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, type Business, type Product, type CartLine, type Sale, type SaleItem } from './constants';
 
 interface SessionUser { id: number; name: string; }
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ElementType> = {
-  Cash: Banknote, GCash: Smartphone, Maya: Smartphone,
-  'Bank Transfer': Landmark, Card: CreditCard, Other: MoreHorizontal,
+  Cash: Banknote, GCash: Smartphone, Salmon: Wallet, 'Cash + GCash': Layers,
+  'Credit Card': CreditCard, Maya: Smartphone, Sodexo: Ticket,
+  'Bank Transfer': Landmark, Skyro: Zap, Billease: CalendarClock,
 };
 
 // Compact clear-then-edit money/percent field for the dark totals/payment
@@ -348,17 +349,41 @@ export default function PosClient() {
 
             <div>
               <p className="text-xs font-semibold text-gray-700 mb-1.5">Payment Method</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {PAYMENT_METHODS.map(m => {
-                  const Icon = PAYMENT_METHOD_ICONS[m] ?? MoreHorizontal;
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PAYMENT_METHOD_GROUPS[0].map(m => {
+                    const Icon = PAYMENT_METHOD_ICONS[m];
+                    return (
+                      <button key={m} onClick={() => setPaymentMethod(m)}
+                        className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                        <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
+                        <span className={`text-[11px] font-semibold text-center leading-tight ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {PAYMENT_METHOD_GROUPS[1].map(m => {
+                  const Icon = PAYMENT_METHOD_ICONS[m];
                   return (
                     <button key={m} onClick={() => setPaymentMethod(m)}
-                      className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                      <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
+                      className={`w-full flex flex-col items-center gap-1 py-3 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                      <Icon size={20} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
                       <span className={`text-[11px] font-semibold ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
                     </button>
                   );
                 })}
+                <div className="grid grid-cols-5 gap-1.5">
+                  {PAYMENT_METHOD_GROUPS[2].map(m => {
+                    const Icon = PAYMENT_METHOD_ICONS[m];
+                    return (
+                      <button key={m} onClick={() => setPaymentMethod(m)}
+                        className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                        <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
+                        <span className={`text-[11px] font-semibold text-center leading-tight ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
