@@ -45,18 +45,27 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    const checkSku    = db.prepare('SELECT id FROM products WHERE sku = ?');
+    const findSku     = db.prepare('SELECT id FROM products WHERE sku = ?');
     const insertProd  = db.prepare(
       'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    const updateProd  = db.prepare(
+      'UPDATE products SET name=?, barcode=?, category=?, cogs=?, srp=?, reorder_point=? WHERE id=?'
     );
     const insertInv   = db.prepare(
       "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?, ?, datetime('now'))"
     );
+    const getInv      = db.prepare('SELECT COALESCE(quantity,0) as q FROM inventory WHERE product_id = ?');
+    const setInv       = db.prepare(`
+      INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?, ?, datetime('now'))
+      ON CONFLICT(product_id) DO UPDATE SET quantity = ?, last_updated = datetime('now')
+    `);
     const insertMovement = db.prepare(
-      "INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'IN', ?, 'Initial stock (Excel import)', datetime('now'))"
+      "INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, ?, ?, ?, datetime('now'))"
     );
 
     let imported = 0;
+    let updated  = 0;
     let skipped  = 0;
     const errors: string[] = [];
 
@@ -79,13 +88,6 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Duplicate check
-      if (checkSku.get(sku)) {
-        errors.push(`Row ${rowNum}: SKU "${sku}" already exists — skipped`);
-        skipped++;
-        continue;
-      }
-
       const cogs         = parseFloat(String(row['COGS'] ?? 0))          || 0;
       const srp          = parseFloat(String(row['SRP'] ?? 0))           || 0;
       const qty           = parseInt(String(row['QTY'] ?? 0))            || 0;
@@ -94,11 +96,26 @@ export async function POST(req: NextRequest) {
       const barcode      = String(row['BARCODE'] ?? '').trim() || null;
 
       try {
-        const info = insertProd.run(sku, name, barcode, category, cogs, srp, reorderPoint);
-        const productId = Number(info.lastInsertRowid);
-        insertInv.run(productId, qty);
-        if (qty > 0) insertMovement.run(productId, qty);
-        imported++;
+        // Existing SKU → update in place (re-uploading a corrected file should
+        // refresh price/stock/etc, not get silently skipped) instead of
+        // creating a duplicate or leaving stale data behind.
+        const existing = findSku.get(sku) as { id: number } | undefined;
+        if (existing) {
+          updateProd.run(name, barcode, category, cogs, srp, reorderPoint, existing.id);
+          const currentQty = (getInv.get(existing.id) as { q: number } | undefined)?.q ?? 0;
+          const delta = qty - currentQty;
+          if (delta !== 0) {
+            setInv.run(existing.id, qty, qty);
+            insertMovement.run(existing.id, delta > 0 ? 'IN' : 'OUT', Math.abs(delta), 'Stock sync (Excel re-import)');
+          }
+          updated++;
+        } else {
+          const info = insertProd.run(sku, name, barcode, category, cogs, srp, reorderPoint);
+          const productId = Number(info.lastInsertRowid);
+          insertInv.run(productId, qty);
+          if (qty > 0) insertMovement.run(productId, 'IN', qty, 'Initial stock (Excel import)');
+          imported++;
+        }
       } catch (e) {
         errors.push(`Row ${rowNum} (${sku}): ${String(e)}`);
         skipped++;
@@ -108,6 +125,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       total: rows.length,
       imported,
+      updated,
       skipped,
       errors,
     });

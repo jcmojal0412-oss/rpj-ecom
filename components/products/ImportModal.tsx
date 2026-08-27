@@ -6,6 +6,7 @@ import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Download 
 interface ImportResult {
   total: number;
   imported: number;
+  updated: number;
   skipped: number;
   errors: string[];
 }
@@ -137,7 +138,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
         ) : result ? (
           <div className="space-y-3">
             {/* Summary */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div className="bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-gray-900">{result.total}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Total Rows</p>
@@ -145,7 +146,13 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
               <div className="bg-green-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-green-700">{result.imported}</p>
                 <p className="text-xs text-green-600 mt-0.5 flex items-center justify-center gap-1">
-                  <CheckCircle size={11} /> Imported
+                  <CheckCircle size={11} /> New
+                </p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-blue-700">{result.updated}</p>
+                <p className="text-xs text-blue-600 mt-0.5 flex items-center justify-center gap-1">
+                  <CheckCircle size={11} /> Updated
                 </p>
               </div>
               <div className={`rounded-xl p-3 text-center ${result.skipped > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
@@ -159,10 +166,13 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
             </div>
 
             {/* Success message */}
-            {result.imported > 0 && (
+            {(result.imported > 0 || result.updated > 0) && (
               <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
                 <CheckCircle size={15} className="shrink-0" />
-                {result.imported} product{result.imported !== 1 ? 's' : ''} na-add sa catalog!
+                {result.imported > 0 && `${result.imported} bagong product`}
+                {result.imported > 0 && result.updated > 0 && ', '}
+                {result.updated > 0 && `${result.updated} na-update`}
+                {' '}sa catalog!
               </div>
             )}
 
