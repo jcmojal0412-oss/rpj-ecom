@@ -111,7 +111,10 @@ export default function PosReportsClient() {
             </div>
 
             <div className="rounded-xl p-4 bg-red-500 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Less</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Less</p>
+                <Link href="/pos/reports/discounts" className="text-[10px] font-semibold text-white/80 hover:text-white underline">Discount Report →</Link>
+              </div>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal + summary.deliveryFeeTotal + summary.additionalFeeTotal)}</p>
               <div className="mt-2 space-y-0.5 text-[11px] text-white/85">
                 <div className="flex justify-between"><span>Discount</span><span className="tabular-nums">{formatCurrency(summary.discountTotal)}</span></div>

@@ -93,7 +93,10 @@ export default function ReportsClient() {
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-sm text-gray-500 mt-1">Inventory analytics and audit reports</p>
         </div>
-        <Link href="/reports/profit-loss" className="btn-secondary text-sm">Profit &amp; Loss →</Link>
+        <div className="flex items-center gap-2">
+          <Link href="/reports/inventory-movement" className="btn-secondary text-sm">Beginning &amp; Ending Inventory →</Link>
+          <Link href="/reports/profit-loss" className="btn-secondary text-sm">Profit &amp; Loss →</Link>
+        </div>
       </div>
 
       {/* Category Value Chart */}
