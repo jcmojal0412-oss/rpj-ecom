@@ -9,6 +9,8 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import type { Business, Product, ProductSalesRow } from './constants';
 
+interface CashierOption { cashier_id: number | null; cashier_name: string | null; }
+
 type SortKey = keyof Pick<ProductSalesRow, 'product_name' | 'category' | 'qty_sold' | 'unit_cost' | 'total_cost' | 'unit_price' | 'total_sales' | 'total_discount' | 'profit'>;
 
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
@@ -32,6 +34,8 @@ export default function ProductSalesReportClient() {
   const [businessId, setBusinessId] = useState('');
   const [productId, setProductId] = useState('');
   const [category, setCategory] = useState('');
+  const [cashierId, setCashierId] = useState('');
+  const [cashiers, setCashiers] = useState<CashierOption[]>([]);
 
   const [rows, setRows] = useState<ProductSalesRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +54,10 @@ export default function ProductSalesReportClient() {
     if (businessId) params.set('business_id', businessId);
     if (productId) params.set('product_id', productId);
     if (category) params.set('category', category);
+    if (cashierId) params.set('cashier_id', cashierId);
     return params;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, customFrom, customTo, businessId, productId, category]);
+  }, [preset, customFrom, customTo, businessId, productId, category, cashierId]);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -66,6 +71,7 @@ export default function ProductSalesReportClient() {
   useEffect(() => {
     fetch('/api/businesses').then(r => r.json()).then(d => setBusinesses(d.rows ?? []));
     fetch('/api/pos/products').then(r => r.json()).then(d => setProducts(d.rows ?? []));
+    fetch('/api/pos/reports/cashiers').then(r => r.json()).then(d => setCashiers((d.rows ?? []).filter((c: CashierOption) => c.cashier_id)));
   }, []);
 
   const categories = useMemo(() => {
@@ -161,6 +167,13 @@ export default function ProductSalesReportClient() {
             <select className="form-input py-1.5 text-sm w-40" value={businessId} onChange={e => setBusinessId(e.target.value)}>
               <option value="">All Businesses</option>
               {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-gray-500 font-medium block mb-1">Cashier</label>
+            <select className="form-input py-1.5 text-sm w-40" value={cashierId} onChange={e => setCashierId(e.target.value)}>
+              <option value="">All Cashiers</option>
+              {cashiers.map(c => <option key={c.cashier_id} value={c.cashier_id ?? ''}>{c.cashier_name || '—'}</option>)}
             </select>
           </div>
         </div>

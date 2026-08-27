@@ -12,6 +12,7 @@ export function buildDetailQuery(req: NextRequest) {
   const businessId = searchParams.get('business_id');
   const productId = searchParams.get('product_id');
   const category = searchParams.get('category');
+  const cashierId = searchParams.get('cashier_id');
 
   const clauses: string[] = [`s.status != 'Voided'`];
   const params: (string | number)[] = [];
@@ -20,6 +21,7 @@ export function buildDetailQuery(req: NextRequest) {
   if (businessId) { clauses.push('s.business_id = ?'); params.push(Number(businessId)); }
   if (productId) { clauses.push('i.product_id = ?'); params.push(Number(productId)); }
   if (category) { clauses.push('p.category = ?'); params.push(category); }
+  if (cashierId) { clauses.push('s.cashier_id = ?'); params.push(Number(cashierId)); }
 
   const sql = `
     SELECT i.product_id, i.product_name, i.sku, p.category,
