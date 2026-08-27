@@ -53,6 +53,20 @@ export interface Sale {
   created_at: string;
 }
 
+export interface ProductSalesRow {
+  product_id: number;
+  product_name: string;
+  sku: string | null;
+  category: string | null;
+  qty_sold: number;
+  unit_cost: number;
+  total_cost: number;
+  unit_price: number;
+  total_sales: number;
+  total_discount: number;
+  profit: number;
+}
+
 export interface RefundItem {
   id: number;
   sale_item_id: number;

@@ -1247,6 +1247,19 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_pos_refund_items_refund ON pos_refund_items(refund_id);
   `);
 
+  // COGS snapshot on each sale line (parallel to the existing unit_price
+  // snapshot) so the Product Sales Report's cost/profit figures stay
+  // accurate even if a product's cogs changes later. Backfilled from the
+  // product's current cogs for any pre-existing rows — idempotent, only
+  // touches rows that still look unset, so it's a no-op once real sales
+  // start capturing it themselves at insert time.
+  const saleItemCols = (db.prepare('PRAGMA table_info(pos_sale_items)').all() as { name: string }[]).map(c => c.name);
+  if (!saleItemCols.includes('cogs')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN cogs REAL DEFAULT 0');
+  db.exec(`
+    UPDATE pos_sale_items SET cogs = (SELECT COALESCE(p.cogs,0) FROM products p WHERE p.id = pos_sale_items.product_id)
+    WHERE (cogs IS NULL OR cogs = 0) AND product_id IS NOT NULL
+  `);
+
   seedCcCategoriesIfEmpty();
 }
 

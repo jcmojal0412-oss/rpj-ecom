@@ -66,16 +66,16 @@ export async function POST(req: NextRequest) {
     // Re-price and re-check stock server-side for every line — the cart's
     // own numbers are never trusted, same principle used for Service Center
     // repairs and Expense amounts this session.
-    const getProduct = db.prepare('SELECT p.id, p.name, p.sku, p.srp, COALESCE(i.quantity,0) as quantity FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ?');
+    const getProduct = db.prepare('SELECT p.id, p.name, p.sku, p.srp, p.cogs, COALESCE(i.quantity,0) as quantity FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ?');
 
-    const lineData: { product_id: number; name: string; sku: string | null; unit_price: number; quantity: number; line_total: number }[] = [];
+    const lineData: { product_id: number; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
     for (const raw of items as CartItem[]) {
       const qty = parseInt(String(raw?.quantity), 10);
       if (!raw?.product_id || !qty || qty <= 0) {
         return NextResponse.json({ error: 'Invalid item in cart' }, { status: 400 });
       }
       const product = getProduct.get(raw.product_id) as
-        { id: number; name: string; sku: string | null; srp: number | null; quantity: number } | undefined;
+        { id: number; name: string; sku: string | null; srp: number | null; cogs: number | null; quantity: number } | undefined;
       if (!product) {
         return NextResponse.json({ error: `Product #${raw.product_id} no longer exists` }, { status: 400 });
       }
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       const unitPrice = product.srp ?? 0;
       lineData.push({
         product_id: product.id, name: product.name, sku: product.sku,
-        unit_price: unitPrice, quantity: qty, line_total: unitPrice * qty,
+        unit_price: unitPrice, cogs: product.cogs ?? 0, quantity: qty, line_total: unitPrice * qty,
       });
     }
 
@@ -109,8 +109,8 @@ export async function POST(req: NextRequest) {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?)
     `);
     const insertItem = db.prepare(`
-      INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, quantity, line_total)
-      VALUES (?,?,?,?,?,?,?)
+      INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
+      VALUES (?,?,?,?,?,?,?,?)
     `);
     const insertMovement = db.prepare(`
       INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'OUT', ?, ?, datetime('now'))
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
-        insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.quantity, l.line_total);
+        insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.cogs, l.quantity, l.line_total);
         insertMovement.run(l.product_id, l.quantity, `POS Sale #${id}`);
         adjustInventory.run(l.product_id, -l.quantity);
       }

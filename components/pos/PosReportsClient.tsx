@@ -157,7 +157,10 @@ export default function PosReportsClient() {
             </div>
 
             <div className="card">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Top Products</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-semibold text-gray-900">Top Products</h2>
+                <Link href="/pos/reports/products" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View Full Report →</Link>
+              </div>
               {products.length === 0 ? (
                 <p className="text-center text-gray-400 text-sm py-8">No sales in this range.</p>
               ) : (
