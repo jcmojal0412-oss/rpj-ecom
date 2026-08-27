@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -87,9 +88,12 @@ export default function ReportsClient() {
 
   return (
     <div className="p-6 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-sm text-gray-500 mt-1">Inventory analytics and audit reports</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+          <p className="text-sm text-gray-500 mt-1">Inventory analytics and audit reports</p>
+        </div>
+        <Link href="/reports/profit-loss" className="btn-secondary text-sm">Profit &amp; Loss →</Link>
       </div>
 
       {/* Category Value Chart */}
