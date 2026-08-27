@@ -107,20 +107,26 @@ export default function PosReportsClient() {
             <div className="rounded-xl p-4 bg-slate-800 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gross Sales</p>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.grossSales)}</p>
+              {(summary.deliveryFeeTotal > 0 || summary.additionalFeeTotal > 0) && (
+                <div className="mt-2 space-y-0.5 text-[11px] text-white/70">
+                  {summary.additionalFeeTotal > 0 && <div className="flex justify-between"><span>+ Additional Fee</span><span className="tabular-nums">{formatCurrency(summary.additionalFeeTotal)}</span></div>}
+                  {summary.deliveryFeeTotal > 0 && <div className="flex justify-between"><span>+ Delivery Fee</span><span className="tabular-nums">{formatCurrency(summary.deliveryFeeTotal)}</span></div>}
+                </div>
+              )}
               <p className="text-[11px] text-white/60 mt-2">{preset ?? 'All Dates'}</p>
             </div>
 
             <div className="rounded-xl p-4 bg-red-500 text-white">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Less</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Less: Discount</p>
                 <Link href="/pos/reports/discounts" className="text-[10px] font-semibold text-white/80 hover:text-white underline">Discount Report →</Link>
               </div>
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal + summary.deliveryFeeTotal + summary.additionalFeeTotal)}</p>
-              <div className="mt-2 space-y-0.5 text-[11px] text-white/85">
-                <div className="flex justify-between"><span>Discount</span><span className="tabular-nums">{formatCurrency(summary.discountTotal)}</span></div>
-                <div className="flex justify-between"><span>Delivery Fee</span><span className="tabular-nums">{formatCurrency(summary.deliveryFeeTotal)}</span></div>
-                <div className="flex justify-between"><span>Additional Fee</span><span className="tabular-nums">{formatCurrency(summary.additionalFeeTotal)}</span></div>
-              </div>
+              {/* Additional Fee and Delivery Fee are added to a sale's total, not deducted from
+                  it (total = subtotal - discount + additional_fee + tax + service_charge +
+                  delivery_fee) — only Discount is a genuine deduction, so this card no longer
+                  lumps the fee totals in here as if they reduced Gross Sales. */}
+              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal)}</p>
+              <p className="text-[11px] text-white/70 mt-2">{preset ?? 'All Dates'}</p>
             </div>
 
             <div className="rounded-xl p-4 bg-amber-500 text-white">
