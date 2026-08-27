@@ -289,15 +289,31 @@ export default function PosClient() {
           </div>
 
           <div className="border-t border-gray-100 px-4 py-3 space-y-3 shrink-0 overflow-y-auto max-h-[68vh]">
-            {/* Totals — Additional Fee/Discounts/Tax/Service Charge/Delivery Fee are edited inline */}
-            <div className="bg-emerald-600 text-white rounded-xl p-3 space-y-1.5">
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Subtotal</span><span className="tabular-nums font-semibold">{formatCurrency(subtotal)}</span></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Additional Fee</span><InlineField value={additionalFee} onChange={setAdditionalFee} /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Discounts</span><InlineField value={discount} onChange={setDiscount} /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Tax</span><InlineField value={taxPercent} onChange={setTaxPercent} suffix="%" /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Service Charge</span><InlineField value={serviceCharge} onChange={setServiceCharge} /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/85">Delivery Fee</span><InlineField value={deliveryFee} onChange={setDeliveryFee} /></div>
-              <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/20"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
+            {/* Additional Fee / Discounts / Tax — edited here; just displayed (read-only) in the totals box below */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Additional Fee</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Discounts</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={discount} onChange={e => setDiscount(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Tax (%)</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Totals — Service Charge/Delivery Fee are edited inline, matching the reference layout */}
+            <div className="bg-emerald-500 text-white rounded-xl p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Subtotal</span><span className="tabular-nums font-semibold">{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Additional Fee</span><span className="tabular-nums font-semibold">{formatCurrency(feeNum)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Discounts</span><span className="tabular-nums font-semibold">-{formatCurrency(discountNum)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Tax ({taxPercentNum}%)</span><span className="tabular-nums font-semibold">{formatCurrency(taxAmount)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Service Charge</span><InlineField value={serviceCharge} onChange={setServiceCharge} /></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Delivery Fee</span><InlineField value={deliveryFee} onChange={setDeliveryFee} /></div>
+              <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
             </div>
 
             {/* Cash presets */}
