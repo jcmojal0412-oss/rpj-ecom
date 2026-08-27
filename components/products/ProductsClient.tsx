@@ -13,6 +13,7 @@ export interface Product {
   id: number;
   sku: string;
   name: string;
+  barcode: string | null;
   category: string;
   cogs: number;
   srp: number;
@@ -48,6 +49,7 @@ export default function ProductsClient() {
     setFiltered(products.filter(p =>
       p.sku.toLowerCase().includes(q) ||
       p.name.toLowerCase().includes(q) ||
+      (p.barcode ?? '').toLowerCase().includes(q) ||
       (p.category ?? '').toLowerCase().includes(q)
     ));
     setSelected(new Set());
@@ -222,7 +224,7 @@ export default function ProductsClient() {
                       className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
                     />
                   </th>
-                  {['SKU','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','Actions'].map(h => (
+                  {['SKU','Barcode','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','Actions'].map(h => (
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
@@ -249,6 +251,7 @@ export default function ProductsClient() {
                         />
                       </td>
                       <td className="table-cell font-mono text-xs font-semibold text-gray-600">{p.sku}</td>
+                      <td className="table-cell font-mono text-xs text-gray-500">{p.barcode || '—'}</td>
                       <td className="table-cell font-medium">{p.name}</td>
                       <td className="table-cell">
                         <span className="badge-gray">{p.category ?? '—'}</span>

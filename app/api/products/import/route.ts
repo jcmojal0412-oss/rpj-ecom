@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic';
 interface ImportRow {
   SKU?: unknown;
   'Product Name'?: unknown;
+  BARCODE?: unknown;
   Category?: unknown;
   COGS?: unknown;
   SRP?: unknown;
+  QTY?: unknown;
   'Reorder Point'?: unknown;
 }
 
@@ -45,10 +47,13 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const checkSku    = db.prepare('SELECT id FROM products WHERE sku = ?');
     const insertProd  = db.prepare(
-      'INSERT INTO products (sku, name, category, cogs, srp, reorder_point) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     const insertInv   = db.prepare(
-      "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?, 0, datetime('now'))"
+      "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?, ?, datetime('now'))"
+    );
+    const insertMovement = db.prepare(
+      "INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'IN', ?, 'Initial stock (Excel import)', datetime('now'))"
     );
 
     let imported = 0;
@@ -83,12 +88,16 @@ export async function POST(req: NextRequest) {
 
       const cogs         = parseFloat(String(row['COGS'] ?? 0))          || 0;
       const srp          = parseFloat(String(row['SRP'] ?? 0))           || 0;
+      const qty           = parseInt(String(row['QTY'] ?? 0))            || 0;
       const reorderPoint = parseInt(String(row['Reorder Point'] ?? 10))  || 10;
       const category     = String(row['Category'] ?? '').trim() || null;
+      const barcode      = String(row['BARCODE'] ?? '').trim() || null;
 
       try {
-        const info = insertProd.run(sku, name, category, cogs, srp, reorderPoint);
-        insertInv.run(Number(info.lastInsertRowid));
+        const info = insertProd.run(sku, name, barcode, category, cogs, srp, reorderPoint);
+        const productId = Number(info.lastInsertRowid);
+        insertInv.run(productId, qty);
+        if (qty > 0) insertMovement.run(productId, qty);
         imported++;
       } catch (e) {
         errors.push(`Row ${rowNum} (${sku}): ${String(e)}`);

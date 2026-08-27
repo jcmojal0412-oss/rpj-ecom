@@ -14,6 +14,7 @@ const CATEGORIES = ['General Merchandise', 'Electronics', 'Apparel', 'Home Goods
 
 export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel }: Props) {
   const [sku, setSku] = useState(initial?.sku ?? suggestedSku ?? '');
+  const [barcode, setBarcode] = useState(initial?.barcode ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
   const [customCategory, setCustomCategory] = useState('');
@@ -38,6 +39,7 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
     try {
       const body = {
         sku: sku.trim().toUpperCase(),
+        barcode: barcode.trim() || null,
         name: name.trim(),
         category: finalCategory || null,
         cogs: cogs ? parseFloat(cogs) : 0,
@@ -81,6 +83,16 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
             disabled={!!initial}
           />
           {initial && <p className="text-xs text-gray-400 mt-1">SKU cannot be changed after creation.</p>}
+        </div>
+
+        <div>
+          <label className="form-label">Barcode</label>
+          <input
+            className="form-input"
+            placeholder="Optional, e.g. 888000000001"
+            value={barcode}
+            onChange={e => setBarcode(e.target.value)}
+          />
         </div>
 
         <div>

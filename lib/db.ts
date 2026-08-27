@@ -202,6 +202,7 @@ function migrateSchema() {
   if (!prodCols.includes('decision'))                db.exec('ALTER TABLE products ADD COLUMN decision TEXT');
   if (!prodCols.includes('perceived_value_score'))   db.exec('ALTER TABLE products ADD COLUMN perceived_value_score REAL');
   if (!prodCols.includes('ai_research_json'))        db.exec('ALTER TABLE products ADD COLUMN ai_research_json TEXT');
+  if (!prodCols.includes('barcode'))                 db.exec('ALTER TABLE products ADD COLUMN barcode TEXT');
 
   // Expenses table
   db.exec(`

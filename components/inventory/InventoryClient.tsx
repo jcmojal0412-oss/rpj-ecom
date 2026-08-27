@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
+import Modal from '@/components/ui/Modal';
+import ImportModal from '@/components/products/ImportModal';
 import StockForm from './StockForm';
 import MovementLog from './MovementLog';
 import Spinner from '@/components/ui/Spinner';
@@ -26,6 +28,7 @@ export default function InventoryClient() {
   const [reorderVal, setReorderVal] = useState('');
   const [editingStock, setEditingStock] = useState<number | null>(null);
   const [stockVal, setStockVal] = useState('');
+  const [showImport, setShowImport] = useState(false);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchInventory = useCallback(async () => {
@@ -84,9 +87,14 @@ export default function InventoryClient() {
     <div className="p-4 sm:p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage stock levels and movements</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage stock levels and movements</p>
+        </div>
+        <button onClick={() => setShowImport(true)} className="btn-secondary">
+          <FileSpreadsheet size={16} /> Bulk Import (Excel)
+        </button>
       </div>
 
       {/* Stock In / Stock Out Form */}
@@ -212,6 +220,14 @@ export default function InventoryClient() {
 
       {/* Movement Log */}
       <MovementLog />
+
+      {/* Bulk Import Modal */}
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Products via Excel" size="md">
+        <ImportModal
+          onSuccess={() => { showToast('Products imported successfully!'); fetchInventory(); }}
+          onClose={() => setShowImport(false)}
+        />
+      </Modal>
     </div>
   );
 }

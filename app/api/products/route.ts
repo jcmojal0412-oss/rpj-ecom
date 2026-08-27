@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
   try {
     const db = getDb();
     const body = await req.json();
-    const { sku, name, category, cogs, srp, reorder_point } = body;
+    const { sku, name, barcode, category, cogs, srp, reorder_point } = body;
 
     const info = db.prepare(
-      'INSERT INTO products (sku, name, category, cogs, srp, reorder_point) VALUES (?,?,?,?,?,?)'
-    ).run(sku, name, category, cogs, srp, reorder_point ?? 10);
+      'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?,?,?,?,?,?,?)'
+    ).run(sku, name, barcode || null, category, cogs, srp, reorder_point ?? 10);
 
     db.prepare(
       "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime('now'))"
