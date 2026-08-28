@@ -62,6 +62,7 @@ export default function PosReportsClient() {
   }, []);
 
   const chartData = (summary?.byDay ?? []).map(d => ({ ...d, label: formatDate(d.date) }));
+  const dateRangeLabel = range ? `${formatDate(range.from)} - ${formatDate(range.to)}` : 'All Dates';
 
   return (
     <div className="p-6 space-y-6">
@@ -113,7 +114,7 @@ export default function PosReportsClient() {
                   {summary.deliveryFeeTotal > 0 && <div className="flex justify-between"><span>+ Delivery Fee</span><span className="tabular-nums">{formatCurrency(summary.deliveryFeeTotal)}</span></div>}
                 </div>
               )}
-              <p className="text-[11px] text-white/60 mt-2">{preset ?? 'All Dates'}</p>
+              <p className="text-[11px] text-white/60 mt-2">{dateRangeLabel}</p>
             </div>
 
             <div className="rounded-xl p-4 bg-red-500 text-white">
@@ -126,7 +127,7 @@ export default function PosReportsClient() {
                   delivery_fee) — only Discount is a genuine deduction, so this card no longer
                   lumps the fee totals in here as if they reduced Gross Sales. */}
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal)}</p>
-              <p className="text-[11px] text-white/70 mt-2">{preset ?? 'All Dates'}</p>
+              <p className="text-[11px] text-white/70 mt-2">{dateRangeLabel}</p>
             </div>
 
             <div className="rounded-xl p-4 bg-amber-500 text-white">
@@ -142,7 +143,7 @@ export default function PosReportsClient() {
             <div className="rounded-xl p-4 bg-violet-500 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Net Income</p>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.netIncome)}</p>
-              <p className="text-[11px] text-white/70 mt-2">{preset ?? 'All Dates'}</p>
+              <p className="text-[11px] text-white/70 mt-2">{dateRangeLabel}</p>
             </div>
 
             <div className="rounded-xl p-4 bg-teal-500 text-white">
