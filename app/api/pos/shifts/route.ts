@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { computeShiftSalesTotals, computeShiftCashMovements, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,13 +45,14 @@ export async function GET(req: NextRequest) {
       const totals = computeShiftSalesTotals(db, r.id);
       if (r.status !== 'Open') return { ...r, total_sales: totals.total_sales };
       const cashMovements = computeShiftCashMovements(db, r.id);
+      const cashRefunds = computeShiftCashRefunds(db, r.id);
       return {
         ...r,
         cash_sales: totals.cash_sales,
         online_sales: totals.online_sales,
         financing_receivable: totals.financing_receivable,
         total_sales: totals.total_sales,
-        expected_cash: computeExpectedCash(r.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out),
+        expected_cash: computeExpectedCash(r.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out, cashRefunds.cash_refunds),
       };
     });
 

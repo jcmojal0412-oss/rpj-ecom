@@ -11,6 +11,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
+import ReturnExchangeClient from './ReturnExchangeClient';
 import { SERVICE_FEE_ITEMS, FINANCING_PROVIDERS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem, type FinancingByProvider } from './constants';
 import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
@@ -470,6 +471,7 @@ export default function PosClient() {
   const [serviceAmountInput, setServiceAmountInput] = useState('');
   const [freebieTarget, setFreebieTarget] = useState<CartLine | null>(null);
   const [freebieReasonInput, setFreebieReasonInput] = useState('');
+  const [posMode, setPosMode] = useState<'sale' | 'return'>('sale');
   const { toast, showToast, clearToast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -745,6 +747,16 @@ export default function PosClient() {
             {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           {businessId && <ShiftControl businessId={businessId} showToast={showToast} />}
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 ml-1">
+            <button onClick={() => setPosMode('sale')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'sale' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Sale
+            </button>
+            <button onClick={() => setPosMode('return')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'return' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Return / Exchange
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {cashier && <span className="text-xs text-gray-500">Cashier: <span className="font-semibold text-gray-800">{cashier.name}</span></span>}
@@ -752,6 +764,15 @@ export default function PosClient() {
         </div>
       </div>
 
+      {posMode === 'return' ? (
+        <div className="flex-1 overflow-auto bg-red-50/40">
+          <ReturnExchangeClient
+            businessId={businessId}
+            showToast={showToast}
+            onDone={() => setPosMode('sale')}
+          />
+        </div>
+      ) : (
       <div className="flex-1 flex overflow-hidden">
         {/* Product grid */}
         <div className="w-[60%] flex flex-col overflow-hidden p-4">
@@ -1111,6 +1132,7 @@ export default function PosClient() {
           </div>
         </div>
       </div>
+      )}
 
       {pickingService && (
         <Modal open onClose={() => { setPickingService(null); setServiceAmountInput(''); }} title={pickingService.name} size="sm">

@@ -52,5 +52,19 @@ export function computeShiftFinancingByProvider(db: Database.Database, shiftId: 
   `).all(shiftId) as { provider: string; amount: number }[];
 }
 
-export const computeExpectedCash = (startingCash: number, cashSales: number, cashIn: number, cashOut: number) =>
-  startingCash + cashSales + cashIn - cashOut;
+// Only cash_out_amount counts here — the portion of a refund that actually
+// left the drawer as physical cash (a plain refund's full value when paid
+// back in cash; only the leftover excess for an exchange's returned item,
+// since the rest was applied as credit toward the new purchase, never cash
+// out of the drawer). Non-cash refunds and the credited portion never
+// reduce Expected Cash, same principle as Financing never increasing it.
+export function computeShiftCashRefunds(db: Database.Database, shiftId: number) {
+  return db.prepare(`
+    SELECT COALESCE(SUM(r.cash_out_amount),0) as cash_refunds
+    FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id
+    WHERE s.shift_id = ? AND r.refund_method = 'Cash'
+  `).get(shiftId) as { cash_refunds: number };
+}
+
+export const computeExpectedCash = (startingCash: number, cashSales: number, cashIn: number, cashOut: number, cashRefunds: number = 0) =>
+  startingCash + cashSales + cashIn - cashOut - cashRefunds;

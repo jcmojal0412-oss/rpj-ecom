@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getDb } from '@/lib/db';
-import { computeShiftSalesTotals, computeShiftCashMovements, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +44,9 @@ export async function GET(req: NextRequest) {
       let cashSales = r.cash_sales ?? 0, onlineSales = r.online_sales ?? 0, financing = r.financing_receivable ?? 0, expectedCash = r.expected_cash;
       if (r.status === 'Open') {
         const movements = computeShiftCashMovements(db, r.id);
+        const cashRefunds = computeShiftCashRefunds(db, r.id);
         cashSales = totals.cash_sales; onlineSales = totals.online_sales; financing = totals.financing_receivable;
-        expectedCash = computeExpectedCash(r.starting_cash, cashSales, movements.cash_in, movements.cash_out);
+        expectedCash = computeExpectedCash(r.starting_cash, cashSales, movements.cash_in, movements.cash_out, cashRefunds.cash_refunds);
       }
       const overShort = r.actual_cash != null && expectedCash != null ? r.actual_cash - expectedCash : null;
       return [

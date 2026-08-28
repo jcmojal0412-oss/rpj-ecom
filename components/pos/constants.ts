@@ -80,6 +80,12 @@ export interface Sale {
   financing_status: 'Pending' | 'Settled' | 'Cancelled' | null;
   cashback_amount: number;
   downpayment_applied: number;
+  // Exchange: set only on the NEW replacement sale created by an exchange —
+  // linked_sale_id points back at the original sale being exchanged against,
+  // exchange_credit_applied is the returned item's value credited toward
+  // this sale (a deduction against Amount Due, never a price reduction).
+  linked_sale_id: number | null;
+  exchange_credit_applied: number;
 }
 
 export interface ProductSalesRow {
@@ -103,6 +109,7 @@ export interface RefundItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  condition: 'Sellable' | 'Defective' | null;
 }
 
 export interface Refund {
@@ -115,6 +122,10 @@ export interface Refund {
   cashier_name: string | null;
   created_at: string;
   items: RefundItem[];
+  refund_method: string | null;
+  cash_out_amount: number;
+  linked_exchange_sale_id: number | null;
+  freebies_returned: 'YES' | 'NO' | null;
 }
 
 export interface Shift {
@@ -151,3 +162,8 @@ export const LARGE_DISCREPANCY_THRESHOLD = 100;
 // balance, not an ordinary payment), so they live in their own list and are
 // never offered as a normal Online/Split payment option.
 export const FINANCING_PROVIDERS = ['Salmon', 'Skyro', 'Billease'];
+
+// Non-cash payout methods a refund (or an exchange's excess) can be paid
+// back through — kept in one place so RefundModal and ReturnExchangeClient
+// never drift out of sync with the server-side REFUND_METHODS allow-list.
+export const REFUND_METHODS = ['Cash', 'GCash', 'Maya', 'Sodexo', 'Bank Transfer', 'Credit Card'];

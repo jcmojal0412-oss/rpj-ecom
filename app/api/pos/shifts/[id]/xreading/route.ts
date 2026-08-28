@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +31,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     ).get(shift.id) as { refund_amount: number };
 
     const cashMovements = computeShiftCashMovements(db, shift.id);
+    const cashRefunds = computeShiftCashRefunds(db, shift.id);
 
     return NextResponse.json({
       shift,
@@ -41,8 +42,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       total_discount: totals.total_discount,
       void_count: voidTotals.void_count, void_amount: voidTotals.void_amount,
       refund_amount: refundTotals.refund_amount,
-      cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out,
-      expected_cash: computeExpectedCash(shift.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out),
+      cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out, cash_refunds: cashRefunds.cash_refunds,
+      expected_cash: computeExpectedCash(shift.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out, cashRefunds.cash_refunds),
       financing_receivable: totals.financing_receivable, financing_by_provider: financingByProvider,
       generated_at: new Date().toISOString(),
     });

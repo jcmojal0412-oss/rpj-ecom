@@ -5,7 +5,12 @@ import { todayISO } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-interface RefundLine { sale_item_id: number; quantity: number; }
+interface RefundLine { sale_item_id: number; quantity: number; condition?: 'Sellable' | 'Defective'; }
+
+// Same non-cash tender list used elsewhere in the POS — kept in sync with
+// ONLINE_PROVIDERS/'Cash'/'Credit Card' so a refund's payout method reads
+// consistently with how the original sale's payment methods are labeled.
+const REFUND_METHODS = ['Cash', 'GCash', 'Maya', 'Sodexo', 'Bank Transfer', 'Credit Card'];
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -20,9 +25,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!sale) return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     if (sale.status === 'Voided') return NextResponse.json({ error: 'Cannot refund a voided sale' }, { status: 400 });
 
-    const { items, reason } = await req.json();
+    const { items, reason, refund_method, freebies_returned } = await req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'No items selected for refund' }, { status: 400 });
+    }
+    if (refund_method && !REFUND_METHODS.includes(refund_method)) {
+      return NextResponse.json({ error: 'Invalid refund method' }, { status: 400 });
+    }
+    if (freebies_returned && !['YES', 'NO'].includes(freebies_returned)) {
+      return NextResponse.json({ error: 'Invalid freebies_returned value' }, { status: 400 });
     }
 
     const getSaleItem = db.prepare('SELECT id, product_id, unit_price, quantity FROM pos_sale_items WHERE id = ? AND sale_id = ?');
@@ -31,11 +42,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
        JOIN pos_refunds r ON r.id = ri.refund_id WHERE ri.sale_item_id = ?`
     );
 
-    const lineData: { sale_item_id: number; product_id: number | null; quantity: number; unit_price: number; line_total: number }[] = [];
+    const lineData: { sale_item_id: number; product_id: number | null; quantity: number; unit_price: number; line_total: number; condition: string | null }[] = [];
     for (const raw of items as RefundLine[]) {
       const qty = parseInt(String(raw?.quantity), 10);
       if (!raw?.sale_item_id || !qty || qty <= 0) {
         return NextResponse.json({ error: 'Invalid refund line' }, { status: 400 });
+      }
+      if (raw.condition && !['Sellable', 'Defective'].includes(raw.condition)) {
+        return NextResponse.json({ error: 'Invalid item condition' }, { status: 400 });
       }
       const saleItem = getSaleItem.get(raw.sale_item_id, saleId) as
         { id: number; product_id: number | null; unit_price: number; quantity: number } | undefined;
@@ -50,18 +64,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       lineData.push({
         sale_item_id: saleItem.id, product_id: saleItem.product_id,
         quantity: qty, unit_price: saleItem.unit_price, line_total: saleItem.unit_price * qty,
+        condition: raw.condition ?? null,
       });
     }
 
     const totalRefund = lineData.reduce((s, l) => s + l.line_total, 0);
+    // Only a Cash payout reduces the physical drawer — same principle as
+    // Financing never increasing it. Non-cash refunds (GCash, Card, etc.)
+    // and refunds with no method recorded (legacy calls) never touch
+    // Expected Cash.
+    const cashOutAmount = refund_method === 'Cash' ? totalRefund : 0;
 
     const insertRefund = db.prepare(`
-      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id)
-      VALUES (?,?,?,?,?)
+      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned)
+      VALUES (?,?,?,?,?,?,?,?)
     `);
     const insertRefundItem = db.prepare(`
-      INSERT INTO pos_refund_items (refund_id, sale_item_id, product_id, quantity, unit_price, line_total)
-      VALUES (?,?,?,?,?,?)
+      INSERT INTO pos_refund_items (refund_id, sale_item_id, product_id, quantity, unit_price, line_total, condition)
+      VALUES (?,?,?,?,?,?,?)
     `);
     const insertMovement = db.prepare(`
       INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'IN', ?, ?, datetime('now'))
@@ -75,11 +95,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     `);
 
     const refundId = runTransaction(() => {
-      const info = insertRefund.run(saleId, todayISO(), totalRefund, reason?.trim() || null, session.id);
+      const info = insertRefund.run(
+        saleId, todayISO(), totalRefund, reason?.trim() || null, session.id,
+        refund_method || null, cashOutAmount, freebies_returned || null,
+      );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
-        insertRefundItem.run(id, l.sale_item_id, l.product_id, l.quantity, l.unit_price, l.line_total);
-        if (l.product_id) {
+        insertRefundItem.run(id, l.sale_item_id, l.product_id, l.quantity, l.unit_price, l.line_total, l.condition);
+        // Defective/For Inspection items are kept out of sellable stock —
+        // everything else (including legacy refunds with no condition set,
+        // which always restocked before this column existed) restocks
+        // normally.
+        if (l.product_id && l.condition !== 'Defective') {
           insertMovement.run(l.product_id, l.quantity, `Refund of Sale #${saleId}`);
           adjustInventory.run(l.product_id, l.quantity);
         }

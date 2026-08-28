@@ -1373,6 +1373,34 @@ function migrateSchema() {
   // is money the store already has, from before this sale.
   if (!posSaleCols3.includes('downpayment_applied')) db.exec('ALTER TABLE pos_sales ADD COLUMN downpayment_applied REAL DEFAULT 0');
 
+  // Return/Exchange: a replacement sale (e.g. "EXC-000046") links back to
+  // the original sale it's exchanging against, and exchange_credit_applied
+  // is the value of the returned item credited toward this new purchase —
+  // a deduction against Amount Due like downpayment_applied above, but kept
+  // in its own field so reports never confuse "customer already paid this
+  // before" with "customer is trading in an item right now."
+  if (!posSaleCols3.includes('linked_sale_id'))          db.exec('ALTER TABLE pos_sales ADD COLUMN linked_sale_id INTEGER REFERENCES pos_sales(id)');
+  if (!posSaleCols3.includes('exchange_credit_applied'))  db.exec('ALTER TABLE pos_sales ADD COLUMN exchange_credit_applied REAL DEFAULT 0');
+
+  // refund_method + cash_out_amount let Expected Cash correctly subtract
+  // only the portion of a refund that actually left the drawer as physical
+  // cash — for a plain refund that's the full total_refund when paid back
+  // in cash; for an exchange's returned item, only the leftover excess (if
+  // any) after its value was applied as credit toward the new purchase, not
+  // the item's full original value. Existing refunds default to 0/NULL, so
+  // they correctly keep not affecting Expected Cash (unchanged behavior).
+  const posRefundCols = (db.prepare('PRAGMA table_info(pos_refunds)').all() as { name: string }[]).map(c => c.name);
+  if (!posRefundCols.includes('refund_method'))            db.exec('ALTER TABLE pos_refunds ADD COLUMN refund_method TEXT');
+  if (!posRefundCols.includes('cash_out_amount'))           db.exec('ALTER TABLE pos_refunds ADD COLUMN cash_out_amount REAL DEFAULT 0');
+  if (!posRefundCols.includes('linked_exchange_sale_id'))   db.exec('ALTER TABLE pos_refunds ADD COLUMN linked_exchange_sale_id INTEGER REFERENCES pos_sales(id)');
+  if (!posRefundCols.includes('freebies_returned'))         db.exec('ALTER TABLE pos_refunds ADD COLUMN freebies_returned TEXT');
+
+  // Per returned line: Sellable restocks normally (same as every refund
+  // before this column existed — NULL behaves identically to 'Sellable'),
+  // Defective/For Inspection is kept out of sellable stock.
+  const posRefundItemCols = (db.prepare('PRAGMA table_info(pos_refund_items)').all() as { name: string }[]).map(c => c.name);
+  if (!posRefundItemCols.includes('condition')) db.exec('ALTER TABLE pos_refund_items ADD COLUMN condition TEXT');
+
   // One-time cleanup: a bulk Excel import didn't normalize category casing,
   // so the same category could land as two distinct DB values (e.g.
   // "ELECTRONICS" vs "Electronics") — each showing up as its own duplicated
