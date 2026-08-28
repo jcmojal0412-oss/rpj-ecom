@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText } from 'lucide-react';
+import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import RefundModal from './RefundModal';
+import ReceiptView from './ReceiptView';
 import type { Sale, SaleItem, Refund, Product } from './constants';
 import { REFUND_METHODS } from './constants';
 
@@ -19,11 +20,22 @@ interface Props {
 interface FoundSale { sale: Sale; items: SaleItem[]; refunds: Refund[]; }
 
 export default function ReturnExchangeClient({ showToast, onDone }: Props) {
-  const [step, setStep] = useState<'find' | 'action' | 'refund' | 'exchange'>('find');
+  const [step, setStep] = useState<'find' | 'action' | 'refund' | 'exchange' | 'exchange-receipt'>('find');
   const [saleNumberInput, setSaleNumberInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [found, setFound] = useState<FoundSale | null>(null);
+  const [exchangeReceipt, setExchangeReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
+
+  const handleExchanged = async (exchangeSaleId: number) => {
+    showToast('Exchange completed', 'success');
+    try {
+      const res = await fetch(`/api/pos/sales/${exchangeSaleId}`);
+      const data = await res.json();
+      if (res.ok) { setExchangeReceipt(data); setStep('exchange-receipt'); return; }
+    } catch { /* fall through to exiting Return/Exchange mode below */ }
+    onDone();
+  };
 
   const findSale = async () => {
     // The receipt prints as "Sale #000046" — accept that pasted verbatim,
@@ -91,7 +103,16 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
         </div>
       )}
 
-      {step !== 'find' && found && (
+      {step === 'exchange-receipt' && exchangeReceipt && (
+        <div>
+          <ReceiptView sale={exchangeReceipt.sale} items={exchangeReceipt.items}>
+            <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
+            <button onClick={onDone} className="btn-primary">Done</button>
+          </ReceiptView>
+        </div>
+      )}
+
+      {step !== 'find' && step !== 'exchange-receipt' && found && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -150,8 +171,7 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
               refundableItems={refundableItems}
               hasFreebies={hasFreebies}
               onBack={() => setStep('action')}
-              onDone={() => { showToast('Exchange completed', 'success'); onDone(); }}
-              showToast={showToast}
+              onExchanged={handleExchanged}
             />
           )}
         </div>
@@ -162,13 +182,12 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
 
 interface RefundableItem extends SaleItem { remaining: number; }
 
-function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onDone, showToast }: {
+function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onExchanged }: {
   sale: Sale;
   refundableItems: RefundableItem[];
   hasFreebies: boolean;
   onBack: () => void;
-  onDone: () => void;
-  showToast: (msg: string, type?: 'success' | 'error') => void;
+  onExchanged: (exchangeSaleId: number) => void;
 }) {
   const sellable = refundableItems.filter(it => it.remaining > 0 && !it.is_freebie);
   const [selectedId, setSelectedId] = useState<number | null>(sellable[0]?.id ?? null);
@@ -253,7 +272,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onDone, show
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to process exchange'); return; }
-      onDone();
+      onExchanged(data.exchange_sale_id);
     } catch {
       setError('Failed to process exchange');
     } finally {

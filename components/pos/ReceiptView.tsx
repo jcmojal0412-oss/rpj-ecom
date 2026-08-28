@@ -15,8 +15,9 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
   // Cashback Redeemed and Downpayment Applied are deductions against what's
   // owed, not discounts — Total stays the true Net Sale value, Amount Due is
   // what was actually collected today (plus/less any Financing/Change).
-  const hasAdjustments = sale.cashback_amount > 0 || sale.downpayment_applied > 0;
-  const amountDue = Math.max(0, sale.total - sale.cashback_amount - sale.downpayment_applied);
+  const exchangeCredit = sale.exchange_credit_applied ?? 0;
+  const hasAdjustments = sale.cashback_amount > 0 || sale.downpayment_applied > 0 || exchangeCredit > 0;
+  const amountDue = Math.max(0, sale.total - sale.cashback_amount - sale.downpayment_applied - exchangeCredit);
   const freebieCount = items.filter(it => it.is_freebie).length;
   return (
     <div className="max-w-sm mx-auto">
@@ -62,6 +63,7 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
           {sale.additional_fee > 0 && <div className="flex justify-between text-gray-500"><span>Additional Fee</span><span className="tabular-nums">{formatCurrency(sale.additional_fee)}</span></div>}
           {sale.cashback_amount > 0 && <div className="flex justify-between text-gray-500"><span>Cashback Redeemed</span><span className="tabular-nums">-{formatCurrency(sale.cashback_amount)}</span></div>}
           {sale.downpayment_applied > 0 && <div className="flex justify-between text-gray-500"><span>Downpayment Applied</span><span className="tabular-nums">-{formatCurrency(sale.downpayment_applied)}</span></div>}
+          {exchangeCredit > 0 && <div className="flex justify-between text-gray-500"><span>Exchange Credit Applied</span><span className="tabular-nums">-{formatCurrency(exchangeCredit)}</span></div>}
           {sale.tax_amount > 0 && <div className="flex justify-between text-gray-500"><span>Tax ({sale.tax_percent}%)</span><span className="tabular-nums">{formatCurrency(sale.tax_amount)}</span></div>}
           {sale.service_charge > 0 && <div className="flex justify-between text-gray-500"><span>Service Charge</span><span className="tabular-nums">{formatCurrency(sale.service_charge)}</span></div>}
           {sale.delivery_fee > 0 && <div className="flex justify-between text-gray-500"><span>Delivery Fee</span><span className="tabular-nums">{formatCurrency(sale.delivery_fee)}</span></div>}
