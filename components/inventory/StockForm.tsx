@@ -17,6 +17,7 @@ export default function StockForm({ products, onSuccess }: Props) {
   const [tab, setTab] = useState<TabType>('IN');
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('');
+  const [unitCost, setUnitCost] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayISO());
   const [search, setSearch] = useState('');
@@ -43,9 +44,10 @@ export default function StockForm({ products, onSuccess }: Props) {
           quantity: parseInt(qty),
           note,
           moved_at: date ? `${date}T${new Date().toTimeString().slice(0, 8)}` : undefined,
+          unit_cost: tab === 'IN' && unitCost ? unitCost : undefined,
         }),
       });
-      setProductId(''); setQty(''); setNote(''); setSearch('');
+      setProductId(''); setQty(''); setUnitCost(''); setNote(''); setSearch('');
       setDate(todayISO());
       onSuccess();
     } finally {
@@ -105,6 +107,15 @@ export default function StockForm({ products, onSuccess }: Props) {
           <input type="number" min="1" className="form-input" placeholder="Enter qty" value={qty}
             onChange={e => setQty(e.target.value)} required />
         </div>
+
+        {tab === 'IN' && (
+          <div>
+            <label className="form-label">Cost per Unit (₱)</label>
+            <input type="number" min="0" step="0.01" className="form-input" placeholder="Leave blank to keep current COGS" value={unitCost}
+              onChange={e => setUnitCost(e.target.value)} />
+            <p className="text-xs text-gray-400 mt-1">If puhunan changed, this updates the product's COGS.</p>
+          </div>
+        )}
 
         <div>
           <label className="form-label">Note</label>

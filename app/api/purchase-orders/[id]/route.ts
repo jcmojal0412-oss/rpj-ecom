@@ -63,12 +63,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
       if (status === 'received' && existing.status !== 'received') {
         const items = db.prepare('SELECT * FROM po_items WHERE po_id=?').all(params.id) as
-          { product_id: number; quantity: number }[];
+          { product_id: number; quantity: number; unit_cost: number }[];
         for (const item of items) {
           db.prepare(`UPDATE inventory SET quantity=quantity+?, last_updated=datetime('now') WHERE product_id=?`)
             .run(item.quantity, item.product_id);
           db.prepare('INSERT INTO stock_movements (product_id,type,quantity,note,moved_at) VALUES (?,?,?,?,datetime("now"))')
             .run(item.product_id, 'IN', item.quantity, `PO ${existing.po_number} received`);
+          // Same simple-override COGS update as the create-with-status='received' path.
+          if (item.unit_cost) {
+            db.prepare('UPDATE products SET cogs=? WHERE id=?').run(item.unit_cost, item.product_id);
+          }
         }
       }
     });

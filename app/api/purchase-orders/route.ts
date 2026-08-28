@@ -58,6 +58,12 @@ export async function POST(req: NextRequest) {
           db.prepare(
             'INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?,?,?,?,datetime("now"))'
           ).run(item.product_id, 'IN', item.quantity, `PO ${po_number}`);
+          // Restocking at a new cost updates the product's COGS going forward
+          // (simple override, not a weighted average — matches how COGS is
+          // edited everywhere else in the app, e.g. the Products form).
+          if (item.unit_cost) {
+            db.prepare('UPDATE products SET cogs=? WHERE id=?').run(item.unit_cost, item.product_id);
+          }
         }
       }
     });

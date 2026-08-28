@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const db = getDb();
-    const { product_id, type, quantity, note, moved_at } = await req.json();
+    const { product_id, type, quantity, note, moved_at, unit_cost } = await req.json();
 
     if (!['IN', 'OUT'].includes(type)) {
       return NextResponse.json({ error: 'type must be IN or OUT' }, { status: 400 });
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
           quantity = quantity + excluded.quantity,
           last_updated = datetime('now')
       `).run(product_id, delta);
+      // Restocking at a new cost updates the product's COGS going forward —
+      // simple override, same as the Purchase Orders receiving flow.
+      if (type === 'IN' && unit_cost) {
+        db.prepare('UPDATE products SET cogs=? WHERE id=?').run(parseFloat(unit_cost), product_id);
+      }
     });
 
     return NextResponse.json({ ok: true }, { status: 201 });
