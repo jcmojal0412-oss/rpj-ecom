@@ -174,6 +174,7 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const [shift, setShift] = useState<Shift | null>(null);
   const [loading, setLoading] = useState(true);
   const [showStart, setShowStart] = useState(false);
+  const [confirmEndShift, setConfirmEndShift] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
   const [startingCash, setStartingCash] = useState('');
   const [startNote, setStartNote] = useState('');
@@ -281,10 +282,12 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   return (
     <>
       {shift ? (
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setShowEnd(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> On Shift · {formatDate(shift.time_in)} — End Shift
-          </button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Status only — not an action, so it's not a button. */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            ON SHIFT <span className="font-normal text-emerald-600">· {formatDate(shift.time_in)}</span>
+          </div>
           <button onClick={runXReading} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             X Reading
           </button>
@@ -293,6 +296,9 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
           </button>
           <button onClick={() => setShowExpense(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             Record Expense
+          </button>
+          <button onClick={() => setConfirmEndShift(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100">
+            End Shift
           </button>
         </div>
       ) : (
@@ -316,6 +322,18 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowStart(false)} disabled={submitting} className="btn-secondary">Cancel</button>
               <button onClick={startShift} disabled={submitting} className="btn-primary">{submitting ? 'Starting...' : 'Start Shift'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {confirmEndShift && (
+        <Modal open onClose={() => setConfirmEndShift(false)} title="End current shift?" size="sm">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">You will proceed to shift closing / actual cash count.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmEndShift(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => { setConfirmEndShift(false); setShowEnd(true); }} className="btn-primary !bg-amber-600 hover:!bg-amber-700">End Shift</button>
             </div>
           </div>
         </Modal>
@@ -740,27 +758,32 @@ export default function PosClient() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-200 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Back to Dashboard"><ArrowLeft size={18} /></Link>
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white border-b border-gray-200 shrink-0 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link href="/" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0" title="Back to Dashboard"><ArrowLeft size={18} /></Link>
           <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
             {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           {businessId && <ShiftControl businessId={businessId} showToast={showToast} />}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5 ml-1">
-            <button onClick={() => setPosMode('sale')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'sale' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              Sale
-            </button>
-            <button onClick={() => setPosMode('return')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'return' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              Return / Exchange
-            </button>
-          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {cashier && <span className="text-xs text-gray-500">Cashier: <span className="font-semibold text-gray-800">{cashier.name}</span></span>}
-          <Link href="/pos/sales" className="btn-secondary text-xs py-1.5"><History size={13} /> Sales History</Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Transaction mode — a state selector, not a utility action, so it
+              gets segmented-tab treatment and a clear divider away from the
+              shift tools rather than sitting inline with them. */}
+          <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button onClick={() => setPosMode('sale')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'sale' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                Sale
+              </button>
+              <button onClick={() => setPosMode('return')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'return' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                Return / Exchange
+              </button>
+            </div>
+          </div>
+          {cashier && <span className="text-xs text-gray-500 shrink-0">Cashier: <span className="font-semibold text-gray-800">{cashier.name}</span></span>}
+          <Link href="/pos/sales" className="btn-secondary text-xs py-1.5 shrink-0"><History size={13} /> Sales History</Link>
         </div>
       </div>
 
