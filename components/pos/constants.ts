@@ -9,18 +9,31 @@ export interface Product {
   quantity: number;
 }
 
+// Service/fee cart lines (Labor Fee, Reservation Fee) are not inventory —
+// no product_id, no stock, quantity is always 1, and the amount is entered
+// at time of sale rather than looked up. `key` is the React list key and,
+// for services, also distinguishes multiple same-named entries in one cart
+// (each can carry a different amount) since there's no product_id to key by.
 export interface CartLine {
-  product_id: number;
+  kind: 'product' | 'service';
+  key: string;
+  product_id?: number;
   name: string;
-  sku: string;
+  sku?: string;
   unit_price: number;
   quantity: number;
-  stock: number;
+  stock?: number;
 }
+
+export interface ServiceFeeItem { name: string; sku: string; }
+export const SERVICE_FEE_ITEMS: ServiceFeeItem[] = [
+  { name: 'Labor / Service Fee', sku: 'SVC-LABOR' },
+  { name: 'Reservation Fee', sku: 'SVC-RSVP' },
+];
 
 export interface SaleItem {
   id: number;
-  product_id: number;
+  product_id: number | null;
   product_name: string;
   sku: string | null;
   unit_price: number;

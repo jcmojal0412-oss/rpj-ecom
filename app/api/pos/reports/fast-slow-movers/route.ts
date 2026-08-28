@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get('to');
     const businessId = searchParams.get('business_id');
 
-    const saleClauses: string[] = [`s.status != 'Voided'`];
+    const saleClauses: string[] = [`s.status != 'Voided'`, `i.product_id IS NOT NULL`];
     const saleParams: (string | number)[] = [];
     if (from) { saleClauses.push('s.sale_date >= ?'); saleParams.push(from); }
     if (to) { saleClauses.push('s.sale_date <= ?'); saleParams.push(to); }

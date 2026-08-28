@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-interface CartItem { product_id: number; quantity: number; }
+interface CartItem { product_id?: number; quantity?: number; service_name?: string; sku?: string; amount?: number; }
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,8 +68,23 @@ export async function POST(req: NextRequest) {
     // repairs and Expense amounts this session.
     const getProduct = db.prepare('SELECT p.id, p.name, p.sku, p.srp, p.cogs, COALESCE(i.quantity,0) as quantity FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ?');
 
-    const lineData: { product_id: number; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
+    const lineData: { product_id: number | null; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
     for (const raw of items as CartItem[]) {
+      // Service/fee lines (Labor Fee, Reservation Fee) carry no product_id —
+      // there's no canonical backend price to re-derive, so the client-entered
+      // amount is trusted here the same way discount/additional_fee/etc already are.
+      if (raw?.service_name) {
+        const amount = parseFloat(String(raw.amount));
+        if (!(amount > 0)) {
+          return NextResponse.json({ error: 'Invalid service/fee amount in cart' }, { status: 400 });
+        }
+        lineData.push({
+          product_id: null, name: String(raw.service_name), sku: raw.sku ?? null,
+          unit_price: amount, cogs: 0, quantity: 1, line_total: amount,
+        });
+        continue;
+      }
+
       const qty = parseInt(String(raw?.quantity), 10);
       if (!raw?.product_id || !qty || qty <= 0) {
         return NextResponse.json({ error: 'Invalid item in cart' }, { status: 400 });
@@ -140,8 +155,10 @@ export async function POST(req: NextRequest) {
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
         insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.cogs, l.quantity, l.line_total);
-        insertMovement.run(l.product_id, l.quantity, `POS Sale #${id}`);
-        adjustInventory.run(l.product_id, -l.quantity);
+        if (l.product_id != null) {
+          insertMovement.run(l.product_id, l.quantity, `POS Sale #${id}`);
+          adjustInventory.run(l.product_id, -l.quantity);
+        }
       }
       return id;
     });

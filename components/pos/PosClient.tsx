@@ -11,10 +11,14 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
-import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift } from './constants';
+import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, SERVICE_FEE_ITEMS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem } from './constants';
 import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
 interface SessionUser { id: number; name: string; }
+
+// Sentinel category value selecting the Services and fees tab — not a real
+// product category, so it can never collide with one loaded from the DB.
+const SERVICES_TAB = '__services__';
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ElementType> = {
   Cash: Banknote, GCash: Smartphone, Salmon: Wallet, 'Cash + GCash': Layers,
@@ -408,6 +412,8 @@ export default function PosClient() {
   const [referenceNo, setReferenceNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
+  const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
+  const [serviceAmountInput, setServiceAmountInput] = useState('');
   const { toast, showToast, clearToast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -447,27 +453,34 @@ export default function PosClient() {
   const addToCart = (p: Product) => {
     if (p.quantity <= 0) { showToast(`${p.name} is out of stock`, 'error'); return; }
     setCart(prev => {
-      const existing = prev.find(l => l.product_id === p.id);
+      const existing = prev.find(l => l.kind === 'product' && l.product_id === p.id);
       if (existing) {
         if (existing.quantity >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
-        return prev.map(l => l.product_id === p.id ? { ...l, quantity: l.quantity + 1 } : l);
+        return prev.map(l => l === existing ? { ...l, quantity: l.quantity + 1 } : l);
       }
-      return [...prev, { product_id: p.id, name: p.name, sku: p.sku, unit_price: p.srp ?? 0, quantity: 1, stock: p.quantity }];
+      return [...prev, { kind: 'product', key: `p-${p.id}`, product_id: p.id, name: p.name, sku: p.sku, unit_price: p.srp ?? 0, quantity: 1, stock: p.quantity }];
     });
   };
 
-  const changeQty = (productId: number, delta: number) => {
+  const addServiceToCart = (item: ServiceFeeItem, amount: number) => {
+    setCart(prev => [...prev, {
+      kind: 'service', key: `s-${item.sku}-${Date.now()}`, name: item.name, sku: item.sku,
+      unit_price: amount, quantity: 1,
+    }]);
+  };
+
+  const changeQty = (key: string, delta: number) => {
     setCart(prev => prev
       .map(l => {
-        if (l.product_id !== productId) return l;
+        if (l.key !== key) return l;
         const next = l.quantity + delta;
-        if (next > l.stock) { showToast(`Only ${l.stock} in stock`, 'error'); return l; }
+        if (l.stock != null && next > l.stock) { showToast(`Only ${l.stock} in stock`, 'error'); return l; }
         return { ...l, quantity: next };
       })
       .filter(l => l.quantity > 0));
   };
 
-  const removeLine = (productId: number) => setCart(prev => prev.filter(l => l.product_id !== productId));
+  const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key));
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMethod('Cash'); setReferenceNo('');
@@ -500,7 +513,9 @@ export default function PosClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: Number(businessId),
-          items: cart.map(l => ({ product_id: l.product_id, quantity: l.quantity })),
+          items: cart.map(l => l.kind === 'product'
+            ? { product_id: l.product_id, quantity: l.quantity }
+            : { service_name: l.name, sku: l.sku, amount: l.unit_price }),
           discount: discountNum, additional_fee: feeNum,
           tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
           cash_amount: cashNum, online_amount: onlineNum,
@@ -570,9 +585,24 @@ export default function PosClient() {
                 {c.name} <span className="opacity-70">({c.count})</span>
               </button>
             ))}
+            <button onClick={() => setCategory(SERVICES_TAB)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === SERVICES_TAB ? 'bg-orange-500 text-white' : 'bg-white border border-orange-200 text-orange-600 hover:bg-orange-50'}`}>
+              Services and fees
+            </button>
           </div>
           <div className="flex-1 overflow-auto">
-            {filteredProducts.length === 0 ? (
+            {category === SERVICES_TAB ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                {SERVICE_FEE_ITEMS.map(item => (
+                  <button key={item.sku} onClick={() => setPickingService(item)}
+                    className="bg-white border border-orange-200 rounded-lg p-2.5 text-left hover:border-orange-400 hover:shadow-sm transition-all">
+                    <p className="text-xs font-semibold text-gray-800 leading-snug line-clamp-2 min-h-[2rem]">{item.name}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{item.sku}</p>
+                    <span className="inline-block mt-1.5 text-[9px] font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Custom amount</span>
+                  </button>
+                ))}
+              </div>
+            ) : filteredProducts.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-12">No products found.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
@@ -622,18 +652,22 @@ export default function PosClient() {
             ) : (
               <div className="space-y-2">
                 {cart.map(l => (
-                  <div key={l.product_id} className="flex items-center gap-2 py-2 border-b border-gray-50">
+                  <div key={l.key} className="flex items-center gap-2 py-2 border-b border-gray-50">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-gray-800 truncate">{l.name}</p>
-                      <p className="text-[11px] text-gray-400 tabular-nums">{formatCurrency(l.unit_price)} each</p>
+                      <p className="text-[11px] text-gray-400 tabular-nums">
+                        {l.kind === 'service' ? 'Service / fee' : `${formatCurrency(l.unit_price)} each`}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => changeQty(l.product_id, -1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
-                      <span className="text-xs font-semibold w-5 text-center tabular-nums">{l.quantity}</span>
-                      <button onClick={() => changeQty(l.product_id, 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
-                    </div>
+                    {l.kind === 'product' && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => changeQty(l.key, -1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
+                        <span className="text-xs font-semibold w-5 text-center tabular-nums">{l.quantity}</span>
+                        <button onClick={() => changeQty(l.key, 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
+                      </div>
+                    )}
                     <span className="text-xs font-bold text-gray-900 w-16 text-right tabular-nums shrink-0">{formatCurrency(l.unit_price * l.quantity)}</span>
-                    <button onClick={() => removeLine(l.product_id)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+                    <button onClick={() => removeLine(l.key)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
                   </div>
                 ))}
               </div>
@@ -744,6 +778,33 @@ export default function PosClient() {
           </div>
         </div>
       </div>
+
+      {pickingService && (
+        <Modal open onClose={() => { setPickingService(null); setServiceAmountInput(''); }} title={pickingService.name} size="sm">
+          <div className="space-y-4">
+            <div>
+              <label className="form-label">Amount (₱)</label>
+              <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" autoFocus
+                value={serviceAmountInput} onChange={e => setServiceAmountInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && parseFloat(serviceAmountInput) > 0) {
+                    addServiceToCart(pickingService, parseFloat(serviceAmountInput));
+                    setPickingService(null); setServiceAmountInput('');
+                  }
+                }} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setPickingService(null); setServiceAmountInput(''); }} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => { addServiceToCart(pickingService, parseFloat(serviceAmountInput)); setPickingService(null); setServiceAmountInput(''); }}
+                disabled={!(parseFloat(serviceAmountInput) > 0)}
+                className="btn-primary disabled:opacity-40">
+                Add to Order
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

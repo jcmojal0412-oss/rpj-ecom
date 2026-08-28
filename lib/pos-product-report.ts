@@ -14,7 +14,9 @@ export function buildDetailQuery(req: NextRequest) {
   const category = searchParams.get('category');
   const cashierId = searchParams.get('cashier_id');
 
-  const clauses: string[] = [`s.status != 'Voided'`];
+  // Service/fee lines (Labor Fee, Reservation Fee) have product_id = NULL —
+  // exclude them so this product-focused report isn't polluted by non-inventory charges.
+  const clauses: string[] = [`s.status != 'Voided'`, `i.product_id IS NOT NULL`];
   const params: (string | number)[] = [];
   if (from) { clauses.push('s.sale_date >= ?'); params.push(from); }
   if (to) { clauses.push('s.sale_date <= ?'); params.push(to); }
