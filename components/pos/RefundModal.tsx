@@ -85,7 +85,7 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
       <div className="space-y-4">
         <div className="flex items-center gap-2 justify-center text-green-600">
           <CheckCircle2 size={18} />
-          <p className="text-sm font-bold">RETURN SUCCESSFUL</p>
+          <p className="text-sm font-bold">REFUND SUCCESSFUL</p>
         </div>
         <ReturnExchangeReceipt
           kind="refund"
@@ -98,6 +98,7 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
           reason={reason.trim() || undefined}
           hasFreebiesOnOriginal={hasFreebies}
           freebiesReturned={hasFreebies ? freebiesReturned : null}
+          freebieNames={hasFreebies ? items.filter(it => it.is_freebie).map(it => it.product_name) : undefined}
           refundMethod={refundMethod}
           refundAmount={completed.total}
         />

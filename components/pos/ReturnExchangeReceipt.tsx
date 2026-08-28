@@ -29,6 +29,12 @@ interface Props {
   // Refund only
   refundMethod?: string;
   refundAmount?: number;
+  refundReference?: string;
+  // Names of the original sale's freebie lines, for context next to the
+  // Freebies Returned Y/N flag — the system tracks a single transaction-
+  // level flag, not per-item return status, so this is a reference list,
+  // not a per-item "returned" claim.
+  freebieNames?: string[];
 
   // Exchange only
   newItemName?: string;
@@ -44,14 +50,14 @@ const conditionLabel = (c?: 'Sellable' | 'Defective' | null) =>
 
 export default function ReturnExchangeReceipt({
   kind, businessName, cashierName, date, refundId, originalReceiptNo, returnedItems,
-  reason, hasFreebiesOnOriginal, freebiesReturned,
-  refundMethod, refundAmount,
+  reason, hasFreebiesOnOriginal, freebiesReturned, freebieNames,
+  refundMethod, refundAmount, refundReference,
   newItemName, newItemPrice, amountPaid, paymentMethod, refundDifference, excessRefundMethod,
 }: Props) {
   const txnNo = kind === 'refund' ? `RTN-${String(refundId).padStart(6, '0')}` : `EXC-${String(refundId).padStart(6, '0')}`;
   const isUpgrade = kind === 'exchange' && (amountPaid ?? 0) > 0;
-  const title = kind === 'refund' ? 'RETURN / REFUND RECEIPT' : isUpgrade ? 'EXCHANGE / UPGRADE RECEIPT' : 'EXCHANGE RECEIPT';
-  const status = isUpgrade ? 'UPGRADE COMPLETED' : 'EXCHANGE COMPLETED';
+  const title = kind === 'refund' ? 'REFUND RECEIPT' : isUpgrade ? 'EXCHANGE / UPGRADE RECEIPT' : 'EXCHANGE RECEIPT';
+  const status = kind === 'refund' ? 'REFUND COMPLETED' : isUpgrade ? 'UPGRADE COMPLETED' : 'EXCHANGE COMPLETED';
   const returnValueTotal = returnedItems.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
 
   return (
@@ -61,10 +67,10 @@ export default function ReturnExchangeReceipt({
           <p className="font-bold text-gray-900">{businessName}</p>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mt-1">{title}</p>
           <p className="text-sm font-bold text-gray-800 mt-1.5">
-            {kind === 'refund' ? 'Return No: ' : 'Exchange No: '}{txnNo}
+            {kind === 'refund' ? 'Refund No: ' : 'Exchange No: '}{txnNo}
           </p>
           <p className="text-xs text-gray-400 mt-1">Original Receipt: <span className="font-medium text-gray-600">{originalReceiptNo}</span></p>
-          <p className="text-xs text-gray-400">{date}</p>
+          <p className="text-xs text-gray-400">{kind === 'refund' ? 'Refund Date: ' : 'Exchange Date: '}{date}</p>
           <p className="text-xs text-gray-400">Cashier: {cashierName}</p>
         </div>
 
@@ -93,7 +99,9 @@ export default function ReturnExchangeReceipt({
 
           {kind === 'refund' ? (
             <>
+              {returnedItems.length > 1 && <Row label="Return Value" value={formatCurrency(returnValueTotal)} muted />}
               {refundMethod && <Row label="Refund Via" value={refundMethod} muted />}
+              {refundReference && <Row label="Reference No" value={refundReference} muted small />}
               <div className="pt-1"><Row label="REFUND AMOUNT" value={formatCurrency(refundAmount ?? returnValueTotal)} bold /></div>
             </>
           ) : (
@@ -118,11 +126,14 @@ export default function ReturnExchangeReceipt({
         {hasFreebiesOnOriginal && (
           <div className="border-t border-dashed border-gray-200 pt-3">
             <Row label="Freebies Returned" value={freebiesReturned ?? '—'} small muted />
+            {freebieNames && freebieNames.length > 0 && (
+              <p className="text-[11px] text-gray-400 mt-1">Included: {freebieNames.join(', ')}</p>
+            )}
           </div>
         )}
 
         <div className="border-t border-dashed border-gray-200 pt-3 text-center space-y-1">
-          {kind === 'exchange' && <p className="text-xs font-semibold text-gray-600">Status: {status}</p>}
+          <p className="text-xs font-semibold text-gray-600">Status: {status}</p>
           <p className="text-xs text-gray-500">Thank you.</p>
           <p className="text-[11px] text-gray-400">
             Please keep this receipt for {kind === 'refund' ? 'reference' : 'warranty/reference'}.

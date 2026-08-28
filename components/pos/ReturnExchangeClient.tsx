@@ -307,6 +307,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
           reason={reason.trim() || undefined}
           hasFreebiesOnOriginal={hasFreebies}
           freebiesReturned={hasFreebies ? freebiesReturned : null}
+          freebieNames={hasFreebies ? refundableItems.filter(it => it.is_freebie).map(it => it.product_name) : undefined}
           newItemName={completed.newItemName}
           newItemPrice={completed.newItemPrice}
           amountPaid={completed.amountPaid}
