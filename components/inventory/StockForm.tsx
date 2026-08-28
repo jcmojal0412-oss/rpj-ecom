@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, CheckCircle2 } from 'lucide-react';
 import { todayISO, formatCurrency } from '@/lib/utils';
 import Modal from '@/components/ui/Modal';
+import { IN_REASONS, OUT_REASONS } from './constants';
 
 interface Product { id: number; sku: string; name: string; quantity: number; cogs: number; }
 
@@ -13,9 +14,6 @@ interface Props {
 }
 
 type TabType = 'IN' | 'OUT';
-
-const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'RTS (Return to Sender)', 'Transfer In', 'Inventory Adjustment', 'Other'];
-const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Inventory Adjustment', 'Internal Use', 'Other'];
 
 interface SaveResult {
   product_name: string; type: TabType; reason: string;

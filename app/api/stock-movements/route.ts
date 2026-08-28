@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
+import { IN_REASONS, OUT_REASONS } from '@/components/inventory/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,9 +30,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
-
-const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'RTS (Return to Sender)', 'Transfer In', 'Inventory Adjustment', 'Other'];
-const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Inventory Adjustment', 'Internal Use', 'Other'];
 
 export async function POST(req: NextRequest) {
   try {
