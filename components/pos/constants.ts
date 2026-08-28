@@ -89,6 +89,9 @@ export interface Sale {
   // Customer-facing series number ("BNS108") — null on sales created before
   // this existed, which fall back to the old internal Sale # for display.
   receipt_no: string | null;
+  // Comma-separated names of any service/fee lines (Labor Fee, Reservation
+  // Fee) in this sale — computed by the list query, null if none.
+  service_items: string | null;
 }
 
 export const displayReceiptNo = (sale: Pick<Sale, 'id' | 'receipt_no'>) =>

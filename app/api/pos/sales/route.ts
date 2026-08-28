@@ -6,7 +6,9 @@ import { todayISO } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 const LIST_SQL_BASE = `
-  SELECT s.*, b.name as business_name, u.name as cashier_name
+  SELECT s.*, b.name as business_name, u.name as cashier_name,
+         (SELECT GROUP_CONCAT(DISTINCT product_name) FROM pos_sale_items
+          WHERE sale_id = s.id AND product_id IS NULL) as service_items
   FROM pos_sales s
   LEFT JOIN businesses b ON b.id = s.business_id
   LEFT JOIN users u ON u.id = s.cashier_id

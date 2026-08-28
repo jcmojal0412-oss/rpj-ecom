@@ -142,7 +142,7 @@ export default function SalesHistoryClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash Applied', 'Online / Card', 'Financing', 'Status', 'Actions'].map(h => (
+                  {['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash Applied', 'Online / Card', 'Financing', 'Service/Fee', 'Status', 'Actions'].map(h => (
                     <th key={h} className="table-header whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -159,6 +159,13 @@ export default function SalesHistoryClient() {
                     <td className="table-cell text-gray-600 tabular-nums">{onlineApplied(s) > 0 ? formatCurrency(onlineApplied(s)) : '—'}</td>
                     <td className="table-cell text-gray-600 tabular-nums whitespace-nowrap">
                       {s.financing_provider ? `${s.financing_provider} ${formatCurrency(s.financing_amount)}` : '—'}
+                    </td>
+                    <td className="table-cell whitespace-nowrap">
+                      {s.service_items ? (
+                        <span className="text-[11px] font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded" title={s.service_items}>
+                          {s.service_items}
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="table-cell">
                       <span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span>

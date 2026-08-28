@@ -143,7 +143,10 @@ export default function ProductSalesReportClient() {
 
       <div className="flex items-center gap-3 print:hidden">
         <Link href="/pos/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
-        <h1 className="text-xl font-bold text-gray-900">Product Sales Report</h1>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Product Sales Report</h1>
+          <p className="text-xs text-gray-400">Figures are net of refunds/exchanges — a returned unit no longer counts toward Qty Sold, Total Sales, or Total Cost of Goods (cost stays out only when the return was restocked; a Defective return keeps its cost).</p>
+        </div>
       </div>
 
       <div className="card space-y-3 print:hidden">

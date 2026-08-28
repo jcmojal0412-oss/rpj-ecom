@@ -25,15 +25,37 @@ export function buildDetailQuery(req: NextRequest) {
   if (category) { clauses.push('p.category = ?'); params.push(category); }
   if (cashierId) { clauses.push('s.cashier_id = ?'); params.push(Number(cashierId)); }
 
+  // Net out refunds/exchanges per line, not just raw original sale amounts —
+  // otherwise a fully-returned item still shows as full revenue here forever,
+  // which is exactly why this report used to drift from Gross/Net Sales
+  // elsewhere. Quantity and revenue always shrink by whatever was refunded
+  // (the customer doesn't have the item anymore, full stop); cost only
+  // shrinks for the portion that was actually restocked (condition !=
+  // 'Defective') — a Defective return means the unit was scrapped, so that
+  // cost is genuinely gone, not recovered. Discount is left untouched: it
+  // was a real deduction at the moment of the original sale, unaffected by
+  // what happens to the item afterward. Not date-filtered on the refund
+  // side on purpose — this answers "what did we net sell", not "what
+  // happened to net cash this exact period", so a return processed later
+  // still nets against the sale it belongs to.
   const sql = `
+    WITH refund_agg AS (
+      SELECT ri.sale_item_id,
+             SUM(ri.quantity) as refunded_qty,
+             SUM(ri.line_total) as refunded_value,
+             SUM(CASE WHEN ri.condition = 'Defective' THEN 0 ELSE ri.quantity END) as restocked_qty
+      FROM pos_refund_items ri
+      GROUP BY ri.sale_item_id
+    )
     SELECT i.product_id, i.product_name, i.sku, p.category,
-           SUM(i.quantity) as qty_sold,
-           SUM(i.quantity * COALESCE(i.cogs,0)) as total_cost,
-           SUM(i.line_total) as total_sales,
+           SUM(i.quantity - COALESCE(ra.refunded_qty,0)) as qty_sold,
+           SUM(i.quantity * COALESCE(i.cogs,0) - COALESCE(ra.restocked_qty,0) * COALESCE(i.cogs,0)) as total_cost,
+           SUM(i.line_total - COALESCE(ra.refunded_value,0)) as total_sales,
            SUM(i.line_total * 1.0 / NULLIF(s.subtotal,0) * s.discount) as total_discount
     FROM pos_sale_items i
     JOIN pos_sales s ON s.id = i.sale_id
     LEFT JOIN products p ON p.id = i.product_id
+    LEFT JOIN refund_agg ra ON ra.sale_item_id = i.id
     WHERE ${clauses.join(' AND ')}
     GROUP BY i.product_id, i.product_name, i.sku, p.category
     ORDER BY qty_sold DESC
