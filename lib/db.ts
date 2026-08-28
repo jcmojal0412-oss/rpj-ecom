@@ -1409,6 +1409,16 @@ function migrateSchema() {
   }
   db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_receipt_seq_next', '108')`).run();
 
+  // external_ref holds the source transaction ID (e.g. "REF-05357034") for a
+  // sale migrated in from the old POS system — the one stable key the export
+  // provides per transaction. A unique index makes re-uploading an export
+  // whose date range overlaps a previous one a no-op for rows already
+  // imported, rather than creating duplicates.
+  if (!posSaleCols3.includes('external_ref')) {
+    db.exec('ALTER TABLE pos_sales ADD COLUMN external_ref TEXT');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_external_ref ON pos_sales(external_ref) WHERE external_ref IS NOT NULL');
+  }
+
   // refund_method + cash_out_amount let Expected Cash correctly subtract
   // only the portion of a refund that actually left the drawer as physical
   // cash — for a plain refund that's the full total_refund when paid back

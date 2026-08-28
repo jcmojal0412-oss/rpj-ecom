@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Eye, Ban, Undo2 } from 'lucide-react';
+import { ArrowLeft, Eye, Ban, Undo2, UploadCloud } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -92,9 +92,14 @@ export default function SalesHistoryClient() {
     <div className="p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center gap-3">
-        <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
-        <h1 className="text-xl font-bold text-gray-900">Sales History</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+          <h1 className="text-xl font-bold text-gray-900">Sales History</h1>
+        </div>
+        {isOwner && (
+          <Link href="/pos/sales/import" className="btn-secondary text-xs py-1.5"><UploadCloud size={13} /> Import Historical Sales</Link>
+        )}
       </div>
 
       <div className="card space-y-3">
