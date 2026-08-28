@@ -14,7 +14,7 @@ interface Props {
 
 type TabType = 'IN' | 'OUT';
 
-const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'Transfer In', 'Inventory Adjustment', 'Other'];
+const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'RTS (Return to Sender)', 'Transfer In', 'Inventory Adjustment', 'Other'];
 const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Inventory Adjustment', 'Internal Use', 'Other'];
 
 interface SaveResult {

@@ -297,7 +297,7 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
           <button onClick={() => setShowExpense(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
             Record Expense
           </button>
-          <button onClick={() => setConfirmEndShift(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100">
+          <button onClick={() => setConfirmEndShift(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-amber-700 border border-amber-300 hover:bg-amber-50">
             End Shift
           </button>
         </div>
