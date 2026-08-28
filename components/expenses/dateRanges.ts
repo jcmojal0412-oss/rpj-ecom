@@ -7,7 +7,7 @@ export function toLocalISO(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export const DATE_PRESETS = ['Today', 'Yesterday', 'This Week', 'Last Week', 'This Month', 'Last Month', 'Custom'] as const;
+export const DATE_PRESETS = ['Today', 'Yesterday', 'This Week', 'Last Week', 'This Month', 'Last Month', 'This Year', 'Custom'] as const;
 export type DatePreset = typeof DATE_PRESETS[number];
 
 export function resolvePresetRange(preset: DatePreset, customFrom?: string, customTo?: string): { from: string; to: string } {
@@ -39,6 +39,12 @@ export function resolvePresetRange(preset: DatePreset, customFrom?: string, cust
   if (preset === 'Last Month') {
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const to = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { from: toLocalISO(from), to: toLocalISO(to) };
+  }
+
+  if (preset === 'This Year') {
+    const from = new Date(now.getFullYear(), 0, 1);
+    const to = new Date(now.getFullYear(), 11, 31);
     return { from: toLocalISO(from), to: toLocalISO(to) };
   }
 
