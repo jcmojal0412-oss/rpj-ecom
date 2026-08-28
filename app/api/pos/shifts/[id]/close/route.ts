@@ -27,9 +27,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const combinedNotes = [shift.notes, notes?.trim() ? `End: ${notes.trim()}` : null].filter(Boolean).join(' | ') || null;
 
     const totals = db.prepare(
-      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount
+      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount, COALESCE(SUM(financing_amount),0) as financing_receivable
        FROM pos_sales WHERE shift_id = ? AND status != 'Voided'`
-    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number };
+    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number; financing_receivable: number };
+
+    const financingByProvider = db.prepare(
+      `SELECT financing_provider as provider, COALESCE(SUM(financing_amount),0) as amount
+       FROM pos_sales WHERE shift_id = ? AND status != 'Voided' AND financing_provider IS NOT NULL
+       GROUP BY financing_provider ORDER BY financing_provider`
+    ).all(shift.id) as { provider: string; amount: number }[];
 
     const voidTotals = db.prepare(
       `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
@@ -52,9 +58,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     db.prepare(`
       UPDATE pos_shifts SET
         time_out = datetime('now'), status = 'Closed', notes = ?,
-        cash_sales = ?, online_sales = ?, expected_cash = ?, actual_cash = ?, discrepancy = ?
+        cash_sales = ?, online_sales = ?, financing_receivable = ?, expected_cash = ?, actual_cash = ?, discrepancy = ?
       WHERE id = ?
-    `).run(combinedNotes, totals.cash_sales, totals.online_sales, expectedCash, actualCashNum, discrepancy, shift.id);
+    `).run(combinedNotes, totals.cash_sales, totals.online_sales, totals.financing_receivable, expectedCash, actualCashNum, discrepancy, shift.id);
 
     return NextResponse.json({
       ok: true,
@@ -66,6 +72,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       refund_amount: refundTotals.refund_amount,
       cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out,
       expected_cash: expectedCash, actual_cash: actualCashNum, discrepancy,
+      financing_receivable: totals.financing_receivable, financing_by_provider: financingByProvider,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -39,6 +39,11 @@ export async function GET(req: NextRequest) {
 
 interface CartItem { product_id?: number; quantity?: number; service_name?: string; sku?: string; amount?: number; }
 
+// Financing providers collect the balance the store doesn't — the store
+// only ever collects the downpayment (via the normal cash_amount/
+// online_amount split), never the financed remainder.
+const FINANCING_PROVIDERS = ['Salmon', 'Skyro', 'Billease'];
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -48,6 +53,7 @@ export async function POST(req: NextRequest) {
     const {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
       tax_percent, service_charge, delivery_fee, payment_method, reference_no,
+      financing_provider,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
@@ -62,6 +68,10 @@ export async function POST(req: NextRequest) {
     const taxPercentNum = tax_percent ? parseFloat(tax_percent) : 0;
     const serviceChargeNum = service_charge ? parseFloat(service_charge) : 0;
     const deliveryFeeNum = delivery_fee ? parseFloat(delivery_fee) : 0;
+
+    if (cashNum < 0 || onlineNum < 0) {
+      return NextResponse.json({ error: 'Payment amounts cannot be negative' }, { status: 400 });
+    }
 
     // Re-price and re-check stock server-side for every line — the cart's
     // own numbers are never trusted, same principle used for Service Center
@@ -111,10 +121,37 @@ export async function POST(req: NextRequest) {
     const taxAmount = preTax * (taxPercentNum / 100);
     const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
     const totalPayment = cashNum + onlineNum;
-    if (totalPayment + 0.005 < total) {
+
+    // Financing sales are expected to fall short of `total` in cash+online —
+    // the shortfall is covered by the financing provider, not the customer
+    // today — so they're validated on their own terms instead of the normal
+    // "payment must cover the total" rule. financing_amount is always
+    // recomputed here (never trusted from the client), same principle as
+    // re-pricing cart items server-side above.
+    let financingProviderVal: string | null = null;
+    let financingAmountVal = 0;
+    let financingReferenceVal: string | null = null;
+    let financingStatusVal: string | null = null;
+    if (financing_provider) {
+      if (!FINANCING_PROVIDERS.includes(financing_provider)) {
+        return NextResponse.json({ error: 'Invalid financing provider' }, { status: 400 });
+      }
+      if (totalPayment > total + 0.005) {
+        return NextResponse.json({ error: 'Downpayment cannot exceed the total purchase amount' }, { status: 400 });
+      }
+      if (!reference_no || !String(reference_no).trim()) {
+        return NextResponse.json({ error: 'Financing reference/application number is required' }, { status: 400 });
+      }
+      financingProviderVal = financing_provider;
+      financingAmountVal = Math.max(0, total - totalPayment);
+      financingReferenceVal = String(reference_no).trim();
+      financingStatusVal = 'Pending';
+    } else if (totalPayment + 0.005 < total) {
       return NextResponse.json({ error: 'Payment is less than the total due' }, { status: 400 });
     }
-    const changeDue = totalPayment - total;
+    // Financing sales never show "change" — the shortfall is by design,
+    // covered by the financing provider, not money owed back or forward.
+    const changeDue = financing_provider ? 0 : totalPayment - total;
 
     // Auto-tag with the cashier's currently open shift for this business, if
     // any — starting a shift is optional, so this is NULL (and everything
@@ -127,8 +164,9 @@ export async function POST(req: NextRequest) {
       INSERT INTO pos_sales
         (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
-         payment_method, reference_no, status, cashier_id, notes, shift_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?)
+         payment_method, reference_no, status, cashier_id, notes, shift_id,
+         financing_provider, financing_amount, financing_reference, financing_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
@@ -151,6 +189,7 @@ export async function POST(req: NextRequest) {
         serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
         payment_method?.trim() || null, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
+        financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

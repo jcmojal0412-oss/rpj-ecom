@@ -8,15 +8,18 @@ import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
-import { LARGE_DISCREPANCY_THRESHOLD, type Business, type Shift } from './constants';
+import { LARGE_DISCREPANCY_THRESHOLD, type Business, type Shift, type FinancingByProvider } from './constants';
 
 interface ShiftRow extends Shift { total_sales: number; total_hours: number; }
-interface ShiftSale { id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; status: string; created_at: string; }
+interface ShiftSale {
+  id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; status: string; created_at: string;
+  financing_provider: string | null; financing_amount: number; financing_status: string | null;
+}
 interface ShiftCashMovement { id: number; type: 'IN' | 'OUT'; amount: number; note: string | null; created_by_name: string | null; created_at: string; }
 interface ShiftExpense { id: number; date: string; amount: number; category: string; paid_to: string | null; description: string | null; created_at: string; }
 const isLargeDiscrepancy = (d: number | null) => d != null && Math.abs(d) >= LARGE_DISCREPANCY_THRESHOLD;
 
-type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'total_sales' | 'starting_cash' | 'actual_cash' | 'discrepancy';
+type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'total_sales' | 'financing_receivable' | 'starting_cash' | 'actual_cash' | 'discrepancy';
 
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'created_at', label: 'Date Created' },
@@ -27,6 +30,7 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'cash_sales', label: 'Cash Sales', numeric: true },
   { key: 'online_sales', label: 'Online Sales', numeric: true },
   { key: 'total_sales', label: 'Total POS Sales', numeric: true },
+  { key: 'financing_receivable', label: 'Financing Receivable', numeric: true },
   { key: 'starting_cash', label: 'Starting Cash', numeric: true },
   { key: 'actual_cash', label: 'Actual Cash', numeric: true },
   { key: 'discrepancy', label: 'Discrepancy', numeric: true },
@@ -49,7 +53,7 @@ export default function CashierShiftsReportClient() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[]; expenses: ShiftExpense[] } | null>(null);
+  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[]; expenses: ShiftExpense[]; financingByProvider: FinancingByProvider[] } | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [reopening, setReopening] = useState(false);
   const { toast, showToast, clearToast } = useToast();
@@ -112,6 +116,7 @@ export default function CashierShiftsReportClient() {
     setViewing({
       shift: { ...data.shift, total_sales: (data.shift.cash_sales ?? 0) + (data.shift.online_sales ?? 0), total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
       sales: data.sales ?? [], cashMovements: data.cashMovements ?? [], expenses: data.expenses ?? [],
+      financingByProvider: data.financingByProvider ?? [],
     });
   };
 
@@ -138,6 +143,7 @@ export default function CashierShiftsReportClient() {
       case 'cash_sales': return formatCurrency(r.cash_sales ?? 0);
       case 'online_sales': return formatCurrency(r.online_sales ?? 0);
       case 'total_sales': return formatCurrency(r.total_sales);
+      case 'financing_receivable': return formatCurrency(r.financing_receivable ?? 0);
       case 'starting_cash': return formatCurrency(r.starting_cash);
       case 'actual_cash': return r.actual_cash != null ? formatCurrency(r.actual_cash) : '—';
       case 'discrepancy': return r.discrepancy != null ? formatCurrency(r.discrepancy) : '—';
@@ -259,6 +265,7 @@ export default function CashierShiftsReportClient() {
                     <td className="table-cell tabular-nums">{formatCurrency(r.cash_sales ?? 0)}</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.online_sales ?? 0)}</td>
                     <td className="table-cell font-semibold tabular-nums">{formatCurrency(r.total_sales)}</td>
+                    <td className="table-cell tabular-nums">{formatCurrency(r.financing_receivable ?? 0)}</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.starting_cash)}</td>
                     <td className="table-cell tabular-nums">{r.actual_cash != null ? formatCurrency(r.actual_cash) : '—'}</td>
                     <td className={`table-cell font-semibold tabular-nums ${r.discrepancy == null ? '' : r.discrepancy === 0 ? 'text-gray-700' : r.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -333,6 +340,20 @@ export default function CashierShiftsReportClient() {
               </div>
             </div>
 
+            {viewing.financingByProvider.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-500 font-semibold mb-1.5">Financing Receivable</p>
+                <div className="flex flex-wrap gap-4">
+                  {viewing.financingByProvider.map(f => (
+                    <div key={f.provider} className="flex items-baseline gap-1.5">
+                      <span className="text-xs text-gray-500">{f.provider}</span>
+                      <span className="text-sm font-semibold tabular-nums">{formatCurrency(f.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <p className="text-sm font-semibold text-gray-800 mb-2">Sales During This Shift ({viewing.sales.length})</p>
               {viewing.sales.length === 0 ? (
@@ -341,7 +362,7 @@ export default function CashierShiftsReportClient() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {['Sale #', 'Time', 'Cash', 'Online', 'Total', 'Status'].map(h => <th key={h} className="table-header">{h}</th>)}
+                      {['Sale #', 'Time', 'Cash', 'Online', 'Financing', 'Total', 'Status'].map(h => <th key={h} className="table-header">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -351,6 +372,9 @@ export default function CashierShiftsReportClient() {
                         <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(s.created_at)}</td>
                         <td className="table-cell tabular-nums">{formatCurrency(s.cash_amount)}</td>
                         <td className="table-cell tabular-nums">{formatCurrency(s.online_amount)}</td>
+                        <td className="table-cell tabular-nums">
+                          {s.financing_provider ? `${s.financing_provider} · ${formatCurrency(s.financing_amount)} (${s.financing_status})` : '—'}
+                        </td>
                         <td className="table-cell font-semibold tabular-nums">{formatCurrency(s.total)}</td>
                         <td className="table-cell"><span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span></td>
                       </tr>

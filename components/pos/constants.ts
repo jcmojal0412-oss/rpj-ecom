@@ -64,6 +64,10 @@ export interface Sale {
   cashier_name: string | null;
   notes: string | null;
   created_at: string;
+  financing_provider: string | null;
+  financing_amount: number;
+  financing_reference: string | null;
+  financing_status: 'Pending' | 'Settled' | 'Cancelled' | null;
 }
 
 export interface ProductSalesRow {
@@ -113,6 +117,7 @@ export interface Shift {
   starting_cash: number;
   cash_sales: number | null;
   online_sales: number | null;
+  financing_receivable: number | null;
   expected_cash: number | null;
   actual_cash: number | null;
   discrepancy: number | null;
@@ -121,6 +126,8 @@ export interface Shift {
   created_at: string;
 }
 
+export interface FinancingByProvider { provider: string; amount: number; }
+
 export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
 
 // A closed shift's |discrepancy| at or above this gets flagged in the
@@ -128,11 +135,7 @@ export const CASH_PRESETS = [1, 5, 10, 20, 50, 100, 500, 1000];
 // a push/SMS/email delivery channel: visible next time the report is opened.
 export const LARGE_DISCREPANCY_THRESHOLD = 100;
 
-// Grouped to match the reference POS's exact card layout: a 4-across row,
-// a standalone full-width row, then a 5-across row. These are display
-// labels only — no real payment-gateway integration behind any of them.
-export const PAYMENT_METHOD_GROUPS: string[][] = [
-  ['Cash', 'GCash', 'Salmon', 'Cash + GCash'],
-  ['Credit Card'],
-  ['Maya', 'Sodexo', 'Bank Transfer', 'Skyro', 'Billease'],
-];
+// Salmon/Skyro/Billease are financing providers (they cover a financed
+// balance, not an ordinary payment), so they live in their own list and are
+// never offered as a normal Online/Split payment option.
+export const FINANCING_PROVIDERS = ['Salmon', 'Skyro', 'Billease'];

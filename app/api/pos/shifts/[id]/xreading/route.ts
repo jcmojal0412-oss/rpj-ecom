@@ -19,9 +19,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
 
     const totals = db.prepare(
-      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount
+      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount, COALESCE(SUM(financing_amount),0) as financing_receivable
        FROM pos_sales WHERE shift_id = ? AND status != 'Voided'`
-    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number };
+    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number; financing_receivable: number };
+
+    const financingByProvider = db.prepare(
+      `SELECT financing_provider as provider, COALESCE(SUM(financing_amount),0) as amount
+       FROM pos_sales WHERE shift_id = ? AND status != 'Voided' AND financing_provider IS NOT NULL
+       GROUP BY financing_provider ORDER BY financing_provider`
+    ).all(shift.id) as { provider: string; amount: number }[];
 
     const voidTotals = db.prepare(
       `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
@@ -48,6 +54,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       refund_amount: refundTotals.refund_amount,
       cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out,
       expected_cash: shift.starting_cash + totals.cash_sales + cashMovements.cash_in - cashMovements.cash_out,
+      financing_receivable: totals.financing_receivable, financing_by_provider: financingByProvider,
       generated_at: new Date().toISOString(),
     });
   } catch (e) {

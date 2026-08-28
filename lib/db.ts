@@ -1328,6 +1328,25 @@ function migrateSchema() {
   const expenseCols2 = (db.prepare('PRAGMA table_info(expenses)').all() as { name: string }[]).map(c => c.name);
   if (!expenseCols2.includes('shift_id')) db.exec('ALTER TABLE expenses ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
 
+  // Financing (Salmon/Skyro/BillEase): the store collects a downpayment
+  // through the normal cash_amount/online_amount split, and the remaining
+  // balance is financed by a third party — that remainder must never be
+  // counted as cash/online collected today, so it lives in its own columns
+  // rather than being folded into cash_amount/online_amount. financing_status
+  // starts 'Pending' and is meant to move to 'Settled'/'Cancelled' later —
+  // no settlement UI yet, this just makes sure the data can support one.
+  const posSaleCols3 = (db.prepare('PRAGMA table_info(pos_sales)').all() as { name: string }[]).map(c => c.name);
+  if (!posSaleCols3.includes('financing_provider'))  db.exec('ALTER TABLE pos_sales ADD COLUMN financing_provider TEXT');
+  if (!posSaleCols3.includes('financing_amount'))    db.exec('ALTER TABLE pos_sales ADD COLUMN financing_amount REAL DEFAULT 0');
+  if (!posSaleCols3.includes('financing_reference')) db.exec('ALTER TABLE pos_sales ADD COLUMN financing_reference TEXT');
+  if (!posSaleCols3.includes('financing_status'))    db.exec('ALTER TABLE pos_sales ADD COLUMN financing_status TEXT');
+
+  // Persisted at shift close, same pattern as cash_sales/online_sales, so the
+  // Cashier's Report and Z Reading can show "Financing Receivable" as its own
+  // line without it ever inflating the cash-drawer reconciliation above.
+  const posShiftCols = (db.prepare('PRAGMA table_info(pos_shifts)').all() as { name: string }[]).map(c => c.name);
+  if (!posShiftCols.includes('financing_receivable')) db.exec('ALTER TABLE pos_shifts ADD COLUMN financing_receivable REAL');
+
   // One-time cleanup: a bulk Excel import didn't normalize category casing,
   // so the same category could land as two distinct DB values (e.g.
   // "ELECTRONICS" vs "Electronics") — each showing up as its own duplicated

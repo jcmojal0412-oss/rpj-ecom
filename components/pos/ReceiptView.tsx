@@ -48,12 +48,24 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
         </div>
 
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
-          {sale.payment_method && <div className="flex justify-between text-gray-500"><span>Payment Method</span><span>{sale.payment_method}</span></div>}
+          {sale.payment_method && (
+            <div className="flex justify-between text-gray-500"><span>{sale.financing_provider ? 'DP Method' : 'Payment Method'}</span><span>{sale.payment_method}</span></div>
+          )}
           {sale.cash_amount > 0 && <div className="flex justify-between text-gray-500"><span>Cash</span><span className="tabular-nums">{formatCurrency(sale.cash_amount)}</span></div>}
           {sale.online_amount > 0 && <div className="flex justify-between text-gray-500"><span>Online</span><span className="tabular-nums">{formatCurrency(sale.online_amount)}</span></div>}
-          <div className="flex justify-between font-semibold text-gray-900"><span>Change</span><span className="tabular-nums">{formatCurrency(sale.change_due)}</span></div>
+          {!sale.financing_provider && <div className="flex justify-between font-semibold text-gray-900"><span>Change</span><span className="tabular-nums">{formatCurrency(sale.change_due)}</span></div>}
           {sale.reference_no && <div className="flex justify-between text-gray-500"><span>Reference No.</span><span>{sale.reference_no}</span></div>}
         </div>
+
+        {sale.financing_provider && (
+          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Financing</p>
+            <div className="flex justify-between text-gray-500"><span>Provider</span><span className="font-medium text-gray-800">{sale.financing_provider}</span></div>
+            <div className="flex justify-between font-semibold text-gray-900"><span>Financed Amount</span><span className="tabular-nums">{formatCurrency(sale.financing_amount)}</span></div>
+            {sale.financing_reference && <div className="flex justify-between text-gray-500"><span>Reference No.</span><span>{sale.financing_reference}</span></div>}
+            <div className="flex justify-between text-gray-500"><span>Status</span><span>{sale.financing_status}</span></div>
+          </div>
+        )}
 
         {totalRefunded > 0 && (
           <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">

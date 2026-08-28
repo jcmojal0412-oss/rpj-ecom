@@ -16,8 +16,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     if (!shift) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const sales = db.prepare(`
-      SELECT id, sale_date, total, cash_amount, online_amount, status, created_at
+      SELECT id, sale_date, total, cash_amount, online_amount, status, created_at,
+             financing_provider, financing_amount, financing_reference, financing_status
       FROM pos_sales WHERE shift_id = ? ORDER BY created_at
+    `).all(params.id);
+
+    const financingByProvider = db.prepare(`
+      SELECT financing_provider as provider, COALESCE(SUM(financing_amount),0) as amount
+      FROM pos_sales WHERE shift_id = ? AND status != 'Voided' AND financing_provider IS NOT NULL
+      GROUP BY financing_provider ORDER BY financing_provider
     `).all(params.id);
 
     const cashMovements = db.prepare(`
@@ -32,7 +39,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       FROM expenses e WHERE e.shift_id = ? AND e.deleted_at IS NULL ORDER BY e.created_at
     `).all(params.id);
 
-    return NextResponse.json({ shift, sales, cashMovements, expenses });
+    return NextResponse.json({ shift, sales, cashMovements, expenses, financingByProvider });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

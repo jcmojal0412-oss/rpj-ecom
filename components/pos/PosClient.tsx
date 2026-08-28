@@ -11,7 +11,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
-import { SERVICE_FEE_ITEMS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem } from './constants';
+import { SERVICE_FEE_ITEMS, FINANCING_PROVIDERS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem, type FinancingByProvider } from './constants';
 import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
 interface SessionUser { id: number; name: string; }
@@ -23,12 +23,17 @@ const SERVICES_TAB = '__services__';
 // no-collision trick as SERVICES_TAB.
 const IN_STOCK_TAB = '__in_stock__';
 
-type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split';
+type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing';
+type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer' | 'Split';
+const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer', 'Split'];
 
 // Non-cash payment labels the system already recognizes (kept identical to
 // the strings used before this redesign so historical sales/reports that
-// group by payment_method text stay meaningful going forward).
-const ONLINE_PROVIDERS = ['GCash', 'Maya', 'Salmon', 'Sodexo', 'Bank Transfer', 'Skyro', 'Billease'];
+// group by payment_method text stay meaningful going forward). Financing
+// providers (Salmon/Skyro/Billease) are intentionally NOT here — they cover
+// a financed balance, not an ordinary payment, so they live only under the
+// dedicated Financing tab (see FINANCING_PROVIDERS).
+const ONLINE_PROVIDERS = ['GCash', 'Maya', 'Sodexo', 'Bank Transfer'];
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ElementType> = {
   Cash: Banknote, GCash: Smartphone, Salmon: Wallet, 'Cash + GCash': Layers,
@@ -71,6 +76,7 @@ interface ReadingTotals {
   total_discount: number; void_count: number; void_amount: number; refund_amount: number;
   cash_in: number; cash_out: number;
   starting_cash: number; expected_cash: number; actual_cash?: number; discrepancy?: number;
+  financing_receivable?: number; financing_by_provider?: FinancingByProvider[];
 }
 interface XReading extends ReadingTotals { shift: Shift; generated_at: string; }
 interface ZReading extends ReadingTotals {
@@ -110,6 +116,20 @@ function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, 
           {data.refund_amount > 0 && <div className="flex justify-between text-gray-500"><span>Refunded</span><span className="tabular-nums">-{formatCurrency(data.refund_amount)}</span></div>}
           <div className="flex justify-between font-bold text-gray-900 pt-1"><span>Total Sales</span><span className="tabular-nums">{formatCurrency(data.total_sales)}</span></div>
         </div>
+
+        {!!data.financing_receivable && data.financing_receivable > 0 && (
+          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Financing Receivable</p>
+            {(data.financing_by_provider ?? []).map(f => (
+              <div key={f.provider} className="flex justify-between text-gray-500 text-xs">
+                <span>{f.provider}</span><span className="tabular-nums">{formatCurrency(f.amount)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between font-semibold text-gray-700 pt-0.5">
+              <span>Total Receivable</span><span className="tabular-nums">{formatCurrency(data.financing_receivable)}</span>
+            </div>
+          </div>
+        )}
 
         {denominationCounts && (
           <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">
@@ -435,6 +455,9 @@ export default function PosClient() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
   const [onlineProvider, setOnlineProvider] = useState(ONLINE_PROVIDERS[0]);
   const [referenceNo, setReferenceNo] = useState('');
+  const [financingProvider, setFinancingProvider] = useState<string | null>(null);
+  const [financingDpAmount, setFinancingDpAmount] = useState('');
+  const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod>('Cash');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
@@ -518,6 +541,7 @@ export default function PosClient() {
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
+    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
@@ -533,7 +557,18 @@ export default function PosClient() {
   const onlineNum = parseFloat(onlineAmount) || 0;
   const totalPayment = cashNum + onlineNum;
   const changeDue = totalPayment - total;
-  const canCheckout = cart.length > 0 && !!businessId && totalPayment + 0.005 >= total && !submitting;
+
+  // Financing: the store only ever collects the downpayment (cashNum +
+  // onlineNum, same fields every other mode uses) — Financed Amount is
+  // always derived, never hand-entered, so it can't drift out of sync with
+  // Total Due - DP the way a manually-typed number could.
+  const dpDeclared = parseFloat(financingDpAmount) || 0;
+  const financedAmount = Math.max(0, total - dpDeclared);
+  const dpComponentsMatch = Math.abs(totalPayment - dpDeclared) < 0.01;
+  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= total + 0.005 && dpComponentsMatch && referenceNo.trim().length > 0;
+
+  const canCheckout = cart.length > 0 && !!businessId && !submitting &&
+    (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= total);
 
   const applyExactCash = () => setCashAmount(Math.max(0, total - onlineNum).toFixed(2));
   const cashQuickOptions = useMemo(() => suggestCashOptions(total), [total]);
@@ -541,7 +576,8 @@ export default function PosClient() {
   // Switching modes never leaves a stale amount in the box that's no longer
   // shown — Cash clears Online, Online/Card clear Cash and default the
   // amount to what's due, Split leaves both as-is so the cashier can
-  // allocate the split themselves.
+  // allocate the split themselves. Leaving Financing clears its temporary
+  // values so they can't leak into a later non-financing checkout.
   const selectPaymentMode = (mode: PaymentMode) => {
     setPaymentMode(mode);
     if (mode === 'Cash') {
@@ -549,6 +585,12 @@ export default function PosClient() {
     } else if (mode === 'Online' || mode === 'Card') {
       setCashAmount('');
       setOnlineAmount(total > 0 ? total.toFixed(2) : '');
+    } else if (mode === 'Financing') {
+      setCashAmount(''); setOnlineAmount('');
+      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
+    }
+    if (mode !== 'Financing') {
+      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
     }
   };
 
@@ -561,7 +603,25 @@ export default function PosClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
+  // The DP amount is one number the cashier types once; the DP method then
+  // decides which of the existing cash/online fields it lands in — Split is
+  // the one case where the cashier allocates it manually across both.
+  const applyDpToFields = (dpValue: string, method: DpMethod) => {
+    if (method === 'Split') { setCashAmount(''); setOnlineAmount(''); return; }
+    if (method === 'Cash') { setCashAmount(dpValue || '0'); setOnlineAmount('0'); return; }
+    setCashAmount('0'); setOnlineAmount(dpValue || '0');
+    if (method === 'GCash' || method === 'Maya' || method === 'Bank Transfer') setOnlineProvider(method);
+  };
+  const updateFinancingDpAmount = (v: string) => { setFinancingDpAmount(v); applyDpToFields(v, financingDpMethod); };
+  const selectDpMethod = (method: DpMethod) => { setFinancingDpMethod(method); applyDpToFields(financingDpAmount, method); };
+
+  const financingDpLabel =
+    financingDpMethod === 'Split'
+      ? (cashNum > 0 && onlineNum > 0 ? `Cash + ${onlineProvider}` : (onlineNum > 0 ? onlineProvider : 'Cash'))
+      : financingDpMethod === 'Card' ? 'Credit Card' : financingDpMethod;
+
   const effectivePaymentMethod =
+    paymentMode === 'Financing' ? financingDpLabel :
     paymentMode === 'Cash' ? 'Cash' :
     paymentMode === 'Card' ? 'Credit Card' :
     paymentMode === 'Online' ? onlineProvider :
@@ -583,6 +643,7 @@ export default function PosClient() {
           tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
           cash_amount: cashNum, online_amount: onlineNum,
           payment_method: effectivePaymentMethod, reference_no: referenceNo,
+          financing_provider: paymentMode === 'Financing' ? financingProvider : null,
         }),
       });
       const data = await res.json();
@@ -782,8 +843,8 @@ export default function PosClient() {
                 <span className="text-sm font-bold text-gray-900 tabular-nums">Total Due: {formatCurrency(total)}</span>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
-                {(['Cash', 'Online', 'Card', 'Split'] as PaymentMode[]).map(m => (
+              <div className="grid grid-cols-5 gap-1.5 mb-3">
+                {(['Cash', 'Online', 'Card', 'Split', 'Financing'] as PaymentMode[]).map(m => (
                   <button key={m} onClick={() => selectPaymentMode(m)}
                     className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     {m === 'Online' ? 'ONLINE / QR' : m.toUpperCase()}
@@ -868,18 +929,114 @@ export default function PosClient() {
                 </div>
               )}
 
-              {/* Payment summary — Change is prominent when payment is sufficient; a
-                  Remaining figure takes its place (same red accent already used
-                  elsewhere in this UI for shortfalls) when it isn't. */}
-              <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
-                <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Due</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
-                <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
-                {changeDue >= 0 ? (
-                  <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Change</span><span className="tabular-nums">{formatCurrency(changeDue)}</span></div>
-                ) : (
-                  <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Remaining</span><span className="tabular-nums text-red-200">{formatCurrency(Math.abs(changeDue))}</span></div>
-                )}
-              </div>
+              {paymentMode === 'Financing' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Choose Financing Provider</label>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1">
+                      {FINANCING_PROVIDERS.map(p => {
+                        const Icon = PAYMENT_METHOD_ICONS[p];
+                        return (
+                          <button key={p} onClick={() => setFinancingProvider(p)}
+                            className={`flex flex-col items-center gap-1 py-2 rounded-lg border transition-all ${financingProvider === p ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                            {Icon && <Icon size={16} className={financingProvider === p ? 'text-blue-600' : 'text-gray-500'} />}
+                            <span className={`text-[11px] font-bold ${financingProvider === p ? 'text-blue-700' : 'text-gray-600'}`}>{p.toUpperCase()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {financingProvider && (
+                    <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+                      <p className="text-[11px] font-bold text-gray-500 tracking-wide">FINANCING DETAILS</p>
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <span>Total Purchase</span><span className="font-semibold text-gray-800 tabular-nums">{formatCurrency(total)}</span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-gray-500 font-medium">Customer Downpayment</label>
+                        <input type="number" min="0" step="0.01" max={total} className="form-input text-sm" placeholder="0.00"
+                          value={financingDpAmount} onChange={e => updateFinancingDpAmount(e.target.value)} />
+                        {dpDeclared > total + 0.005 && (
+                          <p className="text-[11px] text-red-500 font-medium mt-1">Downpayment cannot exceed the Total Purchase amount.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-gray-500 font-medium">DP Payment Method</label>
+                        <div className="grid grid-cols-3 gap-1 mt-1">
+                          {DP_METHODS.map(m => (
+                            <button key={m} onClick={() => selectDpMethod(m)}
+                              className={`px-1.5 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${financingDpMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {financingDpMethod === 'Split' && (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {ONLINE_PROVIDERS.map(p => {
+                              const Icon = PAYMENT_METHOD_ICONS[p];
+                              return (
+                                <button key={p} onClick={() => setOnlineProvider(p)}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all ${onlineProvider === p ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                                  {Icon && <Icon size={12} />} {p}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[11px] text-gray-500 font-medium">Cash</label>
+                              <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-gray-500 font-medium">{onlineProvider}</label>
+                              <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                            </div>
+                          </div>
+                          {!dpComponentsMatch && (
+                            <p className="text-[11px] text-red-500 font-medium">Cash + {onlineProvider} must add up to the Downpayment above.</p>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-200">
+                        <span className="text-gray-500">Financed Amount</span>
+                        <span className="font-bold text-gray-900 tabular-nums">{formatCurrency(financedAmount)}</span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-gray-500 font-medium">Financing Reference / Application No.</label>
+                        <input className="form-input text-sm" placeholder="Required" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment summary — Financing gets its own dedicated summary
+                  (provider, DP, financed amount, reference) instead of the
+                  generic Change box, since "change" doesn't apply here. */}
+              {paymentMode === 'Financing' ? (
+                <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
+                  <p className="text-[11px] font-bold text-white/70 tracking-wide">FINANCING SUMMARY</p>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Purchase</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Provider</span><span className="font-semibold">{financingProvider ?? '—'}</span></div>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Customer DP</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Financed Amount</span><span className="font-semibold tabular-nums">{formatCurrency(financedAmount)}</span></div>
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/25"><span className="text-white/80">Total Covered</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment + financedAmount)}</span></div>
+                  <div className="flex justify-between items-center text-lg font-bold"><span>Remaining</span><span className={`tabular-nums ${total - (totalPayment + financedAmount) > 0.005 ? 'text-red-200' : ''}`}>{formatCurrency(Math.max(0, total - (totalPayment + financedAmount)))}</span></div>
+                </div>
+              ) : (
+                <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Due</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
+                  {changeDue >= 0 ? (
+                    <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Change</span><span className="tabular-nums">{formatCurrency(changeDue)}</span></div>
+                  ) : (
+                    <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Remaining</span><span className="tabular-nums text-red-200">{formatCurrency(Math.abs(changeDue))}</span></div>
+                  )}
+                </div>
+              )}
             </div>
 
             <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-40">

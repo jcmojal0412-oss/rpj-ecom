@@ -31,13 +31,13 @@ export async function GET(req: NextRequest) {
     `).all(...params) as {
       created_at: string; cashier_name: string | null; username: string | null;
       time_in: string; time_out: string | null; cash_sales: number | null; online_sales: number | null;
-      starting_cash: number; actual_cash: number | null; discrepancy: number | null; status: string;
+      financing_receivable: number | null; starting_cash: number; actual_cash: number | null; discrepancy: number | null; status: string;
     }[];
 
-    const headers = ['Date Created', 'Cashier', 'Username', 'Time-In', 'Time-Out', 'Cash Sales', 'Online Sales', 'Starting Cash', 'Actual Cash', 'Discrepancy', 'Status'];
+    const headers = ['Date Created', 'Cashier', 'Username', 'Time-In', 'Time-Out', 'Cash Sales', 'Online Sales', 'Financing Receivable', 'Starting Cash', 'Actual Cash', 'Discrepancy', 'Status'];
     const data = rows.map(r => [
       r.created_at, r.cashier_name || '', r.username || '', r.time_in, r.time_out || '',
-      r.cash_sales ?? 0, r.online_sales ?? 0, r.starting_cash, r.actual_cash ?? '', r.discrepancy ?? '', r.status,
+      r.cash_sales ?? 0, r.online_sales ?? 0, r.financing_receivable ?? 0, r.starting_cash, r.actual_cash ?? '', r.discrepancy ?? '', r.status,
     ]);
 
     const wb = XLSX.utils.book_new();
