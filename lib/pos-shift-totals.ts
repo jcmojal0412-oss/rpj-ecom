@@ -58,11 +58,16 @@ export function computeShiftFinancingByProvider(db: Database.Database, shiftId: 
 // since the rest was applied as credit toward the new purchase, never cash
 // out of the drawer). Non-cash refunds and the credited portion never
 // reduce Expected Cash, same principle as Financing never increasing it.
+//
+// Attributed by the refund's OWN shift_id — the shift that was open when
+// the refund was actually processed — never the original sale's shift.
+// A return often happens in a different, later shift than the purchase; a
+// return sold in shift #10 but refunded during shift #14 physically empties
+// shift #14's drawer, not shift #10's (already closed and frozen by then).
 export function computeShiftCashRefunds(db: Database.Database, shiftId: number) {
   return db.prepare(`
-    SELECT COALESCE(SUM(r.cash_out_amount),0) as cash_refunds
-    FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id
-    WHERE s.shift_id = ? AND r.refund_method = 'Cash'
+    SELECT COALESCE(SUM(cash_out_amount),0) as cash_refunds
+    FROM pos_refunds WHERE shift_id = ? AND refund_method = 'Cash'
   `).get(shiftId) as { cash_refunds: number };
 }
 

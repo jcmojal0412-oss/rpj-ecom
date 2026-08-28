@@ -1395,6 +1395,20 @@ function migrateSchema() {
   if (!posRefundCols.includes('linked_exchange_sale_id'))   db.exec('ALTER TABLE pos_refunds ADD COLUMN linked_exchange_sale_id INTEGER REFERENCES pos_sales(id)');
   if (!posRefundCols.includes('freebies_returned'))         db.exec('ALTER TABLE pos_refunds ADD COLUMN freebies_returned TEXT');
 
+  // shift_id records which shift's drawer a refund's cash actually came out
+  // of — the shift open *when the refund was processed*, not the original
+  // sale's shift. A return often happens in a different (even much later)
+  // shift than the purchase, so deriving this from the original sale's
+  // shift_id (as computeShiftCashRefunds used to) attributes the cash-out
+  // to the wrong shift, or to no shift at all if the original sale predates
+  // any shift being open — silently making Expected Cash overstate what's
+  // really in the drawer. Backfilled once from the original sale's shift_id
+  // as a best-effort default for rows inserted before this column existed.
+  if (!posRefundCols.includes('shift_id')) {
+    db.exec('ALTER TABLE pos_refunds ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
+    db.exec(`UPDATE pos_refunds SET shift_id = (SELECT shift_id FROM pos_sales WHERE id = pos_refunds.sale_id) WHERE shift_id IS NULL`);
+  }
+
   // Per returned line: Sellable restocks normally (same as every refund
   // before this column existed — NULL behaves identically to 'Sellable'),
   // Defective/For Inspection is kept out of sellable stock.

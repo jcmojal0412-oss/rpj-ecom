@@ -107,8 +107,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ).get(originalSale.business_id, session.id) as { id: number } | undefined;
 
     const insertRefund = db.prepare(`
-      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned)
-      VALUES (?,?,?,?,?,?,?,?)
+      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned, shift_id)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `);
     const insertRefundItem = db.prepare(`
       INSERT INTO pos_refund_items (refund_id, sale_item_id, product_id, quantity, unit_price, line_total, condition)
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const result = runTransaction(() => {
       const refundInfo = insertRefund.run(
         originalSaleId, todayISO(), returnValue, reason?.trim() || null, session.id,
-        refundMethodVal, cashOutAmount, freebies_returned || null,
+        refundMethodVal, cashOutAmount, freebies_returned || null, openShift?.id ?? null,
       );
       const refundId = Number(refundInfo.lastInsertRowid);
       insertRefundItem.run(refundId, saleItem.id, saleItem.product_id, returnQty, saleItem.unit_price, returnValue, return_item.condition ?? null);

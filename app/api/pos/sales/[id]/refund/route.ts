@@ -20,8 +20,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const db = getDb();
     const saleId = Number(params.id);
 
-    const sale = db.prepare('SELECT id, status FROM pos_sales WHERE id = ?').get(saleId) as
-      { id: number; status: string } | undefined;
+    const sale = db.prepare('SELECT id, status, business_id FROM pos_sales WHERE id = ?').get(saleId) as
+      { id: number; status: string; business_id: number | null } | undefined;
     if (!sale) return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     if (sale.status === 'Voided') return NextResponse.json({ error: 'Cannot refund a voided sale' }, { status: 400 });
 
@@ -75,9 +75,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Expected Cash.
     const cashOutAmount = refund_method === 'Cash' ? totalRefund : 0;
 
+    // Attributed to the shift open right now — the shift whose drawer the
+    // cash is actually leaving — never the original sale's (possibly
+    // long-closed) shift.
+    const openShift = db.prepare(
+      `SELECT id FROM pos_shifts WHERE business_id = ? AND cashier_id = ? AND status = 'Open'`
+    ).get(sale.business_id, session.id) as { id: number } | undefined;
+
     const insertRefund = db.prepare(`
-      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned)
-      VALUES (?,?,?,?,?,?,?,?)
+      INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned, shift_id)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `);
     const insertRefundItem = db.prepare(`
       INSERT INTO pos_refund_items (refund_id, sale_item_id, product_id, quantity, unit_price, line_total, condition)
@@ -97,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const refundId = runTransaction(() => {
       const info = insertRefund.run(
         saleId, todayISO(), totalRefund, reason?.trim() || null, session.id,
-        refund_method || null, cashOutAmount, freebies_returned || null,
+        refund_method || null, cashOutAmount, freebies_returned || null, openShift?.id ?? null,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

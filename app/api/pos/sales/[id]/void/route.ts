@@ -17,8 +17,16 @@ export async function PUT(_: NextRequest, { params }: { params: { id: string } }
     if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (sale.status === 'Voided') return NextResponse.json({ error: 'Already voided' }, { status: 400 });
 
-    const items = db.prepare('SELECT product_id, quantity FROM pos_sale_items WHERE sale_id = ?').all(params.id) as
-      { product_id: number; quantity: number }[];
+    const items = db.prepare('SELECT id, product_id, quantity FROM pos_sale_items WHERE sale_id = ?').all(params.id) as
+      { id: number; product_id: number; quantity: number }[];
+    // A line already partially refunded/exchanged had its returned units
+    // restocked (or scrapped, if Defective) at refund time — voiding must
+    // only reverse the portion that's still "out" with the customer, or the
+    // already-returned units get restocked a second time.
+    const getRefundedQty = db.prepare(
+      `SELECT COALESCE(SUM(ri.quantity),0) as q FROM pos_refund_items ri
+       JOIN pos_refunds r ON r.id = ri.refund_id WHERE ri.sale_item_id = ?`
+    );
 
     const updateSale = db.prepare(`UPDATE pos_sales SET status='Voided' WHERE id = ?`);
     const insertMovement = db.prepare(`
@@ -35,8 +43,11 @@ export async function PUT(_: NextRequest, { params }: { params: { id: string } }
     runTransaction(() => {
       updateSale.run(params.id);
       for (const item of items) {
-        insertMovement.run(item.product_id, item.quantity, `Void of Sale #${params.id}`);
-        adjustInventory.run(item.product_id, item.quantity);
+        const alreadyRefunded = (getRefundedQty.get(item.id) as { q: number }).q;
+        const restockQty = item.quantity - alreadyRefunded;
+        if (restockQty <= 0) continue;
+        insertMovement.run(item.product_id, restockQty, `Void of Sale #${params.id}`);
+        adjustInventory.run(item.product_id, restockQty);
       }
     });
 
