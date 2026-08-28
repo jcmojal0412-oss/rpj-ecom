@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, resolveProductCategory } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const { name, barcode, category, cogs, srp, reorder_point } = body;
     db.prepare(
       'UPDATE products SET name=?,barcode=?,category=?,cogs=?,srp=?,reorder_point=? WHERE id=?'
-    ).run(name, barcode || null, category, cogs, srp, reorder_point, id);
+    ).run(name, barcode || null, resolveProductCategory(db, category), cogs, srp, reorder_point, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

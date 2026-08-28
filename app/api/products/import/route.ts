@@ -64,6 +64,28 @@ export async function POST(req: NextRequest) {
       "INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, ?, ?, ?, datetime('now'))"
     );
 
+    // Categories are free text, but casing must stay consistent — otherwise
+    // the same category (e.g. "Electronics" vs "ELECTRONICS") splits into
+    // separate filter chips everywhere it's grouped (Products page, POS
+    // tabs, Inventory Movement Report). Resolve every row's category
+    // case-insensitively against what's already in the DB so re-typed
+    // casing snaps back to the canonical spelling in use; a brand-new
+    // category keeps its as-typed casing and becomes canonical for the
+    // rest of this same import.
+    const existingCategories = (db.prepare(
+      `SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ''`
+    ).all() as { category: string }[]).map(r => r.category);
+    const categoryCanon = new Map<string, string>();
+    for (const c of existingCategories) categoryCanon.set(c.toLowerCase(), c);
+    const resolveCategory = (raw: string | null): string | null => {
+      if (!raw) return null;
+      const key = raw.toLowerCase();
+      const canonical = categoryCanon.get(key);
+      if (canonical) return canonical;
+      categoryCanon.set(key, raw);
+      return raw;
+    };
+
     let imported = 0;
     let updated  = 0;
     let skipped  = 0;
@@ -92,7 +114,7 @@ export async function POST(req: NextRequest) {
       const srp          = parseFloat(String(row['SRP'] ?? 0))           || 0;
       const qty           = parseInt(String(row['QTY'] ?? 0))            || 0;
       const reorderPoint = parseInt(String(row['Reorder Point'] ?? 10))  || 10;
-      const category     = String(row['Category'] ?? '').trim() || null;
+      const category     = resolveCategory(String(row['Category'] ?? '').trim() || null);
       const barcode      = String(row['BARCODE'] ?? '').trim() || null;
 
       try {

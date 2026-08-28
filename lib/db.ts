@@ -28,6 +28,21 @@ export function runTransaction<T>(fn: () => T): T {
   return db.transaction(fn)();
 }
 
+// Category is free text, but casing must stay consistent — two spellings of
+// the same category (e.g. "Electronics" vs "ELECTRONICS") silently split
+// into separate filter chips everywhere categories are grouped (Products
+// page, POS tabs, Inventory Movement Report). Snap a newly-typed category
+// back to whatever casing already exists in the DB, case-insensitively;
+// a genuinely new category keeps its as-typed casing.
+export function resolveProductCategory(db: Database.Database, raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return null;
+  const match = db.prepare(
+    `SELECT category FROM products WHERE category IS NOT NULL AND category != '' AND LOWER(category) = LOWER(?) LIMIT 1`
+  ).get(trimmed) as { category: string } | undefined;
+  return match?.category ?? trimmed;
+}
+
 function initSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS products (
@@ -1312,6 +1327,39 @@ function migrateSchema() {
   // expense recorded the normal way (unrelated to a POS shift).
   const expenseCols2 = (db.prepare('PRAGMA table_info(expenses)').all() as { name: string }[]).map(c => c.name);
   if (!expenseCols2.includes('shift_id')) db.exec('ALTER TABLE expenses ADD COLUMN shift_id INTEGER REFERENCES pos_shifts(id)');
+
+  // One-time cleanup: a bulk Excel import didn't normalize category casing,
+  // so the same category could land as two distinct DB values (e.g.
+  // "ELECTRONICS" vs "Electronics") — each showing up as its own duplicated
+  // filter chip on the Products/POS/Inventory pages even though they mean
+  // the same thing. Merge every case-insensitive duplicate down to one
+  // canonical spelling per group: prefer the app's known category list
+  // (ProductForm's CATEGORIES) if a variant matches it, else the variant
+  // with the most products. New imports/manual entries can no longer create
+  // this split — see resolveProductCategory — so this never needs to re-run.
+  const categoriesCaseNormalized = db.prepare(`SELECT value FROM app_settings WHERE key='product_categories_case_normalized'`).get();
+  if (!categoriesCaseNormalized) {
+    const KNOWN_CATEGORIES = ['General Merchandise', 'Electronics', 'Apparel', 'Home Goods', 'Beauty', 'Food & Beverage', 'Toys', 'Sports', 'Other'];
+    const catRows = db.prepare(
+      `SELECT category, COUNT(*) as cnt FROM products WHERE category IS NOT NULL AND category != '' GROUP BY category`
+    ).all() as { category: string; cnt: number }[];
+    const groups = new Map<string, { category: string; cnt: number }[]>();
+    for (const r of catRows) {
+      const key = r.category.toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    const updateCategory = db.prepare('UPDATE products SET category=? WHERE category=?');
+    for (const variants of groups.values()) {
+      if (variants.length < 2) continue;
+      const known = KNOWN_CATEGORIES.find(k => k.toLowerCase() === variants[0].category.toLowerCase());
+      const canonical = known ?? variants.reduce((a, b) => (b.cnt > a.cnt ? b : a)).category;
+      for (const v of variants) {
+        if (v.category !== canonical) updateCategory.run(canonical, v.category);
+      }
+    }
+    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('product_categories_case_normalized', '1')`).run();
+  }
 
   seedCcCategoriesIfEmpty();
 }
