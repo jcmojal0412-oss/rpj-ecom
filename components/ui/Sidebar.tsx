@@ -61,6 +61,16 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: 'POS',
+    groupIcon: ScanBarcode,
+    pinned: true,
+    items: [
+      { label: 'Point of Sale', href: '/pos',         icon: ScanBarcode, module: 'pos', exact: true },
+      { label: 'Sales History', href: '/pos/sales',   icon: History,     module: 'pos' },
+      { label: 'Reports',       href: '/pos/reports',  icon: BarChart3,   module: 'pos_reports' },
+    ],
+  },
+  {
     label: 'CATALOG',
     groupIcon: Tag,
     items: [
@@ -76,6 +86,15 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Purchase Orders', href: '/purchase-orders', icon: ShoppingCart,  module: 'purchase_orders' },
     ],
   },
+  // AI PRODUCT RESEARCHER group hidden — re-add when ready
+  {
+    label: 'ECOM TOOLS',
+    groupIcon: Calculator,
+    items: [
+      { label: 'Ecom Calculator',  href: '/calculator',       icon: Calculator,   module: 'calculator'       },
+      { label: 'Product Research', href: '/product-research', icon: FlaskConical, module: 'product_research' },
+    ],
+  },
   {
     label: 'EXPENSES',
     groupIcon: Wallet,
@@ -85,13 +104,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'POS',
-    groupIcon: ScanBarcode,
-    pinned: true,
+    label: 'FINANCING',
+    groupIcon: Landmark,
     items: [
-      { label: 'Point of Sale', href: '/pos',         icon: ScanBarcode, module: 'pos', exact: true },
-      { label: 'Sales History', href: '/pos/sales',   icon: History,     module: 'pos' },
-      { label: 'Reports',       href: '/pos/reports',  icon: BarChart3,   module: 'pos_reports' },
+      { label: 'Financing Sales', href: '/financing-sales', icon: Landmark, module: 'financing' },
     ],
   },
   {
@@ -127,13 +143,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Gross Sales',     href: '/gross-sales',      icon: TrendingUp, module: 'partners' },
     ],
   },
-  {
-    label: 'FINANCING',
-    groupIcon: Landmark,
-    items: [
-      { label: 'Financing Sales', href: '/financing-sales', icon: Landmark, module: 'financing' },
-    ],
-  },
   // Simple HR Mode: main navigation only shows the 5 everyday screens
   // (HR Dashboard, Employees, Attendance, Payroll, Payslips) plus My
   // Attendance (every employee's own self-service clock, not an HR/admin
@@ -151,15 +160,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll' },
       { label: 'Payslips',         href: '/payslips',      icon: Receipt,        module: '_any' },
       { label: 'HR Settings',      href: '/hr-settings',   icon: Settings,       module: 'attendance' },
-    ],
-  },
-  // AI PRODUCT RESEARCHER group hidden — re-add when ready
-  {
-    label: 'ECOM TOOLS',
-    groupIcon: Calculator,
-    items: [
-      { label: 'Ecom Calculator',  href: '/calculator',       icon: Calculator,   module: 'calculator'       },
-      { label: 'Product Research', href: '/product-research', icon: FlaskConical, module: 'product_research' },
     ],
   },
   {
