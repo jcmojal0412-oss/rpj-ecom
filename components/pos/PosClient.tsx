@@ -24,8 +24,8 @@ const SERVICES_TAB = '__services__';
 const IN_STOCK_TAB = '__in_stock__';
 
 type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing';
-type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer' | 'Split';
-const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer', 'Split'];
+type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer';
+const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer'];
 
 // Non-cash payment labels the system already recognizes (kept identical to
 // the strings used before this redesign so historical sales/reports that
@@ -457,7 +457,7 @@ export default function PosClient() {
   const [referenceNo, setReferenceNo] = useState('');
   const [financingProvider, setFinancingProvider] = useState<string | null>(null);
   const [financingDpAmount, setFinancingDpAmount] = useState('');
-  const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod>('Cash');
+  const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
@@ -541,7 +541,7 @@ export default function PosClient() {
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
-    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
+    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
@@ -559,13 +559,15 @@ export default function PosClient() {
   const changeDue = totalPayment - total;
 
   // Financing: the store only ever collects the downpayment (cashNum +
-  // onlineNum, same fields every other mode uses) — Financed Amount is
+  // onlineNum, same fields every other mode uses) — Remaining Financing is
   // always derived, never hand-entered, so it can't drift out of sync with
-  // Total Due - DP the way a manually-typed number could.
+  // Total Purchase - DP the way a manually-typed number could. Zero DP is a
+  // valid, common case (fully financed) — a DP method is only required once
+  // there's an actual amount for the store to collect.
   const dpDeclared = parseFloat(financingDpAmount) || 0;
   const financedAmount = Math.max(0, total - dpDeclared);
-  const dpComponentsMatch = Math.abs(totalPayment - dpDeclared) < 0.01;
-  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= total + 0.005 && dpComponentsMatch && referenceNo.trim().length > 0;
+  const dpMethodOk = dpDeclared <= 0 || !!financingDpMethod;
+  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= total + 0.005 && dpMethodOk && referenceNo.trim().length > 0;
 
   const canCheckout = cart.length > 0 && !!businessId && !submitting &&
     (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= total);
@@ -586,11 +588,11 @@ export default function PosClient() {
       setCashAmount('');
       setOnlineAmount(total > 0 ? total.toFixed(2) : '');
     } else if (mode === 'Financing') {
-      setCashAmount(''); setOnlineAmount('');
-      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
+      setCashAmount('0'); setOnlineAmount('0');
+      setFinancingProvider(null); setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
     }
     if (mode !== 'Financing') {
-      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod('Cash');
+      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
     }
   };
 
@@ -604,21 +606,30 @@ export default function PosClient() {
   }, [total]);
 
   // The DP amount is one number the cashier types once; the DP method then
-  // decides which of the existing cash/online fields it lands in — Split is
-  // the one case where the cashier allocates it manually across both.
+  // decides which of the existing cash/online fields it lands in.
   const applyDpToFields = (dpValue: string, method: DpMethod) => {
-    if (method === 'Split') { setCashAmount(''); setOnlineAmount(''); return; }
     if (method === 'Cash') { setCashAmount(dpValue || '0'); setOnlineAmount('0'); return; }
     setCashAmount('0'); setOnlineAmount(dpValue || '0');
     if (method === 'GCash' || method === 'Maya' || method === 'Bank Transfer') setOnlineProvider(method);
   };
-  const updateFinancingDpAmount = (v: string) => { setFinancingDpAmount(v); applyDpToFields(v, financingDpMethod); };
+  // A DP of ₱0 needs no payment method — hide/clear it so a stale selection
+  // from a previous provider can't linger into a zero-DP transaction.
+  const updateFinancingDpAmount = (v: string) => {
+    setFinancingDpAmount(v);
+    const dp = parseFloat(v) || 0;
+    if (dp <= 0) { setCashAmount('0'); setOnlineAmount('0'); setFinancingDpMethod(null); }
+    else if (financingDpMethod) applyDpToFields(v, financingDpMethod);
+  };
+  const selectFinancingProvider = (p: string) => {
+    setFinancingProvider(p);
+    setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
+    setCashAmount('0'); setOnlineAmount('0');
+  };
   const selectDpMethod = (method: DpMethod) => { setFinancingDpMethod(method); applyDpToFields(financingDpAmount, method); };
 
   const financingDpLabel =
-    financingDpMethod === 'Split'
-      ? (cashNum > 0 && onlineNum > 0 ? `Cash + ${onlineProvider}` : (onlineNum > 0 ? onlineProvider : 'Cash'))
-      : financingDpMethod === 'Card' ? 'Credit Card' : financingDpMethod;
+    dpDeclared <= 0 ? `${financingProvider ?? ''} Financing`.trim() :
+    financingDpMethod === 'Card' ? 'Credit Card' : (financingDpMethod ?? 'Cash');
 
   const effectivePaymentMethod =
     paymentMode === 'Financing' ? financingDpLabel :
@@ -931,79 +942,53 @@ export default function PosClient() {
 
               {paymentMode === 'Financing' && (
                 <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Choose Financing Provider</label>
-                    <div className="grid grid-cols-3 gap-1.5 mt-1">
-                      {FINANCING_PROVIDERS.map(p => {
-                        const Icon = PAYMENT_METHOD_ICONS[p];
-                        return (
-                          <button key={p} onClick={() => setFinancingProvider(p)}
-                            className={`flex flex-col items-center gap-1 py-2 rounded-lg border transition-all ${financingProvider === p ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                            {Icon && <Icon size={16} className={financingProvider === p ? 'text-blue-600' : 'text-gray-500'} />}
-                            <span className={`text-[11px] font-bold ${financingProvider === p ? 'text-blue-700' : 'text-gray-600'}`}>{p.toUpperCase()}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {FINANCING_PROVIDERS.map(p => {
+                      const Icon = PAYMENT_METHOD_ICONS[p];
+                      return (
+                        <button key={p} onClick={() => selectFinancingProvider(p)}
+                          className={`flex flex-col items-center gap-1 py-2 rounded-lg border transition-all ${financingProvider === p ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                          {Icon && <Icon size={16} className={financingProvider === p ? 'text-blue-600' : 'text-gray-500'} />}
+                          <span className={`text-[11px] font-bold ${financingProvider === p ? 'text-blue-700' : 'text-gray-600'}`}>{p.toUpperCase()}</span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {financingProvider && (
-                    <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-2.5">
-                      <p className="text-[11px] font-bold text-gray-500 tracking-wide">FINANCING DETAILS</p>
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>Total Purchase</span><span className="font-semibold text-gray-800 tabular-nums">{formatCurrency(total)}</span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-500">Total Purchase</span>
+                        <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(total)}</span>
                       </div>
                       <div>
-                        <label className="text-[11px] text-gray-500 font-medium">Customer Downpayment</label>
-                        <input type="number" min="0" step="0.01" max={total} className="form-input text-sm" placeholder="0.00"
+                        <label className="text-[11px] text-gray-500 font-medium">Downpayment to Bodega ni Suki</label>
+                        <input type="number" min="0" step="0.01" max={total} className="form-input text-sm"
                           value={financingDpAmount} onChange={e => updateFinancingDpAmount(e.target.value)} />
                         {dpDeclared > total + 0.005 && (
                           <p className="text-[11px] text-red-500 font-medium mt-1">Downpayment cannot exceed the Total Purchase amount.</p>
                         )}
                       </div>
-                      <div>
-                        <label className="text-[11px] text-gray-500 font-medium">DP Payment Method</label>
-                        <div className="grid grid-cols-3 gap-1 mt-1">
-                          {DP_METHODS.map(m => (
-                            <button key={m} onClick={() => selectDpMethod(m)}
-                              className={`px-1.5 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${financingDpMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {financingDpMethod === 'Split' && (
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap gap-1.5">
-                            {ONLINE_PROVIDERS.map(p => {
-                              const Icon = PAYMENT_METHOD_ICONS[p];
-                              return (
-                                <button key={p} onClick={() => setOnlineProvider(p)}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all ${onlineProvider === p ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                                  {Icon && <Icon size={12} />} {p}
-                                </button>
-                              );
-                            })}
+
+                      {dpDeclared > 0 && (
+                        <div>
+                          <label className="text-[11px] text-gray-500 font-medium">DP Received Via</label>
+                          <div className="grid grid-cols-5 gap-1 mt-1">
+                            {DP_METHODS.map(m => (
+                              <button key={m} onClick={() => selectDpMethod(m)}
+                                className={`px-1 py-1.5 rounded-md text-[10px] font-semibold border transition-all ${financingDpMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                                {m}
+                              </button>
+                            ))}
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[11px] text-gray-500 font-medium">Cash</label>
-                              <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
-                            </div>
-                            <div>
-                              <label className="text-[11px] text-gray-500 font-medium">{onlineProvider}</label>
-                              <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
-                            </div>
-                          </div>
-                          {!dpComponentsMatch && (
-                            <p className="text-[11px] text-red-500 font-medium">Cash + {onlineProvider} must add up to the Downpayment above.</p>
-                          )}
                         </div>
                       )}
-                      <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-200">
-                        <span className="text-gray-500">Financed Amount</span>
+
+                      <div className="flex justify-between items-center text-sm pt-1 border-t border-gray-100">
+                        <span className="text-gray-600 font-medium">Remaining - {financingProvider} Financing</span>
                         <span className="font-bold text-gray-900 tabular-nums">{formatCurrency(financedAmount)}</span>
                       </div>
+
                       <div>
                         <label className="text-[11px] text-gray-500 font-medium">Financing Reference / Application No.</label>
                         <input className="form-input text-sm" placeholder="Required" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
@@ -1013,19 +998,18 @@ export default function PosClient() {
                 </div>
               )}
 
-              {/* Payment summary — Financing gets its own dedicated summary
-                  (provider, DP, financed amount, reference) instead of the
-                  generic Change box, since "change" doesn't apply here. */}
+              {/* Payment summary — Financing gets a compact 3-line recap
+                  instead of the generic Change box, since "change" doesn't
+                  apply here and Remaining Financing is already shown above. */}
               {paymentMode === 'Financing' ? (
-                <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
-                  <p className="text-[11px] font-bold text-white/70 tracking-wide">FINANCING SUMMARY</p>
-                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Purchase</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
-                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Provider</span><span className="font-semibold">{financingProvider ?? '—'}</span></div>
-                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Customer DP</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
-                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Financed Amount</span><span className="font-semibold tabular-nums">{formatCurrency(financedAmount)}</span></div>
-                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/25"><span className="text-white/80">Total Covered</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment + financedAmount)}</span></div>
-                  <div className="flex justify-between items-center text-lg font-bold"><span>Remaining</span><span className={`tabular-nums ${total - (totalPayment + financedAmount) > 0.005 ? 'text-red-200' : ''}`}>{formatCurrency(Math.max(0, total - (totalPayment + financedAmount)))}</span></div>
-                </div>
+                financingProvider && (
+                  <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1 mt-3">
+                    <p className="text-[11px] font-bold text-white/70 tracking-wide">FINANCING SUMMARY</p>
+                    <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Purchase</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                    <div className="flex justify-between items-center text-xs"><span className="text-white/80">Downpayment</span><span className="font-semibold tabular-nums">{formatCurrency(dpDeclared)}</span></div>
+                    <div className="flex justify-between items-center text-sm font-bold pt-1 border-t border-white/25"><span>{financingProvider} Financing</span><span className="tabular-nums">{formatCurrency(financedAmount)}</span></div>
+                  </div>
+                )
               ) : (
                 <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
                   <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Due</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
