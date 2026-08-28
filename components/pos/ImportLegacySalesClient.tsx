@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 
@@ -17,6 +17,15 @@ interface Preview {
 
 interface Result { imported: number; skipped_duplicates: number; }
 
+interface ResetPreview {
+  test_sales: number; test_sales_revenue: number;
+  date_range: { from: string; to: string } | null;
+  refunds_to_delete: number; shifts_to_delete: number;
+  cash_movements_to_delete: number; expenses_to_unlink: number;
+  suspect_count: number;
+}
+interface ResetResult extends ResetPreview { done: true; }
+
 export default function ImportLegacySalesClient() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
@@ -29,6 +38,13 @@ export default function ImportLegacySalesClient() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [resetPreviewing, setResetPreviewing] = useState(false);
+  const [resetPreview, setResetPreview] = useState<ResetPreview | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<ResetResult | null>(null);
+  const [resetError, setResetError] = useState('');
+  const [confirmPhrase, setConfirmPhrase] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { setIsOwner(u?.role === 'owner'); setCheckingAuth(false); });
@@ -83,6 +99,39 @@ export default function ImportLegacySalesClient() {
       setPreview(null);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const runResetPreview = async () => {
+    setResetPreviewing(true);
+    setResetError('');
+    setResetPreview(null);
+    try {
+      const res = await fetch('/api/pos/sales/reset-test-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'preview' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setResetError(data.error || 'Failed to check test data'); return; }
+      setResetPreview(data);
+    } finally {
+      setResetPreviewing(false);
+    }
+  };
+
+  const runReset = async () => {
+    setResetting(true);
+    setResetError('');
+    try {
+      const res = await fetch('/api/pos/sales/reset-test-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'confirm' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setResetError(data.error || 'Reset failed'); return; }
+      setResetResult(data);
+      setResetPreview(null);
+      setConfirmPhrase('');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -197,6 +246,79 @@ export default function ImportLegacySalesClient() {
               )}
             </div>
           </>
+        )}
+      </div>
+
+      <div className="card space-y-4 border-2 border-red-200">
+        <div>
+          <h2 className="text-base font-bold text-red-700 flex items-center gap-2"><Trash2 size={16} /> Reset Test Data</h2>
+          <p className="text-sm text-gray-500">Permanently removes every sale made while building/testing this POS (identified as anything with no original-transaction-ID from the old system), plus all shifts and cash movements. Migrated historical sales are never touched. This cannot be undone.</p>
+        </div>
+
+        {resetError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{resetError}</div>}
+
+        {resetResult ? (
+          <div className="text-center space-y-3 py-4">
+            <div className="flex items-center gap-2 justify-center text-green-600">
+              <CheckCircle2 size={18} />
+              <p className="text-sm font-bold">TEST DATA CLEARED</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4 max-w-xs mx-auto space-y-1.5 text-sm text-left">
+              <div className="flex justify-between text-gray-500"><span>Test sales removed</span><span className="font-semibold text-gray-800 tabular-nums">{resetResult.test_sales}</span></div>
+              <div className="flex justify-between text-gray-500"><span>Refunds removed</span><span className="font-semibold text-gray-800 tabular-nums">{resetResult.refunds_to_delete}</span></div>
+              <div className="flex justify-between text-gray-500"><span>Shifts removed</span><span className="font-semibold text-gray-800 tabular-nums">{resetResult.shifts_to_delete}</span></div>
+              <div className="flex justify-between text-gray-500"><span>Expenses kept, unlinked</span><span className="font-semibold text-gray-800 tabular-nums">{resetResult.expenses_to_unlink}</span></div>
+            </div>
+            <p className="text-xs text-gray-400">Receipt numbering is reset — the next sale starts at BNS108.</p>
+          </div>
+        ) : !resetPreview ? (
+          <button onClick={runResetPreview} disabled={resetPreviewing} className="btn-secondary disabled:opacity-50">
+            {resetPreviewing ? 'Checking...' : 'Preview What Will Be Removed'}
+          </button>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-semibold text-red-900">This will permanently delete:</p>
+              <div className="flex justify-between text-red-800"><span>Test sales</span><span className="tabular-nums font-medium">{resetPreview.test_sales}</span></div>
+              {resetPreview.date_range && (
+                <div className="flex justify-between text-red-800">
+                  <span>Date range</span>
+                  <span className="font-medium">{formatDate(resetPreview.date_range.from)} – {formatDate(resetPreview.date_range.to)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-red-800"><span>Revenue removed from reports</span><span className="tabular-nums font-medium">{formatCurrency(resetPreview.test_sales_revenue)}</span></div>
+              <div className="flex justify-between text-red-800"><span>Refunds</span><span className="tabular-nums font-medium">{resetPreview.refunds_to_delete}</span></div>
+              <div className="flex justify-between text-red-800"><span>Shifts (all)</span><span className="tabular-nums font-medium">{resetPreview.shifts_to_delete}</span></div>
+              <div className="flex justify-between text-red-800"><span>Cash movements</span><span className="tabular-nums font-medium">{resetPreview.cash_movements_to_delete}</span></div>
+              {resetPreview.expenses_to_unlink > 0 && (
+                <div className="flex justify-between text-amber-700 border-t border-red-200 pt-2">
+                  <span>Expenses (kept, just unlinked from shift)</span><span className="tabular-nums font-medium">{resetPreview.expenses_to_unlink}</span>
+                </div>
+              )}
+            </div>
+
+            {resetPreview.suspect_count > 0 ? (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2">
+                Stopped: {resetPreview.suspect_count} sale(s) look like an exchange against a real migrated sale — this needs your manual review, not an automatic reset.
+              </div>
+            ) : resetPreview.test_sales === 0 && resetPreview.shifts_to_delete === 0 ? (
+              <p className="text-sm text-gray-500">Nothing to reset — no test sales or shifts found.</p>
+            ) : (
+              <div>
+                <label className="form-label">Type RESET to confirm</label>
+                <input className="form-input" value={confirmPhrase} onChange={e => setConfirmPhrase(e.target.value)} placeholder="RESET" />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setResetPreview(null); setConfirmPhrase(''); }} className="btn-secondary">Cancel</button>
+              {resetPreview.suspect_count === 0 && (resetPreview.test_sales > 0 || resetPreview.shifts_to_delete > 0) && (
+                <button onClick={runReset} disabled={resetting || confirmPhrase !== 'RESET'} className="btn-danger disabled:opacity-40">
+                  {resetting ? 'Deleting...' : 'Permanently Delete'}
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
