@@ -23,7 +23,7 @@ const SERVICES_TAB = '__services__';
 // no-collision trick as SERVICES_TAB.
 const IN_STOCK_TAB = '__in_stock__';
 
-type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing';
+type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing' | 'Downpayment' | 'Cashback';
 type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer';
 const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer'];
 
@@ -458,6 +458,7 @@ export default function PosClient() {
   const [financingProvider, setFinancingProvider] = useState<string | null>(null);
   const [financingDpAmount, setFinancingDpAmount] = useState('');
   const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod | null>(null);
+  const [cashbackAmount, setCashbackAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
@@ -541,7 +542,7 @@ export default function PosClient() {
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
-    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
+    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null); setCashbackAmount('');
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
@@ -555,7 +556,11 @@ export default function PosClient() {
   const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
   const cashNum = parseFloat(cashAmount) || 0;
   const onlineNum = parseFloat(onlineAmount) || 0;
-  const totalPayment = cashNum + onlineNum;
+  const cashbackNum = parseFloat(cashbackAmount) || 0;
+  // Cashback redeemed by the customer counts toward covering the total like
+  // any other payment leg, but is tracked in its own field (see completeSale)
+  // so it's never mistaken for actual cash/electronic money collected today.
+  const totalPayment = cashNum + onlineNum + cashbackNum;
   const changeDue = totalPayment - total;
 
   // Financing: the store only ever collects the downpayment (cashNum +
@@ -584,22 +589,26 @@ export default function PosClient() {
     setPaymentMode(mode);
     if (mode === 'Cash') {
       setOnlineAmount('');
-    } else if (mode === 'Online' || mode === 'Card') {
+    } else if (mode === 'Online' || mode === 'Card' || mode === 'Downpayment') {
       setCashAmount('');
       setOnlineAmount(total > 0 ? total.toFixed(2) : '');
     } else if (mode === 'Financing') {
       setCashAmount('0'); setOnlineAmount('0');
       setFinancingProvider(null); setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
+    } else if (mode === 'Cashback') {
+      setCashAmount(''); setOnlineAmount(''); setCashbackAmount('');
     }
     if (mode !== 'Financing') {
       setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
     }
+    if (mode !== 'Cashback') setCashbackAmount('');
   };
 
-  // Keep the Online/Card "Amount Paid" default in sync if the cart changes
-  // (fees/discount edited, items added) while one of those modes is active.
+  // Keep the Online/Card/Downpayment "Amount Paid" default in sync if the
+  // cart changes (fees/discount edited, items added) while one of those
+  // modes is active.
   useEffect(() => {
-    if (paymentMode === 'Online' || paymentMode === 'Card') {
+    if (paymentMode === 'Online' || paymentMode === 'Card' || paymentMode === 'Downpayment') {
       setOnlineAmount(total > 0 ? total.toFixed(2) : '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -631,8 +640,16 @@ export default function PosClient() {
     dpDeclared <= 0 ? `${financingProvider ?? ''} Financing`.trim() :
     financingDpMethod === 'Card' ? 'Credit Card' : (financingDpMethod ?? 'Cash');
 
+  // Cashback can combine with a Cash and/or Online leg, so its label lists
+  // whichever legs actually have an amount — same idea as the Cash + GCash
+  // label for normal Split.
+  const cashbackLabel = ['Cashback', cashNum > 0 ? 'Cash' : null, onlineNum > 0 ? onlineProvider : null]
+    .filter(Boolean).join(' + ');
+
   const effectivePaymentMethod =
     paymentMode === 'Financing' ? financingDpLabel :
+    paymentMode === 'Downpayment' ? 'Downpayment' :
+    paymentMode === 'Cashback' ? cashbackLabel :
     paymentMode === 'Cash' ? 'Cash' :
     paymentMode === 'Card' ? 'Credit Card' :
     paymentMode === 'Online' ? onlineProvider :
@@ -655,6 +672,7 @@ export default function PosClient() {
           cash_amount: cashNum, online_amount: onlineNum,
           payment_method: effectivePaymentMethod, reference_no: referenceNo,
           financing_provider: paymentMode === 'Financing' ? financingProvider : null,
+          cashback_amount: paymentMode === 'Cashback' ? cashbackNum : 0,
         }),
       });
       const data = await res.json();
@@ -854,8 +872,8 @@ export default function PosClient() {
                 <span className="text-sm font-bold text-gray-900 tabular-nums">Total Due: {formatCurrency(total)}</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-1.5 mb-3">
-                {(['Cash', 'Online', 'Card', 'Split', 'Financing'] as PaymentMode[]).map(m => (
+              <div className="grid grid-cols-4 gap-1.5 mb-3">
+                {(['Cash', 'Online', 'Card', 'Split', 'Financing', 'Downpayment', 'Cashback'] as PaymentMode[]).map(m => (
                   <button key={m} onClick={() => selectPaymentMode(m)}
                     className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     {m === 'Online' ? 'ONLINE / QR' : m.toUpperCase()}
@@ -917,6 +935,21 @@ export default function PosClient() {
                   <div>
                     <label className="text-[11px] text-gray-500 font-medium">Reference / Approval No. (Optional)</label>
                     <input className="form-input text-sm" placeholder="Approval code" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {/* For customers settling a prior reservation/downpayment at
+                  pickup — same simple Amount + Reference shape as Card. */}
+              {paymentMode === 'Downpayment' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Amount Paid</label>
+                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
+                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
                   </div>
                 </div>
               )}
@@ -995,6 +1028,42 @@ export default function PosClient() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Customer redeems previously-earned cashback to help pay —
+                  works like Split but with a third "Cashback" leg. */}
+              {paymentMode === 'Cashback' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Cashback Amount</label>
+                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ONLINE_PROVIDERS.map(p => {
+                      const Icon = PAYMENT_METHOD_ICONS[p];
+                      return (
+                        <button key={p} onClick={() => setOnlineProvider(p)}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all ${onlineProvider === p ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                          {Icon && <Icon size={12} />} {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">Cash</label>
+                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">{onlineProvider}</label>
+                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
+                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  </div>
                 </div>
               )}
 

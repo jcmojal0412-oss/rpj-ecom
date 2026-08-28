@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
       tax_percent, service_charge, delivery_fee, payment_method, reference_no,
-      financing_provider,
+      financing_provider, cashback_amount,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
@@ -65,11 +65,12 @@ export async function POST(req: NextRequest) {
     const feeNum = additional_fee ? parseFloat(additional_fee) : 0;
     const cashNum = cash_amount ? parseFloat(cash_amount) : 0;
     const onlineNum = online_amount ? parseFloat(online_amount) : 0;
+    const cashbackNum = cashback_amount ? parseFloat(cashback_amount) : 0;
     const taxPercentNum = tax_percent ? parseFloat(tax_percent) : 0;
     const serviceChargeNum = service_charge ? parseFloat(service_charge) : 0;
     const deliveryFeeNum = delivery_fee ? parseFloat(delivery_fee) : 0;
 
-    if (cashNum < 0 || onlineNum < 0) {
+    if (cashNum < 0 || onlineNum < 0 || cashbackNum < 0) {
       return NextResponse.json({ error: 'Payment amounts cannot be negative' }, { status: 400 });
     }
 
@@ -120,7 +121,11 @@ export async function POST(req: NextRequest) {
     const preTax = Math.max(0, subtotal - discountNum + feeNum);
     const taxAmount = preTax * (taxPercentNum / 100);
     const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
-    const totalPayment = cashNum + onlineNum;
+    // Cashback redeemed by the customer counts toward covering the total the
+    // same way cash/online do (it's one more "leg" of payment), but is
+    // tracked in its own column so it's never mistaken for cash/electronic
+    // money actually collected today.
+    const totalPayment = cashNum + onlineNum + cashbackNum;
 
     // Financing sales are expected to fall short of `total` in cash+online —
     // the shortfall is covered by the financing provider, not the customer
@@ -165,8 +170,8 @@ export async function POST(req: NextRequest) {
         (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
          payment_method, reference_no, status, cashier_id, notes, shift_id,
-         financing_provider, financing_amount, financing_reference, financing_status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?)
+         financing_provider, financing_amount, financing_reference, financing_status, cashback_amount)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
@@ -189,7 +194,7 @@ export async function POST(req: NextRequest) {
         serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
         payment_method?.trim() || null, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
-        financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal,
+        financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

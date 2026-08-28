@@ -53,6 +53,7 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
           )}
           {sale.cash_amount > 0 && <div className="flex justify-between text-gray-500"><span>Cash</span><span className="tabular-nums">{formatCurrency(sale.cash_amount)}</span></div>}
           {sale.online_amount > 0 && <div className="flex justify-between text-gray-500"><span>Online</span><span className="tabular-nums">{formatCurrency(sale.online_amount)}</span></div>}
+          {sale.cashback_amount > 0 && <div className="flex justify-between text-gray-500"><span>Cashback</span><span className="tabular-nums">{formatCurrency(sale.cashback_amount)}</span></div>}
           {!sale.financing_provider && <div className="flex justify-between font-semibold text-gray-900"><span>Change</span><span className="tabular-nums">{formatCurrency(sale.change_due)}</span></div>}
           {sale.reference_no && <div className="flex justify-between text-gray-500"><span>Reference No.</span><span>{sale.reference_no}</span></div>}
         </div>

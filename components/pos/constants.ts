@@ -68,6 +68,7 @@ export interface Sale {
   financing_amount: number;
   financing_reference: string | null;
   financing_status: 'Pending' | 'Settled' | 'Cancelled' | null;
+  cashback_amount: number;
 }
 
 export interface ProductSalesRow {
