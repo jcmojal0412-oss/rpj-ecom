@@ -29,7 +29,12 @@ export default function SalesHistoryClient() {
   const [voiding, setVoiding] = useState<Sale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
   const [refunding, setRefunding] = useState<SaleDetail | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const { toast, showToast, clearToast } = useToast();
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setIsOwner(u.role === 'owner'); });
+  }, []);
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
@@ -151,7 +156,9 @@ export default function SalesHistoryClient() {
                         {s.status !== 'Voided' && (
                           <>
                             <button onClick={() => openRefund(s)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-300 hover:text-amber-600" title="Refund Item(s)"><Undo2 size={14} /></button>
-                            <button onClick={() => setVoiding(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Void Sale"><Ban size={14} /></button>
+                            {isOwner && (
+                              <button onClick={() => setVoiding(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Void Sale (Owner only)"><Ban size={14} /></button>
+                            )}
                           </>
                         )}
                       </div>
@@ -175,7 +182,7 @@ export default function SalesHistoryClient() {
             {viewing.sale.status !== 'Voided' && (
               <>
                 <button onClick={() => setRefunding(viewing)} className="btn-secondary">Refund Item(s)</button>
-                <button onClick={() => setVoiding(viewing.sale)} className="btn-danger">Void Sale</button>
+                {isOwner && <button onClick={() => setVoiding(viewing.sale)} className="btn-danger">Void Sale</button>}
               </>
             )}
           </ReceiptView>

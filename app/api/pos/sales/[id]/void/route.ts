@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (session.role !== 'owner') return NextResponse.json({ error: 'Only the owner can void a sale' }, { status: 403 });
+
     const db = getDb();
 
     const sale = db.prepare('SELECT id, status FROM pos_sales WHERE id = ?').get(params.id) as
