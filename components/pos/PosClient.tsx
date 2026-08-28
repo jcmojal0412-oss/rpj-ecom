@@ -499,10 +499,16 @@ export default function PosClient() {
     Promise.all([
       loadProducts(),
       fetch('/api/businesses').then(r => r.json()).then(d => {
-        const rows: Business[] = d.rows ?? [];
-        setBusinesses(rows);
-        const defaultBusiness = rows.find(b => b.name === 'Bodega ni Suki');
-        setBusinessId(String((defaultBusiness ?? rows[0])?.id ?? ''));
+        // The POS is only actually operated for Bodega ni Suki — showing
+        // every business here (e.g. RPJ ECOM) just risks a cashier picking
+        // the wrong one and attributing a whole shift to it. Reports/
+        // Purchase Orders/Expenses elsewhere in the app still see every
+        // business normally; this filter is scoped to the POS's own
+        // selector only.
+        const allRows: Business[] = d.rows ?? [];
+        const rows = allRows.filter(b => b.name === 'Bodega ni Suki');
+        setBusinesses(rows.length ? rows : allRows);
+        setBusinessId(String((rows[0] ?? allRows[0])?.id ?? ''));
       }),
       fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setCashier(u); }),
     ]).finally(() => setLoading(false));
