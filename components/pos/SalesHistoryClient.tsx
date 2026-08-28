@@ -10,7 +10,7 @@ import Modal from '@/components/ui/Modal';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import ReceiptView from './ReceiptView';
 import RefundModal from './RefundModal';
-import type { Business, Sale, SaleItem, Refund } from './constants';
+import { displayReceiptNo, type Business, type Sale, type SaleItem, type Refund } from './constants';
 
 type SaleDetail = { sale: Sale; items: SaleItem[]; refunds: Refund[] };
 
@@ -149,7 +149,7 @@ export default function SalesHistoryClient() {
               <tbody>
                 {sales.map((s, i) => (
                   <tr key={s.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="table-cell font-medium tabular-nums">#{String(s.id).padStart(6, '0')}</td>
+                    <td className="table-cell font-medium tabular-nums">{displayReceiptNo(s)}</td>
                     <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(s.created_at)}</td>
                     <td className="table-cell">{s.business_name || '—'}</td>
                     <td className="table-cell">{s.cashier_name || '—'}</td>
@@ -188,7 +188,7 @@ export default function SalesHistoryClient() {
       </div>
 
       {viewing && (
-        <Modal open onClose={() => setViewing(null)} title={`Sale #${String(viewing.sale.id).padStart(6, '0')}`} size="sm">
+        <Modal open onClose={() => setViewing(null)} title={displayReceiptNo(viewing.sale)} size="sm">
           <ReceiptView sale={viewing.sale} items={viewing.items} refunds={viewing.refunds}>
             <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
             {viewing.sale.status !== 'Voided' && (
@@ -202,7 +202,7 @@ export default function SalesHistoryClient() {
       )}
 
       {refunding && (
-        <Modal open onClose={() => setRefunding(null)} title={`Refund — Sale #${String(refunding.sale.id).padStart(6, '0')}`} size="md">
+        <Modal open onClose={() => setRefunding(null)} title={`Refund — ${displayReceiptNo(refunding.sale)}`} size="md">
           <RefundModal
             sale={refunding.sale} items={refunding.items} refunds={refunding.refunds}
             onCancel={() => setRefunding(null)}
@@ -214,7 +214,7 @@ export default function SalesHistoryClient() {
       {voiding && (
         <Modal open onClose={() => !voidBusy && setVoiding(null)} title="Void Sale?" size="sm">
           <p className="text-sm text-gray-600">
-            This will void sale #{String(voiding.id).padStart(6, '0')} and restore {formatCurrency(voiding.total)} worth of stock back to inventory. This cannot be undone.
+            This will void {displayReceiptNo(voiding)} and restore {formatCurrency(voiding.total)} worth of stock back to inventory. This cannot be undone.
           </p>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setVoiding(null)} disabled={voidBusy} className="btn-secondary">Cancel</button>

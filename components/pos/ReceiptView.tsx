@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { Sale, SaleItem, Refund } from './constants';
+import { displayReceiptNo, type Sale, type SaleItem, type Refund } from './constants';
 
 interface Props {
   sale: Sale;
@@ -24,7 +24,7 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
       <div id="pos-receipt" className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <div className="text-center">
           <p className="font-bold text-gray-900">{sale.business_name || 'RPJ ECOM'}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Sale #{String(sale.id).padStart(6, '0')}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{displayReceiptNo(sale)}</p>
           <p className="text-xs text-gray-400">{formatDate(sale.created_at)}</p>
           <p className="text-xs text-gray-400">Cashier: {sale.cashier_name || '—'}</p>
           {sale.status === 'Voided' && (

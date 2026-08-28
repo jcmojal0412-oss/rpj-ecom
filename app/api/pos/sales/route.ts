@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, runTransaction } from '@/lib/db';
+import { getDb, runTransaction, nextReceiptNo } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/utils';
 
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get('to');
     const businessId = searchParams.get('business_id');
     const status = searchParams.get('status');
+    const receiptNo = searchParams.get('receipt_no');
 
     const clauses: string[] = [];
     const params: (string | number)[] = [];
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     if (to) { clauses.push('s.sale_date <= ?'); params.push(to); }
     if (businessId) { clauses.push('s.business_id = ?'); params.push(Number(businessId)); }
     if (status) { clauses.push('s.status = ?'); params.push(status); }
+    if (receiptNo) { clauses.push('s.receipt_no = ?'); params.push(receiptNo); }
 
     const sql = LIST_SQL_BASE + clauses.map(c => ` AND ${c}`).join('') + ' ORDER BY s.created_at DESC';
     const rows = db.prepare(sql).all(...params);
@@ -197,8 +199,8 @@ export async function POST(req: NextRequest) {
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
          payment_method, reference_no, status, cashier_id, notes, shift_id,
          financing_provider, financing_amount, financing_reference, financing_status, cashback_amount,
-         downpayment_applied)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?)
+         downpayment_applied, receipt_no)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?,?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total, is_freebie, original_price, freebie_reason)
@@ -222,7 +224,7 @@ export async function POST(req: NextRequest) {
         payment_method?.trim() || null, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
         financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
-        downpaymentAppliedNum,
+        downpaymentAppliedNum, nextReceiptNo(db),
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {

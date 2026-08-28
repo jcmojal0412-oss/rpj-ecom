@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, runTransaction } from '@/lib/db';
+import { getDb, runTransaction, nextReceiptNo } from '@/lib/db';
+import { displayReceiptNo } from '@/components/pos/constants';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/utils';
 
@@ -22,8 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const db = getDb();
     const originalSaleId = Number(params.id);
 
-    const originalSale = db.prepare('SELECT id, status, business_id FROM pos_sales WHERE id = ?').get(originalSaleId) as
-      { id: number; status: string; business_id: number | null } | undefined;
+    const originalSale = db.prepare('SELECT id, status, business_id, receipt_no FROM pos_sales WHERE id = ?').get(originalSaleId) as
+      { id: number; status: string; business_id: number | null; receipt_no: string | null } | undefined;
     if (!originalSale) return NextResponse.json({ error: 'Original sale not found' }, { status: 404 });
     if (originalSale.status !== 'Completed') return NextResponse.json({ error: 'Original sale must be a completed sale' }, { status: 400 });
 
@@ -131,8 +132,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       INSERT INTO pos_sales
         (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
-         payment_method, reference_no, status, cashier_id, notes, shift_id, linked_sale_id, exchange_credit_applied)
-      VALUES (?,?,?,0,0,0,0,0,0,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?, ?)
+         payment_method, reference_no, status, cashier_id, notes, shift_id, linked_sale_id, exchange_credit_applied, receipt_no)
+      VALUES (?,?,?,0,0,0,0,0,0,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?, ?, ?)
     `);
     const insertSaleItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
@@ -155,8 +156,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const saleInfo = insertSale.run(
         originalSale.business_id, todayISO(), newUnitPrice, newUnitPrice, cashNum, onlineNum, changeDue,
         paymentMethod, reference_no?.trim() || null,
-        session.id, `Exchange for Sale #${originalSaleId}`, openShift?.id ?? null,
-        originalSaleId, exchangeCreditApplied,
+        session.id, `Exchange for ${displayReceiptNo(originalSale)}`, openShift?.id ?? null,
+        originalSaleId, exchangeCreditApplied, nextReceiptNo(db),
       );
       const exchangeSaleId = Number(saleInfo.lastInsertRowid);
       insertSaleItem.run(exchangeSaleId, newProduct.id, newProduct.name, newProduct.sku, newUnitPrice, newProduct.cogs ?? 0, newUnitPrice);

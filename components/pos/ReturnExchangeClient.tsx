@@ -6,7 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import RefundModal from './RefundModal';
 import ReceiptView from './ReceiptView';
 import type { Sale, SaleItem, Refund, Product } from './constants';
-import { REFUND_METHODS } from './constants';
+import { REFUND_METHODS, displayReceiptNo } from './constants';
 
 const ONLINE_PROVIDERS = ['GCash', 'Maya', 'Sodexo', 'Bank Transfer'];
 type PayMode = 'Cash' | 'Online' | 'Card' | 'Split';
@@ -38,15 +38,27 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
   };
 
   const findSale = async () => {
-    // The receipt prints as "Sale #000046" — accept that pasted verbatim,
-    // or any other punctuation/prefix around the digits, not just a bare
-    // number.
-    const digits = saleNumberInput.replace(/\D/g, '');
-    const id = parseInt(digits, 10);
-    if (!id || id <= 0) { setSearchError('Enter a valid Sale # / Receipt #'); return; }
+    const raw = saleNumberInput.replace(/\s+/g, '');
+    if (!raw) { setSearchError('Enter a valid Sale # / Receipt #'); return; }
     setSearching(true);
     setSearchError('');
     try {
+      let id: number | null = null;
+      // New-style receipt numbers ("BNS108") are letters followed by digits —
+      // resolve those through the receipt_no lookup. Anything else (a bare
+      // number, or the old padded "Sale #000046" label pasted verbatim) is
+      // treated as the internal Sale # — non-digit characters stripped
+      // before parsing.
+      if (/^[A-Za-z]+\d+$/.test(raw)) {
+        const res = await fetch(`/api/pos/sales?receipt_no=${encodeURIComponent(raw.toUpperCase())}`);
+        const data = await res.json();
+        const match = (data.rows ?? [])[0];
+        if (!match) { setSearchError('Sale not found'); return; }
+        id = match.id;
+      } else {
+        id = parseInt(raw.replace(/\D/g, ''), 10);
+      }
+      if (!id || id <= 0) { setSearchError('Enter a valid Sale # / Receipt #'); return; }
       const res = await fetch(`/api/pos/sales/${id}`);
       const data = await res.json();
       if (!res.ok) { setSearchError(data.error || 'Sale not found'); return; }
@@ -91,7 +103,7 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
           <p className="text-xs text-gray-400 mb-2">Search by Sale # / Receipt #</p>
           <div className="flex gap-2">
             <input
-              className="form-input" placeholder="e.g. 46" autoFocus value={saleNumberInput}
+              className="form-input" placeholder="e.g. BNS108" autoFocus value={saleNumberInput}
               onChange={e => setSaleNumberInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') findSale(); }}
             />
@@ -118,7 +130,7 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ReceiptText size={16} className="text-gray-400" />
-                <p className="text-sm font-bold text-gray-800">Sale #{found.sale.id}</p>
+                <p className="text-sm font-bold text-gray-800">{displayReceiptNo(found.sale)}</p>
                 <span className="text-xs text-gray-400">{formatDate(found.sale.created_at)}</span>
               </div>
               <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 underline">Search another sale</button>

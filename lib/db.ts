@@ -44,6 +44,19 @@ export function resolveProductCategory(db: Database.Database, raw: string | null
   return match?.category ?? trimmed;
 }
 
+// Assigns the next customer-facing receipt number ("BNS108", "BNS109", ...)
+// — a single shared counter across every business, read-then-incremented
+// here. Must be called from inside the same runTransaction as the sale
+// insert it's for, so that if the sale insert fails the whole transaction
+// (counter increment included) rolls back together — a failed sale must
+// never burn a number, since the series has to stay gapless.
+export function nextReceiptNo(db: Database.Database): string {
+  const row = db.prepare(`SELECT value FROM app_settings WHERE key = 'pos_receipt_seq_next'`).get() as { value: string } | undefined;
+  const next = parseInt(row?.value ?? '108', 10);
+  db.prepare(`INSERT OR REPLACE INTO app_settings (key, value) VALUES ('pos_receipt_seq_next', ?)`).run(String(next + 1));
+  return `BNS${next}`;
+}
+
 function initSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS products (
@@ -1381,6 +1394,20 @@ function migrateSchema() {
   // before" with "customer is trading in an item right now."
   if (!posSaleCols3.includes('linked_sale_id'))          db.exec('ALTER TABLE pos_sales ADD COLUMN linked_sale_id INTEGER REFERENCES pos_sales(id)');
   if (!posSaleCols3.includes('exchange_credit_applied'))  db.exec('ALTER TABLE pos_sales ADD COLUMN exchange_credit_applied REAL DEFAULT 0');
+
+  // Customer-facing receipt series number ("BNS108", "BNS109", ...) — a
+  // single sequential counter (in app_settings) shared across every
+  // business, assigned once at sale creation and never reused, even if the
+  // sale is later voided (same as a number in a physical pre-printed OR
+  // booklet: voiding crosses it out, it doesn't go back into circulation).
+  // Historical sales created before this column existed keep receipt_no
+  // NULL rather than being renumbered — display falls back to the old
+  // internal Sale # for those.
+  if (!posSaleCols3.includes('receipt_no')) {
+    db.exec('ALTER TABLE pos_sales ADD COLUMN receipt_no TEXT');
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_receipt_no ON pos_sales(receipt_no) WHERE receipt_no IS NOT NULL');
+  }
+  db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_receipt_seq_next', '108')`).run();
 
   // refund_method + cash_out_amount let Expected Cash correctly subtract
   // only the portion of a refund that actually left the drawer as physical

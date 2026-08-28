@@ -86,7 +86,13 @@ export interface Sale {
   // this sale (a deduction against Amount Due, never a price reduction).
   linked_sale_id: number | null;
   exchange_credit_applied: number;
+  // Customer-facing series number ("BNS108") — null on sales created before
+  // this existed, which fall back to the old internal Sale # for display.
+  receipt_no: string | null;
 }
+
+export const displayReceiptNo = (sale: Pick<Sale, 'id' | 'receipt_no'>) =>
+  sale.receipt_no || `Sale #${String(sale.id).padStart(6, '0')}`;
 
 export interface ProductSalesRow {
   product_id: number;
