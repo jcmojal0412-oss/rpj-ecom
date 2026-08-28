@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,9 +29,33 @@ export async function GET(req: NextRequest) {
       LEFT JOIN businesses b ON b.id = s.business_id
       ${where}
       ORDER BY s.time_in DESC
-    `).all(...params);
+    `).all(...params) as { id: number; status: string; starting_cash: number }[];
 
-    return NextResponse.json({ rows });
+    // Closed shifts keep their persisted (frozen-at-close) cash/online/
+    // financing/expected-cash totals — stable and auditable, never
+    // recomputed. Open shifts have nothing persisted yet, so those figures
+    // are computed live from completed sales instead of showing stale
+    // zeros until the cashier ends the shift. total_sales (the sale's Net
+    // Sale value, including any financed/cashback/downpayment-covered
+    // portion) was never a persisted column — cash+online alone understates
+    // it once Financing/Cashback/Downpayment exist, so it's always
+    // recomputed live for both open and closed shifts; this doesn't touch
+    // the frozen reconciliation figures, just an informational display value.
+    const liveRows = rows.map(r => {
+      const totals = computeShiftSalesTotals(db, r.id);
+      if (r.status !== 'Open') return { ...r, total_sales: totals.total_sales };
+      const cashMovements = computeShiftCashMovements(db, r.id);
+      return {
+        ...r,
+        cash_sales: totals.cash_sales,
+        online_sales: totals.online_sales,
+        financing_receivable: totals.financing_receivable,
+        total_sales: totals.total_sales,
+        expected_cash: computeExpectedCash(r.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out),
+      };
+    });
+
+    return NextResponse.json({ rows: liveRows });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

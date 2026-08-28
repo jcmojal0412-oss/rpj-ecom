@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getDb } from '@/lib/db';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +30,32 @@ export async function GET(req: NextRequest) {
       ${where}
       ORDER BY s.time_in DESC
     `).all(...params) as {
-      created_at: string; cashier_name: string | null; username: string | null;
+      id: number; created_at: string; cashier_name: string | null; username: string | null;
       time_in: string; time_out: string | null; cash_sales: number | null; online_sales: number | null;
-      financing_receivable: number | null; starting_cash: number; actual_cash: number | null; discrepancy: number | null; status: string;
+      financing_receivable: number | null; starting_cash: number; expected_cash: number | null;
+      actual_cash: number | null; discrepancy: number | null; status: string;
     }[];
 
-    const headers = ['Date Created', 'Cashier', 'Username', 'Time-In', 'Time-Out', 'Cash Sales', 'Online Sales', 'Financing Receivable', 'Starting Cash', 'Actual Cash', 'Discrepancy', 'Status'];
-    const data = rows.map(r => [
-      r.created_at, r.cashier_name || '', r.username || '', r.time_in, r.time_out || '',
-      r.cash_sales ?? 0, r.online_sales ?? 0, r.financing_receivable ?? 0, r.starting_cash, r.actual_cash ?? '', r.discrepancy ?? '', r.status,
-    ]);
+    // Same live-vs-frozen split as the on-screen report: an open shift's
+    // figures are computed live from its completed sales; a closed shift
+    // keeps its persisted (frozen-at-close) reconciliation values.
+    const data = rows.map(r => {
+      const totals = computeShiftSalesTotals(db, r.id);
+      let cashSales = r.cash_sales ?? 0, onlineSales = r.online_sales ?? 0, financing = r.financing_receivable ?? 0, expectedCash = r.expected_cash;
+      if (r.status === 'Open') {
+        const movements = computeShiftCashMovements(db, r.id);
+        cashSales = totals.cash_sales; onlineSales = totals.online_sales; financing = totals.financing_receivable;
+        expectedCash = computeExpectedCash(r.starting_cash, cashSales, movements.cash_in, movements.cash_out);
+      }
+      const overShort = r.actual_cash != null && expectedCash != null ? r.actual_cash - expectedCash : null;
+      return [
+        r.created_at, r.cashier_name || '', r.username || '', r.time_in, r.time_out || '',
+        cashSales, onlineSales, financing, totals.total_sales, r.starting_cash,
+        expectedCash ?? '', r.actual_cash ?? '', overShort ?? '', r.status,
+      ];
+    });
+
+    const headers = ['Date Created', 'Cashier', 'Username', 'Time-In', 'Time-Out', 'Cash Sales', 'Online / Card', 'Financing', 'Total Sales', 'Starting Cash', 'Expected Cash', 'Actual Cash', 'Over / Short', 'Status'];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);

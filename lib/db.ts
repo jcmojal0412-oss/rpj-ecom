@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { hashPassword, MODULES } from './auth-helpers';
+import { CASH_APPLIED_SQL, ONLINE_APPLIED_SQL } from './pos-shift-totals';
 
 const DB_PATH =
   process.env.DATABASE_PATH ||           // Railway volume (set in env vars)
@@ -1392,6 +1393,40 @@ function migrateSchema() {
       }
     }
     db.prepare(`INSERT INTO app_settings (key, value) VALUES ('product_categories_case_normalized', '1')`).run();
+  }
+
+  // One-time correction: cash_sales/online_sales on already-closed shifts
+  // were computed from cash_amount/online_amount directly — the customer's
+  // raw tendered amount — not net of change handed back, so any cash sale
+  // with change overstated cash collected (e.g. a ₱65 sale paid with a
+  // ₱100 bill recorded ₱100 of "cash sales" instead of ₱65). Recompute
+  // using the corrected cash-applied formula (change absorbed by the cash
+  // leg first, same as everywhere else in this codebase now) so historical
+  // Cashier's Report rows reconcile correctly going forward. actual_cash
+  // (a physical count entered by the cashier) is never touched — only the
+  // expected/derived figures are corrected.
+  const shiftCashApplyFixed = db.prepare(`SELECT value FROM app_settings WHERE key='shift_cash_applied_recomputed'`).get();
+  if (!shiftCashApplyFixed) {
+    const closedShifts = db.prepare(`SELECT id, starting_cash, actual_cash FROM pos_shifts WHERE status='Closed'`).all() as
+      { id: number; starting_cash: number; actual_cash: number | null }[];
+    const shiftTotals = db.prepare(`
+      SELECT COALESCE(SUM(${CASH_APPLIED_SQL}),0) as cash_sales, COALESCE(SUM(${ONLINE_APPLIED_SQL}),0) as online_sales
+      FROM pos_sales WHERE shift_id = ? AND status != 'Voided'
+    `);
+    const shiftMovements = db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN type='IN' THEN amount ELSE 0 END),0) as cash_in,
+             COALESCE(SUM(CASE WHEN type='OUT' THEN amount ELSE 0 END),0) as cash_out
+      FROM pos_shift_cash_movements WHERE shift_id = ?
+    `);
+    const updateShift = db.prepare(`UPDATE pos_shifts SET cash_sales=?, online_sales=?, expected_cash=?, discrepancy=? WHERE id=?`);
+    for (const shift of closedShifts) {
+      const totals = shiftTotals.get(shift.id) as { cash_sales: number; online_sales: number };
+      const movements = shiftMovements.get(shift.id) as { cash_in: number; cash_out: number };
+      const expectedCash = shift.starting_cash + totals.cash_sales + movements.cash_in - movements.cash_out;
+      const discrepancy = shift.actual_cash != null ? shift.actual_cash - expectedCash : null;
+      updateShift.run(totals.cash_sales, totals.online_sales, expectedCash, discrepancy, shift.id);
+    }
+    db.prepare(`INSERT INTO app_settings (key, value) VALUES ('shift_cash_applied_recomputed', '1')`).run();
   }
 
   seedCcCategoriesIfEmpty();

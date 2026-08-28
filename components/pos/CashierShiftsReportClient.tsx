@@ -12,14 +12,24 @@ import { LARGE_DISCREPANCY_THRESHOLD, type Business, type Shift, type FinancingB
 
 interface ShiftRow extends Shift { total_sales: number; total_hours: number; }
 interface ShiftSale {
-  id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; status: string; created_at: string;
+  id: number; sale_date: string; total: number; cash_amount: number; online_amount: number; change_due: number;
+  cash_applied: number; online_applied: number; status: string; created_at: string;
   financing_provider: string | null; financing_amount: number; financing_status: string | null;
 }
 interface ShiftCashMovement { id: number; type: 'IN' | 'OUT'; amount: number; note: string | null; created_by_name: string | null; created_at: string; }
 interface ShiftExpense { id: number; date: string; amount: number; category: string; paid_to: string | null; description: string | null; created_at: string; }
+// discrepancy sign convention: positive = OVER (actual > expected), negative
+// = SHORT (actual < expected), zero = BALANCED. Blank until Actual Cash has
+// been entered (i.e. the shift is closed).
 const isLargeDiscrepancy = (d: number | null) => d != null && Math.abs(d) >= LARGE_DISCREPANCY_THRESHOLD;
+const overShortLabel = (discrepancy: number | null): { text: string; cls: string } | null => {
+  if (discrepancy == null) return null;
+  if (discrepancy === 0) return { text: 'BALANCED', cls: 'badge-green' };
+  if (discrepancy > 0) return { text: `OVER ${formatCurrency(discrepancy)}`, cls: 'badge-amber' };
+  return { text: `SHORT ${formatCurrency(Math.abs(discrepancy))}`, cls: 'badge-red' };
+};
 
-type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'total_sales' | 'financing_receivable' | 'starting_cash' | 'actual_cash' | 'discrepancy';
+type SortKey = 'created_at' | 'cashier_name' | 'time_in' | 'time_out' | 'total_hours' | 'cash_sales' | 'online_sales' | 'financing_receivable' | 'total_sales' | 'starting_cash' | 'expected_cash' | 'actual_cash' | 'discrepancy';
 
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'created_at', label: 'Date Created' },
@@ -28,12 +38,13 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'time_out', label: 'Time-Out' },
   { key: 'total_hours', label: 'Total Hours', numeric: true },
   { key: 'cash_sales', label: 'Cash Sales', numeric: true },
-  { key: 'online_sales', label: 'Online Sales', numeric: true },
-  { key: 'total_sales', label: 'Total POS Sales', numeric: true },
-  { key: 'financing_receivable', label: 'Financing Receivable', numeric: true },
+  { key: 'online_sales', label: 'Online / Card', numeric: true },
+  { key: 'financing_receivable', label: 'Financing', numeric: true },
+  { key: 'total_sales', label: 'Total Sales', numeric: true },
   { key: 'starting_cash', label: 'Starting Cash', numeric: true },
+  { key: 'expected_cash', label: 'Expected Cash', numeric: true },
   { key: 'actual_cash', label: 'Actual Cash', numeric: true },
-  { key: 'discrepancy', label: 'Discrepancy', numeric: true },
+  { key: 'discrepancy', label: 'Over / Short', numeric: true },
 ];
 
 const hoursBetween = (a: string, b: string | null) => b ? Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 3600000) : 0;
@@ -76,9 +87,12 @@ export default function CashierShiftsReportClient() {
   const fetchRows = useCallback(async () => {
     setLoading(true);
     const data = await fetch(`/api/pos/shifts?${buildQuery().toString()}`).then(r => r.json());
-    const withTotals: ShiftRow[] = (data.rows ?? []).map((r: Shift) => ({
+    // total_sales (Net Sale value) now comes straight from the server —
+    // reconstructing it from cash_sales+online_sales alone would understate
+    // it whenever Financing/Cashback/Downpayment covered part of a sale.
+    const withTotals: ShiftRow[] = (data.rows ?? []).map((r: Shift & { total_sales?: number }) => ({
       ...r,
-      total_sales: (r.cash_sales ?? 0) + (r.online_sales ?? 0),
+      total_sales: r.total_sales ?? 0,
       total_hours: hoursBetween(r.time_in, r.time_out),
     }));
     setRows(withTotals);
@@ -114,7 +128,7 @@ export default function CashierShiftsReportClient() {
   const openShift = async (id: number) => {
     const data = await fetch(`/api/pos/shifts/${id}`).then(r => r.json());
     setViewing({
-      shift: { ...data.shift, total_sales: (data.shift.cash_sales ?? 0) + (data.shift.online_sales ?? 0), total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
+      shift: { ...data.shift, total_sales: data.shift.total_sales ?? 0, total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
       sales: data.sales ?? [], cashMovements: data.cashMovements ?? [], expenses: data.expenses ?? [],
       financingByProvider: data.financingByProvider ?? [],
     });
@@ -142,11 +156,12 @@ export default function CashierShiftsReportClient() {
       case 'total_hours': return `${r.total_hours.toFixed(1)}h`;
       case 'cash_sales': return formatCurrency(r.cash_sales ?? 0);
       case 'online_sales': return formatCurrency(r.online_sales ?? 0);
-      case 'total_sales': return formatCurrency(r.total_sales);
       case 'financing_receivable': return formatCurrency(r.financing_receivable ?? 0);
+      case 'total_sales': return formatCurrency(r.total_sales);
       case 'starting_cash': return formatCurrency(r.starting_cash);
+      case 'expected_cash': return r.expected_cash != null ? formatCurrency(r.expected_cash) : '—';
       case 'actual_cash': return r.actual_cash != null ? formatCurrency(r.actual_cash) : '—';
-      case 'discrepancy': return r.discrepancy != null ? formatCurrency(r.discrepancy) : '—';
+      case 'discrepancy': return overShortLabel(r.discrepancy)?.text ?? '—';
     }
   };
 
@@ -264,15 +279,18 @@ export default function CashierShiftsReportClient() {
                     <td className="table-cell tabular-nums">{r.total_hours.toFixed(1)}h</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.cash_sales ?? 0)}</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.online_sales ?? 0)}</td>
-                    <td className="table-cell font-semibold tabular-nums">{formatCurrency(r.total_sales)}</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.financing_receivable ?? 0)}</td>
+                    <td className="table-cell font-semibold tabular-nums">{formatCurrency(r.total_sales)}</td>
                     <td className="table-cell tabular-nums">{formatCurrency(r.starting_cash)}</td>
+                    <td className="table-cell tabular-nums">{r.expected_cash != null ? formatCurrency(r.expected_cash) : '—'}</td>
                     <td className="table-cell tabular-nums">{r.actual_cash != null ? formatCurrency(r.actual_cash) : '—'}</td>
-                    <td className={`table-cell font-semibold tabular-nums ${r.discrepancy == null ? '' : r.discrepancy === 0 ? 'text-gray-700' : r.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                      <span className="inline-flex items-center gap-1">
-                        {isLargeDiscrepancy(r.discrepancy) && <AlertTriangle size={13} className="text-red-500" />}
-                        {r.discrepancy != null ? formatCurrency(r.discrepancy) : '—'}
-                      </span>
+                    <td className="table-cell">
+                      {overShortLabel(r.discrepancy) ? (
+                        <span className="inline-flex items-center gap-1">
+                          {isLargeDiscrepancy(r.discrepancy) && <AlertTriangle size={13} className="text-red-500" />}
+                          <span className={`${overShortLabel(r.discrepancy)!.cls} whitespace-nowrap`}>{overShortLabel(r.discrepancy)!.text}</span>
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="table-cell print:hidden">
                       <span className={r.status === 'Open' ? 'badge-amber' : 'badge-green'}>{r.status}</span>
@@ -318,25 +336,44 @@ export default function CashierShiftsReportClient() {
                 {viewing.shift.notes}
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-[11px] text-gray-500">Time-In / Out</p>
                 <p className="text-sm font-semibold">{formatDate(viewing.shift.time_in)}</p>
                 <p className="text-xs text-gray-500">{viewing.shift.time_out ? formatDate(viewing.shift.time_out) : 'Still open'}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-[11px] text-gray-500">Total POS Sales</p>
+                <p className="text-[11px] text-gray-500">Total Sales</p>
                 <p className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.total_sales)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-[11px] text-gray-500">Starting → Actual Cash</p>
-                <p className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.starting_cash)} → {viewing.shift.actual_cash != null ? formatCurrency(viewing.shift.actual_cash) : '—'}</p>
+                <p className="text-[11px] text-gray-500">Starting Cash</p>
+                <p className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.starting_cash)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-[11px] text-gray-500">Discrepancy</p>
-                <p className={`text-sm font-semibold tabular-nums ${viewing.shift.discrepancy == null ? '' : viewing.shift.discrepancy === 0 ? '' : viewing.shift.discrepancy > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {viewing.shift.discrepancy != null ? formatCurrency(viewing.shift.discrepancy) : '—'}
-                </p>
+                <p className="text-[11px] text-gray-500">Expected Cash</p>
+                <p className="text-sm font-semibold tabular-nums">{viewing.shift.expected_cash != null ? formatCurrency(viewing.shift.expected_cash) : '—'}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-500">Actual Cash</p>
+                <p className="text-sm font-semibold tabular-nums">{viewing.shift.actual_cash != null ? formatCurrency(viewing.shift.actual_cash) : '—'}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-[11px] text-gray-500">Over / Short</p>
+                {overShortLabel(viewing.shift.discrepancy) ? (
+                  <span className={overShortLabel(viewing.shift.discrepancy)!.cls}>{overShortLabel(viewing.shift.discrepancy)!.text}</span>
+                ) : <p className="text-sm text-gray-400">—</p>}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-[11px] text-gray-500 font-semibold mb-1.5">Payment Breakdown</p>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Cash</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.cash_sales ?? 0)}</span></div>
+                <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Online / Card</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.online_sales ?? 0)}</span></div>
+                {(viewing.shift.financing_receivable ?? 0) > 0 && (
+                  <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Financing</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.financing_receivable ?? 0)}</span></div>
+                )}
               </div>
             </div>
 
@@ -362,7 +399,7 @@ export default function CashierShiftsReportClient() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {['Sale #', 'Time', 'Cash', 'Online', 'Financing', 'Total', 'Status'].map(h => <th key={h} className="table-header">{h}</th>)}
+                      {['Sale #', 'Time', 'Cash Applied', 'Online / Card', 'Financing', 'Total', 'Change', 'Status'].map(h => <th key={h} className="table-header whitespace-nowrap">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -370,12 +407,13 @@ export default function CashierShiftsReportClient() {
                       <tr key={s.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="table-cell font-medium tabular-nums">#{String(s.id).padStart(6, '0')}</td>
                         <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(s.created_at)}</td>
-                        <td className="table-cell tabular-nums">{formatCurrency(s.cash_amount)}</td>
-                        <td className="table-cell tabular-nums">{formatCurrency(s.online_amount)}</td>
+                        <td className="table-cell tabular-nums">{formatCurrency(s.cash_applied)}</td>
+                        <td className="table-cell tabular-nums">{formatCurrency(s.online_applied)}</td>
                         <td className="table-cell tabular-nums">
                           {s.financing_provider ? `${s.financing_provider} · ${formatCurrency(s.financing_amount)} (${s.financing_status})` : '—'}
                         </td>
                         <td className="table-cell font-semibold tabular-nums">{formatCurrency(s.total)}</td>
+                        <td className="table-cell tabular-nums text-gray-500">{s.change_due > 0 ? formatCurrency(s.change_due) : '—'}</td>
                         <td className="table-cell"><span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span></td>
                       </tr>
                     ))}

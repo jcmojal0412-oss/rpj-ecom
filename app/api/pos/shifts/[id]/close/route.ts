@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeExpectedCash } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,16 +27,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const actualCashNum = actual_cash ? parseFloat(actual_cash) : 0;
     const combinedNotes = [shift.notes, notes?.trim() ? `End: ${notes.trim()}` : null].filter(Boolean).join(' | ') || null;
 
-    const totals = db.prepare(
-      `SELECT COUNT(*) as transaction_count, COALESCE(SUM(cash_amount),0) as cash_sales, COALESCE(SUM(online_amount),0) as online_sales, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount, COALESCE(SUM(financing_amount),0) as financing_receivable
-       FROM pos_sales WHERE shift_id = ? AND status != 'Voided'`
-    ).get(shift.id) as { transaction_count: number; cash_sales: number; online_sales: number; total_sales: number; total_discount: number; financing_receivable: number };
-
-    const financingByProvider = db.prepare(
-      `SELECT financing_provider as provider, COALESCE(SUM(financing_amount),0) as amount
-       FROM pos_sales WHERE shift_id = ? AND status != 'Voided' AND financing_provider IS NOT NULL
-       GROUP BY financing_provider ORDER BY financing_provider`
-    ).all(shift.id) as { provider: string; amount: number }[];
+    const totals = computeShiftSalesTotals(db, shift.id);
+    const financingByProvider = computeShiftFinancingByProvider(db, shift.id);
 
     const voidTotals = db.prepare(
       `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
@@ -45,13 +38,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       `SELECT COALESCE(SUM(r.total_refund),0) as refund_amount FROM pos_refunds r JOIN pos_sales s ON s.id = r.sale_id WHERE s.shift_id = ?`
     ).get(shift.id) as { refund_amount: number };
 
-    const cashMovements = db.prepare(
-      `SELECT COALESCE(SUM(CASE WHEN type='IN' THEN amount ELSE 0 END),0) as cash_in,
-              COALESCE(SUM(CASE WHEN type='OUT' THEN amount ELSE 0 END),0) as cash_out
-       FROM pos_shift_cash_movements WHERE shift_id = ?`
-    ).get(shift.id) as { cash_in: number; cash_out: number };
+    const cashMovements = computeShiftCashMovements(db, shift.id);
 
-    const expectedCash = shift.starting_cash + totals.cash_sales + cashMovements.cash_in - cashMovements.cash_out;
+    const expectedCash = computeExpectedCash(shift.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out);
     const discrepancy = actualCashNum - expectedCash;
     const timeOut = new Date().toISOString();
 
