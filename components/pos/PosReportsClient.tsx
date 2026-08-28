@@ -106,7 +106,10 @@ export default function PosReportsClient() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="rounded-xl p-4 bg-slate-800 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gross Sales</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gross Sales</p>
+                <Link href="/pos/reports/payment-methods" className="text-[10px] font-semibold text-white/70 hover:text-white underline">Payment Methods →</Link>
+              </div>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.grossSales)}</p>
               {(summary.deliveryFeeTotal > 0 || summary.additionalFeeTotal > 0) && (
                 <div className="mt-2 space-y-0.5 text-[11px] text-white/70">
