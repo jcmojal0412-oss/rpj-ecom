@@ -78,6 +78,15 @@ export default function SalesHistoryClient() {
 
   const totalSales = sales.filter(s => s.status !== 'Voided').reduce((s, sale) => s + sale.total, 0);
 
+  // Cash Applied is what actually applied to the sale (customer-tendered
+  // amount minus change), not the raw amount the customer handed over —
+  // showing the tendered amount here would overstate cash collected on
+  // every cash sale with change. Online absorbs any leftover change only in
+  // the rare case where the cash leg alone can't cover it — same formula
+  // used by the Cashier's Report.
+  const cashApplied = (s: Sale) => Math.max(0, s.cash_amount - s.change_due);
+  const onlineApplied = (s: Sale) => Math.max(0, s.online_amount - Math.max(0, s.change_due - s.cash_amount));
+
   return (
     <div className="p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
@@ -132,8 +141,8 @@ export default function SalesHistoryClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash', 'Online', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="table-header">{h}</th>
+                  {['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash Applied', 'Online / Card', 'Financing', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="table-header whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -145,8 +154,11 @@ export default function SalesHistoryClient() {
                     <td className="table-cell">{s.business_name || '—'}</td>
                     <td className="table-cell">{s.cashier_name || '—'}</td>
                     <td className="table-cell font-semibold whitespace-nowrap tabular-nums">{formatCurrency(s.total)}</td>
-                    <td className="table-cell text-gray-600 tabular-nums">{s.cash_amount > 0 ? formatCurrency(s.cash_amount) : '—'}</td>
-                    <td className="table-cell text-gray-600 tabular-nums">{s.online_amount > 0 ? formatCurrency(s.online_amount) : '—'}</td>
+                    <td className="table-cell text-gray-600 tabular-nums">{cashApplied(s) > 0 ? formatCurrency(cashApplied(s)) : '—'}</td>
+                    <td className="table-cell text-gray-600 tabular-nums">{onlineApplied(s) > 0 ? formatCurrency(onlineApplied(s)) : '—'}</td>
+                    <td className="table-cell text-gray-600 tabular-nums whitespace-nowrap">
+                      {s.financing_provider ? `${s.financing_provider} ${formatCurrency(s.financing_amount)}` : '—'}
+                    </td>
                     <td className="table-cell">
                       <span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span>
                     </td>

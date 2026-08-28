@@ -1221,6 +1221,7 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_pos_sales_date ON pos_sales(sale_date);
     CREATE INDEX IF NOT EXISTS idx_pos_sales_business ON pos_sales(business_id);
     CREATE INDEX IF NOT EXISTS idx_pos_sale_items_sale ON pos_sale_items(sale_id);
+    CREATE INDEX IF NOT EXISTS idx_pos_sale_items_product ON pos_sale_items(product_id);
   `);
 
   // Extra sale-level fields to match the branch POS UI: tax/service/delivery

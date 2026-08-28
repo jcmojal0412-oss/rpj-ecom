@@ -114,7 +114,7 @@ function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, 
           {data.total_discount > 0 && <div className="flex justify-between text-gray-500"><span>Total Discount</span><span className="tabular-nums">-{formatCurrency(data.total_discount)}</span></div>}
           {data.void_count > 0 && <div className="flex justify-between text-gray-500"><span>Voided ({data.void_count})</span><span className="tabular-nums">{formatCurrency(data.void_amount)}</span></div>}
           {data.refund_amount > 0 && <div className="flex justify-between text-gray-500"><span>Refunded</span><span className="tabular-nums">-{formatCurrency(data.refund_amount)}</span></div>}
-          <div className="flex justify-between font-bold text-gray-900 pt-1"><span>Total Sales</span><span className="tabular-nums">{formatCurrency(data.total_sales)}</span></div>
+          <div className="flex justify-between font-bold text-gray-900 pt-1"><span>Net Sales</span><span className="tabular-nums">{formatCurrency(data.total_sales)}</span></div>
         </div>
 
         {!!data.financing_receivable && data.financing_receivable > 0 && (

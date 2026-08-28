@@ -176,7 +176,7 @@ export default function PaymentMethodReportClient() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <div className="card">
-              <p className="text-xs text-gray-500">Total Sales</p>
+              <p className="text-xs text-gray-500">Net Sales</p>
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{formatCurrency(data.totalSales)}</p>
             </div>
             <div className="card">

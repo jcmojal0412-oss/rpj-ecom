@@ -184,7 +184,7 @@ export default function PosReportsClient() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {['Cashier', 'Orders', 'Total Sales'].map(h => <th key={h} className="table-header">{h}</th>)}
+                    {['Cashier', 'Orders', 'Net Sales'].map(h => <th key={h} className="table-header">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>

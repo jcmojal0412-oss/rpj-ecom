@@ -40,7 +40,7 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'cash_sales', label: 'Cash Sales', numeric: true },
   { key: 'online_sales', label: 'Online / Card', numeric: true },
   { key: 'financing_receivable', label: 'Financing', numeric: true },
-  { key: 'total_sales', label: 'Total Sales', numeric: true },
+  { key: 'total_sales', label: 'Net Sales', numeric: true },
   { key: 'starting_cash', label: 'Starting Cash', numeric: true },
   { key: 'expected_cash', label: 'Expected Cash', numeric: true },
   { key: 'actual_cash', label: 'Actual Cash', numeric: true },
@@ -343,7 +343,7 @@ export default function CashierShiftsReportClient() {
                 <p className="text-xs text-gray-500">{viewing.shift.time_out ? formatDate(viewing.shift.time_out) : 'Still open'}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-[11px] text-gray-500">Total Sales</p>
+                <p className="text-[11px] text-gray-500">Net Sales</p>
                 <p className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.total_sales)}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
