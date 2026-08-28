@@ -85,3 +85,29 @@
     @apply px-4 py-3 text-sm text-gray-700;
   }
 }
+
+/* POS receipts (ReceiptView, ReturnExchangeReceipt) mark their printable
+   content with id="pos-receipt" and rely on window.print() — but nothing
+   was actually scoping the print output to that element. It happened to
+   look right only because the one original print path (the normal Sale
+   checkout receipt) is shown as the entire page with nothing else visible.
+   Return/Exchange mode (POS top bar still shown above it) and Sales
+   History's refund confirmation (can render on top of the still-open sale
+   detail modal) both have real surrounding content, so without this rule
+   printing pulls in page chrome — or, if more than one #pos-receipt
+   happens to be in the DOM at once, all of them. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #pos-receipt,
+  #pos-receipt * {
+    visibility: visible;
+  }
+  #pos-receipt {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

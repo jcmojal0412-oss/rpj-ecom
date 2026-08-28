@@ -194,7 +194,7 @@ export default function SalesHistoryClient() {
             <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
             {viewing.sale.status !== 'Voided' && (
               <>
-                <button onClick={() => setRefunding(viewing)} className="btn-secondary">Refund Item(s)</button>
+                <button onClick={() => { setRefunding(viewing); setViewing(null); }} className="btn-secondary">Refund Item(s)</button>
                 {isOwner && <button onClick={() => setVoiding(viewing.sale)} className="btn-danger">Void Sale</button>}
               </>
             )}

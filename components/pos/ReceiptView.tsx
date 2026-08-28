@@ -102,7 +102,7 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
           <p className="text-xs font-semibold text-gray-500 mb-1">Payment Breakdown</p>
           {sale.financing_provider ? (
             <>
-              {sale.payment_method && <Row label="DP Method" value={sale.payment_method} muted small />}
+              {downpaymentCollected > 0 && sale.payment_method && <Row label="DP Method" value={sale.payment_method} muted small />}
               {downpaymentCollected > 0 && (
                 <Row label={`Downpayment to ${sale.business_name || 'Store'}`} value={formatCurrency(downpaymentCollected)} />
               )}
