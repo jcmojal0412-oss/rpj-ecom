@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
       tax_percent, service_charge, delivery_fee, payment_method, reference_no,
-      financing_provider, cashback_amount,
+      financing_provider, cashback_amount, downpayment_applied,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
@@ -66,11 +66,12 @@ export async function POST(req: NextRequest) {
     const cashNum = cash_amount ? parseFloat(cash_amount) : 0;
     const onlineNum = online_amount ? parseFloat(online_amount) : 0;
     const cashbackNum = cashback_amount ? parseFloat(cashback_amount) : 0;
+    const downpaymentAppliedNum = downpayment_applied ? parseFloat(downpayment_applied) : 0;
     const taxPercentNum = tax_percent ? parseFloat(tax_percent) : 0;
     const serviceChargeNum = service_charge ? parseFloat(service_charge) : 0;
     const deliveryFeeNum = delivery_fee ? parseFloat(delivery_fee) : 0;
 
-    if (cashNum < 0 || onlineNum < 0 || cashbackNum < 0) {
+    if (cashNum < 0 || onlineNum < 0 || cashbackNum < 0 || downpaymentAppliedNum < 0) {
       return NextResponse.json({ error: 'Payment amounts cannot be negative' }, { status: 400 });
     }
 
@@ -120,19 +121,29 @@ export async function POST(req: NextRequest) {
     const subtotal = lineData.reduce((s, l) => s + l.line_total, 0);
     const preTax = Math.max(0, subtotal - discountNum + feeNum);
     const taxAmount = preTax * (taxPercentNum / 100);
+    // `total` is the Net Sale value — untouched by cashback/downpayment, so
+    // every existing report (Gross Sales, Net Income, Payment Method Report,
+    // COGS, etc.) keeps reflecting the transaction's true value rather than
+    // the smaller amount actually collected today.
     const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
-    // Cashback redeemed by the customer counts toward covering the total the
-    // same way cash/online do (it's one more "leg" of payment), but is
-    // tracked in its own column so it's never mistaken for cash/electronic
-    // money actually collected today.
-    const totalPayment = cashNum + onlineNum + cashbackNum;
 
-    // Financing sales are expected to fall short of `total` in cash+online —
-    // the shortfall is covered by the financing provider, not the customer
-    // today — so they're validated on their own terms instead of the normal
-    // "payment must cover the total" rule. financing_amount is always
-    // recomputed here (never trusted from the client), same principle as
-    // re-pricing cart items server-side above.
+    // Cashback Redeemed (loyalty value used) and Downpayment/Reservation
+    // Applied (money the store already collected in an earlier, separate
+    // transaction) are deductions against what's owed today — not payment
+    // legs, and not discounts. Amount Due is what every payment mode below
+    // (including Financing) is actually validated and paid against.
+    if (cashbackNum + downpaymentAppliedNum > total + 0.005) {
+      return NextResponse.json({ error: 'Cashback Redeemed and Downpayment Applied cannot exceed the total.' }, { status: 400 });
+    }
+    const amountDue = Math.max(0, total - cashbackNum - downpaymentAppliedNum);
+    const totalPayment = cashNum + onlineNum;
+
+    // Financing sales are expected to fall short of `amountDue` in cash+
+    // online — the shortfall is covered by the financing provider, not the
+    // customer today — so they're validated on their own terms instead of
+    // the normal "payment must cover the total" rule. financing_amount is
+    // always recomputed here (never trusted from the client), same
+    // principle as re-pricing cart items server-side above.
     let financingProviderVal: string | null = null;
     let financingAmountVal = 0;
     let financingReferenceVal: string | null = null;
@@ -141,22 +152,22 @@ export async function POST(req: NextRequest) {
       if (!FINANCING_PROVIDERS.includes(financing_provider)) {
         return NextResponse.json({ error: 'Invalid financing provider' }, { status: 400 });
       }
-      if (totalPayment > total + 0.005) {
-        return NextResponse.json({ error: 'Downpayment cannot exceed the total purchase amount' }, { status: 400 });
+      if (totalPayment > amountDue + 0.005) {
+        return NextResponse.json({ error: 'Downpayment cannot exceed the amount due' }, { status: 400 });
       }
       if (!reference_no || !String(reference_no).trim()) {
         return NextResponse.json({ error: 'Financing reference/application number is required' }, { status: 400 });
       }
       financingProviderVal = financing_provider;
-      financingAmountVal = Math.max(0, total - totalPayment);
+      financingAmountVal = Math.max(0, amountDue - totalPayment);
       financingReferenceVal = String(reference_no).trim();
       financingStatusVal = 'Pending';
-    } else if (totalPayment + 0.005 < total) {
-      return NextResponse.json({ error: 'Payment is less than the total due' }, { status: 400 });
+    } else if (totalPayment + 0.005 < amountDue) {
+      return NextResponse.json({ error: 'Payment is less than the amount due' }, { status: 400 });
     }
     // Financing sales never show "change" — the shortfall is by design,
     // covered by the financing provider, not money owed back or forward.
-    const changeDue = financing_provider ? 0 : totalPayment - total;
+    const changeDue = financing_provider ? 0 : totalPayment - amountDue;
 
     // Auto-tag with the cashier's currently open shift for this business, if
     // any — starting a shift is optional, so this is NULL (and everything
@@ -170,8 +181,9 @@ export async function POST(req: NextRequest) {
         (business_id, sale_date, subtotal, discount, additional_fee, tax_percent, tax_amount,
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
          payment_method, reference_no, status, cashier_id, notes, shift_id,
-         financing_provider, financing_amount, financing_reference, financing_status, cashback_amount)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?)
+         financing_provider, financing_amount, financing_reference, financing_status, cashback_amount,
+         downpayment_applied)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
@@ -195,6 +207,7 @@ export async function POST(req: NextRequest) {
         payment_method?.trim() || null, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
         financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
+        downpaymentAppliedNum,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
@@ -207,7 +220,7 @@ export async function POST(req: NextRequest) {
       return id;
     });
 
-    return NextResponse.json({ id: saleId, subtotal, total, change_due: changeDue }, { status: 201 });
+    return NextResponse.json({ id: saleId, subtotal, total, amount_due: amountDue, change_due: changeDue }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -1347,12 +1347,19 @@ function migrateSchema() {
   const posShiftCols = (db.prepare('PRAGMA table_info(pos_shifts)').all() as { name: string }[]).map(c => c.name);
   if (!posShiftCols.includes('financing_receivable')) db.exec('ALTER TABLE pos_shifts ADD COLUMN financing_receivable REAL');
 
-  // Cashback used as payment (customer redeeming previously-earned cashback
-  // to cover part of a sale) — kept separate from cash_amount/online_amount
+  // Cashback redeemed by the customer, deducted from Amount Due before any
+  // payment method is chosen — kept separate from cash_amount/online_amount
   // for the same reason financing_amount is: it isn't real cash/electronic
   // money entering the drawer today, so it must never inflate cash-drawer
   // reconciliation the way lumping it into cash_amount would.
   if (!posSaleCols3.includes('cashback_amount')) db.exec('ALTER TABLE pos_sales ADD COLUMN cashback_amount REAL DEFAULT 0');
+
+  // Downpayment/reservation the store already collected in an earlier,
+  // separate transaction — applied here as a credit against today's Amount
+  // Due. Distinct from financing_amount (a receivable owed by a third
+  // party) and from cash_amount/online_amount (money collected today): this
+  // is money the store already has, from before this sale.
+  if (!posSaleCols3.includes('downpayment_applied')) db.exec('ALTER TABLE pos_sales ADD COLUMN downpayment_applied REAL DEFAULT 0');
 
   // One-time cleanup: a bulk Excel import didn't normalize category casing,
   // so the same category could land as two distinct DB values (e.g.

@@ -23,7 +23,7 @@ const SERVICES_TAB = '__services__';
 // no-collision trick as SERVICES_TAB.
 const IN_STOCK_TAB = '__in_stock__';
 
-type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing' | 'Downpayment' | 'Cashback';
+type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing';
 type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer';
 const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer'];
 
@@ -458,7 +458,12 @@ export default function PosClient() {
   const [financingProvider, setFinancingProvider] = useState<string | null>(null);
   const [financingDpAmount, setFinancingDpAmount] = useState('');
   const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod | null>(null);
+  // Cashback Redeemed and Downpayment/Reservation Applied are checkout-level
+  // deductions against Amount Due — not payment methods, not discounts, and
+  // not the same as Financing's own internal downpayment (see amountDue calc
+  // below). They apply no matter which payment mode is ultimately used.
   const [cashbackAmount, setCashbackAmount] = useState('');
+  const [downpaymentApplied, setDownpaymentApplied] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
@@ -474,8 +479,8 @@ export default function PosClient() {
       fetch('/api/businesses').then(r => r.json()).then(d => {
         const rows: Business[] = d.rows ?? [];
         setBusinesses(rows);
-        const rpjEcom = rows.find(b => b.name === 'RPJ ECOM');
-        setBusinessId(String((rpjEcom ?? rows[0])?.id ?? ''));
+        const defaultBusiness = rows.find(b => b.name === 'Bodega ni Suki');
+        setBusinessId(String((defaultBusiness ?? rows[0])?.id ?? ''));
       }),
       fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setCashier(u); }),
     ]).finally(() => setLoading(false));
@@ -542,7 +547,8 @@ export default function PosClient() {
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
-    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null); setCashbackAmount('');
+    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
+    setCashbackAmount(''); setDownpaymentApplied('');
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
@@ -553,32 +559,44 @@ export default function PosClient() {
   const deliveryFeeNum = parseFloat(deliveryFee) || 0;
   const preTax = Math.max(0, subtotal - discountNum + feeNum);
   const taxAmount = preTax * (taxPercentNum / 100);
+  // `total` is the Net Sale value (unchanged) — the true value of the
+  // transaction, kept separate from how much the customer still owes today.
   const total = Math.max(0, preTax + taxAmount + serviceChargeNum + deliveryFeeNum);
+
+  // Cashback Redeemed (loyalty value used) and Downpayment/Reservation
+  // Applied (money the store already collected in an earlier, separate
+  // transaction) are NOT discounts and NOT payment legs — they're
+  // deductions against what's owed today. Amount Due, not the raw total, is
+  // what every payment mode below (Cash/Online/Card/Split/Financing) is
+  // actually validated and paid against.
+  const cashbackNum = parseFloat(cashbackAmount) || 0;
+  const downpaymentAppliedNum = parseFloat(downpaymentApplied) || 0;
+  const adjustmentsExceedTotal = cashbackNum + downpaymentAppliedNum > total + 0.005;
+  const amountDue = Math.max(0, total - cashbackNum - downpaymentAppliedNum);
+
   const cashNum = parseFloat(cashAmount) || 0;
   const onlineNum = parseFloat(onlineAmount) || 0;
-  const cashbackNum = parseFloat(cashbackAmount) || 0;
-  // Cashback redeemed by the customer counts toward covering the total like
-  // any other payment leg, but is tracked in its own field (see completeSale)
-  // so it's never mistaken for actual cash/electronic money collected today.
-  const totalPayment = cashNum + onlineNum + cashbackNum;
-  const changeDue = totalPayment - total;
+  const totalPayment = cashNum + onlineNum;
+  const changeDue = totalPayment - amountDue;
 
-  // Financing: the store only ever collects the downpayment (cashNum +
-  // onlineNum, same fields every other mode uses) — Remaining Financing is
-  // always derived, never hand-entered, so it can't drift out of sync with
-  // Total Purchase - DP the way a manually-typed number could. Zero DP is a
-  // valid, common case (fully financed) — a DP method is only required once
-  // there's an actual amount for the store to collect.
+  // Financing: the store only ever collects its own downpayment (cashNum +
+  // onlineNum, same fields every other mode uses) toward Amount Due —
+  // Remaining Financing is always derived, never hand-entered, so it can't
+  // drift out of sync with Amount Due - DP the way a manually-typed number
+  // could. Zero DP is a valid, common case (fully financed) — a DP method
+  // is only required once there's an actual amount for the store to
+  // collect. This is separate from Downpayment/Reservation Applied above,
+  // which is money already collected before this sale, not today.
   const dpDeclared = parseFloat(financingDpAmount) || 0;
-  const financedAmount = Math.max(0, total - dpDeclared);
+  const financedAmount = Math.max(0, amountDue - dpDeclared);
   const dpMethodOk = dpDeclared <= 0 || !!financingDpMethod;
-  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= total + 0.005 && dpMethodOk && referenceNo.trim().length > 0;
+  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= amountDue + 0.005 && dpMethodOk && referenceNo.trim().length > 0;
 
-  const canCheckout = cart.length > 0 && !!businessId && !submitting &&
-    (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= total);
+  const canCheckout = cart.length > 0 && !!businessId && !submitting && !adjustmentsExceedTotal &&
+    (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= amountDue);
 
-  const applyExactCash = () => setCashAmount(Math.max(0, total - onlineNum).toFixed(2));
-  const cashQuickOptions = useMemo(() => suggestCashOptions(total), [total]);
+  const applyExactCash = () => setCashAmount(Math.max(0, amountDue - onlineNum).toFixed(2));
+  const cashQuickOptions = useMemo(() => suggestCashOptions(amountDue), [amountDue]);
 
   // Switching modes never leaves a stale amount in the box that's no longer
   // shown — Cash clears Online, Online/Card clear Cash and default the
@@ -589,30 +607,26 @@ export default function PosClient() {
     setPaymentMode(mode);
     if (mode === 'Cash') {
       setOnlineAmount('');
-    } else if (mode === 'Online' || mode === 'Card' || mode === 'Downpayment') {
+    } else if (mode === 'Online' || mode === 'Card') {
       setCashAmount('');
-      setOnlineAmount(total > 0 ? total.toFixed(2) : '');
+      setOnlineAmount(amountDue > 0 ? amountDue.toFixed(2) : '');
     } else if (mode === 'Financing') {
       setCashAmount('0'); setOnlineAmount('0');
       setFinancingProvider(null); setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
-    } else if (mode === 'Cashback') {
-      setCashAmount(''); setOnlineAmount(''); setCashbackAmount('');
     }
     if (mode !== 'Financing') {
       setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
     }
-    if (mode !== 'Cashback') setCashbackAmount('');
   };
 
-  // Keep the Online/Card/Downpayment "Amount Paid" default in sync if the
-  // cart changes (fees/discount edited, items added) while one of those
-  // modes is active.
+  // Keep the Online/Card "Amount Paid" default in sync if the cart or the
+  // Cashback/Downpayment adjustments change while one of those modes is active.
   useEffect(() => {
-    if (paymentMode === 'Online' || paymentMode === 'Card' || paymentMode === 'Downpayment') {
-      setOnlineAmount(total > 0 ? total.toFixed(2) : '');
+    if (paymentMode === 'Online' || paymentMode === 'Card') {
+      setOnlineAmount(amountDue > 0 ? amountDue.toFixed(2) : '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [total]);
+  }, [amountDue]);
 
   // The DP amount is one number the cashier types once; the DP method then
   // decides which of the existing cash/online fields it lands in.
@@ -640,16 +654,8 @@ export default function PosClient() {
     dpDeclared <= 0 ? `${financingProvider ?? ''} Financing`.trim() :
     financingDpMethod === 'Card' ? 'Credit Card' : (financingDpMethod ?? 'Cash');
 
-  // Cashback can combine with a Cash and/or Online leg, so its label lists
-  // whichever legs actually have an amount — same idea as the Cash + GCash
-  // label for normal Split.
-  const cashbackLabel = ['Cashback', cashNum > 0 ? 'Cash' : null, onlineNum > 0 ? onlineProvider : null]
-    .filter(Boolean).join(' + ');
-
   const effectivePaymentMethod =
     paymentMode === 'Financing' ? financingDpLabel :
-    paymentMode === 'Downpayment' ? 'Downpayment' :
-    paymentMode === 'Cashback' ? cashbackLabel :
     paymentMode === 'Cash' ? 'Cash' :
     paymentMode === 'Card' ? 'Credit Card' :
     paymentMode === 'Online' ? onlineProvider :
@@ -672,7 +678,7 @@ export default function PosClient() {
           cash_amount: cashNum, online_amount: onlineNum,
           payment_method: effectivePaymentMethod, reference_no: referenceNo,
           financing_provider: paymentMode === 'Financing' ? financingProvider : null,
-          cashback_amount: paymentMode === 'Cashback' ? cashbackNum : 0,
+          cashback_amount: cashbackNum, downpayment_applied: downpaymentAppliedNum,
         }),
       });
       const data = await res.json();
@@ -836,14 +842,16 @@ export default function PosClient() {
           </div>
 
           <div className="border-t border-gray-100 px-4 py-3 space-y-3 shrink-0 overflow-y-auto max-h-[68vh]">
-            {/* Additional Fee / Discounts / Tax — edited here; just displayed (read-only) in the totals box below */}
+            {/* Additional Fee / Discounts / Tax, then Cashback Redeemed /
+                Downpayment Applied on their own row — edited here; just
+                displayed (read-only) in the totals box below. */}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-[11px] text-gray-500 font-medium">Additional Fee</label>
                 <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
               </div>
               <div>
-                <label className="text-[11px] text-gray-500 font-medium">Discounts</label>
+                <label className="text-[11px] text-gray-500 font-medium">Discount</label>
                 <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={discount} onChange={e => setDiscount(e.target.value)} />
               </div>
               <div>
@@ -851,16 +859,34 @@ export default function PosClient() {
                 <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Cashback Redeemed</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 font-medium">Downpayment / Reservation Applied</label>
+                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={downpaymentApplied} onChange={e => setDownpaymentApplied(e.target.value)} />
+              </div>
+            </div>
+            {adjustmentsExceedTotal && (
+              <p className="text-[11px] text-red-500 font-medium -mt-1">Cashback Redeemed + Downpayment Applied cannot exceed the Total.</p>
+            )}
 
-            {/* Totals — Service Charge/Delivery Fee are edited inline, matching the reference layout */}
+            {/* Totals — Service Charge/Delivery Fee are edited inline, matching the reference layout.
+                Cashback Redeemed and Downpayment Applied are deductions against what's owed today,
+                not discounts (which change the selling price) and not payment legs — Total (Net
+                Sale) stays untouched above them, and AMOUNT DUE is the true bottom line. */}
             <div className="bg-emerald-500 text-white rounded-xl p-3 space-y-1.5">
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Subtotal</span><span className="tabular-nums font-semibold">{formatCurrency(subtotal)}</span></div>
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Additional Fee</span><span className="tabular-nums font-semibold">{formatCurrency(feeNum)}</span></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Discounts</span><span className="tabular-nums font-semibold">-{formatCurrency(discountNum)}</span></div>
+              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Discount</span><span className="tabular-nums font-semibold">-{formatCurrency(discountNum)}</span></div>
+              {cashbackNum > 0 && <div className="flex justify-between items-center text-xs"><span className="text-white/90">Cashback Redeemed</span><span className="tabular-nums font-semibold">-{formatCurrency(cashbackNum)}</span></div>}
+              {downpaymentAppliedNum > 0 && <div className="flex justify-between items-center text-xs"><span className="text-white/90">Downpayment Applied</span><span className="tabular-nums font-semibold">-{formatCurrency(downpaymentAppliedNum)}</span></div>}
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Tax ({taxPercentNum}%)</span><span className="tabular-nums font-semibold">{formatCurrency(taxAmount)}</span></div>
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Service Charge</span><InlineField value={serviceCharge} onChange={setServiceCharge} /></div>
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Delivery Fee</span><InlineField value={deliveryFee} onChange={setDeliveryFee} /></div>
-              <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
+              <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>AMOUNT DUE</span><span className="tabular-nums">{formatCurrency(amountDue)}</span></div>
             </div>
 
             {/* Customer Payment — redesigned for a single at-a-glance flow:
@@ -869,11 +895,11 @@ export default function PosClient() {
             <div className="border-t border-gray-100 pt-3">
               <div className="flex items-baseline justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-700">Customer Payment</p>
-                <span className="text-sm font-bold text-gray-900 tabular-nums">Total Due: {formatCurrency(total)}</span>
+                <span className="text-sm font-bold text-gray-900 tabular-nums">Amount Due: {formatCurrency(amountDue)}</span>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
-                {(['Cash', 'Online', 'Card', 'Split', 'Financing', 'Downpayment', 'Cashback'] as PaymentMode[]).map(m => (
+              <div className="grid grid-cols-5 gap-1.5 mb-3">
+                {(['Cash', 'Online', 'Card', 'Split', 'Financing'] as PaymentMode[]).map(m => (
                   <button key={m} onClick={() => selectPaymentMode(m)}
                     className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     {m === 'Online' ? 'ONLINE / QR' : m.toUpperCase()}
@@ -939,21 +965,6 @@ export default function PosClient() {
                 </div>
               )}
 
-              {/* For customers settling a prior reservation/downpayment at
-                  pickup — same simple Amount + Reference shape as Card. */}
-              {paymentMode === 'Downpayment' && (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Amount Paid</label>
-                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
-                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
               {paymentMode === 'Split' && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
@@ -991,15 +1002,15 @@ export default function PosClient() {
                   {financingProvider && (
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-500">Total Purchase</span>
-                        <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(total)}</span>
+                        <span className="text-gray-500">Amount Due</span>
+                        <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(amountDue)}</span>
                       </div>
                       <div>
                         <label className="text-[11px] text-gray-500 font-medium">Downpayment to Bodega ni Suki</label>
-                        <input type="number" min="0" step="0.01" max={total} className="form-input text-sm"
+                        <input type="number" min="0" step="0.01" max={amountDue} className="form-input text-sm"
                           value={financingDpAmount} onChange={e => updateFinancingDpAmount(e.target.value)} />
-                        {dpDeclared > total + 0.005 && (
-                          <p className="text-[11px] text-red-500 font-medium mt-1">Downpayment cannot exceed the Total Purchase amount.</p>
+                        {dpDeclared > amountDue + 0.005 && (
+                          <p className="text-[11px] text-red-500 font-medium mt-1">Downpayment cannot exceed the Amount Due.</p>
                         )}
                       </div>
 
@@ -1031,42 +1042,6 @@ export default function PosClient() {
                 </div>
               )}
 
-              {/* Customer redeems previously-earned cashback to help pay —
-                  works like Split but with a third "Cashback" leg. */}
-              {paymentMode === 'Cashback' && (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Cashback Amount</label>
-                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ONLINE_PROVIDERS.map(p => {
-                      const Icon = PAYMENT_METHOD_ICONS[p];
-                      return (
-                        <button key={p} onClick={() => setOnlineProvider(p)}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all ${onlineProvider === p ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                          {Icon && <Icon size={12} />} {p}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-gray-500 font-medium">Cash</label>
-                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500 font-medium">{onlineProvider}</label>
-                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
-                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
               {/* Payment summary — Financing gets a compact 3-line recap
                   instead of the generic Change box, since "change" doesn't
                   apply here and Remaining Financing is already shown above. */}
@@ -1074,14 +1049,14 @@ export default function PosClient() {
                 financingProvider && (
                   <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1 mt-3">
                     <p className="text-[11px] font-bold text-white/70 tracking-wide">FINANCING SUMMARY</p>
-                    <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Purchase</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                    <div className="flex justify-between items-center text-xs"><span className="text-white/80">Amount Due</span><span className="font-semibold tabular-nums">{formatCurrency(amountDue)}</span></div>
                     <div className="flex justify-between items-center text-xs"><span className="text-white/80">Downpayment</span><span className="font-semibold tabular-nums">{formatCurrency(dpDeclared)}</span></div>
                     <div className="flex justify-between items-center text-sm font-bold pt-1 border-t border-white/25"><span>{financingProvider} Financing</span><span className="tabular-nums">{formatCurrency(financedAmount)}</span></div>
                   </div>
                 )
               ) : (
                 <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
-                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Due</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                  <div className="flex justify-between items-center text-xs"><span className="text-white/80">Amount Due</span><span className="font-semibold tabular-nums">{formatCurrency(amountDue)}</span></div>
                   <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
                   {changeDue >= 0 ? (
                     <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Change</span><span className="tabular-nums">{formatCurrency(changeDue)}</span></div>
