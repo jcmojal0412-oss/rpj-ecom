@@ -29,6 +29,7 @@ export default function InventoryClient() {
   const [editingStock, setEditingStock] = useState<number | null>(null);
   const [stockVal, setStockVal] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [movementRefreshKey, setMovementRefreshKey] = useState(0);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchInventory = useCallback(async () => {
@@ -36,6 +37,10 @@ export default function InventoryClient() {
     const data = await fetch('/api/inventory').then(r => r.json());
     setItems(data);
     setLoading(false);
+    // Every action that refetches inventory (Stock IN/OUT, quick Edit Stock,
+    // Bulk Import) can also have just written a stock_movements row — bump
+    // this so the Movement Log below picks it up without a manual reload.
+    setMovementRefreshKey(k => k + 1);
   }, []);
 
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
@@ -98,7 +103,7 @@ export default function InventoryClient() {
       </div>
 
       {/* Stock In / Stock Out Form */}
-      <StockForm products={items} onSuccess={() => { fetchInventory(); showToast('Stock movement saved!'); }} />
+      <StockForm products={items} onSuccess={fetchInventory} />
 
       {/* Inventory Table */}
       <div className="card">
@@ -219,7 +224,7 @@ export default function InventoryClient() {
       </div>
 
       {/* Movement Log */}
-      <MovementLog />
+      <MovementLog refreshKey={movementRefreshKey} />
 
       {/* Bulk Import Modal */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Products via Excel" size="md">

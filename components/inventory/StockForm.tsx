@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
-import { todayISO } from '@/lib/utils';
+import { ArrowDownCircle, ArrowUpCircle, CheckCircle2 } from 'lucide-react';
+import { todayISO, formatCurrency } from '@/lib/utils';
+import Modal from '@/components/ui/Modal';
 
-interface Product { id: number; sku: string; name: string; }
+interface Product { id: number; sku: string; name: string; quantity: number; cogs: number; }
 
 interface Props {
   products: Product[];
@@ -13,16 +14,28 @@ interface Props {
 
 type TabType = 'IN' | 'OUT';
 
+const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'Transfer In', 'Inventory Adjustment', 'Other'];
+const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Inventory Adjustment', 'Internal Use', 'Other'];
+
+interface SaveResult {
+  product_name: string; type: TabType; reason: string;
+  previous_stock: number; new_stock: number; quantity: number;
+}
+
 export default function StockForm({ products, onSuccess }: Props) {
   const [tab, setTab] = useState<TabType>('IN');
   const [productId, setProductId] = useState('');
   const [qty, setQty] = useState('');
   const [unitCost, setUnitCost] = useState('');
+  const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayISO());
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmCogs, setConfirmCogs] = useState(false);
+  const [result, setResult] = useState<SaveResult | null>(null);
 
   const selectedProduct = products.find(p => String(p.id) === productId);
   const filteredProducts = products.filter(p =>
@@ -30,30 +43,82 @@ export default function StockForm({ products, onSuccess }: Props) {
     p.name.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 10);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productId || !qty) return;
+  const switchTab = (t: TabType) => {
+    setTab(t);
+    setReason('');
+    if (t === 'OUT') setUnitCost('');
+  };
+
+  const reset = () => {
+    setProductId(''); setQty(''); setUnitCost(''); setReason(''); setNote(''); setSearch('');
+    setDate(todayISO());
+  };
+
+  const save = async () => {
     setSubmitting(true);
+    setError('');
     try {
-      await fetch('/api/stock-movements', {
+      const res = await fetch('/api/stock-movements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_id: parseInt(productId),
           type: tab,
           quantity: parseInt(qty),
+          reason,
           note,
           moved_at: date ? `${date}T${new Date().toTimeString().slice(0, 8)}` : undefined,
           unit_cost: tab === 'IN' && unitCost ? unitCost : undefined,
         }),
       });
-      setProductId(''); setQty(''); setUnitCost(''); setNote(''); setSearch('');
-      setDate(todayISO());
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to save stock movement'); return; }
+      setResult(data);
+      reset();
       onSuccess();
     } finally {
       setSubmitting(false);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!productId || !qty || !reason) return;
+    const qtyNum = parseInt(qty, 10);
+    if (!qtyNum || qtyNum <= 0) { setError('Quantity must be greater than 0'); return; }
+    if (reason === 'Other' && !note.trim()) { setError('Note is required when Reason is Other'); return; }
+    if (tab === 'OUT' && selectedProduct && qtyNum > selectedProduct.quantity) {
+      setError(`Insufficient Stock. Available: ${selectedProduct.quantity} pcs, Requested Stock OUT: ${qtyNum} pcs.`);
+      return;
+    }
+    if (tab === 'IN' && unitCost && selectedProduct && parseFloat(unitCost) !== selectedProduct.cogs) {
+      setConfirmCogs(true);
+      return;
+    }
+    save();
+  };
+
+  if (result) {
+    return (
+      <div className="card">
+        <div className="max-w-xs mx-auto text-center space-y-3 py-2">
+          <div className="flex items-center gap-2 justify-center text-green-600">
+            <CheckCircle2 size={18} />
+            <p className="text-sm font-bold">STOCK {result.type} SUCCESSFUL</p>
+          </div>
+          <p className="text-base font-semibold text-gray-900">{result.product_name}</p>
+          <div className="bg-gray-50 rounded-lg p-4 space-y-1.5 text-sm text-left">
+            <div className="flex justify-between text-gray-500"><span>Previous Stock</span><span className="tabular-nums font-medium text-gray-800">{result.previous_stock}</span></div>
+            <div className="flex justify-between text-gray-500"><span>{result.type === 'IN' ? 'Added' : 'Removed'}</span><span className="tabular-nums font-medium text-gray-800">{result.quantity}</span></div>
+            <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1.5"><span>New Stock</span><span className="tabular-nums">{result.new_stock}</span></div>
+            <div className="flex justify-between text-gray-500 pt-1"><span>Reason</span><span className="font-medium text-gray-800 text-right">{result.reason}</span></div>
+          </div>
+          <button onClick={() => setResult(null)} className="btn-primary">Done</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
@@ -62,10 +127,10 @@ export default function StockForm({ products, onSuccess }: Props) {
         {(['IN', 'OUT'] as TabType[]).map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => switchTab(t)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === t
-                ? t === 'IN' ? 'bg-orange-500 text-white' : 'bg-red-600 text-white'
+                ? t === 'IN' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -74,6 +139,8 @@ export default function StockForm({ products, onSuccess }: Props) {
           </button>
         ))}
       </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">{error}</div>}
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative">
@@ -100,6 +167,12 @@ export default function StockForm({ products, onSuccess }: Props) {
               ))}
             </ul>
           )}
+          {selectedProduct && (
+            <div className="mt-1.5 bg-gray-50 rounded-md px-2.5 py-1.5 text-xs text-gray-500 space-y-0.5">
+              <p className="text-gray-400">Current Stock: <span className="font-semibold text-gray-700">{selectedProduct.quantity} pcs</span></p>
+              <p className="text-gray-400">Current COGS: <span className="font-semibold text-gray-700">{formatCurrency(selectedProduct.cogs)}</span></p>
+            </div>
+          )}
         </div>
 
         <div>
@@ -108,19 +181,29 @@ export default function StockForm({ products, onSuccess }: Props) {
             onChange={e => setQty(e.target.value)} required />
         </div>
 
+        <div>
+          <label className="form-label">Reason *</label>
+          <select className="form-input" value={reason} onChange={e => setReason(e.target.value)} required>
+            <option value="">Select Reason</option>
+            {(tab === 'IN' ? IN_REASONS : OUT_REASONS).map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
         {tab === 'IN' && (
           <div>
-            <label className="form-label">Cost per Unit (₱)</label>
-            <input type="number" min="0" step="0.01" className="form-input" placeholder="Leave blank to keep current COGS" value={unitCost}
+            <label className="form-label">Cost per Unit (Optional)</label>
+            <input type="number" min="0" step="0.01" className="form-input" placeholder="₱0.00" value={unitCost}
               onChange={e => setUnitCost(e.target.value)} />
-            <p className="text-xs text-gray-400 mt-1">If puhunan changed, this updates the product's COGS.</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {selectedProduct ? `Current COGS: ${formatCurrency(selectedProduct.cogs)}. ` : ''}Leave blank if unchanged.
+            </p>
           </div>
         )}
 
         <div>
-          <label className="form-label">Note</label>
-          <input className="form-input" placeholder="Optional note" value={note}
-            onChange={e => setNote(e.target.value)} />
+          <label className="form-label">Note{reason === 'Other' ? ' *' : ''}</label>
+          <input className="form-input" placeholder={reason === 'Other' ? 'Required — describe the reason' : 'Optional note'} value={note}
+            onChange={e => setNote(e.target.value)} required={reason === 'Other'} />
         </div>
 
         <div>
@@ -133,12 +216,33 @@ export default function StockForm({ products, onSuccess }: Props) {
           <button
             type="submit"
             disabled={submitting || !productId}
-            className={`btn-primary ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-orange-500 hover:!bg-orange-600'} disabled:opacity-50`}
+            className={`btn-primary ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-green-600 hover:!bg-green-700'} disabled:opacity-50`}
           >
             {submitting ? 'Saving...' : `Save Stock ${tab}`}
           </button>
         </div>
       </form>
+
+      {confirmCogs && selectedProduct && (
+        <Modal open onClose={() => setConfirmCogs(false)} title="Update COGS?" size="sm">
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Current COGS</span>
+                <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(selectedProduct.cogs)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">New Cost</span>
+                <span className="font-bold text-green-700 tabular-nums">{formatCurrency(parseFloat(unitCost) || 0)}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmCogs(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => { setConfirmCogs(false); save(); }} className="btn-primary">Confirm</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

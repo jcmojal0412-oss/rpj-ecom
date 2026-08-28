@@ -9,7 +9,7 @@ interface Movement {
   type: 'IN' | 'OUT'; quantity: number; note: string;
 }
 
-export default function MovementLog() {
+export default function MovementLog({ refreshKey }: { refreshKey?: number }) {
   const [moves, setMoves] = useState<Movement[]>([]);
   const [days, setDays] = useState('7');
   const [loading, setLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function MovementLog() {
     fetch(`/api/stock-movements?days=${days}`)
       .then(r => r.json())
       .then(d => { setMoves(d); setLoading(false); });
-  }, [days]);
+  }, [days, refreshKey]);
 
   return (
     <div className="card">
