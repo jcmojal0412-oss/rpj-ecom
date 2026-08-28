@@ -558,7 +558,7 @@ export default function PosClient() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Product grid */}
-        <div className="w-[70%] flex flex-col overflow-hidden p-4">
+        <div className="w-[60%] flex flex-col overflow-hidden p-4">
           <div className="relative mb-3 shrink-0">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
             <input ref={searchRef} className="form-input pl-9" placeholder="Search product or scan barcode..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -575,7 +575,7 @@ export default function PosClient() {
             {filteredProducts.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-12">No products found.</p>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map(p => (
                   <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0}
                     className="bg-white border border-gray-200 rounded-lg p-2.5 text-left hover:border-orange-300 hover:shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
@@ -595,7 +595,7 @@ export default function PosClient() {
         </div>
 
         {/* Cart / payment */}
-        <div className="w-[30%] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
+        <div className="w-[40%] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 flex-wrap gap-2">
             <p className="text-sm font-semibold text-gray-800">Current Order</p>
             <div className="flex items-center gap-1.5">
