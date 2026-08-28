@@ -30,10 +30,11 @@ export default function SalesHistoryClient() {
   const [voidBusy, setVoidBusy] = useState(false);
   const [refunding, setRefunding] = useState<SaleDetail | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [cashierName, setCashierName] = useState('—');
   const { toast, showToast, clearToast } = useToast();
 
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setIsOwner(u.role === 'owner'); });
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) { setIsOwner(u.role === 'owner'); setCashierName(u.name || '—'); } });
   }, []);
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
@@ -205,6 +206,7 @@ export default function SalesHistoryClient() {
         <Modal open onClose={() => setRefunding(null)} title={`Refund — ${displayReceiptNo(refunding.sale)}`} size="md">
           <RefundModal
             sale={refunding.sale} items={refunding.items} refunds={refunding.refunds}
+            cashierName={cashierName}
             onCancel={() => setRefunding(null)}
             onRefunded={() => { setRefunding(null); setViewing(null); showToast('Refund processed — stock restored'); fetchSales(); }}
           />

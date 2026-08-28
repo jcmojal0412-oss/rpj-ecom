@@ -2,27 +2,13 @@
 
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { displayReceiptNo, type Sale, type SaleItem, type Refund } from './constants';
+import Row from './ReceiptRow';
 
 interface Props {
   sale: Sale;
   items: SaleItem[];
   refunds?: Refund[];
   children?: React.ReactNode;
-}
-
-// A dotted leader between a label and its value is the classic receipt
-// look — one small building block reused for items, totals, and payment
-// lines so the whole receipt reads as one consistent system.
-function Row({ label, value, bold, small, muted, colorClass }: {
-  label: string; value: string; bold?: boolean; small?: boolean; muted?: boolean; colorClass?: string;
-}) {
-  return (
-    <div className={`flex items-baseline gap-1.5 ${bold ? 'font-bold' : 'font-medium'} ${small ? 'text-xs' : 'text-sm'} ${colorClass ?? (muted ? 'text-gray-500' : 'text-gray-900')}`}>
-      <span className="shrink-0">{label}</span>
-      <span className="flex-1 border-b border-dotted border-gray-300 translate-y-[-3px]" />
-      <span className="shrink-0 tabular-nums">{value}</span>
-    </div>
-  );
 }
 
 export default function ReceiptView({ sale, items, refunds, children }: Props) {

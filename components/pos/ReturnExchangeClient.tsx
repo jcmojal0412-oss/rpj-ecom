@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer } from 'lucide-react';
+import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer, CheckCircle2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import RefundModal from './RefundModal';
-import ReceiptView from './ReceiptView';
+import ReturnExchangeReceipt, { type ReturnedItem } from './ReturnExchangeReceipt';
 import type { Sale, SaleItem, Refund, Product } from './constants';
 import { REFUND_METHODS, displayReceiptNo } from './constants';
 
@@ -13,29 +13,19 @@ type PayMode = 'Cash' | 'Online' | 'Card' | 'Split';
 
 interface Props {
   businessId: string;
+  cashierName: string;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onDone: () => void;
 }
 
 interface FoundSale { sale: Sale; items: SaleItem[]; refunds: Refund[]; }
 
-export default function ReturnExchangeClient({ showToast, onDone }: Props) {
-  const [step, setStep] = useState<'find' | 'action' | 'refund' | 'exchange' | 'exchange-receipt'>('find');
+export default function ReturnExchangeClient({ cashierName, showToast, onDone }: Props) {
+  const [step, setStep] = useState<'find' | 'action' | 'refund' | 'exchange'>('find');
   const [saleNumberInput, setSaleNumberInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [found, setFound] = useState<FoundSale | null>(null);
-  const [exchangeReceipt, setExchangeReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
-
-  const handleExchanged = async (exchangeSaleId: number) => {
-    showToast('Exchange completed', 'success');
-    try {
-      const res = await fetch(`/api/pos/sales/${exchangeSaleId}`);
-      const data = await res.json();
-      if (res.ok) { setExchangeReceipt(data); setStep('exchange-receipt'); return; }
-    } catch { /* fall through to exiting Return/Exchange mode below */ }
-    onDone();
-  };
 
   const findSale = async () => {
     const raw = saleNumberInput.replace(/\s+/g, '');
@@ -115,16 +105,7 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
         </div>
       )}
 
-      {step === 'exchange-receipt' && exchangeReceipt && (
-        <div>
-          <ReceiptView sale={exchangeReceipt.sale} items={exchangeReceipt.items}>
-            <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
-            <button onClick={onDone} className="btn-primary">Done</button>
-          </ReceiptView>
-        </div>
-      )}
-
-      {step !== 'find' && step !== 'exchange-receipt' && found && (
+      {step !== 'find' && found && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -171,6 +152,7 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
                 sale={found.sale}
                 items={found.items}
                 refunds={found.refunds}
+                cashierName={cashierName}
                 onCancel={() => setStep('action')}
                 onRefunded={() => { showToast('Refund processed', 'success'); onDone(); }}
               />
@@ -182,8 +164,9 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
               sale={found.sale}
               refundableItems={refundableItems}
               hasFreebies={hasFreebies}
+              cashierName={cashierName}
               onBack={() => setStep('action')}
-              onExchanged={handleExchanged}
+              onDone={() => { showToast('Exchange completed', 'success'); onDone(); }}
             />
           )}
         </div>
@@ -194,12 +177,13 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
 
 interface RefundableItem extends SaleItem { remaining: number; }
 
-function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onExchanged }: {
+function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack, onDone }: {
   sale: Sale;
   refundableItems: RefundableItem[];
   hasFreebies: boolean;
+  cashierName: string;
   onBack: () => void;
-  onExchanged: (exchangeSaleId: number) => void;
+  onDone: () => void;
 }) {
   const sellable = refundableItems.filter(it => it.remaining > 0 && !it.is_freebie);
   const [selectedId, setSelectedId] = useState<number | null>(sellable[0]?.id ?? null);
@@ -220,6 +204,10 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onExchanged 
   const [excessRefundMethod, setExcessRefundMethod] = useState('Cash');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [completed, setCompleted] = useState<{
+    refundId: number; returnedItem: ReturnedItem; newItemName: string; newItemPrice: number;
+    amountPaid: number; paymentMethod?: string; refundDifference: number; excessRefundMethod?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/pos/products').then(r => r.json()).then(d => setProducts(d.rows ?? []));
@@ -284,13 +272,55 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, onBack, onExchanged 
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to process exchange'); return; }
-      onExchanged(data.exchange_sale_id);
+      setCompleted({
+        refundId: data.refund_id,
+        returnedItem: { name: selected.product_name, quantity: returnQty, unitPrice: selected.unit_price, condition },
+        newItemName: newProduct.name, newItemPrice: newUnitPrice,
+        amountPaid: data.amount_to_pay ?? amountToPay,
+        paymentMethod: payment_method,
+        refundDifference: data.excess ?? excess,
+        excessRefundMethod: excess > 0 ? excessRefundMethod : undefined,
+      });
     } catch {
       setError('Failed to process exchange');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (completed) {
+    const isUpgrade = completed.amountPaid > 0;
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center gap-2 justify-center text-green-600">
+          <CheckCircle2 size={18} />
+          <p className="text-sm font-bold">{isUpgrade ? 'UPGRADE SUCCESSFUL' : 'EXCHANGE SUCCESSFUL'}</p>
+        </div>
+        <ReturnExchangeReceipt
+          kind="exchange"
+          businessName={sale.business_name || 'RPJ ECOM'}
+          cashierName={cashierName}
+          date={formatDate(new Date().toISOString())}
+          refundId={completed.refundId}
+          originalReceiptNo={displayReceiptNo(sale)}
+          returnedItems={[completed.returnedItem]}
+          reason={reason.trim() || undefined}
+          hasFreebiesOnOriginal={hasFreebies}
+          freebiesReturned={hasFreebies ? freebiesReturned : null}
+          newItemName={completed.newItemName}
+          newItemPrice={completed.newItemPrice}
+          amountPaid={completed.amountPaid}
+          paymentMethod={completed.paymentMethod}
+          refundDifference={completed.refundDifference}
+          excessRefundMethod={completed.excessRefundMethod}
+        />
+        <div className="flex justify-center gap-3 pt-2">
+          <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
+          <button onClick={onDone} className="btn-primary">New Sale</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">

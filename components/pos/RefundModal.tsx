@@ -1,19 +1,21 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
-import type { Sale, SaleItem, Refund } from './constants';
+import { Minus, Plus, CheckCircle2, Printer } from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { displayReceiptNo, REFUND_METHODS, type Sale, type SaleItem, type Refund } from './constants';
+import ReturnExchangeReceipt, { type ReturnedItem } from './ReturnExchangeReceipt';
 
 interface Props {
   sale: Sale;
   items: SaleItem[];
   refunds: Refund[];
+  cashierName: string;
   onCancel: () => void;
   onRefunded: () => void;
 }
 
-export default function RefundModal({ sale, items, refunds, onCancel, onRefunded }: Props) {
+export default function RefundModal({ sale, items, refunds, cashierName, onCancel, onRefunded }: Props) {
   const alreadyRefunded = useMemo(() => {
     const map = new Map<number, number>();
     for (const r of refunds) {
@@ -36,6 +38,7 @@ export default function RefundModal({ sale, items, refunds, onCancel, onRefunded
   const [freebiesReturned, setFreebiesReturned] = useState<'YES' | 'NO' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [completed, setCompleted] = useState<{ refundId: number; total: number; returnedItems: ReturnedItem[] } | null>(null);
 
   const hasFreebies = items.some(it => !!it.is_freebie);
 
@@ -48,10 +51,9 @@ export default function RefundModal({ sale, items, refunds, onCancel, onRefunded
 
   const submit = async () => {
     setError('');
-    const payloadItems = refundableItems
-      .filter(it => (qtyMap[it.id] ?? 0) > 0)
-      .map(it => ({ sale_item_id: it.id, quantity: qtyMap[it.id], condition: conditionMap[it.id] ?? 'Sellable' }));
-    if (payloadItems.length === 0) return;
+    const selectedItems = refundableItems.filter(it => (qtyMap[it.id] ?? 0) > 0);
+    if (selectedItems.length === 0) return;
+    const payloadItems = selectedItems.map(it => ({ sale_item_id: it.id, quantity: qtyMap[it.id], condition: conditionMap[it.id] ?? 'Sellable' }));
 
     setSubmitting(true);
     try {
@@ -65,11 +67,47 @@ export default function RefundModal({ sale, items, refunds, onCancel, onRefunded
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to process refund'); return; }
-      onRefunded();
+      setCompleted({
+        refundId: data.id,
+        total: data.total_refund,
+        returnedItems: selectedItems.map(it => ({
+          name: it.product_name, quantity: qtyMap[it.id], unitPrice: it.unit_price,
+          condition: conditionMap[it.id] ?? 'Sellable',
+        })),
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (completed) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 justify-center text-green-600">
+          <CheckCircle2 size={18} />
+          <p className="text-sm font-bold">RETURN SUCCESSFUL</p>
+        </div>
+        <ReturnExchangeReceipt
+          kind="refund"
+          businessName={sale.business_name || 'RPJ ECOM'}
+          cashierName={cashierName}
+          date={formatDate(new Date().toISOString())}
+          refundId={completed.refundId}
+          originalReceiptNo={displayReceiptNo(sale)}
+          returnedItems={completed.returnedItems}
+          reason={reason.trim() || undefined}
+          hasFreebiesOnOriginal={hasFreebies}
+          freebiesReturned={hasFreebies ? freebiesReturned : null}
+          refundMethod={refundMethod}
+          refundAmount={completed.total}
+        />
+        <div className="flex justify-center gap-3 pt-2">
+          <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
+          <button onClick={onRefunded} className="btn-primary">New Sale</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -128,7 +166,7 @@ export default function RefundModal({ sale, items, refunds, onCancel, onRefunded
       <div>
         <label className="form-label">Refund Via</label>
         <div className="grid grid-cols-3 gap-1.5">
-          {['Cash', 'GCash', 'Maya', 'Sodexo', 'Bank Transfer', 'Credit Card'].map(m => (
+          {REFUND_METHODS.map(m => (
             <button key={m} type="button" onClick={() => setRefundMethod(m)}
               className={`px-2 py-1.5 rounded-md text-xs font-semibold border transition-all ${refundMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               {m}

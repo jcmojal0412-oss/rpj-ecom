@@ -768,6 +768,7 @@ export default function PosClient() {
         <div className="flex-1 overflow-auto bg-red-50/40">
           <ReturnExchangeClient
             businessId={businessId}
+            cashierName={cashier?.name || '—'}
             showToast={showToast}
             onDone={() => setPosMode('sale')}
           />
