@@ -11,7 +11,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import Spinner from '@/components/ui/Spinner';
 import Modal from '@/components/ui/Modal';
 import ReceiptView from './ReceiptView';
-import { CASH_PRESETS, PAYMENT_METHOD_GROUPS, SERVICE_FEE_ITEMS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem } from './constants';
+import { SERVICE_FEE_ITEMS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem } from './constants';
 import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
 interface SessionUser { id: number; name: string; }
@@ -19,12 +19,35 @@ interface SessionUser { id: number; name: string; }
 // Sentinel category value selecting the Services and fees tab — not a real
 // product category, so it can never collide with one loaded from the DB.
 const SERVICES_TAB = '__services__';
+// Sentinel category value selecting the "In Stock" quick filter — same
+// no-collision trick as SERVICES_TAB.
+const IN_STOCK_TAB = '__in_stock__';
+
+type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split';
+
+// Non-cash payment labels the system already recognizes (kept identical to
+// the strings used before this redesign so historical sales/reports that
+// group by payment_method text stay meaningful going forward).
+const ONLINE_PROVIDERS = ['GCash', 'Maya', 'Salmon', 'Sodexo', 'Bank Transfer', 'Skyro', 'Billease'];
 
 const PAYMENT_METHOD_ICONS: Record<string, React.ElementType> = {
   Cash: Banknote, GCash: Smartphone, Salmon: Wallet, 'Cash + GCash': Layers,
   'Credit Card': CreditCard, Maya: Smartphone, Sodexo: Ticket,
   'Bank Transfer': Landmark, Skyro: Zap, Billease: CalendarClock,
 };
+
+// Suggests a few "nice" round cash amounts at or above the total due, so the
+// cashier can tap a realistic bill combination instead of stacking small
+// denominations one at a time. Pure function of the total — no state.
+function suggestCashOptions(total: number): number[] {
+  if (!(total > 0)) return [100, 500, 1000];
+  const roundUpTo = (n: number, mult: number) => Math.ceil(n / mult) * mult;
+  const opts = [roundUpTo(total, 500), roundUpTo(total, 1000)];
+  const bigStep = total < 1000 ? 500 : total < 5000 ? 1000 : total < 20000 ? 5000 : 10000;
+  const bigRound = roundUpTo(total, bigStep);
+  opts.push(bigRound <= Math.max(...opts) ? bigRound + bigStep : bigRound);
+  return Array.from(new Set(opts.filter(o => o > total))).sort((a, b) => a - b).slice(0, 3);
+}
 
 // Compact clear-then-edit money/percent field for the dark totals/payment
 // boxes — module scope so it isn't re-created (and re-mounted, losing focus)
@@ -400,6 +423,7 @@ export default function PosClient() {
   const [businessId, setBusinessId] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState('');
   const [additionalFee, setAdditionalFee] = useState('');
@@ -408,7 +432,8 @@ export default function PosClient() {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [onlineAmount, setOnlineAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
+  const [onlineProvider, setOnlineProvider] = useState(ONLINE_PROVIDERS[0]);
   const [referenceNo, setReferenceNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
@@ -435,20 +460,29 @@ export default function PosClient() {
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
     products.forEach(p => { if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1); });
+    const inStockCount = products.filter(p => p.quantity > 0).length;
     return [
       { name: 'All', count: products.length },
+      { name: IN_STOCK_TAB, count: inStockCount },
       ...[...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count })),
     ];
   }, [products]);
 
+  const outOfStockCount = useMemo(() => products.filter(p => p.quantity <= 0).length, [products]);
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter(p => {
-      if (category !== 'All' && p.category !== category) return false;
+      if (category === IN_STOCK_TAB) {
+        if (p.quantity <= 0) return false;
+      } else {
+        if (category !== 'All' && p.category !== category) return false;
+        if (p.quantity <= 0 && !showOutOfStock) return false;
+      }
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [products, search, category]);
+  }, [products, search, category, showOutOfStock]);
 
   const addToCart = (p: Product) => {
     if (p.quantity <= 0) { showToast(`${p.name} is out of stock`, 'error'); return; }
@@ -483,7 +517,7 @@ export default function PosClient() {
   const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key));
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
-    setCashAmount(''); setOnlineAmount(''); setPaymentMethod('Cash'); setReferenceNo('');
+    setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
@@ -502,7 +536,36 @@ export default function PosClient() {
   const canCheckout = cart.length > 0 && !!businessId && totalPayment + 0.005 >= total && !submitting;
 
   const applyExactCash = () => setCashAmount(Math.max(0, total - onlineNum).toFixed(2));
-  const addCashPreset = (amt: number) => setCashAmount(String((parseFloat(cashAmount) || 0) + amt));
+  const cashQuickOptions = useMemo(() => suggestCashOptions(total), [total]);
+
+  // Switching modes never leaves a stale amount in the box that's no longer
+  // shown — Cash clears Online, Online/Card clear Cash and default the
+  // amount to what's due, Split leaves both as-is so the cashier can
+  // allocate the split themselves.
+  const selectPaymentMode = (mode: PaymentMode) => {
+    setPaymentMode(mode);
+    if (mode === 'Cash') {
+      setOnlineAmount('');
+    } else if (mode === 'Online' || mode === 'Card') {
+      setCashAmount('');
+      setOnlineAmount(total > 0 ? total.toFixed(2) : '');
+    }
+  };
+
+  // Keep the Online/Card "Amount Paid" default in sync if the cart changes
+  // (fees/discount edited, items added) while one of those modes is active.
+  useEffect(() => {
+    if (paymentMode === 'Online' || paymentMode === 'Card') {
+      setOnlineAmount(total > 0 ? total.toFixed(2) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+
+  const effectivePaymentMethod =
+    paymentMode === 'Cash' ? 'Cash' :
+    paymentMode === 'Card' ? 'Credit Card' :
+    paymentMode === 'Online' ? onlineProvider :
+    (cashNum > 0 && onlineNum > 0) ? `Cash + ${onlineProvider}` : (onlineNum > 0 ? onlineProvider : 'Cash');
 
   const completeSale = async () => {
     if (!canCheckout) return;
@@ -519,7 +582,7 @@ export default function PosClient() {
           discount: discountNum, additional_fee: feeNum,
           tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
           cash_amount: cashNum, online_amount: onlineNum,
-          payment_method: paymentMethod, reference_no: referenceNo,
+          payment_method: effectivePaymentMethod, reference_no: referenceNo,
         }),
       });
       const data = await res.json();
@@ -578,17 +641,25 @@ export default function PosClient() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
             <input ref={searchRef} className="form-input pl-9" placeholder="Search product or scan barcode..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <div className="flex items-center gap-2 mb-3 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
             {categoryCounts.map(c => (
               <button key={c.name} onClick={() => setCategory(c.name)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === c.name ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
-                {c.name} <span className="opacity-70">({c.count})</span>
+                {c.name === IN_STOCK_TAB ? 'In Stock' : c.name} <span className="opacity-70">({c.count})</span>
               </button>
             ))}
             <button onClick={() => setCategory(SERVICES_TAB)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === SERVICES_TAB ? 'bg-orange-500 text-white' : 'bg-white border border-orange-200 text-orange-600 hover:bg-orange-50'}`}>
-              Services and fees
+              Services
             </button>
+          </div>
+          <div className="flex items-center mb-3 shrink-0">
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+              <input type="checkbox" className="rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                checked={showOutOfStock} onChange={e => setShowOutOfStock(e.target.checked)} />
+              Show Out of Stock
+              {outOfStockCount > 0 && !showOutOfStock && <span className="text-gray-400">({outOfStockCount} hidden)</span>}
+            </label>
           </div>
           <div className="flex-1 overflow-auto">
             {category === SERVICES_TAB ? (
@@ -702,78 +773,117 @@ export default function PosClient() {
               <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Total</span><span className="tabular-nums">{formatCurrency(total)}</span></div>
             </div>
 
-            {/* Cash presets */}
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-1.5">Customer Payment</p>
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-                <button onClick={applyExactCash} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-orange-300 text-orange-700 hover:bg-orange-50">Exact</button>
-                {CASH_PRESETS.filter(a => a < 500).map(amt => (
-                  <button key={amt} onClick={() => addCashPreset(amt)} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50">{amt}</button>
+            {/* Customer Payment — redesigned for a single at-a-glance flow:
+                pick a mode, fill only the fields that mode needs, see the
+                total/payment/change summary right below. */}
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-700">Customer Payment</p>
+                <span className="text-sm font-bold text-gray-900 tabular-nums">Total Due: {formatCurrency(total)}</span>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5 mb-3">
+                {(['Cash', 'Online', 'Card', 'Split'] as PaymentMode[]).map(m => (
+                  <button key={m} onClick={() => selectPaymentMode(m)}
+                    className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {m === 'Online' ? 'ONLINE / QR' : m.toUpperCase()}
+                  </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-1.5 mt-1.5">
-                {CASH_PRESETS.filter(a => a >= 500).map(amt => (
-                  <button key={amt} onClick={() => addCashPreset(amt)} className="py-2 rounded-md text-sm font-bold border border-blue-200 text-blue-700 hover:bg-blue-50">{amt}</button>
-                ))}
-              </div>
-            </div>
 
-            {/* Payment box */}
-            <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5">
-              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Customer's Payment Cash</span><InlineField value={cashAmount} onChange={setCashAmount} /></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Customer's Payment Online</span><InlineField value={onlineAmount} onChange={setOnlineAmount} /></div>
-              <div className="flex justify-between items-center text-sm pt-1"><span className="text-white/90">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
-              <div className="flex justify-between items-center text-xs"><span className="text-white/90">Total Bill</span><span className="tabular-nums">-{formatCurrency(total)}</span></div>
-              <div className="flex justify-between items-center text-lg font-bold pt-1"><span>Change</span><span className={`tabular-nums ${changeDue < 0 ? 'text-red-200' : ''}`}>{formatCurrency(Math.max(0, changeDue))}</span></div>
-            </div>
+              {paymentMode === 'Cash' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Amount Received</label>
+                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <button onClick={applyExactCash} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-orange-300 text-orange-700 hover:bg-orange-50">Exact</button>
+                    {cashQuickOptions.map(amt => (
+                      <button key={amt} onClick={() => setCashAmount(String(amt))}
+                        className="px-2 py-1.5 rounded-md text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50 tabular-nums">
+                        {formatCurrency(amt)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            <div>
-              <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
-              <input className="form-input py-1.5 text-sm" placeholder="Input reference number here" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-1.5">Payment Method</p>
-              <div className="space-y-1.5">
-                <div className="grid grid-cols-4 gap-1.5">
-                  {PAYMENT_METHOD_GROUPS[0].map(m => {
-                    const Icon = PAYMENT_METHOD_ICONS[m];
+              {(paymentMode === 'Online' || paymentMode === 'Split') && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {ONLINE_PROVIDERS.map(p => {
+                    const Icon = PAYMENT_METHOD_ICONS[p];
                     return (
-                      <button key={m} onClick={() => setPaymentMethod(m)}
-                        className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                        <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
-                        <span className={`text-[11px] font-semibold text-center leading-tight ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
+                      <button key={p} onClick={() => setOnlineProvider(p)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all ${onlineProvider === p ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                        {Icon && <Icon size={12} />} {p}
                       </button>
                     );
                   })}
                 </div>
-                {PAYMENT_METHOD_GROUPS[1].map(m => {
-                  const Icon = PAYMENT_METHOD_ICONS[m];
-                  return (
-                    <button key={m} onClick={() => setPaymentMethod(m)}
-                      className={`w-full flex flex-col items-center gap-1 py-3 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                      <Icon size={20} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
-                      <span className={`text-[11px] font-semibold ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
-                    </button>
-                  );
-                })}
-                <div className="grid grid-cols-5 gap-1.5">
-                  {PAYMENT_METHOD_GROUPS[2].map(m => {
-                    const Icon = PAYMENT_METHOD_ICONS[m];
-                    return (
-                      <button key={m} onClick={() => setPaymentMethod(m)}
-                        className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all ${paymentMethod === m ? 'bg-blue-50 border-blue-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                        <Icon size={18} className={paymentMethod === m ? 'text-blue-600' : 'text-gray-500'} />
-                        <span className={`text-[11px] font-semibold text-center leading-tight ${paymentMethod === m ? 'text-blue-700' : 'text-gray-600'}`}>{m}</span>
-                      </button>
-                    );
-                  })}
+              )}
+
+              {paymentMode === 'Online' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Amount Paid</label>
+                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Reference No.</label>
+                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  </div>
                 </div>
+              )}
+
+              {paymentMode === 'Card' && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Amount Paid</label>
+                    <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Reference / Approval No. (Optional)</label>
+                    <input className="form-input text-sm" placeholder="Approval code" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {paymentMode === 'Split' && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">Cash</label>
+                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 font-medium">Online / Card</label>
+                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
+                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {/* Payment summary — Change is prominent when payment is sufficient; a
+                  Remaining figure takes its place (same red accent already used
+                  elsewhere in this UI for shortfalls) when it isn't. */}
+              <div className="bg-blue-500 text-white rounded-xl p-3 space-y-1.5 mt-3">
+                <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Due</span><span className="font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+                <div className="flex justify-between items-center text-xs"><span className="text-white/80">Total Payment</span><span className="font-semibold tabular-nums">{formatCurrency(totalPayment)}</span></div>
+                {changeDue >= 0 ? (
+                  <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Change</span><span className="tabular-nums">{formatCurrency(changeDue)}</span></div>
+                ) : (
+                  <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>Remaining</span><span className="tabular-nums text-red-200">{formatCurrency(Math.abs(changeDue))}</span></div>
+                )}
               </div>
             </div>
 
             <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-40">
-              {submitting ? 'Processing...' : 'Place Order'}
+              {submitting ? 'Processing...' : 'Complete Sale'}
             </button>
           </div>
         </div>
