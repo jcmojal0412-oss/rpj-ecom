@@ -53,6 +53,13 @@ const ROUTE_MODULES: [string, string][] = [
   // /payslips and /api/payslips paths, deliberately left unlisted here so
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
+  // POS Reports (Dashboard/Cashier's Report/Product Sales/Discount Report)
+  // expose cross-cashier financial data — gated separately from checkout so
+  // a plain cashier can be given 'pos' (checkout + Sales History, needed for
+  // Void/Refund) without also seeing everyone's numbers. Must come before
+  // the generic '/pos' rule below — first startsWith() match wins.
+  ['/pos/reports',      'pos_reports'],
+  ['/api/pos/reports',  'pos_reports'],
   ['/pos',              'pos'],
   ['/api/pos',          'pos'],
   // CEO Overview is owner-only (income, marketing spend, net income) —

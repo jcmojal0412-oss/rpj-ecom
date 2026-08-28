@@ -103,6 +103,7 @@ export const MODULES = [
   { key: 'service_center',   label: 'Service Center',   icon: '🔧' },
   { key: 'marketing_analytics', label: 'Marketing Analytics', icon: '📣' },
   { key: 'pos',              label: 'Point of Sale',    icon: '🧾' },
+  { key: 'pos_reports',      label: 'POS Reports',      icon: '📊' },
 ] as const;
 
 export type ModuleKey = typeof MODULES[number]['key'];
