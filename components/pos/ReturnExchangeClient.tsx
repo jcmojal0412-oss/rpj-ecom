@@ -26,7 +26,11 @@ export default function ReturnExchangeClient({ showToast, onDone }: Props) {
   const [found, setFound] = useState<FoundSale | null>(null);
 
   const findSale = async () => {
-    const id = parseInt(saleNumberInput.trim(), 10);
+    // The receipt prints as "Sale #000046" — accept that pasted verbatim,
+    // or any other punctuation/prefix around the digits, not just a bare
+    // number.
+    const digits = saleNumberInput.replace(/\D/g, '');
+    const id = parseInt(digits, 10);
     if (!id || id <= 0) { setSearchError('Enter a valid Sale # / Receipt #'); return; }
     setSearching(true);
     setSearchError('');
