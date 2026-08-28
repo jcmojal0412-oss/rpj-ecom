@@ -17,6 +17,7 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
   // what was actually collected today (plus/less any Financing/Change).
   const hasAdjustments = sale.cashback_amount > 0 || sale.downpayment_applied > 0;
   const amountDue = Math.max(0, sale.total - sale.cashback_amount - sale.downpayment_applied);
+  const freebieCount = items.filter(it => it.is_freebie).length;
   return (
     <div className="max-w-sm mx-auto">
       <div id="pos-receipt" className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
@@ -35,11 +36,24 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
 
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-1.5">
           {items.map(it => (
-            <div key={it.id} className="flex justify-between text-sm">
-              <span className="text-gray-700">{it.product_name} <span className="text-gray-400">x{it.quantity}</span></span>
-              <span className="font-medium text-gray-900 tabular-nums">{formatCurrency(it.line_total)}</span>
+            <div key={it.id}>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">
+                  {it.product_name} <span className="text-gray-400">x{it.quantity}</span>
+                  {!!it.is_freebie && <span className="ml-1 text-[9px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">Freebie</span>}
+                </span>
+                <span className={`font-medium tabular-nums ${it.is_freebie ? 'text-orange-600' : 'text-gray-900'}`}>
+                  {it.is_freebie ? 'FREE' : formatCurrency(it.line_total)}
+                </span>
+              </div>
+              {!!it.is_freebie && it.original_price != null && (
+                <p className="text-[11px] text-gray-400">Original {formatCurrency(it.original_price)} each</p>
+              )}
             </div>
           ))}
+          {freebieCount > 0 && (
+            <p className="text-xs text-gray-400 pt-0.5">Promo Freebies: {freebieCount} item{freebieCount === 1 ? '' : 's'}</p>
+          )}
         </div>
 
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-1 text-sm">

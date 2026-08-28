@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-interface CartItem { product_id?: number; quantity?: number; service_name?: string; sku?: string; amount?: number; }
+interface CartItem {
+  product_id?: number; quantity?: number; service_name?: string; sku?: string; amount?: number;
+  is_freebie?: boolean; freebie_reason?: string;
+}
 
 // Financing providers collect the balance the store doesn't — the store
 // only ever collects the downpayment (via the normal cash_amount/
@@ -80,7 +83,10 @@ export async function POST(req: NextRequest) {
     // repairs and Expense amounts this session.
     const getProduct = db.prepare('SELECT p.id, p.name, p.sku, p.srp, p.cogs, COALESCE(i.quantity,0) as quantity FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ?');
 
-    const lineData: { product_id: number | null; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
+    const lineData: {
+      product_id: number | null; name: string; sku: string | null; unit_price: number; cogs: number;
+      quantity: number; line_total: number; is_freebie: boolean; original_price: number | null; freebie_reason: string | null;
+    }[] = [];
     for (const raw of items as CartItem[]) {
       // Service/fee lines (Labor Fee, Reservation Fee) carry no product_id —
       // there's no canonical backend price to re-derive, so the client-entered
@@ -93,6 +99,7 @@ export async function POST(req: NextRequest) {
         lineData.push({
           product_id: null, name: String(raw.service_name), sku: raw.sku ?? null,
           unit_price: amount, cogs: 0, quantity: 1, line_total: amount,
+          is_freebie: false, original_price: null, freebie_reason: null,
         });
         continue;
       }
@@ -111,10 +118,18 @@ export async function POST(req: NextRequest) {
           error: `Not enough stock for "${product.name}" — only ${product.quantity} left, tried to sell ${qty}.`,
         }, { status: 400 });
       }
-      const unitPrice = product.srp ?? 0;
+      // Freebie: selling price is forced to 0 (never trusted from the client
+      // as a raw override — only the boolean flag is), but cogs stays the
+      // real product cost below, same as any other line. original_price is
+      // re-derived from the product's own SRP, never taken from the client,
+      // so it can't be spoofed into an inflated "was worth this much" figure.
+      const isFreebie = !!raw?.is_freebie;
+      const unitPrice = isFreebie ? 0 : (product.srp ?? 0);
       lineData.push({
         product_id: product.id, name: product.name, sku: product.sku,
         unit_price: unitPrice, cogs: product.cogs ?? 0, quantity: qty, line_total: unitPrice * qty,
+        is_freebie: isFreebie, original_price: isFreebie ? (product.srp ?? 0) : null,
+        freebie_reason: isFreebie ? (String(raw?.freebie_reason ?? '').trim() || null) : null,
       });
     }
 
@@ -186,8 +201,8 @@ export async function POST(req: NextRequest) {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?)
     `);
     const insertItem = db.prepare(`
-      INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total)
-      VALUES (?,?,?,?,?,?,?,?)
+      INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total, is_freebie, original_price, freebie_reason)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
     `);
     const insertMovement = db.prepare(`
       INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'OUT', ?, ?, datetime('now'))
@@ -211,9 +226,11 @@ export async function POST(req: NextRequest) {
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
-        insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.cogs, l.quantity, l.line_total);
+        insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.cogs, l.quantity, l.line_total, l.is_freebie ? 1 : 0, l.original_price, l.freebie_reason);
+        // Freebies still deduct inventory — they're given away, not sold,
+        // but the store still physically hands over real stock.
         if (l.product_id != null) {
-          insertMovement.run(l.product_id, l.quantity, `POS Sale #${id}`);
+          insertMovement.run(l.product_id, l.quantity, l.is_freebie ? `POS Sale #${id} (Freebie)` : `POS Sale #${id}`);
           adjustInventory.run(l.product_id, -l.quantity);
         }
       }

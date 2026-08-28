@@ -23,6 +23,13 @@ export interface CartLine {
   unit_price: number;
   quantity: number;
   stock?: number;
+  // Freebie/promo: selling price forced to 0, but the product still deducts
+  // inventory and its real cost still counts as COGS — original_price is
+  // what it would normally have sold for (the product's own SRP), preserved
+  // for display only, never treated as a discount.
+  is_freebie?: boolean;
+  original_price?: number;
+  freebie_reason?: string;
 }
 
 export interface ServiceFeeItem { name: string; sku: string; }
@@ -39,6 +46,9 @@ export interface SaleItem {
   unit_price: number;
   quantity: number;
   line_total: number;
+  is_freebie: number | boolean;
+  original_price: number | null;
+  freebie_reason: string | null;
 }
 
 export interface Sale {

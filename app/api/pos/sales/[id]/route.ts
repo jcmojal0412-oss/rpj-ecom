@@ -16,7 +16,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const items = db.prepare(`
-      SELECT id, product_id, product_name, sku, unit_price, quantity, line_total
+      SELECT id, product_id, product_name, sku, unit_price, quantity, line_total,
+             is_freebie, original_price, freebie_reason
       FROM pos_sale_items WHERE sale_id = ? ORDER BY id
     `).all(params.id);
 

@@ -1277,6 +1277,16 @@ function migrateSchema() {
     WHERE (cogs IS NULL OR cogs = 0) AND product_id IS NOT NULL
   `);
 
+  // Freebie/promo items: selling price is forced to 0 (so revenue reports
+  // are correct with zero changes to any SUM(line_total)/SUM(total) query),
+  // but cogs above stays the real product cost — a freebie still costs the
+  // business money, it just doesn't charge the customer. original_price
+  // preserves what the item would normally have sold for, for the receipt
+  // and future reporting; it's never treated as a discount.
+  if (!saleItemCols.includes('is_freebie'))     db.exec('ALTER TABLE pos_sale_items ADD COLUMN is_freebie INTEGER DEFAULT 0');
+  if (!saleItemCols.includes('original_price')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN original_price REAL');
+  if (!saleItemCols.includes('freebie_reason')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN freebie_reason TEXT');
+
   // Cashier shifts — optional clock-in/out with cash-drawer reconciliation.
   // Starting a shift is never required to use the POS: a sale made with no
   // open shift just gets shift_id = NULL, exactly like before this feature

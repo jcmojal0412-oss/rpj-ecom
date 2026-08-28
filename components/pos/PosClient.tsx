@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
-  Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock,
+  Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock, Gift,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -468,6 +468,8 @@ export default function PosClient() {
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
   const [serviceAmountInput, setServiceAmountInput] = useState('');
+  const [freebieTarget, setFreebieTarget] = useState<CartLine | null>(null);
+  const [freebieReasonInput, setFreebieReasonInput] = useState('');
   const { toast, showToast, clearToast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -544,14 +546,34 @@ export default function PosClient() {
   };
 
   const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key));
+
+  // Freebie/promo: forces selling price to 0 while preserving the original
+  // price so it can be restored on unmark — inventory/COGS are untouched by
+  // this (still keyed off the same product_id/quantity), only unit_price
+  // changes, so subtotal/total/Gross Sales naturally exclude it with no
+  // other calculation needing to change.
+  const confirmFreebie = () => {
+    if (!freebieTarget) return;
+    setCart(prev => prev.map(l => l.key === freebieTarget.key
+      ? { ...l, is_freebie: true, original_price: l.unit_price, unit_price: 0, freebie_reason: freebieReasonInput.trim() || undefined }
+      : l));
+    setFreebieTarget(null); setFreebieReasonInput('');
+  };
+  const unmarkFreebie = (key: string) => {
+    setCart(prev => prev.map(l => (l.key === key && l.is_freebie)
+      ? { ...l, is_freebie: false, unit_price: l.original_price ?? l.unit_price, original_price: undefined, freebie_reason: undefined }
+      : l));
+  };
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
     setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
     setCashbackAmount(''); setDownpaymentApplied('');
+    setFreebieTarget(null); setFreebieReasonInput('');
   };
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
+  const freebieCount = cart.filter(l => l.is_freebie).length;
   const discountNum = parseFloat(discount) || 0;
   const feeNum = parseFloat(additionalFee) || 0;
   const taxPercentNum = parseFloat(taxPercent) || 0;
@@ -671,7 +693,7 @@ export default function PosClient() {
         body: JSON.stringify({
           business_id: Number(businessId),
           items: cart.map(l => l.kind === 'product'
-            ? { product_id: l.product_id, quantity: l.quantity }
+            ? { product_id: l.product_id, quantity: l.quantity, is_freebie: !!l.is_freebie, freebie_reason: l.freebie_reason }
             : { service_name: l.name, sku: l.sku, amount: l.unit_price }),
           discount: discountNum, additional_fee: feeNum,
           tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
@@ -821,19 +843,34 @@ export default function PosClient() {
                 {cart.map(l => (
                   <div key={l.key} className="flex items-center gap-2 py-2 border-b border-gray-50">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-800 truncate">{l.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-gray-800 truncate">{l.name}</p>
+                        {l.is_freebie && <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">Freebie</span>}
+                      </div>
                       <p className="text-[11px] text-gray-400 tabular-nums">
-                        {l.kind === 'service' ? 'Service / fee' : `${formatCurrency(l.unit_price)} each`}
+                        {l.kind === 'service' ? 'Service / fee'
+                          : l.is_freebie ? `Original ${formatCurrency(l.original_price ?? 0)} each`
+                          : `${formatCurrency(l.unit_price)} each`}
                       </p>
                     </div>
                     {l.kind === 'product' && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => changeQty(l.key, -1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
-                        <span className="text-xs font-semibold w-5 text-center tabular-nums">{l.quantity}</span>
-                        <button onClick={() => changeQty(l.key, 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
-                      </div>
+                      <>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => changeQty(l.key, -1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
+                          <span className="text-xs font-semibold w-5 text-center tabular-nums">{l.quantity}</span>
+                          <button onClick={() => changeQty(l.key, 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
+                        </div>
+                        <button
+                          onClick={() => l.is_freebie ? unmarkFreebie(l.key) : setFreebieTarget(l)}
+                          title={l.is_freebie ? 'Remove Freebie status' : 'Mark as Freebie'}
+                          className={`p-1 rounded shrink-0 ${l.is_freebie ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}>
+                          <Gift size={13} />
+                        </button>
+                      </>
                     )}
-                    <span className="text-xs font-bold text-gray-900 w-16 text-right tabular-nums shrink-0">{formatCurrency(l.unit_price * l.quantity)}</span>
+                    <span className={`text-xs font-bold w-16 text-right tabular-nums shrink-0 ${l.is_freebie ? 'text-orange-600' : 'text-gray-900'}`}>
+                      {l.is_freebie ? 'FREE' : formatCurrency(l.unit_price * l.quantity)}
+                    </span>
                     <button onClick={() => removeLine(l.key)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
                   </div>
                 ))}
@@ -879,6 +916,7 @@ export default function PosClient() {
                 Sale) stays untouched above them, and AMOUNT DUE is the true bottom line. */}
             <div className="bg-emerald-500 text-white rounded-xl p-3 space-y-1.5">
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Subtotal</span><span className="tabular-nums font-semibold">{formatCurrency(subtotal)}</span></div>
+              {freebieCount > 0 && <div className="flex justify-between items-center text-xs"><span className="text-white/90">Freebies</span><span className="tabular-nums font-semibold">{freebieCount} item{freebieCount === 1 ? '' : 's'}</span></div>}
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Additional Fee</span><span className="tabular-nums font-semibold">{formatCurrency(feeNum)}</span></div>
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Discount</span><span className="tabular-nums font-semibold">-{formatCurrency(discountNum)}</span></div>
               {cashbackNum > 0 && <div className="flex justify-between items-center text-xs"><span className="text-white/90">Cashback Redeemed</span><span className="tabular-nums font-semibold">-{formatCurrency(cashbackNum)}</span></div>}
@@ -1096,6 +1134,33 @@ export default function PosClient() {
                 className="btn-primary disabled:opacity-40">
                 Add to Order
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {freebieTarget && (
+        <Modal open onClose={() => { setFreebieTarget(null); setFreebieReasonInput(''); }} title="Mark this item as FREEBIE?" size="sm">
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Original SRP</span>
+                <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(freebieTarget.unit_price)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Selling Price</span>
+                <span className="font-bold text-orange-600 tabular-nums">₱0.00</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Inventory will still be deducted normally.</p>
+            <div>
+              <label className="text-[11px] text-gray-500 font-medium">Freebie Reason / Promo (Optional)</label>
+              <input className="form-input text-sm" placeholder="e.g. Buy 1 Take 1, Bundle Promo, Manager Approved"
+                value={freebieReasonInput} onChange={e => setFreebieReasonInput(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setFreebieTarget(null); setFreebieReasonInput(''); }} className="btn-secondary">Cancel</button>
+              <button onClick={confirmFreebie} className="btn-primary">Confirm Freebie</button>
             </div>
           </div>
         </Modal>
