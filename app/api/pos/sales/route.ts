@@ -86,6 +86,8 @@ export async function POST(req: NextRequest) {
     // own numbers are never trusted, same principle used for Service Center
     // repairs and Expense amounts this session.
     const getProduct = db.prepare('SELECT p.id, p.name, p.sku, p.srp, p.cogs, COALESCE(i.quantity,0) as quantity FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ?');
+    const allowZeroStockRow = db.prepare(`SELECT value FROM app_settings WHERE key = 'pos_allow_zero_stock'`).get() as { value: string } | undefined;
+    const allowZeroStock = allowZeroStockRow?.value === '1';
 
     const lineData: {
       product_id: number | null; name: string; sku: string | null; unit_price: number; cogs: number;
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
       if (!product) {
         return NextResponse.json({ error: `Product #${raw.product_id} no longer exists` }, { status: 400 });
       }
-      if (qty > product.quantity) {
+      if (!allowZeroStock && qty > product.quantity) {
         return NextResponse.json({
           error: `Not enough stock for "${product.name}" — only ${product.quantity} left, tried to sell ${qty}.`,
         }, { status: 400 });

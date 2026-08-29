@@ -1409,6 +1409,14 @@ function migrateSchema() {
   }
   db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_receipt_seq_next', '108')`).run();
 
+  // Owner-controlled escape hatch for stores mid-migration into this POS
+  // (inventory quantities not yet counted, so most products sit at 0):
+  // when on, the POS lets a cashier sell a product regardless of its
+  // recorded stock instead of blocking every sale. Off by default — a
+  // fresh install with real inventory numbers should never silently allow
+  // overselling.
+  db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_allow_zero_stock', '0')`).run();
+
   // external_ref holds the source transaction ID (e.g. "REF-05357034") for a
   // sale migrated in from the old POS system — the one stable key the export
   // provides per transaction. A unique index makes re-uploading an export

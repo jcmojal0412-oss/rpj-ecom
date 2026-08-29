@@ -16,7 +16,7 @@ import ReturnExchangeClient from './ReturnExchangeClient';
 import { SERVICE_FEE_ITEMS, FINANCING_PROVIDERS, type Business, type Product, type CartLine, type Sale, type SaleItem, type Shift, type ServiceFeeItem, type FinancingByProvider } from './constants';
 import { EXPENSE_CATEGORIES } from '@/components/expenses/constants';
 
-interface SessionUser { id: number; name: string; }
+interface SessionUser { id: number; name: string; role?: string; }
 
 // Sentinel category value selecting the Services and fees tab — not a real
 // product category, so it can never collide with one loaded from the DB.
@@ -494,8 +494,14 @@ export default function PosClient() {
   const [freebieTarget, setFreebieTarget] = useState<CartLine | null>(null);
   const [freebieReasonInput, setFreebieReasonInput] = useState('');
   const [posMode, setPosMode] = useState<'sale' | 'return'>('sale');
+  // Owner-controlled escape hatch for a store that hasn't finished its
+  // general inventory count yet (most products sitting at 0) — while on,
+  // the POS lets a sale go through regardless of recorded stock instead of
+  // blocking checkout on numbers that aren't trustworthy yet.
+  const [allowZeroStock, setAllowZeroStock] = useState(false);
   const { toast, showToast, clearToast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
+  const isOwner = cashier?.role === 'owner';
 
   const loadProducts = () => fetch('/api/pos/products').then(r => r.json()).then(d => setProducts(d.rows ?? []));
 
@@ -515,8 +521,19 @@ export default function PosClient() {
         setBusinessId(String((rows[0] ?? allRows[0])?.id ?? ''));
       }),
       fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setCashier(u); }),
+      fetch('/api/pos/config').then(r => r.json()).then(d => setAllowZeroStock(!!d.allow_zero_stock)),
     ]).finally(() => setLoading(false));
   }, []);
+
+  const toggleAllowZeroStock = async () => {
+    const next = !allowZeroStock;
+    setAllowZeroStock(next); // optimistic — this is a low-stakes toggle
+    const res = await fetch('/api/pos/config', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allow_zero_stock: next }),
+    });
+    if (!res.ok) { setAllowZeroStock(!next); showToast('Failed to update setting', 'error'); }
+  };
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -538,23 +555,27 @@ export default function PosClient() {
         if (p.quantity <= 0) return false;
       } else {
         if (category !== 'All' && p.category !== category) return false;
-        if (p.quantity <= 0 && !showOutOfStock) return false;
+        // Zero-stock items are always visible while the bypass is on — the
+        // whole point is that these numbers aren't trustworthy right now,
+        // so hiding them behind a separate checkbox would defeat it.
+        if (p.quantity <= 0 && !showOutOfStock && !allowZeroStock) return false;
       }
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [products, search, category, showOutOfStock]);
+  }, [products, search, category, showOutOfStock, allowZeroStock]);
 
   const addToCart = (p: Product) => {
-    if (p.quantity <= 0) { showToast(`${p.name} is out of stock`, 'error'); return; }
+    if (p.quantity <= 0 && !allowZeroStock) { showToast(`${p.name} is out of stock`, 'error'); return; }
     setCart(prev => {
       // A freebie line never absorbs a later "Add to Cart" click for the
       // same product — e.g. customer gets 1 free unit via a promo, then
       // decides to buy a 2nd at full price; that needs its own paid line
       // rather than silently doubling the freebie. Stock is still checked
-      // against the combined quantity across every line of this product.
+      // against the combined quantity across every line of this product,
+      // unless the zero-stock bypass is on.
       const totalInCart = prev.filter(l => l.kind === 'product' && l.product_id === p.id).reduce((s, l) => s + l.quantity, 0);
-      if (totalInCart >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
+      if (!allowZeroStock && totalInCart >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
       const existing = prev.find(l => l.kind === 'product' && l.product_id === p.id && !l.is_freebie);
       if (existing) {
         return prev.map(l => l === existing ? { ...l, quantity: l.quantity + 1 } : l);
@@ -579,7 +600,7 @@ export default function PosClient() {
       // the stock cap has to account for every line sharing that product,
       // not just this one — otherwise two lines could each independently
       // "fit" under the total stock while together overselling it.
-      if (delta > 0 && target.kind === 'product' && target.stock != null) {
+      if (!allowZeroStock && delta > 0 && target.kind === 'product' && target.stock != null) {
         const others = prev.filter(l => l.kind === 'product' && l.product_id === target.product_id && l.key !== key)
           .reduce((s, l) => s + l.quantity, 0);
         if (next + others > target.stock) { showToast(`Only ${target.stock} in stock`, 'error'); return prev; }
@@ -841,13 +862,27 @@ export default function PosClient() {
               Services
             </button>
           </div>
-          <div className="flex items-center mb-3 shrink-0">
+          <div className="flex items-center gap-4 mb-3 shrink-0 flex-wrap">
             <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
               <input type="checkbox" className="rounded border-gray-300 text-orange-500 focus:ring-orange-400"
                 checked={showOutOfStock} onChange={e => setShowOutOfStock(e.target.checked)} />
               Show Out of Stock
               {outOfStockCount > 0 && !showOutOfStock && <span className="text-gray-400">({outOfStockCount} hidden)</span>}
             </label>
+            {/* Owner-only escape hatch for a store mid-migration into this
+                POS (inventory not yet counted, so most products sit at 0) —
+                lets a sale go through regardless of recorded stock. Any
+                cashier can see the current state (it explains why "Out"
+                items are sellable), but only the owner can flip it. */}
+            {isOwner ? (
+              <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${allowZeroStock ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>
+                <input type="checkbox" className="rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                  checked={allowZeroStock} onChange={toggleAllowZeroStock} />
+                Allow selling at 0 stock (inventory not yet counted)
+              </label>
+            ) : allowZeroStock && (
+              <span className="text-xs text-amber-700 font-semibold">Zero-stock sales allowed (owner setting)</span>
+            )}
           </div>
           <div className="flex-1 overflow-auto">
             {category === SERVICES_TAB ? (
@@ -866,14 +901,14 @@ export default function PosClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map(p => (
-                  <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0}
+                  <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0 && !allowZeroStock}
                     className="bg-white border border-gray-200 rounded-lg p-2.5 text-left hover:border-orange-300 hover:shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                     <p className="text-xs font-semibold text-gray-800 leading-snug line-clamp-2 min-h-[2rem]">{p.name}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{p.sku}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-xs font-bold text-orange-600 tabular-nums">{formatCurrency(p.srp ?? 0)}</span>
                       <span className={`text-[9px] font-semibold ${p.quantity <= 0 ? 'text-red-500' : p.quantity <= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
-                        {p.quantity <= 0 ? 'Out' : `${p.quantity} left`}
+                        {p.quantity <= 0 ? (allowZeroStock ? 'Not counted' : 'Out') : `${p.quantity} left`}
                       </span>
                     </div>
                   </button>
