@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal';
 import ImportModal from '@/components/products/ImportModal';
 import StockForm from './StockForm';
 import MovementLog from './MovementLog';
+import NegativeStockPanel from './NegativeStockPanel';
 import Spinner from '@/components/ui/Spinner';
 
 interface InventoryItem {
@@ -83,6 +84,9 @@ export default function InventoryClient() {
   };
 
   const statusBadge = (qty: number, reorder: number) => {
+    // Physically impossible — flagged distinctly from a plain "Out of
+    // Stock" 0 so it doesn't get mistaken for a normal restock-needed item.
+    if (qty < 0) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white">Negative</span>;
     if (qty === 0) return <span className="badge-red">Out of Stock</span>;
     if (qty <= reorder) return <span className="badge-amber">Low Stock</span>;
     return <span className="badge-green">OK</span>;
@@ -101,6 +105,9 @@ export default function InventoryClient() {
           <FileSpreadsheet size={16} /> Bulk Import (Excel)
         </button>
       </div>
+
+      {/* Negative Stock — physically impossible, needs a real recount */}
+      <NegativeStockPanel refreshKey={movementRefreshKey} />
 
       {/* Stock In / Stock Out Form */}
       <StockForm products={items} onSuccess={fetchInventory} />
