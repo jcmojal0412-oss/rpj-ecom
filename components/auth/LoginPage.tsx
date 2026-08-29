@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff, ArrowLeft, ChevronRight } from 'lucide-react';
 import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
+import { resolveLandingPath } from '@/lib/nav-priority';
 
 interface StaffUser {
   id: number;
@@ -56,7 +57,11 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? 'Invalid credentials'); return; }
-      router.push('/');
+      // Owner lands on the Dashboard; staff land directly on the first
+      // module they actually have access to, so a cashier isn't dropped on
+      // an overview screen meant for the owner before reaching their own
+      // work area.
+      router.push(resolveLandingPath(data.user.role, data.user.permissions));
       router.refresh();
     } finally {
       setLoading(false);

@@ -19,7 +19,9 @@ export default function SalesHistoryClient() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [preset, setPreset] = useState<DatePreset | null>(null);
+  // Defaults to Today — "All Dates" pulls the entire sales history with no
+  // limit, which gets slow to load as the table grows. Still one click away.
+  const [preset, setPreset] = useState<DatePreset | null>('Today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [businessId, setBusinessId] = useState('');
