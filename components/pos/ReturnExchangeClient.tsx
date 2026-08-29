@@ -524,9 +524,9 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
   );
 }
 
-interface BackfillRow { key: string; productId: string; search: string; qty: string; unitPrice: string; }
+interface BackfillRow { key: string; kind: 'product' | 'service'; productId: string; search: string; serviceName: string; qty: string; unitPrice: string; }
 let backfillRowKeySeq = 0;
-const newBackfillRow = (): BackfillRow => ({ key: `b${++backfillRowKeySeq}`, productId: '', search: '', qty: '1', unitPrice: '' });
+const newBackfillRow = (): BackfillRow => ({ key: `b${++backfillRowKeySeq}`, kind: 'product', productId: '', search: '', serviceName: '', qty: '1', unitPrice: '' });
 
 // Creates a stand-in sale record for a purchase never entered into this
 // system (predates it, or fell outside the historical Excel import), then
@@ -554,15 +554,16 @@ function BackfillEntryForm({ businessId, onCreated, onCancel }: {
   const addRow = () => setRows(prev => [...prev, newBackfillRow()]);
   const removeRow = (key: string) => setRows(prev => prev.length > 1 ? prev.filter(r => r.key !== key) : prev);
 
-  const activeRows = rows.filter(r => r.productId);
+  const activeRows = rows.filter(r => r.kind === 'service' ? r.serviceName.trim() : r.productId);
   const total = activeRows.reduce((s, r) => s + (parseFloat(r.unitPrice) || 0) * (parseInt(r.qty, 10) || 0), 0);
 
   const submit = async () => {
     setError('');
-    if (activeRows.length === 0) { setError('Add at least one item that was bought'); return; }
+    if (activeRows.length === 0) { setError('Add at least one item or service/fee that was paid for'); return; }
     for (const r of activeRows) {
       const qty = parseInt(r.qty, 10);
       const price = parseFloat(r.unitPrice);
+      if (r.kind === 'service' && !r.serviceName.trim()) { setError('Every service/fee row needs a name'); return; }
       if (!qty || qty <= 0) { setError('Every item needs a quantity greater than 0'); return; }
       if (!Number.isFinite(price) || r.unitPrice.trim() === '' || price < 0) { setError('Every item needs a price (0 is fine, blank is not)'); return; }
     }
@@ -577,7 +578,9 @@ function BackfillEntryForm({ businessId, onCreated, onCancel }: {
           business_id: businessId ? parseInt(businessId, 10) : null,
           sale_date: saleDate,
           note,
-          items: activeRows.map(r => ({ product_id: parseInt(r.productId, 10), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) })),
+          items: activeRows.map(r => r.kind === 'service'
+            ? { service_name: r.serviceName.trim(), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) }
+            : { product_id: parseInt(r.productId, 10), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) }),
         }),
       });
       const data = await res.json();
@@ -607,7 +610,7 @@ function BackfillEntryForm({ businessId, onCreated, onCancel }: {
       </div>
 
       <div className="space-y-2">
-        <label className="form-label">Item(s) Bought</label>
+        <label className="form-label">Item(s) / Service(s) Bought</label>
         {rows.map((row, idx) => {
           const rowProduct = products.find(p => String(p.id) === row.productId);
           const rowFiltered = products.filter(p =>
@@ -616,25 +619,44 @@ function BackfillEntryForm({ businessId, onCreated, onCancel }: {
           ).slice(0, 10);
           return (
             <div key={row.key} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
-              <div className="relative sm:col-span-6">
-                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Product</label>}
-                <input
-                  className="form-input text-sm"
-                  placeholder="Search by SKU or name..."
-                  value={rowProduct ? `${rowProduct.sku} — ${rowProduct.name}` : row.search}
-                  onChange={e => { updateRow(row.key, { search: e.target.value, productId: '' }); setOpenRow(row.key); }}
-                  onFocus={() => setOpenRow(row.key)}
-                  onBlur={() => setTimeout(() => setOpenRow(o => o === row.key ? null : o), 200)}
-                />
-                {openRow === row.key && row.search && !row.productId && rowFiltered.length > 0 && (
-                  <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
-                    {rowFiltered.map(p => (
-                      <li key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
-                        onMouseDown={() => updateRow(row.key, { productId: String(p.id), search: '', unitPrice: String(p.srp ?? '') })}>
-                        <span className="font-mono text-xs text-gray-500 mr-2">{p.sku}</span>{p.name}
-                      </li>
-                    ))}
-                  </ul>
+              <div className="sm:col-span-2">
+                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Type</label>}
+                <select className="form-input text-xs" value={row.kind}
+                  onChange={e => updateRow(row.key, { kind: e.target.value as 'product' | 'service', productId: '', search: '', serviceName: '' })}>
+                  <option value="product">Product</option>
+                  <option value="service">Service/Fee</option>
+                </select>
+              </div>
+              <div className="relative sm:col-span-4">
+                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">{row.kind === 'service' ? 'Service/Fee Name' : 'Product'}</label>}
+                {row.kind === 'service' ? (
+                  <input
+                    className="form-input text-sm"
+                    placeholder="e.g. Labor / Service Fee"
+                    value={row.serviceName}
+                    onChange={e => updateRow(row.key, { serviceName: e.target.value })}
+                  />
+                ) : (
+                  <>
+                    <input
+                      className="form-input text-sm"
+                      placeholder="Search by SKU or name..."
+                      value={rowProduct ? `${rowProduct.sku} — ${rowProduct.name}` : row.search}
+                      onChange={e => { updateRow(row.key, { search: e.target.value, productId: '' }); setOpenRow(row.key); }}
+                      onFocus={() => setOpenRow(row.key)}
+                      onBlur={() => setTimeout(() => setOpenRow(o => o === row.key ? null : o), 200)}
+                    />
+                    {openRow === row.key && row.search && !row.productId && rowFiltered.length > 0 && (
+                      <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                        {rowFiltered.map(p => (
+                          <li key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                            onMouseDown={() => updateRow(row.key, { productId: String(p.id), search: '', unitPrice: String(p.srp ?? '') })}>
+                            <span className="font-mono text-xs text-gray-500 mr-2">{p.sku}</span>{p.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </div>
               <div className="sm:col-span-2">

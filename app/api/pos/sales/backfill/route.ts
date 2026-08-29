@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-interface BackfillItem { product_id: number; quantity: number; unit_price: number; }
+interface BackfillItem { product_id?: number; service_name?: string; quantity: number; unit_price: number; }
 
 // Creates a stand-in sale record for a purchase that happened before this
 // POS was in use (or that fell outside the historical Excel import) so it
@@ -45,18 +45,32 @@ export async function POST(req: NextRequest) {
     }
 
     const getProduct = db.prepare('SELECT id, name, sku, cogs FROM products WHERE id = ?');
-    const lineData: { product_id: number; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
+    const lineData: { product_id: number | null; name: string; sku: string | null; unit_price: number; cogs: number; quantity: number; line_total: number }[] = [];
     for (const raw of items as BackfillItem[]) {
-      const productId = Number(raw.product_id);
       const qty = parseInt(String(raw.quantity), 10);
       // Unlike a live sale, price isn't re-derived from the product's
       // current SRP — it's whatever the cashier recalls the customer
       // actually paid, which may differ from today's price. Only sanity
       // checked, not overridden.
       const unitPrice = parseFloat(String(raw.unit_price));
-      if (!productId) return NextResponse.json({ error: 'Every item needs a product' }, { status: 400 });
       if (!qty || qty <= 0) return NextResponse.json({ error: 'Every item needs a quantity greater than 0' }, { status: 400 });
       if (!Number.isFinite(unitPrice) || unitPrice < 0) return NextResponse.json({ error: 'Every item needs a valid, non-negative price' }, { status: 400 });
+
+      // Labor/service fees (Labor Fee, Reservation Fee) carry no product_id
+      // — same as a live sale's service lines — there's no catalog price to
+      // re-derive or stock to worry about, just a name and what was paid.
+      if (raw.service_name) {
+        const serviceName = String(raw.service_name).trim();
+        if (!serviceName) return NextResponse.json({ error: 'Every service/fee item needs a name' }, { status: 400 });
+        lineData.push({
+          product_id: null, name: serviceName, sku: null,
+          unit_price: unitPrice, cogs: 0, quantity: qty, line_total: unitPrice * qty,
+        });
+        continue;
+      }
+
+      const productId = Number(raw.product_id);
+      if (!productId) return NextResponse.json({ error: 'Every item needs a product' }, { status: 400 });
 
       const product = getProduct.get(productId) as { id: number; name: string; sku: string | null; cogs: number | null } | undefined;
       if (!product) return NextResponse.json({ error: `Product #${productId} not found` }, { status: 400 });
