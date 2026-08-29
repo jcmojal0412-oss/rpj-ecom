@@ -548,12 +548,18 @@ export default function PosClient() {
   const addToCart = (p: Product) => {
     if (p.quantity <= 0) { showToast(`${p.name} is out of stock`, 'error'); return; }
     setCart(prev => {
-      const existing = prev.find(l => l.kind === 'product' && l.product_id === p.id);
+      // A freebie line never absorbs a later "Add to Cart" click for the
+      // same product — e.g. customer gets 1 free unit via a promo, then
+      // decides to buy a 2nd at full price; that needs its own paid line
+      // rather than silently doubling the freebie. Stock is still checked
+      // against the combined quantity across every line of this product.
+      const totalInCart = prev.filter(l => l.kind === 'product' && l.product_id === p.id).reduce((s, l) => s + l.quantity, 0);
+      if (totalInCart >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
+      const existing = prev.find(l => l.kind === 'product' && l.product_id === p.id && !l.is_freebie);
       if (existing) {
-        if (existing.quantity >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
         return prev.map(l => l === existing ? { ...l, quantity: l.quantity + 1 } : l);
       }
-      return [...prev, { kind: 'product', key: `p-${p.id}`, product_id: p.id, name: p.name, sku: p.sku, unit_price: p.srp ?? 0, quantity: 1, stock: p.quantity }];
+      return [...prev, { kind: 'product', key: `p-${p.id}-${Date.now()}`, product_id: p.id, name: p.name, sku: p.sku, unit_price: p.srp ?? 0, quantity: 1, stock: p.quantity }];
     });
   };
 
@@ -565,14 +571,21 @@ export default function PosClient() {
   };
 
   const changeQty = (key: string, delta: number) => {
-    setCart(prev => prev
-      .map(l => {
-        if (l.key !== key) return l;
-        const next = l.quantity + delta;
-        if (l.stock != null && next > l.stock) { showToast(`Only ${l.stock} in stock`, 'error'); return l; }
-        return { ...l, quantity: next };
-      })
-      .filter(l => l.quantity > 0));
+    setCart(prev => {
+      const target = prev.find(l => l.key === key);
+      if (!target) return prev;
+      const next = target.quantity + delta;
+      // When a product has more than one line (e.g. one freebie + one paid),
+      // the stock cap has to account for every line sharing that product,
+      // not just this one — otherwise two lines could each independently
+      // "fit" under the total stock while together overselling it.
+      if (delta > 0 && target.kind === 'product' && target.stock != null) {
+        const others = prev.filter(l => l.kind === 'product' && l.product_id === target.product_id && l.key !== key)
+          .reduce((s, l) => s + l.quantity, 0);
+        if (next + others > target.stock) { showToast(`Only ${target.stock} in stock`, 'error'); return prev; }
+      }
+      return prev.map(l => l.key === key ? { ...l, quantity: next } : l).filter(l => l.quantity > 0);
+    });
   };
 
   const removeLine = (key: string) => setCart(prev => prev.filter(l => l.key !== key));
