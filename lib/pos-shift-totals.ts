@@ -52,6 +52,53 @@ export function computeShiftFinancingByProvider(db: Database.Database, shiftId: 
   `).all(shiftId) as { provider: string; amount: number }[];
 }
 
+// Best-effort per-method breakdown of "Online Sales" (Card, GCash, Maya,
+// Sodexo, Bank Transfer) — the online_amount scalar itself only ever
+// tracks the combined non-cash total, never which specific method(s) made
+// it up. Two sources, merged:
+//  1. pos_sale_payments — the itemized rows a Split-mode sale or a
+//     multi-method Financing downpayment actually writes.
+//  2. Every other non-cash sale (the common single-tender case, Online/
+//     Card mode, which never writes payment-leg rows at all) — bucketed by
+//     parsing its payment_method label, using the same change-adjusted
+//     "applied" amount as online_sales itself so the sub-lines always sum
+//     to the same total shown on the Online Sales line above them.
+export function computeShiftOnlineByMethod(db: Database.Database, shiftId: number): { method: string; amount: number }[] {
+  const fromLegs = db.prepare(`
+    SELECT p.method as method, SUM(p.amount) as amount
+    FROM pos_sale_payments p
+    JOIN pos_sales s ON s.id = p.sale_id
+    WHERE s.shift_id = ? AND s.status != 'Voided' AND p.method != 'Cash'
+    GROUP BY p.method
+  `).all(shiftId) as { method: string; amount: number }[];
+
+  const fromLabel = db.prepare(`
+    SELECT
+      CASE
+        WHEN payment_method LIKE '%Credit Card%' THEN 'Credit Card'
+        WHEN payment_method LIKE '%GCash%' THEN 'GCash'
+        WHEN payment_method LIKE '%Maya%' THEN 'Maya'
+        WHEN payment_method LIKE '%Sodexo%' THEN 'Sodexo'
+        WHEN payment_method LIKE '%Bank Transfer%' THEN 'Bank Transfer'
+        ELSE 'Other'
+      END as method,
+      SUM(${ONLINE_APPLIED_SQL}) as amount
+    FROM pos_sales
+    WHERE shift_id = ? AND status != 'Voided' AND online_amount > 0
+      AND id NOT IN (SELECT DISTINCT sale_id FROM pos_sale_payments)
+    GROUP BY method
+  `).all(shiftId) as { method: string; amount: number }[];
+
+  const merged = new Map<string, number>();
+  for (const row of [...fromLegs, ...fromLabel]) {
+    merged.set(row.method, (merged.get(row.method) ?? 0) + row.amount);
+  }
+  return [...merged.entries()]
+    .map(([method, amount]) => ({ method, amount }))
+    .filter(r => r.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+}
+
 // Only cash_out_amount counts here — the portion of a refund that actually
 // left the drawer as physical cash (a plain refund's full value when paid
 // back in cash; only the leftover excess for an exchange's returned item,

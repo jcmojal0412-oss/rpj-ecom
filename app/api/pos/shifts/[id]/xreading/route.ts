@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash, computeShiftOnlineByMethod } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +21,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
     const totals = computeShiftSalesTotals(db, shift.id);
     const financingByProvider = computeShiftFinancingByProvider(db, shift.id);
+    const onlineByMethod = computeShiftOnlineByMethod(db, shift.id);
 
     const voidTotals = db.prepare(
       `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
@@ -45,6 +46,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out, cash_refunds: cashRefunds.cash_refunds,
       expected_cash: computeExpectedCash(shift.starting_cash, totals.cash_sales, cashMovements.cash_in, cashMovements.cash_out, cashRefunds.cash_refunds),
       financing_receivable: totals.financing_receivable, financing_by_provider: financingByProvider,
+      online_by_method: onlineByMethod,
       generated_at: new Date().toISOString(),
     });
   } catch (e) {

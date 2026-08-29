@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash, computeShiftOnlineByMethod } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const totals = computeShiftSalesTotals(db, shift.id);
     const financingByProvider = computeShiftFinancingByProvider(db, shift.id);
+    const onlineByMethod = computeShiftOnlineByMethod(db, shift.id);
 
     const voidTotals = db.prepare(
       `SELECT COUNT(*) as void_count, COALESCE(SUM(total),0) as void_amount FROM pos_sales WHERE shift_id = ? AND status = 'Voided'`
@@ -63,6 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       cash_in: cashMovements.cash_in, cash_out: cashMovements.cash_out, cash_refunds: cashRefunds.cash_refunds,
       expected_cash: expectedCash, actual_cash: actualCashNum, discrepancy,
       financing_receivable: totals.financing_receivable, financing_by_provider: financingByProvider,
+      online_by_method: onlineByMethod,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

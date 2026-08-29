@@ -87,6 +87,7 @@ interface ReadingTotals {
   cash_in: number; cash_out: number;
   starting_cash: number; expected_cash: number; actual_cash?: number; discrepancy?: number;
   financing_receivable?: number; financing_by_provider?: FinancingByProvider[];
+  online_by_method?: { method: string; amount: number }[];
 }
 interface XReading extends ReadingTotals { shift: Shift; generated_at: string; }
 interface ZReading extends ReadingTotals {
@@ -121,6 +122,15 @@ function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, 
           <div className="flex justify-between text-gray-500"><span>Transactions</span><span className="tabular-nums">{data.transaction_count}</span></div>
           <div className="flex justify-between text-gray-500"><span>Cash Sales</span><span className="tabular-nums">{formatCurrency(data.cash_sales)}</span></div>
           <div className="flex justify-between text-gray-500"><span>Online Sales</span><span className="tabular-nums">{formatCurrency(data.online_sales)}</span></div>
+          {(data.online_by_method ?? []).length > 0 && (
+            <div className="pl-3 space-y-0.5">
+              {(data.online_by_method ?? []).map(m => (
+                <div key={m.method} className="flex justify-between text-gray-400 text-xs">
+                  <span>{m.method}</span><span className="tabular-nums">{formatCurrency(m.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {data.total_discount > 0 && <div className="flex justify-between text-gray-500"><span>Total Discount</span><span className="tabular-nums">-{formatCurrency(data.total_discount)}</span></div>}
           {data.void_count > 0 && <div className="flex justify-between text-gray-500"><span>Voided ({data.void_count})</span><span className="tabular-nums">{formatCurrency(data.void_amount)}</span></div>}
           {data.refund_amount > 0 && <div className="flex justify-between text-gray-500"><span>Refunded</span><span className="tabular-nums">-{formatCurrency(data.refund_amount)}</span></div>}
