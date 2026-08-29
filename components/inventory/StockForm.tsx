@@ -59,8 +59,15 @@ export default function StockForm({ products, onSuccess }: Props) {
   const switchTab = (t: TabType) => {
     setTab(t);
     setReason('');
-    if (t === 'OUT') setUnitCost('');
-    setBulkRows([newRow(), newRow()]);
+    // Cost per Unit only applies to Stock IN — clear it (both single-item
+    // and every bulk row) when switching to OUT, same as before. Product
+    // and Quantity selections are tab-agnostic and are deliberately kept,
+    // so a misclick between IN/OUT doesn't wipe out rows the cashier
+    // already filled in.
+    if (t === 'OUT') {
+      setUnitCost('');
+      setBulkRows(rows => rows.map(r => ({ ...r, unitCost: '' })));
+    }
   };
 
   const reset = () => {

@@ -6,6 +6,11 @@ export const dynamic = 'force-dynamic';
 
 interface BulkItem { product_id: number; quantity: number; unit_cost?: number; }
 
+// Thrown inside the transaction for a bad row (missing product, insufficient
+// stock, etc.) — distinguished from a genuinely unexpected exception (DB
+// error) so the response status reflects which one actually happened.
+class ValidationError extends Error {}
+
 export async function POST(req: NextRequest) {
   try {
     const db = getDb();
@@ -48,25 +53,25 @@ export async function POST(req: NextRequest) {
       for (const raw of items as BulkItem[]) {
         const productId = Number(raw.product_id);
         const qty = parseInt(String(raw.quantity), 10);
-        if (!productId) throw new Error('Every row needs a product');
-        if (!qty || qty <= 0) throw new Error('Every row needs a quantity greater than 0');
+        if (!productId) throw new ValidationError('Every row needs a product');
+        if (!qty || qty <= 0) throw new ValidationError('Every row needs a quantity greater than 0');
 
         const product = db.prepare('SELECT id, name, sku, cogs FROM products WHERE id = ?').get(productId) as
           { id: number; name: string; sku: string; cogs: number | null } | undefined;
-        if (!product) throw new Error(`Product #${productId} not found`);
+        if (!product) throw new ValidationError(`Product #${productId} not found`);
 
         const invRow = db.prepare('SELECT quantity FROM inventory WHERE product_id = ?').get(productId) as { quantity: number } | undefined;
         const currentStock = invRow?.quantity ?? 0;
 
         if (type === 'OUT' && qty > currentStock) {
-          throw new Error(`${product.sku} — Insufficient stock. Available: ${currentStock} pcs, requested: ${qty} pcs.`);
+          throw new ValidationError(`${product.sku} — Insufficient stock. Available: ${currentStock} pcs, requested: ${qty} pcs.`);
         }
 
         let costNum: number | undefined;
         if (type === 'IN' && raw.unit_cost != null && String(raw.unit_cost).trim() !== '') {
           costNum = parseFloat(String(raw.unit_cost));
           if (!Number.isFinite(costNum) || costNum < 0) {
-            throw new Error(`${product.sku} — Cost per Unit must be a valid, non-negative number`);
+            throw new ValidationError(`${product.sku} — Cost per Unit must be a valid, non-negative number`);
           }
         }
 
@@ -93,6 +98,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, type, reason, count: results.length, items: results }, { status: 201 });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    if (e instanceof ValidationError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }

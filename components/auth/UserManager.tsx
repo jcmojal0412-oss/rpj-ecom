@@ -278,6 +278,7 @@ function UserForm({ initial, onSuccess, onCancel }: {
   const [name,        setName]        = useState(initial?.name ?? '');
   const [username,    setUsername]    = useState(initial?.username ?? '');
   const [password,    setPassword]    = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [color,       setColor]       = useState(initial?.avatar_color ?? 'blue');
   const [active,      setActive]      = useState(initial ? initial.active === 1 : true);
   const [permissions, setPermissions] = useState<string[]>(initial?.permissions ?? ['dashboard']);
@@ -347,9 +348,20 @@ function UserForm({ initial, onSuccess, onCancel }: {
         </div>
         <div className="col-span-2">
           <label className="form-label">{initial ? 'New Password (leave blank to keep)' : 'Password *'}</label>
-          <input type="password" className="form-input" value={password}
-            onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-            required={!initial} />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className="form-input pr-10"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required={!initial}
+            />
+            <button type="button" onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
         </div>
       </div>
 
