@@ -141,7 +141,7 @@ export default function CashierShiftsReportClient() {
       const res = await fetch(`/api/pos/shifts/${viewing.shift.id}/reopen`, { method: 'PUT' });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Failed to reopen shift', 'error'); return; }
-      showToast('Shift reopened — cashier can End Shift again with corrected values');
+      showToast('Shift reopened — cashier can Close Cashier again with corrected values');
       setViewing(null);
       fetchRows();
     } finally { setReopening(false); }

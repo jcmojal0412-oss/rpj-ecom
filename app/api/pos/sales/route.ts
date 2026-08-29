@@ -233,12 +233,18 @@ export async function POST(req: NextRequest) {
     // covered by the financing provider, not money owed back or forward.
     const changeDue = financing_provider ? 0 : totalPayment - amountDue;
 
-    // Auto-tag with the cashier's currently open shift for this business, if
-    // any — starting a shift is optional, so this is NULL (and everything
-    // still works exactly as before) when the cashier hasn't started one.
+    // A sale is now REQUIRED to belong to an open shift — a sale rung up
+    // with no active shift used to complete fine with shift_id left NULL,
+    // which meant its cash was physically collected but never counted
+    // toward that (or any) shift's Expected Cash, showing up later as a
+    // confusing, unexplained "OVER" discrepancy at End Shift with no
+    // record of where the extra cash came from.
     const openShift = db.prepare(
       `SELECT id FROM pos_shifts WHERE business_id = ? AND cashier_id = ? AND status = 'Open'`
     ).get(business_id, session.id) as { id: number } | undefined;
+    if (!openShift) {
+      return NextResponse.json({ error: 'You need to Start Shift before completing a sale.' }, { status: 400 });
+    }
 
     const insertSale = db.prepare(`
       INSERT INTO pos_sales

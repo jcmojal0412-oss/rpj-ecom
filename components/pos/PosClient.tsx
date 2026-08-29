@@ -189,7 +189,10 @@ function ReadingSlip({ title, businessName, cashierName, timeIn, timeOut, data, 
 // Optional clock-in/out with cash-drawer reconciliation. Starting a shift is
 // never required to check out a sale — it's purely additive accountability
 // for cashiers who want it.
-function ShiftControl({ businessId, showToast }: { businessId: string; showToast: (msg: string, type?: 'success' | 'error') => void }) {
+function ShiftControl({ businessId, showToast, onShiftChange }: {
+  businessId: string; showToast: (msg: string, type?: 'success' | 'error') => void;
+  onShiftChange?: (shift: Shift | null) => void;
+}) {
   const [shift, setShift] = useState<Shift | null>(null);
   const [loading, setLoading] = useState(true);
   const [showStart, setShowStart] = useState(false);
@@ -218,7 +221,7 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
   const loadShift = () => {
     if (!businessId) return;
     setLoading(true);
-    fetch(`/api/pos/shifts/current?business_id=${businessId}`).then(r => r.json()).then(d => setShift(d.shift)).finally(() => setLoading(false));
+    fetch(`/api/pos/shifts/current?business_id=${businessId}`).then(r => r.json()).then(d => { setShift(d.shift); onShiftChange?.(d.shift); }).finally(() => setLoading(false));
   };
 
   useEffect(() => { loadShift(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [businessId]);
@@ -317,17 +320,17 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             Record Expense
           </button>
           <button onClick={() => setConfirmEndShift(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-amber-700 border border-amber-300 hover:bg-amber-50">
-            End Shift
+            Close Cashier
           </button>
         </div>
       ) : (
         <button onClick={() => setShowStart(true)} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200">
-          Start Shift
+          Open Cashier
         </button>
       )}
 
       {showStart && (
-        <Modal open onClose={() => setShowStart(false)} title="Start Shift" size="sm">
+        <Modal open onClose={() => setShowStart(false)} title="Open Cashier" size="sm">
           <div className="space-y-4">
             <div>
               <label className="form-label">Starting Cash (₱)</label>
@@ -340,26 +343,26 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowStart(false)} disabled={submitting} className="btn-secondary">Cancel</button>
-              <button onClick={startShift} disabled={submitting} className="btn-primary">{submitting ? 'Starting...' : 'Start Shift'}</button>
+              <button onClick={startShift} disabled={submitting} className="btn-primary">{submitting ? 'Opening...' : 'Open Cashier'}</button>
             </div>
           </div>
         </Modal>
       )}
 
       {confirmEndShift && (
-        <Modal open onClose={() => setConfirmEndShift(false)} title="End current shift?" size="sm">
+        <Modal open onClose={() => setConfirmEndShift(false)} title="Close current cashier?" size="sm">
           <div className="space-y-4">
             <p className="text-sm text-gray-600">You will proceed to shift closing / actual cash count.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmEndShift(false)} className="btn-secondary">Cancel</button>
-              <button onClick={() => { setConfirmEndShift(false); setShowEnd(true); }} className="btn-primary !bg-amber-600 hover:!bg-amber-700">End Shift</button>
+              <button onClick={() => { setConfirmEndShift(false); setShowEnd(true); }} className="btn-primary !bg-amber-600 hover:!bg-amber-700">Close Cashier</button>
             </div>
           </div>
         </Modal>
       )}
 
       {showEnd && shift && (
-        <Modal open onClose={() => setShowEnd(false)} title="End Shift" size="sm">
+        <Modal open onClose={() => setShowEnd(false)} title="Close Cashier" size="sm">
           <div className="space-y-4">
             <div>
               <p className="form-label mb-2">Cash Count</p>
@@ -385,7 +388,7 @@ function ShiftControl({ businessId, showToast }: { businessId: string; showToast
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowEnd(false)} disabled={submitting} className="btn-secondary">Cancel</button>
-              <button onClick={endShift} disabled={submitting} className="btn-danger">{submitting ? 'Ending...' : 'End Shift'}</button>
+              <button onClick={endShift} disabled={submitting} className="btn-danger">{submitting ? 'Closing...' : 'Close Cashier'}</button>
             </div>
           </div>
         </Modal>
@@ -479,6 +482,14 @@ export default function PosClient() {
   const [loading, setLoading] = useState(true);
 
   const [businessId, setBusinessId] = useState('');
+  // Mirrors ShiftControl's own internally-managed shift — kept here too
+  // (via its onShiftChange callback) purely to gate Complete Sale: a sale
+  // made with no open shift used to complete fine with shift_id left NULL,
+  // so its cash was collected but never counted toward Expected Cash. The
+  // server independently enforces this too (never trust a client-side
+  // gate alone) — this is just so the cashier sees why before they even
+  // try, instead of a checkout failing at the very last step.
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
@@ -716,7 +727,7 @@ export default function PosClient() {
   const financedAmount = Math.max(0, amountDue - dpDeclared);
   const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= amountDue + 0.005 && referenceNo.trim().length > 0;
 
-  const canCheckout = cart.length > 0 && !!businessId && !submitting && !adjustmentsExceedTotal &&
+  const canCheckout = cart.length > 0 && !!businessId && !!activeShift && !submitting && !adjustmentsExceedTotal &&
     (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= amountDue);
 
   const applyExactCash = () => setCashAmount(Math.max(0, amountDue - onlineNum).toFixed(2));
@@ -840,7 +851,7 @@ export default function PosClient() {
           <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
             {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          {businessId && <ShiftControl businessId={businessId} showToast={showToast} />}
+          {businessId && <ShiftControl businessId={businessId} showToast={showToast} onShiftChange={setActiveShift} />}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Transaction mode — a state selector, not a utility action, so it
@@ -1265,6 +1276,11 @@ export default function PosClient() {
               )}
             </div>
 
+            {!activeShift && (
+              <p className="text-xs text-red-600 font-medium text-center -mb-1">
+                Open Cashier first — a sale can't be completed without an open shift.
+              </p>
+            )}
             <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-40">
               {submitting ? 'Processing...' : 'Complete Sale'}
             </button>
