@@ -17,6 +17,9 @@ const LIST_SQL_BASE = `
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
@@ -31,7 +34,17 @@ export async function GET(req: NextRequest) {
     if (to) { clauses.push('s.sale_date <= ?'); params.push(to); }
     if (businessId) { clauses.push('s.business_id = ?'); params.push(Number(businessId)); }
     if (status) { clauses.push('s.status = ?'); params.push(status); }
-    if (receiptNo) { clauses.push('s.receipt_no = ?'); params.push(receiptNo); }
+    if (receiptNo) {
+      // Return/Exchange's "find a sale by Sale # / Receipt #" — deliberately
+      // exempt from the cashier restriction below. A customer can return an
+      // item to a different cashier than the one who originally rang it up,
+      // and that cashier needs to be able to look the sale up to process it.
+      clauses.push('s.receipt_no = ?'); params.push(receiptNo);
+    } else if (session.role !== 'owner') {
+      // The general browse/list view (Sales History) — a staff account only
+      // ever sees its own sales here; the owner sees everything.
+      clauses.push('s.cashier_id = ?'); params.push(session.id);
+    }
 
     const sql = LIST_SQL_BASE + clauses.map(c => ` AND ${c}`).join('') + ' ORDER BY s.created_at DESC';
     const rows = db.prepare(sql).all(...params);
