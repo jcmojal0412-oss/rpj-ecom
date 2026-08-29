@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
   Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock, Gift,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -483,6 +484,9 @@ export default function PosClient() {
   // below). They apply no matter which payment mode is ultimately used.
   const [cashbackAmount, setCashbackAmount] = useState('');
   const [downpaymentApplied, setDownpaymentApplied] = useState('');
+  // Collapsed by default — most sales don't need these, and showing all 5
+  // fields up front was crowding the cart list down to 2-3 visible rows.
+  const [showAdjustments, setShowAdjustments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
@@ -621,6 +625,8 @@ export default function PosClient() {
   const downpaymentAppliedNum = parseFloat(downpaymentApplied) || 0;
   const adjustmentsExceedTotal = cashbackNum + downpaymentAppliedNum > total + 0.005;
   const amountDue = Math.max(0, total - cashbackNum - downpaymentAppliedNum);
+  const hasActiveAdjustments = feeNum > 0 || discountNum > 0 || taxPercentNum > 0 || cashbackNum > 0 || downpaymentAppliedNum > 0;
+  const adjustmentsVisible = showAdjustments || hasActiveAdjustments;
 
   const cashNum = parseFloat(cashAmount) || 0;
   const onlineNum = parseFloat(onlineAmount) || 0;
@@ -930,33 +936,45 @@ export default function PosClient() {
           </div>
 
           <div className="border-t border-gray-100 px-4 py-3 space-y-3 shrink-0 overflow-y-auto max-h-[68vh]">
-            {/* Additional Fee / Discounts / Tax, then Cashback Redeemed /
-                Downpayment Applied on their own row — edited here; just
-                displayed (read-only) in the totals box below. */}
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Additional Fee</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Discount</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={discount} onChange={e => setDiscount(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Tax (%)</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Cashback Redeemed</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[11px] text-gray-500 font-medium">Downpayment / Reservation Applied</label>
-                <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={downpaymentApplied} onChange={e => setDownpaymentApplied(e.target.value)} />
-              </div>
-            </div>
+            {/* Additional Fee / Discounts / Tax / Cashback / Downpayment are
+                collapsed by default — most sales use none of them, and
+                showing all 5 fields up front was crowding the cart list
+                down to just 2-3 visible rows. Forced open (and the toggle
+                effectively disabled) while any of them has a value, so an
+                active discount/fee can never end up hidden. */}
+            <button type="button" onClick={() => setShowAdjustments(v => !v)}
+              className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700">
+              {adjustmentsVisible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              Discount, Fee, Tax, Cashback, Downpayment
+            </button>
+            {adjustmentsVisible && (
+              <>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Additional Fee</label>
+                    <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={additionalFee} onChange={e => setAdditionalFee(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Discount</label>
+                    <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={discount} onChange={e => setDiscount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Tax (%)</label>
+                    <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Cashback Redeemed</label>
+                    <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Downpayment / Reservation Applied</label>
+                    <input type="number" min="0" step="0.01" className="form-input py-1.5 text-xs" placeholder="0.00" value={downpaymentApplied} onChange={e => setDownpaymentApplied(e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
             {adjustmentsExceedTotal && (
               <p className="text-[11px] text-red-500 font-medium -mt-1">Cashback Redeemed + Downpayment Applied cannot exceed the Total.</p>
             )}
