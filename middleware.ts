@@ -19,7 +19,14 @@ const ROUTE_MODULES: [string, string][] = [
   ['/reports',          'reports'],
   ['/expenses',         'expenses'],
   ['/api/expenses',     'expenses'],
-  ['/api/businesses',   'expenses'],
+  // NOT gated behind 'expenses' — /api/businesses is a low-sensitivity
+  // {id, name} lookup consumed well beyond the Expenses page (POS's own
+  // business selector, Purchase Orders, Reports, ...). Gating it to one
+  // module meant a cashier with only Point of Sale/POS Reports (no
+  // Expenses) got silently blocked reading it, which broke the POS's
+  // business dropdown and, in turn, the whole shift-controls area (Start
+  // Shift never rendered) even though the cashier had every permission
+  // POS itself required. Any authenticated user can read it.
   ['/discovery-calls',  'partners'],
   ['/sedo-bookings',    'partners'],
   ['/partners',         'partners'],

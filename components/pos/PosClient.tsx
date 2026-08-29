@@ -519,6 +519,12 @@ export default function PosClient() {
         const rows = allRows.filter(b => b.name === 'Bodega ni Suki');
         setBusinesses(rows.length ? rows : allRows);
         setBusinessId(String((rows[0] ?? allRows[0])?.id ?? ''));
+      }).catch(() => {
+        // businessId staying empty silently stalls the shift-controls area
+        // forever (it can't look up a shift without a business) — surface
+        // it instead of leaving the cashier looking at a POS with no Start
+        // Shift button and no clue why.
+        showToast('Could not load business info — try refreshing the page', 'error');
       }),
       fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setCashier(u); }),
       fetch('/api/pos/config').then(r => r.json()).then(d => setAllowZeroStock(!!d.allow_zero_stock)),
