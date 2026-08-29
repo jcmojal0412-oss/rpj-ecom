@@ -262,11 +262,16 @@ export async function POST(req: NextRequest) {
     const insertMovement = db.prepare(`
       INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?, 'OUT', ?, ?, datetime('now'))
     `);
+    // Floored at 0 — "Allow selling at 0 stock" lets a sale through even
+    // when recorded stock can't cover it (the store hasn't finished
+    // counting yet), but the resulting on-hand number should never actually
+    // go negative. Negative counts don't mean anything physically and just
+    // make every later Stock In undershoot what the cashier expects.
     const adjustInventory = db.prepare(`
       INSERT INTO inventory (product_id, quantity, last_updated)
-      VALUES (?, ?, datetime('now'))
+      VALUES (?, MAX(0, ?), datetime('now'))
       ON CONFLICT(product_id) DO UPDATE SET
-        quantity = quantity + excluded.quantity,
+        quantity = MAX(0, quantity + excluded.quantity),
         last_updated = datetime('now')
     `);
     const insertPayment = db.prepare(`
