@@ -844,6 +844,7 @@ export default function PosClient() {
           <ReturnExchangeClient
             businessId={businessId}
             cashierName={cashier?.name || '—'}
+            isOwner={isOwner}
             showToast={showToast}
             onDone={() => setPosMode('sale')}
           />

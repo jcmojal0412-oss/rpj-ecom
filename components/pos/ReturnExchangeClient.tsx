@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer, CheckCircle2 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer, CheckCircle2, FilePlus2, Trash2 } from 'lucide-react';
+import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import RefundModal from './RefundModal';
 import ReturnExchangeReceipt, { type ReturnedItem } from './ReturnExchangeReceipt';
 import type { Sale, SaleItem, Refund, Product } from './constants';
@@ -14,18 +14,27 @@ type PayMode = 'Cash' | 'Online' | 'Card' | 'Split';
 interface Props {
   businessId: string;
   cashierName: string;
+  isOwner: boolean;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onDone: () => void;
 }
 
 interface FoundSale { sale: Sale; items: SaleItem[]; refunds: Refund[]; }
 
-export default function ReturnExchangeClient({ cashierName, showToast, onDone }: Props) {
-  const [step, setStep] = useState<'find' | 'action' | 'refund' | 'exchange'>('find');
+export default function ReturnExchangeClient({ businessId, cashierName, isOwner, showToast, onDone }: Props) {
+  const [step, setStep] = useState<'find' | 'manual-entry' | 'action' | 'refund' | 'exchange'>('find');
   const [saleNumberInput, setSaleNumberInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [found, setFound] = useState<FoundSale | null>(null);
+
+  const loadFoundSale = async (id: number) => {
+    const res = await fetch(`/api/pos/sales/${id}`);
+    const data = await res.json();
+    if (!res.ok) { setSearchError(data.error || 'Sale not found'); return; }
+    setFound(data);
+    setStep('action');
+  };
 
   const findSale = async () => {
     const raw = saleNumberInput.replace(/\s+/g, '');
@@ -102,10 +111,25 @@ export default function ReturnExchangeClient({ cashierName, showToast, onDone }:
             </button>
           </div>
           {searchError && <p className="text-xs text-red-600 mt-2">{searchError}</p>}
+          {isOwner && (
+            <button onClick={() => setStep('manual-entry')} className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+              <FilePlus2 size={13} /> Sale not in the system? Enter it manually
+            </button>
+          )}
         </div>
       )}
 
-      {step !== 'find' && found && (
+      {step === 'manual-entry' && (
+        <div className="max-w-lg">
+          <BackfillEntryForm
+            businessId={businessId}
+            onCreated={id => loadFoundSale(id)}
+            onCancel={() => setStep('find')}
+          />
+        </div>
+      )}
+
+      {step !== 'find' && step !== 'manual-entry' && found && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -494,6 +518,164 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
         <button onClick={onBack} className="btn-secondary">Back</button>
         <button onClick={submit} disabled={!canSubmit} className="btn-primary disabled:opacity-40">
           {submitting ? 'Processing...' : 'Complete Exchange'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface BackfillRow { key: string; productId: string; search: string; qty: string; unitPrice: string; }
+let backfillRowKeySeq = 0;
+const newBackfillRow = (): BackfillRow => ({ key: `b${++backfillRowKeySeq}`, productId: '', search: '', qty: '1', unitPrice: '' });
+
+// Creates a stand-in sale record for a purchase never entered into this
+// system (predates it, or fell outside the historical Excel import), then
+// hands its id back so the normal find-a-sale → Refund/Exchange flow can
+// run against it unchanged — see POST /api/pos/sales/backfill.
+function BackfillEntryForm({ businessId, onCreated, onCancel }: {
+  businessId: string;
+  onCreated: (saleId: number) => void;
+  onCancel: () => void;
+}) {
+  const [saleDate, setSaleDate] = useState(todayISO());
+  const [rows, setRows] = useState<BackfillRow[]>(() => [newBackfillRow()]);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/pos/products').then(r => r.json()).then(d => setProducts(d.rows ?? []));
+  }, []);
+
+  const updateRow = (key: string, patch: Partial<BackfillRow>) =>
+    setRows(prev => prev.map(r => r.key === key ? { ...r, ...patch } : r));
+  const addRow = () => setRows(prev => [...prev, newBackfillRow()]);
+  const removeRow = (key: string) => setRows(prev => prev.length > 1 ? prev.filter(r => r.key !== key) : prev);
+
+  const activeRows = rows.filter(r => r.productId);
+  const total = activeRows.reduce((s, r) => s + (parseFloat(r.unitPrice) || 0) * (parseInt(r.qty, 10) || 0), 0);
+
+  const submit = async () => {
+    setError('');
+    if (activeRows.length === 0) { setError('Add at least one item that was bought'); return; }
+    for (const r of activeRows) {
+      const qty = parseInt(r.qty, 10);
+      const price = parseFloat(r.unitPrice);
+      if (!qty || qty <= 0) { setError('Every item needs a quantity greater than 0'); return; }
+      if (!Number.isFinite(price) || r.unitPrice.trim() === '' || price < 0) { setError('Every item needs a price (0 is fine, blank is not)'); return; }
+    }
+    if (!note.trim()) { setError('A note explaining this sale (e.g. "customer\'s old receipt, dated Aug 3") is required'); return; }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/sales/backfill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: businessId ? parseInt(businessId, 10) : null,
+          sale_date: saleDate,
+          note,
+          items: activeRows.map(r => ({ product_id: parseInt(r.productId, 10), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to create this sale'); return; }
+      onCreated(data.id);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-bold text-gray-800">Enter a Sale Not in the System</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          For a purchase made before this POS was in use, or missed by the historical import. This creates the record
+          needed to process a Refund/Exchange against it — it does not touch today&apos;s stock or cash, since the sale itself already happened.
+        </p>
+      </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>}
+
+      <div>
+        <label className="form-label">Original Sale Date</label>
+        <input type="date" className="form-input" max={todayISO()} value={saleDate} onChange={e => setSaleDate(e.target.value)} />
+        <p className="text-xs text-gray-400 mt-1">When the customer actually bought it — not today, unless that's true.</p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="form-label">Item(s) Bought</label>
+        {rows.map((row, idx) => {
+          const rowProduct = products.find(p => String(p.id) === row.productId);
+          const rowFiltered = products.filter(p =>
+            p.sku.toLowerCase().includes(row.search.toLowerCase()) ||
+            p.name.toLowerCase().includes(row.search.toLowerCase())
+          ).slice(0, 10);
+          return (
+            <div key={row.key} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
+              <div className="relative sm:col-span-6">
+                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Product</label>}
+                <input
+                  className="form-input text-sm"
+                  placeholder="Search by SKU or name..."
+                  value={rowProduct ? `${rowProduct.sku} — ${rowProduct.name}` : row.search}
+                  onChange={e => { updateRow(row.key, { search: e.target.value, productId: '' }); setOpenRow(row.key); }}
+                  onFocus={() => setOpenRow(row.key)}
+                  onBlur={() => setTimeout(() => setOpenRow(o => o === row.key ? null : o), 200)}
+                />
+                {openRow === row.key && row.search && !row.productId && rowFiltered.length > 0 && (
+                  <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                    {rowFiltered.map(p => (
+                      <li key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                        onMouseDown={() => updateRow(row.key, { productId: String(p.id), search: '', unitPrice: String(p.srp ?? '') })}>
+                        <span className="font-mono text-xs text-gray-500 mr-2">{p.sku}</span>{p.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Qty</label>}
+                <input type="number" min="1" className="form-input text-sm" placeholder="Qty" value={row.qty} onChange={e => updateRow(row.key, { qty: e.target.value })} />
+              </div>
+              <div className="sm:col-span-3">
+                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Price Paid (each)</label>}
+                <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="Price paid" value={row.unitPrice} onChange={e => updateRow(row.key, { unitPrice: e.target.value })} />
+              </div>
+              <div className="sm:col-span-1 flex sm:justify-end">
+                <button type="button" onClick={() => removeRow(row.key)} disabled={rows.length === 1}
+                  className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-gray-400 p-2">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+          <Plus size={13} /> Add Item
+        </button>
+      </div>
+
+      {activeRows.length > 0 && (
+        <div className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2.5">
+          <span className="text-sm font-medium text-gray-600">Total (what the customer paid)</span>
+          <span className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</span>
+        </div>
+      )}
+
+      <div>
+        <label className="form-label">Note (Required)</label>
+        <input className="form-input text-sm" placeholder='e.g. "Customer showed handwritten receipt dated Aug 3, before we had this POS"'
+          value={note} onChange={e => setNote(e.target.value)} />
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2">
+        <button onClick={onCancel} disabled={submitting} className="btn-secondary">Cancel</button>
+        <button onClick={submit} disabled={submitting} className="btn-primary disabled:opacity-50">
+          {submitting ? 'Creating...' : 'Create & Continue to Refund/Exchange'}
         </button>
       </div>
     </div>
