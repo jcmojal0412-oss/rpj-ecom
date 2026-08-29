@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, Download, ArrowDown } from 'lucide-react';
 
 interface ImportResult {
   total: number;
@@ -11,15 +11,27 @@ interface ImportResult {
   errors: string[];
 }
 
+interface PreviewResult {
+  total: number;
+  new_count: number;
+  update_count: number;
+  skipped: number;
+  errors: string[];
+  decrease_count: number;
+  decreases: { sku: string; name: string; old_qty: number; new_qty: number }[];
+}
+
 interface Props {
   onSuccess: () => void;
   onClose: () => void;
 }
 
-type Stage = 'idle' | 'uploading' | 'done' | 'error';
+type Stage = 'idle' | 'reading' | 'preview' | 'importing' | 'done' | 'error';
 
 export default function ImportModal({ onSuccess, onClose }: Props) {
   const [stage, setStage]   = useState<Stage>('idle');
+  const [file, setFile]     = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errMsg, setErrMsg] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -29,13 +41,15 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
     window.location.href = '/api/products/template';
   };
 
-  const uploadFile = useCallback(async (file: File) => {
-    setStage('uploading');
-    setResult(null);
+  const readFile = useCallback(async (f: File) => {
+    setFile(f);
+    setStage('reading');
+    setPreview(null);
     setErrMsg('');
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', f);
+      fd.append('mode', 'preview');
       const res  = await fetch('/api/products/import', { method: 'POST', body: fd });
       const data = await res.json();
 
@@ -44,26 +58,52 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
         setStage('error');
         return;
       }
-      setResult(data);
-      setStage('done');
-      if (data.imported > 0) onSuccess();
+      setPreview(data);
+      setStage('preview');
     } catch (e) {
       setErrMsg(String(e));
       setStage('error');
     }
-  }, [onSuccess]);
+  }, []);
+
+  const confirmImport = useCallback(async () => {
+    if (!file) return;
+    setStage('importing');
+    setErrMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('mode', 'confirm');
+      const res  = await fetch('/api/products/import', { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrMsg(data.error ?? 'Import failed');
+        setStage('error');
+        return;
+      }
+      setResult(data);
+      setStage('done');
+      if (data.imported > 0 || data.updated > 0) onSuccess();
+    } catch (e) {
+      setErrMsg(String(e));
+      setStage('error');
+    }
+  }, [file, onSuccess]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadFile(file);
+    const f = e.target.files?.[0];
+    if (f) readFile(f);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
+    const f = e.dataTransfer.files?.[0];
+    if (f) readFile(f);
   };
+
+  const startOver = () => { setStage('idle'); setFile(null); setPreview(null); setResult(null); setErrMsg(''); };
 
   return (
     <div className="space-y-5">
@@ -125,14 +165,66 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
               </div>
             )}
           </>
-        ) : stage === 'uploading' ? (
+        ) : stage === 'reading' || stage === 'importing' ? (
           <div className="border-2 border-dashed border-green-300 rounded-xl p-8 text-center bg-green-50">
             <div className="flex items-center justify-center gap-2 text-green-700">
               <svg className="animate-spin" width={20} height={20} viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                 <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75" />
               </svg>
-              <span className="text-sm font-medium">Nag-i-import...</span>
+              <span className="text-sm font-medium">{stage === 'reading' ? 'Binabasa ang file...' : 'Nag-i-import...'}</span>
+            </div>
+          </div>
+        ) : stage === 'preview' && preview ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-green-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-green-700">{preview.new_count}</p>
+                <p className="text-xs text-green-600 mt-0.5">Bagong Product</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-blue-700">{preview.update_count}</p>
+                <p className="text-xs text-blue-600 mt-0.5">Ia-update</p>
+              </div>
+              <div className={`rounded-xl p-3 text-center ${preview.skipped > 0 ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                <p className={`text-2xl font-bold ${preview.skipped > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{preview.skipped}</p>
+                <p className={`text-xs mt-0.5 ${preview.skipped > 0 ? 'text-amber-600' : 'text-gray-400'}`}>Iski-skip</p>
+              </div>
+            </div>
+
+            {preview.decrease_count > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-red-800 mb-2 flex items-center gap-1">
+                  <ArrowDown size={13} /> {preview.decrease_count} product{preview.decrease_count === 1 ? '' : 's'} — BABABA ang stock (i-check muna bago mag-confirm):
+                </p>
+                <ul className="space-y-1 max-h-40 overflow-y-auto">
+                  {preview.decreases.map((d, i) => (
+                    <li key={i} className="text-xs text-red-700 flex justify-between gap-2">
+                      <span className="truncate">{d.sku} — {d.name}</span>
+                      <span className="shrink-0 tabular-nums font-medium">{d.old_qty} → {d.new_qty}</span>
+                    </li>
+                  ))}
+                </ul>
+                {preview.decrease_count > preview.decreases.length && (
+                  <p className="text-[11px] text-red-500 mt-1">+{preview.decrease_count - preview.decreases.length} pa...</p>
+                )}
+              </div>
+            )}
+
+            {preview.errors.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1">
+                  <AlertTriangle size={13} /> Mga iski-skip ({preview.errors.length}):
+                </p>
+                <ul className="space-y-1 max-h-32 overflow-y-auto">
+                  {preview.errors.map((err, i) => <li key={i} className="text-xs text-amber-700">• {err}</li>)}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center pt-1">
+              <button onClick={startOver} className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Ibang file</button>
+              <button onClick={confirmImport} className="btn-primary text-sm">Confirm Import</button>
             </div>
           </div>
         ) : result ? (
@@ -192,7 +284,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
 
             {/* Import another */}
             <button
-              onClick={() => { setStage('idle'); setResult(null); }}
+              onClick={startOver}
               className="text-xs text-blue-600 hover:text-blue-800 font-medium"
             >
               ← Mag-import ng isa pang file
