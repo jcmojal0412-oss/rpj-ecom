@@ -26,8 +26,16 @@ const SERVICES_TAB = '__services__';
 const IN_STOCK_TAB = '__in_stock__';
 
 type PaymentMode = 'Cash' | 'Online' | 'Card' | 'Split' | 'Financing';
-type DpMethod = 'Cash' | 'GCash' | 'Maya' | 'Card' | 'Bank Transfer';
-const DP_METHODS: DpMethod[] = ['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer'];
+
+// Tender options for a Split payment row or a Financing downpayment row —
+// unlike the single Cash/Online/Card mode buttons, these two both collect
+// across an unlimited number of rows, each independently tagged with one
+// of these methods.
+const SPLIT_METHODS = ['Cash', 'GCash', 'Maya', 'Sodexo', 'Bank Transfer', 'Credit Card'];
+
+interface PaymentLegRow { key: string; method: string; amount: string; referenceNo: string; }
+let legRowSeq = 0;
+const newLegRow = (method: string = 'Cash'): PaymentLegRow => ({ key: `leg${++legRowSeq}`, method, amount: '', referenceNo: '' });
 
 // Non-cash payment labels the system already recognizes (kept identical to
 // the strings used before this redesign so historical sales/reports that
@@ -476,8 +484,12 @@ export default function PosClient() {
   const [onlineProvider, setOnlineProvider] = useState(ONLINE_PROVIDERS[0]);
   const [referenceNo, setReferenceNo] = useState('');
   const [financingProvider, setFinancingProvider] = useState<string | null>(null);
-  const [financingDpAmount, setFinancingDpAmount] = useState('');
-  const [financingDpMethod, setFinancingDpMethod] = useState<DpMethod | null>(null);
+  // Split payment and a Financing downpayment both collect across an
+  // unlimited number of {method, amount, reference} rows rather than a
+  // fixed Cash+Online pair — same row-list pattern used elsewhere in this
+  // session (Bulk Stock Entry, the manual sale backfill form).
+  const [splitRows, setSplitRows] = useState<PaymentLegRow[]>(() => [newLegRow('Cash'), newLegRow('GCash')]);
+  const [dpRows, setDpRows] = useState<PaymentLegRow[]>(() => [newLegRow('Cash')]);
   // Cashback Redeemed and Downpayment/Reservation Applied are checkout-level
   // deductions against Amount Due — not payment methods, not discounts, and
   // not the same as Financing's own internal downpayment (see amountDue calc
@@ -488,7 +500,7 @@ export default function PosClient() {
   // fields up front was crowding the cart list down to 2-3 visible rows.
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[] } | null>(null);
+  const [receipt, setReceipt] = useState<{ sale: Sale; items: SaleItem[]; payments?: { method: string; amount: number; reference_no: string | null }[] } | null>(null);
   const [pickingService, setPickingService] = useState<ServiceFeeItem | null>(null);
   const [serviceAmountInput, setServiceAmountInput] = useState('');
   const [freebieTarget, setFreebieTarget] = useState<CartLine | null>(null);
@@ -637,10 +649,18 @@ export default function PosClient() {
   const clearCart = () => {
     setCart([]); setDiscount(''); setAdditionalFee(''); setTaxPercent(''); setServiceCharge(''); setDeliveryFee('');
     setCashAmount(''); setOnlineAmount(''); setPaymentMode('Cash'); setOnlineProvider(ONLINE_PROVIDERS[0]); setReferenceNo('');
-    setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
+    setFinancingProvider(null); setDpRows([newLegRow('Cash')]); setSplitRows([newLegRow('Cash'), newLegRow('GCash')]);
     setCashbackAmount(''); setDownpaymentApplied('');
     setFreebieTarget(null); setFreebieReasonInput('');
   };
+
+  const updateSplitRow = (key: string, patch: Partial<PaymentLegRow>) => setSplitRows(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r));
+  const addSplitRow = () => setSplitRows(rows => [...rows, newLegRow()]);
+  const removeSplitRow = (key: string) => setSplitRows(rows => rows.length > 1 ? rows.filter(r => r.key !== key) : rows);
+
+  const updateDpRow = (key: string, patch: Partial<PaymentLegRow>) => setDpRows(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r));
+  const addDpRow = () => setDpRows(rows => [...rows, newLegRow()]);
+  const removeDpRow = (key: string) => setDpRows(rows => rows.length > 1 ? rows.filter(r => r.key !== key) : rows);
 
   const subtotal = cart.reduce((s, l) => s + l.unit_price * l.quantity, 0);
   const freebieCount = cart.filter(l => l.is_freebie).length;
@@ -670,21 +690,21 @@ export default function PosClient() {
 
   const cashNum = parseFloat(cashAmount) || 0;
   const onlineNum = parseFloat(onlineAmount) || 0;
-  const totalPayment = cashNum + onlineNum;
+  const splitTotal = splitRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  const totalPayment = paymentMode === 'Split' ? splitTotal : cashNum + onlineNum;
   const changeDue = totalPayment - amountDue;
 
-  // Financing: the store only ever collects its own downpayment (cashNum +
-  // onlineNum, same fields every other mode uses) toward Amount Due —
-  // Remaining Financing is always derived, never hand-entered, so it can't
-  // drift out of sync with Amount Due - DP the way a manually-typed number
-  // could. Zero DP is a valid, common case (fully financed) — a DP method
-  // is only required once there's an actual amount for the store to
-  // collect. This is separate from Downpayment/Reservation Applied above,
-  // which is money already collected before this sale, not today.
-  const dpDeclared = parseFloat(financingDpAmount) || 0;
+  // Financing: the store only ever collects its own downpayment (dpTotal,
+  // summed across dpRows) toward Amount Due — Remaining Financing is always
+  // derived, never hand-entered, so it can't drift out of sync with
+  // Amount Due - DP the way a manually-typed number could. Zero DP is a
+  // valid, common case (fully financed) — dpRows simply has no rows with an
+  // amount in that case. This is separate from Downpayment/Reservation
+  // Applied above, which is money already collected before this sale, not
+  // today.
+  const dpDeclared = dpRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
   const financedAmount = Math.max(0, amountDue - dpDeclared);
-  const dpMethodOk = dpDeclared <= 0 || !!financingDpMethod;
-  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= amountDue + 0.005 && dpMethodOk && referenceNo.trim().length > 0;
+  const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= amountDue + 0.005 && referenceNo.trim().length > 0;
 
   const canCheckout = cart.length > 0 && !!businessId && !submitting && !adjustmentsExceedTotal &&
     (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= amountDue);
@@ -694,9 +714,9 @@ export default function PosClient() {
 
   // Switching modes never leaves a stale amount in the box that's no longer
   // shown — Cash clears Online, Online/Card clear Cash and default the
-  // amount to what's due, Split leaves both as-is so the cashier can
-  // allocate the split themselves. Leaving Financing clears its temporary
-  // values so they can't leak into a later non-financing checkout.
+  // amount to what's due, Split resets to a fresh two-row default so the
+  // cashier can allocate the split themselves. Leaving Financing clears its
+  // temporary values so they can't leak into a later non-financing checkout.
   const selectPaymentMode = (mode: PaymentMode) => {
     setPaymentMode(mode);
     if (mode === 'Cash') {
@@ -704,12 +724,13 @@ export default function PosClient() {
     } else if (mode === 'Online' || mode === 'Card') {
       setCashAmount('');
       setOnlineAmount(amountDue > 0 ? amountDue.toFixed(2) : '');
+    } else if (mode === 'Split') {
+      setSplitRows([newLegRow('Cash'), newLegRow('GCash')]);
     } else if (mode === 'Financing') {
-      setCashAmount('0'); setOnlineAmount('0');
-      setFinancingProvider(null); setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
+      setFinancingProvider(null); setDpRows([newLegRow('Cash')]);
     }
     if (mode !== 'Financing') {
-      setFinancingProvider(null); setFinancingDpAmount(''); setFinancingDpMethod(null);
+      setFinancingProvider(null); setDpRows([newLegRow('Cash')]);
     }
   };
 
@@ -722,38 +743,22 @@ export default function PosClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amountDue]);
 
-  // The DP amount is one number the cashier types once; the DP method then
-  // decides which of the existing cash/online fields it lands in.
-  const applyDpToFields = (dpValue: string, method: DpMethod) => {
-    if (method === 'Cash') { setCashAmount(dpValue || '0'); setOnlineAmount('0'); return; }
-    setCashAmount('0'); setOnlineAmount(dpValue || '0');
-    if (method === 'GCash' || method === 'Maya' || method === 'Bank Transfer') setOnlineProvider(method);
-  };
-  // A DP of ₱0 needs no payment method — hide/clear it so a stale selection
-  // from a previous provider can't linger into a zero-DP transaction.
-  const updateFinancingDpAmount = (v: string) => {
-    setFinancingDpAmount(v);
-    const dp = parseFloat(v) || 0;
-    if (dp <= 0) { setCashAmount('0'); setOnlineAmount('0'); setFinancingDpMethod(null); }
-    else if (financingDpMethod) applyDpToFields(v, financingDpMethod);
-  };
   const selectFinancingProvider = (p: string) => {
     setFinancingProvider(p);
-    setFinancingDpAmount('0.00'); setFinancingDpMethod(null);
-    setCashAmount('0'); setOnlineAmount('0');
+    setDpRows([newLegRow('Cash')]);
   };
-  const selectDpMethod = (method: DpMethod) => { setFinancingDpMethod(method); applyDpToFields(financingDpAmount, method); };
 
-  const financingDpLabel =
-    dpDeclared <= 0 ? `${financingProvider ?? ''} Financing`.trim() :
-    financingDpMethod === 'Card' ? 'Credit Card' : (financingDpMethod ?? 'Cash');
+  const financingDpLabel = dpDeclared <= 0
+    ? `${financingProvider ?? ''} Financing`.trim()
+    : [...new Set(dpRows.filter(r => (parseFloat(r.amount) || 0) > 0).map(r => r.method))].join(' + ') || 'Cash';
 
   const effectivePaymentMethod =
     paymentMode === 'Financing' ? financingDpLabel :
     paymentMode === 'Cash' ? 'Cash' :
     paymentMode === 'Card' ? 'Credit Card' :
     paymentMode === 'Online' ? onlineProvider :
-    (cashNum > 0 && onlineNum > 0) ? `Cash + ${onlineProvider}` : (onlineNum > 0 ? onlineProvider : 'Cash');
+    paymentMode === 'Split' ? ([...new Set(splitRows.filter(r => (parseFloat(r.amount) || 0) > 0).map(r => r.method))].join(' + ') || 'Cash') :
+    'Cash';
 
   const completeSale = async () => {
     if (!canCheckout) return;
@@ -771,6 +776,15 @@ export default function PosClient() {
           tax_percent: taxPercentNum, service_charge: serviceChargeNum, delivery_fee: deliveryFeeNum,
           cash_amount: cashNum, online_amount: onlineNum,
           payment_method: effectivePaymentMethod, reference_no: referenceNo,
+          // Unlimited-leg breakdown — Split sends the whole payment as rows;
+          // Financing sends just its downpayment rows. Only one is ever
+          // populated per submission (both undefined outside those modes),
+          // and the server derives cash_amount/online_amount from whichever
+          // is present rather than trusting the fields above in that case.
+          payments:
+            paymentMode === 'Split' ? splitRows.filter(r => (parseFloat(r.amount) || 0) > 0).map(r => ({ method: r.method, amount: parseFloat(r.amount) || 0, reference_no: r.referenceNo || null })) :
+            paymentMode === 'Financing' && dpDeclared > 0 ? dpRows.filter(r => (parseFloat(r.amount) || 0) > 0).map(r => ({ method: r.method, amount: parseFloat(r.amount) || 0, reference_no: r.referenceNo || null })) :
+            undefined,
           financing_provider: paymentMode === 'Financing' ? financingProvider : null,
           cashback_amount: cashbackNum, downpayment_applied: downpaymentAppliedNum,
         }),
@@ -797,7 +811,7 @@ export default function PosClient() {
     return (
       <div className="h-screen overflow-auto bg-gray-50 py-10 px-4">
         {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
-        <ReceiptView sale={receipt.sale} items={receipt.items}>
+        <ReceiptView sale={receipt.sale} items={receipt.items} payments={receipt.payments}>
           <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
           <button onClick={newSale} className="btn-primary">New Sale</button>
         </ReceiptView>
@@ -1087,7 +1101,7 @@ export default function PosClient() {
                 </div>
               )}
 
-              {(paymentMode === 'Online' || paymentMode === 'Split') && (
+              {paymentMode === 'Online' && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {ONLINE_PROVIDERS.map(p => {
                     const Icon = PAYMENT_METHOD_ICONS[p];
@@ -1129,19 +1143,27 @@ export default function PosClient() {
 
               {paymentMode === 'Split' && (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-gray-500 font-medium">Cash</label>
-                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
+                  {splitRows.map(row => (
+                    <div key={row.key} className="grid grid-cols-12 gap-1.5 items-center">
+                      <select className="form-input text-xs col-span-4 py-1.5" value={row.method} onChange={e => updateSplitRow(row.key, { method: e.target.value })}>
+                        {SPLIT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <input type="number" min="0" step="0.01" className="form-input text-xs col-span-3 py-1.5" placeholder="0.00"
+                        value={row.amount} onChange={e => updateSplitRow(row.key, { amount: e.target.value })} />
+                      <input className="form-input text-xs col-span-4 py-1.5" placeholder="Ref # (optional)"
+                        value={row.referenceNo} onChange={e => updateSplitRow(row.key, { referenceNo: e.target.value })} />
+                      <button type="button" onClick={() => removeSplitRow(row.key)} disabled={splitRows.length === 1}
+                        className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500 font-medium">Online / Card</label>
-                      <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-gray-500 font-medium">Reference No. (Optional)</label>
-                    <input className="form-input text-sm" placeholder="Input reference number" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
+                  ))}
+                  <button type="button" onClick={addSplitRow} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    <Plus size={13} /> Add Payment
+                  </button>
+                  <div className="flex justify-between items-center text-xs pt-1">
+                    <span className="text-gray-500">Split Total</span>
+                    <span className={`font-semibold tabular-nums ${splitTotal + 0.005 >= amountDue ? 'text-emerald-600' : 'text-gray-700'}`}>{formatCurrency(splitTotal)}</span>
                   </div>
                 </div>
               )}
@@ -1169,26 +1191,30 @@ export default function PosClient() {
                       </div>
                       <div>
                         <label className="text-[11px] text-gray-500 font-medium">Downpayment to Bodega ni Suki</label>
-                        <input type="number" min="0" step="0.01" max={amountDue} className="form-input text-sm"
-                          value={financingDpAmount} onChange={e => updateFinancingDpAmount(e.target.value)} />
+                        <div className="space-y-1.5 mt-1">
+                          {dpRows.map(row => (
+                            <div key={row.key} className="grid grid-cols-12 gap-1.5 items-center">
+                              <select className="form-input text-xs col-span-4 py-1.5" value={row.method} onChange={e => updateDpRow(row.key, { method: e.target.value })}>
+                                {SPLIT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <input type="number" min="0" step="0.01" className="form-input text-xs col-span-3 py-1.5" placeholder="0.00"
+                                value={row.amount} onChange={e => updateDpRow(row.key, { amount: e.target.value })} />
+                              <input className="form-input text-xs col-span-4 py-1.5" placeholder="Ref # (optional)"
+                                value={row.referenceNo} onChange={e => updateDpRow(row.key, { referenceNo: e.target.value })} />
+                              <button type="button" onClick={() => removeDpRow(row.key)} disabled={dpRows.length === 1}
+                                className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={addDpRow} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            <Plus size={13} /> Add Payment
+                          </button>
+                        </div>
                         {dpDeclared > amountDue + 0.005 && (
                           <p className="text-[11px] text-red-500 font-medium mt-1">Downpayment cannot exceed the Amount Due.</p>
                         )}
                       </div>
-
-                      {dpDeclared > 0 && (
-                        <div>
-                          <label className="text-[11px] text-gray-500 font-medium">DP Received Via</label>
-                          <div className="grid grid-cols-5 gap-1 mt-1">
-                            {DP_METHODS.map(m => (
-                              <button key={m} onClick={() => selectDpMethod(m)}
-                                className={`px-1 py-1.5 rounded-md text-[10px] font-semibold border transition-all ${financingDpMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                                {m}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                       <div className="flex justify-between items-center text-sm pt-1 border-t border-gray-100">
                         <span className="text-gray-600 font-medium">Remaining - {financingProvider} Financing</span>

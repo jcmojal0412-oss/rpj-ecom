@@ -33,7 +33,16 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     `);
     const refunds = refundRows.map(r => ({ ...r, items: getRefundItems.all(r.id) }));
 
-    return NextResponse.json({ sale, items, refunds });
+    // Only populated for a sale whose payment was collected across more
+    // than one tender (Split mode, or a multi-method Financing
+    // downpayment) — empty for the common single-tender case, which the
+    // existing cash_amount/online_amount/payment_method fields already
+    // describe fully.
+    const payments = db.prepare(`
+      SELECT id, method, amount, reference_no FROM pos_sale_payments WHERE sale_id = ? ORDER BY id
+    `).all(params.id);
+
+    return NextResponse.json({ sale, items, refunds, payments });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

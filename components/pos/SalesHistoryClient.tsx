@@ -12,7 +12,7 @@ import ReceiptView from './ReceiptView';
 import RefundModal from './RefundModal';
 import { displayReceiptNo, type Business, type Sale, type SaleItem, type Refund } from './constants';
 
-type SaleDetail = { sale: Sale; items: SaleItem[]; refunds: Refund[] };
+type SaleDetail = { sale: Sale; items: SaleItem[]; refunds: Refund[]; payments?: { method: string; amount: number; reference_no: string | null }[] };
 
 export default function SalesHistoryClient() {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -202,7 +202,7 @@ export default function SalesHistoryClient() {
 
       {viewing && (
         <Modal open onClose={() => setViewing(null)} title={displayReceiptNo(viewing.sale)} size="sm">
-          <ReceiptView sale={viewing.sale} items={viewing.items} refunds={viewing.refunds}>
+          <ReceiptView sale={viewing.sale} items={viewing.items} refunds={viewing.refunds} payments={viewing.payments}>
             <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
             {viewing.sale.status !== 'Voided' && (
               <>

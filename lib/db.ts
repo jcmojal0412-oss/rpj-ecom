@@ -1417,6 +1417,27 @@ function migrateSchema() {
   // overselling.
   db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_allow_zero_stock', '0')`).run();
 
+  // Itemized breakdown of a sale's payment when it was collected across more
+  // than one tender (Split mode, or a Financing downpayment split across
+  // several methods) — purely additive detail alongside the existing
+  // cash_amount/online_amount scalars on pos_sales, which stay the
+  // authoritative totals every shift/cash-drawer/report calculation already
+  // relies on (cash_amount = SUM of this table's 'Cash' rows, online_amount
+  // = SUM of everything else, for any sale that has rows here at all). A
+  // sale with a single tender (the common case) has no rows here — the
+  // scalars alone already describe it fully.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_sale_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL REFERENCES pos_sales(id) ON DELETE CASCADE,
+      method TEXT NOT NULL,
+      amount REAL NOT NULL,
+      reference_no TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_sale_payments_sale ON pos_sale_payments(sale_id);
+  `);
+
   // external_ref holds the source transaction ID (e.g. "REF-05357034") for a
   // sale migrated in from the old POS system — the one stable key the export
   // provides per transaction. A unique index makes re-uploading an export

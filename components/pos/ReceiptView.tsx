@@ -4,14 +4,21 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { displayReceiptNo, type Sale, type SaleItem, type Refund } from './constants';
 import Row from './ReceiptRow';
 
+interface PaymentLeg { method: string; amount: number; reference_no: string | null; }
+
 interface Props {
   sale: Sale;
   items: SaleItem[];
   refunds?: Refund[];
+  payments?: PaymentLeg[];
   children?: React.ReactNode;
 }
 
-export default function ReceiptView({ sale, items, refunds, children }: Props) {
+export default function ReceiptView({ sale, items, refunds, payments, children }: Props) {
+  // Only meaningfully different from the plain Cash/Online display below
+  // once there are 2+ distinct tenders — a single-row `payments` (or none
+  // at all) is exactly what cash_amount/online_amount already describe.
+  const multiPayment = (payments ?? []).length > 1;
   const totalRefunded = (refunds ?? []).reduce((s, r) => s + r.total_refund, 0);
   // Cashback Redeemed, Downpayment Applied, and Exchange Credit Applied are
   // deductions against what's owed, not discounts — Total stays the true
@@ -102,13 +109,28 @@ export default function ReceiptView({ sale, items, refunds, children }: Props) {
           <p className="text-xs font-semibold text-gray-500 mb-1">Payment Breakdown</p>
           {sale.financing_provider ? (
             <>
-              {downpaymentCollected > 0 && sale.payment_method && <Row label="DP Method" value={sale.payment_method} muted small />}
-              {downpaymentCollected > 0 && (
-                <Row label={`Downpayment to ${sale.business_name || 'Store'}`} value={formatCurrency(downpaymentCollected)} />
+              {downpaymentCollected > 0 && multiPayment ? (
+                payments!.map((p, i) => (
+                  <Row key={i} label={p.method} value={formatCurrency(p.amount)} small={i > 0} />
+                ))
+              ) : (
+                <>
+                  {downpaymentCollected > 0 && sale.payment_method && <Row label="DP Method" value={sale.payment_method} muted small />}
+                  {downpaymentCollected > 0 && (
+                    <Row label={`Downpayment to ${sale.business_name || 'Store'}`} value={formatCurrency(downpaymentCollected)} />
+                  )}
+                </>
               )}
               <Row label={`${sale.financing_provider} Financing`} value={formatCurrency(sale.financing_amount)} bold />
               {sale.financing_reference && <Row label="Financing Ref. No." value={sale.financing_reference} muted small />}
               {sale.financing_status && <Row label="Status" value={sale.financing_status} muted small />}
+            </>
+          ) : multiPayment ? (
+            <>
+              {payments!.map((p, i) => (
+                <Row key={i} label={p.reference_no ? `${p.method} (${p.reference_no})` : p.method} value={formatCurrency(p.amount)} />
+              ))}
+              <Row label="Change" value={formatCurrency(sale.change_due)} bold />
             </>
           ) : (
             <>

@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
-      tax_percent, service_charge, delivery_fee, payment_method, reference_no,
+      tax_percent, service_charge, delivery_fee, payment_method, reference_no, payments,
       financing_provider, cashback_amount, downpayment_applied,
     } = await req.json();
 
@@ -68,10 +68,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
     }
 
+    // `payments` — an unlimited-length {method, amount, reference_no} list —
+    // is how Split mode and a Financing downpayment collect across more
+    // than the old fixed Cash+Online pair. When present it's the sole
+    // source of truth for cash_amount/online_amount below (the client's own
+    // cash_amount/online_amount fields are ignored in that case, same
+    // "never trust the client's totals" principle as re-pricing cart items).
+    interface PaymentLeg { method: string; amount: number; reference_no: string | null; }
+    const paymentLegs: PaymentLeg[] = [];
+    if (Array.isArray(payments) && payments.length > 0) {
+      for (const raw of payments) {
+        const method = String(raw?.method ?? '').trim();
+        const amount = parseFloat(String(raw?.amount));
+        if (!method) return NextResponse.json({ error: 'Every payment needs a method' }, { status: 400 });
+        if (!(amount > 0)) return NextResponse.json({ error: 'Every payment needs an amount greater than 0' }, { status: 400 });
+        paymentLegs.push({ method, amount, reference_no: raw?.reference_no ? String(raw.reference_no).trim() || null : null });
+      }
+    }
+
     const discountNum = discount ? parseFloat(discount) : 0;
     const feeNum = additional_fee ? parseFloat(additional_fee) : 0;
-    const cashNum = cash_amount ? parseFloat(cash_amount) : 0;
-    const onlineNum = online_amount ? parseFloat(online_amount) : 0;
+    const cashNum = paymentLegs.length > 0
+      ? paymentLegs.filter(l => l.method === 'Cash').reduce((s, l) => s + l.amount, 0)
+      : (cash_amount ? parseFloat(cash_amount) : 0);
+    const onlineNum = paymentLegs.length > 0
+      ? paymentLegs.filter(l => l.method !== 'Cash').reduce((s, l) => s + l.amount, 0)
+      : (online_amount ? parseFloat(online_amount) : 0);
     const cashbackNum = cashback_amount ? parseFloat(cashback_amount) : 0;
     const downpaymentAppliedNum = downpayment_applied ? parseFloat(downpayment_applied) : 0;
     const taxPercentNum = tax_percent ? parseFloat(tax_percent) : 0;
@@ -81,6 +103,14 @@ export async function POST(req: NextRequest) {
     if (cashNum < 0 || onlineNum < 0 || cashbackNum < 0 || downpaymentAppliedNum < 0) {
       return NextResponse.json({ error: 'Payment amounts cannot be negative' }, { status: 400 });
     }
+
+    // With payments[] present, the free-text payment_method label is
+    // derived from the actual distinct methods used ("Cash + GCash + Bank
+    // Transfer") rather than trusted from the client — same principle as
+    // amounts above.
+    const derivedPaymentMethod = paymentLegs.length > 0
+      ? [...new Set(paymentLegs.map(l => l.method))].join(' + ')
+      : (payment_method?.trim() || null);
 
     // Re-price and re-check stock server-side for every line — the cart's
     // own numbers are never trusted, same principle used for Service Center
@@ -220,12 +250,15 @@ export async function POST(req: NextRequest) {
         quantity = quantity + excluded.quantity,
         last_updated = datetime('now')
     `);
+    const insertPayment = db.prepare(`
+      INSERT INTO pos_sale_payments (sale_id, method, amount, reference_no) VALUES (?,?,?,?)
+    `);
 
     const saleId = runTransaction(() => {
       const info = insertSale.run(
         business_id, todayISO(), subtotal, discountNum, feeNum, taxPercentNum, taxAmount,
         serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
-        payment_method?.trim() || null, reference_no?.trim() || null,
+        derivedPaymentMethod, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
         financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
         downpaymentAppliedNum, nextReceiptNo(db),
@@ -239,6 +272,9 @@ export async function POST(req: NextRequest) {
           insertMovement.run(l.product_id, l.quantity, l.is_freebie ? `POS Sale #${id} (Freebie)` : `POS Sale #${id}`);
           adjustInventory.run(l.product_id, -l.quantity);
         }
+      }
+      for (const leg of paymentLegs) {
+        insertPayment.run(id, leg.method, leg.amount, leg.reference_no);
       }
       return id;
     });
