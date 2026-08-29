@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, User, Check, X, KeyRound, Eye, EyeOff, Lock, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { MODULES, AVATAR_COLORS, AVATAR_HEX, initials } from '@/lib/auth-helpers';
@@ -63,6 +63,9 @@ export default function UserManager() {
         </div>
         <p className="text-xs text-blue-500 mt-1">Change passwords after first login.</p>
       </div>
+
+      {/* Manager PIN */}
+      <ManagerPinCard showToast={showToast} />
 
       {/* Users grid */}
       {loading ? (
@@ -402,6 +405,117 @@ function UserForm({ initial, onSuccess, onCancel }: {
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
         <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Account' : 'Create Account'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Manager PIN ──────────────────────────────────────────────────────────────
+// A single shared PIN a cashier can ask the owner/manager to type in, in
+// person, to unlock an otherwise owner-only POS action (currently: entering
+// a sale that's not in the system, for Refund/Exchange) without the owner
+// having to actually log in on that terminal. See /api/pos/manager-pin.
+function ManagerPinCard({ showToast }: { showToast: (msg: string, type?: 'success' | 'error') => void }) {
+  const [isSet, setIsSet] = useState<boolean | null>(null);
+  const [showSet, setShowSet] = useState(false);
+
+  const fetchStatus = () => fetch('/api/pos/manager-pin').then(r => r.json()).then(d => setIsSet(!!d.is_set));
+  useEffect(() => { fetchStatus(); }, []);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Lock size={16} className="text-gray-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Manager PIN</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Lets a cashier trigger a manual Refund/Exchange entry with your real-time approval, without you logging in.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {isSet != null && (
+            isSet ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-emerald-600"><ShieldCheck size={14} /> PIN is set</span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-medium text-amber-600"><ShieldAlert size={14} /> Not set yet</span>
+            )
+          )}
+          <button onClick={() => setShowSet(true)} className="btn-secondary text-xs py-1.5">
+            {isSet ? 'Change PIN' : 'Set PIN'}
+          </button>
+        </div>
+      </div>
+
+      {showSet && (
+        <Modal open onClose={() => setShowSet(false)} title={isSet ? 'Change Manager PIN' : 'Set Manager PIN'} size="sm">
+          <SetPinForm
+            onCancel={() => setShowSet(false)}
+            onSuccess={() => { setShowSet(false); fetchStatus(); showToast('Manager PIN saved'); }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SetPinForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
+  const [pin, setPin]         = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]     = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!/^\d{4,6}$/.test(pin)) { setError('PIN must be 4 to 6 digits'); return; }
+    if (pin !== confirmPin) { setError('PINs do not match'); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/manager-pin', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to save PIN'); return; }
+      onSuccess();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+      <div>
+        <label className="form-label">New PIN (4–6 digits)</label>
+        <div className="relative">
+          <input
+            type={showPin ? 'text' : 'password'} inputMode="numeric" className="form-input pr-10"
+            placeholder="••••" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            maxLength={6} autoFocus required
+          />
+          <button type="button" onClick={() => setShowPin(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+      </div>
+      <div>
+        <label className="form-label">Confirm PIN</label>
+        <input
+          type={showPin ? 'text' : 'password'} inputMode="numeric" className="form-input"
+          placeholder="••••" value={confirmPin} onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+          maxLength={6} required
+        />
+      </div>
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+          {submitting ? 'Saving...' : 'Save PIN'}
         </button>
       </div>
     </form>

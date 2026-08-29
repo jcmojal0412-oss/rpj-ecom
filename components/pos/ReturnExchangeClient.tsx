@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer, CheckCircle2, FilePlus2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Search, RotateCcw, Repeat, Minus, Plus, ReceiptText, Printer, CheckCircle2, FilePlus2, Trash2, Lock } from 'lucide-react';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import RefundModal from './RefundModal';
 import ReturnExchangeReceipt, { type ReturnedItem } from './ReturnExchangeReceipt';
@@ -22,11 +22,38 @@ interface Props {
 interface FoundSale { sale: Sale; items: SaleItem[]; refunds: Refund[]; }
 
 export default function ReturnExchangeClient({ businessId, cashierName, isOwner, showToast, onDone }: Props) {
-  const [step, setStep] = useState<'find' | 'manual-entry' | 'action' | 'refund' | 'exchange'>('find');
+  const [step, setStep] = useState<'find' | 'pin-entry' | 'manual-entry' | 'action' | 'refund' | 'exchange'>('find');
   const [saleNumberInput, setSaleNumberInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [found, setFound] = useState<FoundSale | null>(null);
+
+  // A cashier reaches the manual-entry form only after a manager PIN check
+  // (owner skips straight there) — the verified PIN is carried forward and
+  // resubmitted with the actual backfill request, since this client-side
+  // check alone authorizes nothing (the server re-verifies it there too).
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [verifyingPin, setVerifyingPin] = useState(false);
+  const [verifiedPin, setVerifiedPin] = useState('');
+
+  const verifyPin = async () => {
+    setPinError('');
+    if (!pinInput.trim()) { setPinError('Enter the manager PIN'); return; }
+    setVerifyingPin(true);
+    try {
+      const res = await fetch('/api/pos/manager-pin/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinInput.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setPinError(data.error || 'Incorrect PIN'); return; }
+      setVerifiedPin(pinInput.trim());
+      setStep('manual-entry');
+    } finally {
+      setVerifyingPin(false);
+    }
+  };
 
   const loadFoundSale = async (id: number) => {
     const res = await fetch(`/api/pos/sales/${id}`);
@@ -75,6 +102,7 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
     setFound(null);
     setSaleNumberInput('');
     setSearchError('');
+    setPinInput(''); setPinError(''); setVerifiedPin('');
     setStep('find');
   };
 
@@ -111,11 +139,36 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
             </button>
           </div>
           {searchError && <p className="text-xs text-red-600 mt-2">{searchError}</p>}
-          {isOwner && (
-            <button onClick={() => setStep('manual-entry')} className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
-              <FilePlus2 size={13} /> Sale not in the system? Enter it manually
+          <button
+            onClick={() => { if (isOwner) { setStep('manual-entry'); } else { setPinInput(''); setPinError(''); setStep('pin-entry'); } }}
+            className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+            <FilePlus2 size={13} /> Sale not in the system? Enter it manually
+          </button>
+        </div>
+      )}
+
+      {step === 'pin-entry' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <Lock size={16} className="text-gray-400" />
+            <label className="form-label mb-0">Manager PIN Required</label>
+          </div>
+          <p className="text-xs text-gray-400 mb-3">
+            Entering a sale not in the system needs the owner or manager's PIN — hand them the device to type it in.
+          </p>
+          <input
+            type="password" inputMode="numeric" autoFocus className="form-input text-center text-lg tracking-[0.3em]"
+            placeholder="••••" value={pinInput}
+            onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') verifyPin(); }}
+          />
+          {pinError && <p className="text-xs text-red-600 mt-2">{pinError}</p>}
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={() => setStep('find')} className="btn-secondary text-sm">Cancel</button>
+            <button onClick={verifyPin} disabled={verifyingPin} className="btn-primary text-sm disabled:opacity-50">
+              {verifyingPin ? 'Checking...' : 'Confirm'}
             </button>
-          )}
+          </div>
         </div>
       )}
 
@@ -123,13 +176,14 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
         <div className="max-w-lg">
           <BackfillEntryForm
             businessId={businessId}
+            managerPin={isOwner ? undefined : verifiedPin}
             onCreated={id => loadFoundSale(id)}
             onCancel={() => setStep('find')}
           />
         </div>
       )}
 
-      {step !== 'find' && step !== 'manual-entry' && found && (
+      {step !== 'find' && step !== 'pin-entry' && step !== 'manual-entry' && found && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -532,8 +586,9 @@ const newBackfillRow = (): BackfillRow => ({ key: `b${++backfillRowKeySeq}`, kin
 // system (predates it, or fell outside the historical Excel import), then
 // hands its id back so the normal find-a-sale → Refund/Exchange flow can
 // run against it unchanged — see POST /api/pos/sales/backfill.
-function BackfillEntryForm({ businessId, onCreated, onCancel }: {
+function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
   businessId: string;
+  managerPin?: string;
   onCreated: (saleId: number) => void;
   onCancel: () => void;
 }) {
@@ -581,6 +636,7 @@ function BackfillEntryForm({ businessId, onCreated, onCancel }: {
           items: activeRows.map(r => r.kind === 'service'
             ? { service_name: r.serviceName.trim(), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) }
             : { product_id: parseInt(r.productId, 10), quantity: parseInt(r.qty, 10), unit_price: parseFloat(r.unitPrice) }),
+          manager_pin: managerPin || undefined,
         }),
       });
       const data = await res.json();

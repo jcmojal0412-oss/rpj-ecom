@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { verifyPassword } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,19 +19,39 @@ interface BackfillItem { product_id?: number; service_name?: string; quantity: n
 // normally) actually moves real inventory — correct, since that part is
 // happening for real, today.
 //
-// Owner-only to create: unlike a refund against a real, already-recorded
-// sale, this record is backed by nothing but what's typed in here, so it's
-// a materially easier vector to fabricate a refund payout against. A note
+// Owner-only, OR a cashier with the manager PIN: unlike a refund against a
+// real, already-recorded sale, this record is backed by nothing but what's
+// typed in here, so it's a materially easier vector to fabricate a refund
+// payout against. The owner can create one directly; anyone else needs the
+// shared manager PIN (set by the owner, see /api/pos/manager-pin) — the
+// same real-time, in-person authorization a manager override PIN gives on
+// any POS, without the owner having to actually log in on that terminal.
+// The PIN is re-verified here regardless of what the client's own
+// pre-check (POST /api/pos/manager-pin/verify) already said — that check
+// exists only to save a cashier from filling out the whole form before
+// discovering a wrong PIN, it authorizes nothing by itself. A note
 // explaining the source (old receipt, customer's memory, etc.) is required
-// for the same reason.
+// either way, and the record always stays attributed to whichever account
+// actually created it, not the owner.
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    if (session.role !== 'owner') return NextResponse.json({ error: 'Only the owner can backfill a sale not in the system' }, { status: 403 });
 
     const db = getDb();
-    const { business_id, sale_date, items, note } = await req.json();
+    const { business_id, sale_date, items, note, manager_pin } = await req.json();
+
+    let pinAuthorized = false;
+    if (session.role !== 'owner') {
+      const pinRow = db.prepare(`SELECT value FROM app_settings WHERE key = 'pos_manager_pin_hash'`).get() as { value: string } | undefined;
+      if (!pinRow?.value) {
+        return NextResponse.json({ error: 'Only the owner can backfill a sale not in the system (no manager PIN has been set up yet).' }, { status: 403 });
+      }
+      if (!manager_pin || !verifyPassword(String(manager_pin), pinRow.value)) {
+        return NextResponse.json({ error: 'Incorrect manager PIN' }, { status: 403 });
+      }
+      pinAuthorized = true;
+    }
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
     if (!sale_date || !/^\d{4}-\d{2}-\d{2}$/.test(sale_date)) {
@@ -98,7 +119,7 @@ export async function POST(req: NextRequest) {
     const saleId = runTransaction(() => {
       const info = insertSale.run(
         business_id, sale_date, subtotal, subtotal, session.id,
-        `Backfilled — sale not originally recorded: ${noteTrimmed}`,
+        `Backfilled — sale not originally recorded${pinAuthorized ? ' (manager PIN authorized)' : ''}: ${noteTrimmed}`,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
