@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, Star } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -19,6 +19,7 @@ export interface Product {
   srp: number;
   reorder_point: number;
   created_at: string;
+  pos_featured: number;
 }
 
 export default function ProductsClient() {
@@ -73,6 +74,24 @@ export default function ProductsClient() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  // ── POS pin toggle ────────────────────────────────────────────────────
+  // Pinned products show first in the POS product grid, ahead of the
+  // fast-moving sort — for items like cellphone accessories or freebies
+  // that should always be easy to find regardless of sales volume.
+  const togglePosFeatured = async (product: Product) => {
+    const next = product.pos_featured ? 0 : 1;
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, pos_featured: next } : p));
+    const res = await fetch(`/api/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pos_featured: next }),
+    });
+    if (!res.ok) {
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, pos_featured: product.pos_featured } : p));
+      showToast('Failed to update POS pin', 'error');
+    }
   };
 
   // ── Delete single ─────────────────────────────────────────────────────
@@ -224,7 +243,7 @@ export default function ProductsClient() {
                       className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
                     />
                   </th>
-                  {['SKU','Barcode','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','Actions'].map(h => (
+                  {['SKU','Barcode','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','POS Pin','Actions'].map(h => (
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
@@ -270,6 +289,17 @@ export default function ProductsClient() {
                         {p.created_at
                           ? new Date(p.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
                           : '—'}
+                      </td>
+                      <td className="table-cell">
+                        <button
+                          onClick={() => togglePosFeatured(p)}
+                          title={p.pos_featured ? 'Pinned to front of POS grid — click to unpin' : 'Pin to front of POS grid'}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            p.pos_featured ? 'text-orange-500 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-400'
+                          }`}
+                        >
+                          <Star size={16} fill={p.pos_featured ? 'currentColor' : 'none'} />
+                        </button>
                       </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-1">

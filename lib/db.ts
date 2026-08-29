@@ -232,6 +232,9 @@ function migrateSchema() {
   if (!prodCols.includes('perceived_value_score'))   db.exec('ALTER TABLE products ADD COLUMN perceived_value_score REAL');
   if (!prodCols.includes('ai_research_json'))        db.exec('ALTER TABLE products ADD COLUMN ai_research_json TEXT');
   if (!prodCols.includes('barcode'))                 db.exec('ALTER TABLE products ADD COLUMN barcode TEXT');
+  // Manually pinned to the front of the POS product grid (e.g. cellphone
+  // accessories, freebie items) — shown ahead of the fast-moving sort.
+  if (!prodCols.includes('pos_featured'))            db.exec('ALTER TABLE products ADD COLUMN pos_featured INTEGER DEFAULT 0');
 
   // Expenses table
   db.exec(`

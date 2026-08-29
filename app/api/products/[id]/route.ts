@@ -25,6 +25,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ ok: true });
     }
 
+    if ('pos_featured' in body && Object.keys(body).length === 1) {
+      db.prepare('UPDATE products SET pos_featured=? WHERE id=?').run(body.pos_featured ? 1 : 0, id);
+      return NextResponse.json({ ok: true });
+    }
+
     const { name, barcode, category, cogs, srp, reorder_point } = body;
     db.prepare(
       'UPDATE products SET name=?,barcode=?,category=?,cogs=?,srp=?,reorder_point=? WHERE id=?'
