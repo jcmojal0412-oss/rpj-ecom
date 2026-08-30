@@ -9,6 +9,7 @@ import ImportModal from '@/components/products/ImportModal';
 import StockForm from './StockForm';
 import MovementLog from './MovementLog';
 import NegativeStockPanel from './NegativeStockPanel';
+import SlowMovingPanel from './SlowMovingPanel';
 import Spinner from '@/components/ui/Spinner';
 
 interface InventoryItem {
@@ -108,6 +109,9 @@ export default function InventoryClient() {
 
       {/* Negative Stock — physically impossible, needs a real recount */}
       <NegativeStockPanel refreshKey={movementRefreshKey} />
+
+      {/* Slow Moving / Dead Stock — what to prioritize pushing to move */}
+      <SlowMovingPanel refreshKey={movementRefreshKey} />
 
       {/* Stock In / Stock Out Form */}
       <StockForm products={items} onSuccess={fetchInventory} />
