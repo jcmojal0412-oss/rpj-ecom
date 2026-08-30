@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 interface Props {
   title: string;
-  data: { sku: string; name: string; total_out: number }[];
+  data: { sku: string; name: string; total_out: number; quantity?: number }[];
   color: string;
 }
 
@@ -14,6 +14,7 @@ export default function MovingChart({ title, data, color }: Props) {
     fullName: d.name,
     sku: d.sku,
     value: d.total_out,
+    quantity: d.quantity,
   }));
 
   return (
@@ -34,7 +35,10 @@ export default function MovingChart({ title, data, color }: Props) {
             />
             <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
             <Tooltip
-              formatter={(val: number) => [`${val} units`, 'Stock Out']}
+              formatter={(val: number, _name, ctx) => {
+                const qty = (ctx?.payload as { quantity?: number } | undefined)?.quantity;
+                return [qty != null ? `${val} units (${qty} left in stock)` : `${val} units`, 'Stock Out'];
+              }}
               labelFormatter={(label: string) => {
                 const item = chartData.find(d => d.label === label);
                 return item ? `${item.fullName} (${item.sku})` : label;

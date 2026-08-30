@@ -34,7 +34,7 @@ interface SummaryRow {
   remaining: number; inventory_value: number;
 }
 
-interface ChartItem { sku: string; name: string; total_out: number; }
+interface ChartItem { sku: string; name: string; total_out: number; quantity?: number; }
 interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
 type DailyPeriod = 'today' | 'yesterday' | '7days';
 
