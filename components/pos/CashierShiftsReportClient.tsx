@@ -64,7 +64,7 @@ export default function CashierShiftsReportClient() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[]; expenses: ShiftExpense[]; financingByProvider: FinancingByProvider[] } | null>(null);
+  const [viewing, setViewing] = useState<{ shift: ShiftRow; sales: ShiftSale[]; cashMovements: ShiftCashMovement[]; expenses: ShiftExpense[]; financingByProvider: FinancingByProvider[]; onlineByMethod: { method: string; amount: number }[] } | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [reopening, setReopening] = useState(false);
   const { toast, showToast, clearToast } = useToast();
@@ -130,7 +130,7 @@ export default function CashierShiftsReportClient() {
     setViewing({
       shift: { ...data.shift, total_sales: data.shift.total_sales ?? 0, total_hours: hoursBetween(data.shift.time_in, data.shift.time_out) },
       sales: data.sales ?? [], cashMovements: data.cashMovements ?? [], expenses: data.expenses ?? [],
-      financingByProvider: data.financingByProvider ?? [],
+      financingByProvider: data.financingByProvider ?? [], onlineByMethod: data.onlineByMethod ?? [],
     });
   };
 
@@ -370,7 +370,13 @@ export default function CashierShiftsReportClient() {
               <p className="text-[11px] text-gray-500 font-semibold mb-1.5">Payment Breakdown</p>
               <div className="flex flex-wrap gap-4">
                 <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Cash</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.cash_sales ?? 0)}</span></div>
-                <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Online / Card</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.online_sales ?? 0)}</span></div>
+                {viewing.onlineByMethod.length > 0 ? (
+                  viewing.onlineByMethod.map(m => (
+                    <div key={m.method} className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">{m.method}</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(m.amount)}</span></div>
+                  ))
+                ) : (viewing.shift.online_sales ?? 0) > 0 && (
+                  <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Online / Card</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.online_sales ?? 0)}</span></div>
+                )}
                 {(viewing.shift.financing_receivable ?? 0) > 0 && (
                   <div className="flex items-baseline gap-1.5"><span className="text-xs text-gray-500">Financing</span><span className="text-sm font-semibold tabular-nums">{formatCurrency(viewing.shift.financing_receivable ?? 0)}</span></div>
                 )}

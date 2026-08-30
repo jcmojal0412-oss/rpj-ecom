@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { CASH_APPLIED_SQL, ONLINE_APPLIED_SQL, computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash } from '@/lib/pos-shift-totals';
+import { CASH_APPLIED_SQL, ONLINE_APPLIED_SQL, computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash, computeShiftOnlineByMethod } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +27,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     `).all(params.id);
 
     const financingByProvider = computeShiftFinancingByProvider(db, shift.id);
+    const onlineByMethod = computeShiftOnlineByMethod(db, shift.id);
 
     const cashMovements = db.prepare(`
       SELECT m.*, u.name as created_by_name
@@ -61,7 +62,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       liveShift = { ...shift, total_sales: totals.total_sales };
     }
 
-    return NextResponse.json({ shift: liveShift, sales, cashMovements, expenses, financingByProvider });
+    return NextResponse.json({ shift: liveShift, sales, cashMovements, expenses, financingByProvider, onlineByMethod });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
