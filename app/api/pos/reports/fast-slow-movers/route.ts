@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       WHERE ${saleWhere}
       GROUP BY i.product_id, i.product_name, i.sku
       ORDER BY qty_sold DESC
-      LIMIT 5
+      LIMIT 20
     `).all(...saleParams);
 
     // LEFT JOIN from products (not pos_sale_items) so items with zero sales
@@ -44,17 +44,19 @@ export async function GET(req: NextRequest) {
     if (businessId) { soldSubClauses.push('s.business_id = ?'); soldParams.push(Number(businessId)); }
     const soldMatch = soldSubClauses.join(' AND ');
 
+    // Among equally slow items, the one tying up the most stock floats to
+    // the top — that's the real priority order for what to push or promote.
     const slow = db.prepare(`
-      SELECT p.id as product_id, p.name as product_name, p.sku,
+      SELECT p.id as product_id, p.name as product_name, p.sku, COALESCE(inv.quantity, 0) as quantity,
              COALESCE(SUM(CASE WHEN ${soldMatch} THEN i.quantity ELSE 0 END), 0) as qty_sold
       FROM products p
       LEFT JOIN inventory inv ON inv.product_id = p.id
       LEFT JOIN pos_sale_items i ON i.product_id = p.id
       LEFT JOIN pos_sales s ON s.id = i.sale_id
       WHERE COALESCE(inv.quantity, 0) > 0
-      GROUP BY p.id, p.name, p.sku
-      ORDER BY qty_sold ASC, p.name ASC
-      LIMIT 5
+      GROUP BY p.id, p.name, p.sku, inv.quantity
+      ORDER BY qty_sold ASC, quantity DESC
+      LIMIT 20
     `).all(...soldParams);
 
     return NextResponse.json({ fast, slow });

@@ -15,7 +15,7 @@ interface Summary {
   byDay: { date: string; total: number; orders: number }[];
 }
 interface CashierRow { cashier_id: number | null; cashier_name: string | null; orders: number; total: number; }
-interface MoverRow { product_id: number; product_name: string; sku: string | null; qty_sold: number; }
+interface MoverRow { product_id: number; product_name: string; sku: string | null; qty_sold: number; quantity?: number; }
 
 export default function PosReportsClient() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -203,7 +203,7 @@ export default function PosReportsClient() {
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-gray-900">Top 5 Fast Moving</h2>
+                <h2 className="text-base font-semibold text-gray-900">Top 20 Fast Moving</h2>
                 <Link href="/pos/reports/products" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View Full Report →</Link>
               </div>
               {fastMovers.length === 0 ? (
@@ -225,7 +225,8 @@ export default function PosReportsClient() {
             </div>
 
             <div className="card">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Top 5 Slow Moving</h2>
+              <h2 className="text-base font-semibold text-gray-900 mb-1">Top 20 Slow Moving</h2>
+              <p className="text-xs text-gray-400 mb-4">Ranked by least sold — biggest remaining stock first, so this is priority order for what to push.</p>
               {slowMovers.length === 0 ? (
                 <p className="text-center text-gray-400 text-sm py-8">No products found.</p>
               ) : (
@@ -235,9 +236,12 @@ export default function PosReportsClient() {
                       <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><Package size={16} className="text-gray-400" /></div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-800 truncate">{m.product_name}</p>
-                        <p className="text-xs text-gray-400">{m.sku}</p>
+                        <p className="text-xs text-gray-400">{m.sku}{m.quantity != null ? ` · ${m.quantity} in stock` : ''}</p>
                       </div>
-                      <span className="text-sm font-bold text-gray-900 tabular-nums shrink-0">{m.qty_sold}</span>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-900 tabular-nums">{m.qty_sold}</p>
+                        <p className="text-[10px] text-gray-400">sold</p>
+                      </div>
                     </div>
                   ))}
                 </div>
