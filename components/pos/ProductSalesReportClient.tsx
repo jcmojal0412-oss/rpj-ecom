@@ -145,7 +145,7 @@ export default function ProductSalesReportClient() {
         <Link href="/pos/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Product Sales Report</h1>
-          <p className="text-xs text-gray-400">Figures are net of refunds/exchanges — a returned unit no longer counts toward Qty Sold, Total Sales, or Total Cost of Goods (cost stays out only when the return was restocked; a Defective return keeps its cost).</p>
+          <p className="text-xs text-gray-400">Figures are net of refunds/exchanges — a returned unit no longer counts toward Qty Sold, Total Sales, or Total Cost of Goods (cost stays out only when the return was restocked; a Defective return keeps its cost). Product-only — Service/Reservation Fee lines aren't tied to a product, so they're excluded here; that's why this page's Total Sales runs lower than Gross Sales on the summary page.</p>
         </div>
       </div>
 
