@@ -38,6 +38,7 @@ export default function ProductSalesReportClient() {
   const [cashiers, setCashiers] = useState<CashierOption[]>([]);
 
   const [rows, setRows] = useState<ProductSalesRow[]>([]);
+  const [grossSales, setGrossSales] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('qty_sold');
@@ -61,11 +62,26 @@ export default function ProductSalesReportClient() {
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
-    const data = await fetch(`/api/pos/reports/products/detail?${buildQuery().toString()}`).then(r => r.json());
+    // Gross Sales bridge only makes sense against the same scope this page
+    // otherwise shares with the summary card (date + business, no product/
+    // category/cashier narrowing) — fetched with just those params, so the
+    // gap is always exactly right regardless of refunds or anything else
+    // not captured in the per-product breakdown (mainly Service/Reservation
+    // Fee lines, which have no product_id).
+    const bridgeParams = new URLSearchParams();
+    if (range) { bridgeParams.set('from', range.from); bridgeParams.set('to', range.to); }
+    if (businessId) bridgeParams.set('business_id', businessId);
+
+    const [data, summary] = await Promise.all([
+      fetch(`/api/pos/reports/products/detail?${buildQuery().toString()}`).then(r => r.json()),
+      fetch(`/api/pos/reports/summary?${bridgeParams.toString()}`).then(r => r.json()),
+    ]);
     setRows(data.rows ?? []);
+    setGrossSales(typeof summary.grossSales === 'number' ? summary.grossSales : null);
     setPage(1);
     setLoading(false);
-  }, [buildQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildQuery, range, businessId]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
   useEffect(() => {
@@ -263,6 +279,12 @@ export default function ProductSalesReportClient() {
                 </tr>
               </tfoot>
             </table>
+
+            {!productId && !category && !cashierId && !search && grossSales != null && grossSales - totals.total_sales > 0.005 && (
+              <p className="text-xs text-gray-500 text-right mt-2">
+                + {formatCurrency(grossSales - totals.total_sales)} non-product (Service/Reservation Fees, etc.) = <span className="font-semibold text-gray-700">{formatCurrency(grossSales)}</span> Gross Sales
+              </p>
+            )}
 
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 print:hidden">
               <div className="flex items-center gap-2 text-xs text-gray-500">
