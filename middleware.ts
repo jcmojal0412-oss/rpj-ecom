@@ -11,12 +11,31 @@ const PUBLIC = ['/login', '/api/auth/login', '/book', '/api/public', '/attendanc
 // Route → required module permission
 const ROUTE_MODULES: [string, string][] = [
   ['/products',         'products'],
+  // NOT gated behind 'products' — /api/products (GET) is read cross-module
+  // (AI FB Ads' product picker, same reasoning as /api/businesses below).
+  // The mutating routes (POST/PUT/DELETE) check 'products' themselves.
   ['/ai-fb-ads',        'ai_fb_ads'],
   ['/api/ai-fb-ads',    'ai_fb_ads'],
   ['/inventory',        'inventory'],
+  // NOT gated behind 'inventory' — /api/inventory (GET) and
+  // /api/stock-movements (GET) are read cross-module (Dashboard's low-stock
+  // KPI, the general Reports overview, AI FB Ads' product picker also reads
+  // /api/products the same way) — same reasoning as /api/businesses below.
+  // The mutating routes (PUT /api/inventory, POST /api/stock-movements(/bulk))
+  // check 'inventory' themselves — see those route files.
   ['/purchase-orders',  'purchase_orders'],
+  ['/api/purchase-orders', 'purchase_orders'],
   ['/product-research', 'product_research'],
+  ['/api/product-research',  'product_research'],
+  ['/api/research-statuses', 'product_research'],
+  // Same permission as the (currently hidden, see the commented-out
+  // '/ai-product-researcher' rule below) module these support — until that
+  // page is re-enabled, gating to 'product_research' is the closest existing
+  // permission and, since nobody is granted 'ai_product_researcher' yet,
+  // this also has the practical effect of restricting it to owner-only for now.
+  ['/api/ai-research',  'product_research'],
   ['/reports',          'reports'],
+  ['/api/reports',      'reports'],
   ['/expenses',         'expenses'],
   ['/api/expenses',     'expenses'],
   // NOT gated behind 'expenses' — /api/businesses is a low-sensitivity
@@ -30,6 +49,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/discovery-calls',  'partners'],
   ['/sedo-bookings',    'partners'],
   ['/partners',         'partners'],
+  ['/api/partners',     'partners'],
+  ['/api/partner-sales', 'partners'],
   ['/gross-sales',      'partners'],
   ['/financing-sales',       'financing'],
   ['/api/financing-sales',   'financing'],

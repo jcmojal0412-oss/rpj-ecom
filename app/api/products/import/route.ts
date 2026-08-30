@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getDb } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,10 @@ interface RowPlan {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || (session.role !== 'owner' && !session.permissions.includes('products'))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     // Defaults to 'preview' (never writes) rather than 'confirm', so a

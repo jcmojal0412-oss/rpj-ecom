@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import { IN_REASONS, OUT_REASONS } from '@/components/inventory/constants';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || (session.role !== 'owner' && !session.permissions.includes('inventory'))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const db = getDb();
     const { product_id, type, quantity, reason, note, moved_at, unit_cost } = await req.json();
 

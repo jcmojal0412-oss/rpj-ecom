@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, resolveProductCategory } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// GET is intentionally NOT permission-gated — read cross-module (AI FB Ads'
+// product picker, same reasoning as /api/businesses in middleware.ts).
+// Mutations below require 'products' since middleware.ts doesn't gate this
+// path at all (see the comment there).
 export async function GET() {
   try {
     const db = getDb();
@@ -15,6 +20,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || (session.role !== 'owner' && !session.permissions.includes('products'))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     const db = getDb();
     const body = await req.json();
     const { sku, name, barcode, category, cogs, srp, reorder_point } = body;

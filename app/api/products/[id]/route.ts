@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, resolveProductCategory } from '@/lib/db';
+import { getDb, resolveProductCategory, runTransaction } from '@/lib/db';
+import { getSession } from '@/lib/auth';
+
+async function requireProductsPermission() {
+  const session = await getSession();
+  if (!session || (session.role !== 'owner' && !session.permissions.includes('products'))) return null;
+  return session;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +23,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    if (!await requireProductsPermission()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const db   = getDb();
     const body = await req.json();
     const id   = Number(params.id);
@@ -42,6 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    if (!await requireProductsPermission()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const db = getDb();
     const id = Number(params.id);
 
@@ -50,10 +59,12 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     if (!exists) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
     // Delete child records first to satisfy FK constraints, then the product
-    db.prepare('DELETE FROM stock_movements WHERE product_id=?').run(id);
-    db.prepare('DELETE FROM po_items WHERE product_id=?').run(id);
-    db.prepare('DELETE FROM inventory WHERE product_id=?').run(id);
-    db.prepare('DELETE FROM products WHERE id=?').run(id);
+    runTransaction(() => {
+      db.prepare('DELETE FROM stock_movements WHERE product_id=?').run(id);
+      db.prepare('DELETE FROM po_items WHERE product_id=?').run(id);
+      db.prepare('DELETE FROM inventory WHERE product_id=?').run(id);
+      db.prepare('DELETE FROM products WHERE id=?').run(id);
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {
