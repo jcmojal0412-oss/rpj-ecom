@@ -293,7 +293,7 @@ export default function DashboardClient() {
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <MovingChart title="Fast Moving — Top 10 (Last 30 Days)" data={fast} color="#16a34a" />
-        <MovingChart title="Slow Moving / Dead Stock — Bottom 10 (Last 30 Days)" data={slow} color="#B68B3C" />
+        <MovingChart title="Slow Moving / Dead Stock — Bottom 10 (Last 30 Days)" data={slow} color="#B68B3C" plot="stock" />
       </div>
 
       {/* Low Stock Alerts */}

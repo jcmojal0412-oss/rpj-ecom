@@ -6,14 +6,20 @@ interface Props {
   title: string;
   data: { sku: string; name: string; total_out: number; quantity?: number }[];
   color: string;
+  // Dead-stock items are, by definition, mostly 0 units sold — a bar chart
+  // of "units sold" for that list is just a flat empty-looking row of
+  // nothing. Plotting remaining stock instead gives real, visible bar
+  // heights and is the number that actually matters for "what to push."
+  plot?: 'sold' | 'stock';
 }
 
-export default function MovingChart({ title, data, color }: Props) {
+export default function MovingChart({ title, data, color, plot = 'sold' }: Props) {
   const chartData = data.map(d => ({
     label: d.name.length > 14 ? d.name.slice(0, 14) + '…' : d.name,
     fullName: d.name,
     sku: d.sku,
-    value: d.total_out,
+    value: plot === 'stock' ? (d.quantity ?? 0) : d.total_out,
+    total_out: d.total_out,
     quantity: d.quantity,
   }));
 
@@ -36,8 +42,11 @@ export default function MovingChart({ title, data, color }: Props) {
             <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
             <Tooltip
               formatter={(val: number, _name, ctx) => {
-                const qty = (ctx?.payload as { quantity?: number } | undefined)?.quantity;
-                return [qty != null ? `${val} units (${qty} left in stock)` : `${val} units`, 'Stock Out'];
+                const p = ctx?.payload as { total_out?: number; quantity?: number } | undefined;
+                if (plot === 'stock') {
+                  return [`${val} in stock (${p?.total_out ?? 0} sold)`, 'Stock Remaining'];
+                }
+                return [p?.quantity != null ? `${val} units (${p.quantity} left in stock)` : `${val} units`, 'Stock Out'];
               }}
               labelFormatter={(label: string) => {
                 const item = chartData.find(d => d.label === label);
