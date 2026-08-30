@@ -19,6 +19,7 @@ interface FreebieItem {
 interface FreebieData {
   totalValue: number; freebieCount: number; avgValue: number;
   byCashier: { cashier_id: number | null; cashier_name: string | null; count: number; total_value: number }[];
+  byProduct: { product_id: number | null; product_name: string; sku: string | null; count: number; total_qty: number; total_value: number }[];
   items: FreebieItem[];
 }
 
@@ -197,28 +198,55 @@ export default function FreebieReportClient() {
             </div>
           </div>
 
-          <div className="card">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">By Cashier</h2>
-            {data.byCashier.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">No freebies given in this range.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    {['Cashier', 'Freebies Given', 'Total Cost'].map(h => <th key={h} className="table-header">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.byCashier.map((c, i) => (
-                    <tr key={c.cashier_id ?? i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="table-cell font-medium">{c.cashier_name || '—'}</td>
-                      <td className="table-cell tabular-nums">{c.count}</td>
-                      <td className="table-cell font-semibold tabular-nums text-amber-600">{formatCurrency(c.total_value)}</td>
+          <div className="grid lg:grid-cols-2 gap-4">
+            <div className="card">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">By Cashier</h2>
+              {data.byCashier.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-8">No freebies given in this range.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Cashier', 'Freebies Given', 'Total Cost'].map(h => <th key={h} className="table-header">{h}</th>)}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {data.byCashier.map((c, i) => (
+                      <tr key={c.cashier_id ?? i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="table-cell font-medium">{c.cashier_name || '—'}</td>
+                        <td className="table-cell tabular-nums">{c.count}</td>
+                        <td className="table-cell font-semibold tabular-nums text-amber-600">{formatCurrency(c.total_value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="card">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Top 5 Freebies Product</h2>
+              {data.byProduct.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-8">No freebies given in this range.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Product', 'Times Given', 'Qty', 'Total Cost'].map(h => <th key={h} className="table-header">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.byProduct.map((p, i) => (
+                      <tr key={p.product_id ?? i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="table-cell font-medium">{p.product_name}{p.sku ? <span className="text-gray-400 font-mono text-xs ml-1.5">{p.sku}</span> : null}</td>
+                        <td className="table-cell tabular-nums">{p.count}</td>
+                        <td className="table-cell tabular-nums">{p.total_qty}</td>
+                        <td className="table-cell font-semibold tabular-nums text-amber-600">{formatCurrency(p.total_value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="card">

@@ -27,6 +27,16 @@ export async function GET(req: NextRequest) {
       GROUP BY s.cashier_id ORDER BY total_value DESC
     `).all(...params);
 
+    const byProduct = db.prepare(`
+      SELECT i.product_id, i.product_name, i.sku, COUNT(*) as count, SUM(i.quantity) as total_qty,
+             COALESCE(SUM(i.cogs * i.quantity),0) as total_value
+      FROM pos_sale_items i JOIN pos_sales s ON s.id = i.sale_id
+      WHERE ${where}
+      GROUP BY i.product_id, i.product_name, i.sku
+      ORDER BY total_value DESC
+      LIMIT 5
+    `).all(...params);
+
     const items = db.prepare(`
       SELECT i.id as item_id, s.id as sale_id, s.receipt_no, s.created_at,
              b.name as business_name, u.name as cashier_name,
@@ -44,6 +54,7 @@ export async function GET(req: NextRequest) {
       freebieCount: summary.freebie_count,
       avgValue: summary.freebie_count > 0 ? summary.total_value / summary.freebie_count : 0,
       byCashier,
+      byProduct,
       items,
     });
   } catch (e) {
