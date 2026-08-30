@@ -134,7 +134,14 @@ export default function PosReportsClient() {
             </div>
 
             <div className="rounded-xl p-4 bg-amber-500 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Total Expenses</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Total Expenses</p>
+                {summary.grossSales > 0 && (
+                  <span className="text-[11px] font-semibold text-white/80 tabular-nums">
+                    {(((summary.totalExpenses + summary.cogs + summary.totalRefunds) / summary.grossSales) * 100).toFixed(1)}% of Gross
+                  </span>
+                )}
+              </div>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.totalExpenses + summary.cogs + summary.totalRefunds)}</p>
               <div className="mt-2 space-y-0.5 text-[11px] text-white/85">
                 <div className="flex justify-between"><span>Expenses</span><span className="tabular-nums">{formatCurrency(summary.totalExpenses)}</span></div>
@@ -144,7 +151,14 @@ export default function PosReportsClient() {
             </div>
 
             <div className="rounded-xl p-4 bg-violet-500 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Net Income</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Net Income</p>
+                {summary.grossSales > 0 && (
+                  <span className="text-[11px] font-semibold text-white/80 tabular-nums">
+                    {((summary.netIncome / summary.grossSales) * 100).toFixed(1)}% margin
+                  </span>
+                )}
+              </div>
               <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.netIncome)}</p>
               <p className="text-[11px] text-white/70 mt-2">{dateRangeLabel}</p>
             </div>
