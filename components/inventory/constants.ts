@@ -4,4 +4,4 @@
 // desync the two (dropdown offers a value the server then rejects, or vice
 // versa).
 export const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'RTS (Return to Sender)', 'Transfer In', 'Inventory Adjustment', 'Other'];
-export const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Inventory Adjustment', 'Internal Use', 'Other'];
+export const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Online Order', 'Inventory Adjustment', 'Internal Use', 'Other'];
