@@ -29,7 +29,7 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'cashier_name', label: 'Cashier' },
   { key: 'product_name', label: 'Product' },
   { key: 'quantity', label: 'Qty', numeric: true },
-  { key: 'value', label: 'Value Given Away', numeric: true },
+  { key: 'value', label: 'Cost Given Away', numeric: true },
   { key: 'freebie_reason', label: 'Reason' },
 ];
 
@@ -184,7 +184,7 @@ export default function FreebieReportClient() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="card">
-              <p className="text-xs text-gray-500 flex items-center gap-1"><Gift size={13} /> Total Value Given Away</p>
+              <p className="text-xs text-gray-500 flex items-center gap-1"><Gift size={13} /> Total Cost Given Away</p>
               <p className="text-xl font-bold text-amber-600 tabular-nums mt-1">{formatCurrency(data.totalValue)}</p>
             </div>
             <div className="card">
@@ -192,7 +192,7 @@ export default function FreebieReportClient() {
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{data.freebieCount}</p>
             </div>
             <div className="card">
-              <p className="text-xs text-gray-500">Average Value per Freebie</p>
+              <p className="text-xs text-gray-500">Average Cost per Freebie</p>
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{formatCurrency(data.avgValue)}</p>
             </div>
           </div>
@@ -205,7 +205,7 @@ export default function FreebieReportClient() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {['Cashier', 'Freebies Given', 'Total Value'].map(h => <th key={h} className="table-header">{h}</th>)}
+                    {['Cashier', 'Freebies Given', 'Total Cost'].map(h => <th key={h} className="table-header">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>

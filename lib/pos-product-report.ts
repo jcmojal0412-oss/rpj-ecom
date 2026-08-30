@@ -63,6 +63,27 @@ export function buildDetailQuery(req: NextRequest) {
   return { sql, params };
 }
 
+// Lightweight companion to buildDetailQuery — just SUM(subtotal), the same
+// scope Gross Sales already uses (date + business, no product/category/
+// cashier narrowing). Computed alongside the detail query in one request so
+// the Gross Sales bridge line doesn't cost a whole second round-trip (which
+// also duplicated the same pos_sale_items scan the detail query already does).
+export function buildGrossSalesQuery(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
+  const businessId = searchParams.get('business_id');
+
+  const clauses: string[] = [`status != 'Voided'`];
+  const params: (string | number)[] = [];
+  if (from) { clauses.push('sale_date >= ?'); params.push(from); }
+  if (to) { clauses.push('sale_date <= ?'); params.push(to); }
+  if (businessId) { clauses.push('business_id = ?'); params.push(Number(businessId)); }
+
+  const sql = `SELECT COALESCE(SUM(subtotal),0) as grossSales FROM pos_sales WHERE ${clauses.join(' AND ')}`;
+  return { sql, params };
+}
+
 export function computeRows(raw: DetailRow[]) {
   return raw.map(r => {
     const totalDiscount = r.total_discount || 0;

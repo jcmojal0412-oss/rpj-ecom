@@ -9,15 +9,18 @@ export async function GET(req: NextRequest) {
     const db = getDb();
     const { where, params } = buildFreebieWhere(req);
 
+    // Valued at COGS, not SRP — the actual cost to the business of a
+    // freebie is what it cost to acquire, not the markup it would have
+    // sold for (that markup was never realized either way).
     const summary = db.prepare(`
-      SELECT COUNT(*) as freebie_count, COALESCE(SUM(i.original_price * i.quantity),0) as total_value
+      SELECT COUNT(*) as freebie_count, COALESCE(SUM(i.cogs * i.quantity),0) as total_value
       FROM pos_sale_items i JOIN pos_sales s ON s.id = i.sale_id
       WHERE ${where}
     `).get(...params) as { freebie_count: number; total_value: number };
 
     const byCashier = db.prepare(`
       SELECT s.cashier_id, u.name as cashier_name, COUNT(*) as count,
-             COALESCE(SUM(i.original_price * i.quantity),0) as total_value
+             COALESCE(SUM(i.cogs * i.quantity),0) as total_value
       FROM pos_sale_items i JOIN pos_sales s ON s.id = i.sale_id
       LEFT JOIN users u ON u.id = s.cashier_id
       WHERE ${where}
@@ -28,7 +31,7 @@ export async function GET(req: NextRequest) {
       SELECT i.id as item_id, s.id as sale_id, s.receipt_no, s.created_at,
              b.name as business_name, u.name as cashier_name,
              i.product_name, i.sku, i.quantity, i.original_price,
-             (i.original_price * i.quantity) as value, i.freebie_reason
+             (i.cogs * i.quantity) as value, i.freebie_reason
       FROM pos_sale_items i JOIN pos_sales s ON s.id = i.sale_id
       LEFT JOIN businesses b ON b.id = s.business_id
       LEFT JOIN users u ON u.id = s.cashier_id
