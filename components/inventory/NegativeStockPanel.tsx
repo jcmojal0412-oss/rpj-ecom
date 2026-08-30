@@ -11,6 +11,10 @@ export default function NegativeStockPanel({ refreshKey }: { refreshKey?: number
   const [rows, setRows] = useState<NegativeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  // Once the user has clicked Hide/Show themselves, stop auto-collapsing —
+  // otherwise picking a past date that also happens to have 0 rows snaps
+  // the panel shut again immediately, hiding the date picker they just used.
+  const [userToggled, setUserToggled] = useState(false);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -18,18 +22,21 @@ export default function NegativeStockPanel({ refreshKey }: { refreshKey?: number
     const nextRows = data.rows ?? [];
     setRows(nextRows);
     setLoading(false);
-    // Nothing to review — collapse it out of the way automatically. Still
-    // toggleable by hand either way (e.g. re-expand to pick a past date).
-    setCollapsed(nextRows.length === 0);
-  }, [asOf]);
+    if (!userToggled) setCollapsed(nextRows.length === 0);
+  }, [asOf, userToggled]);
 
   useEffect(() => { fetchRows(); }, [fetchRows, refreshKey]);
+
+  const toggleCollapsed = () => {
+    setUserToggled(true);
+    setCollapsed(c => !c);
+  };
 
   return (
     <div className="card !border-red-200">
       <button
         type="button"
-        onClick={() => setCollapsed(c => !c)}
+        onClick={toggleCollapsed}
         className="w-full flex items-center justify-between flex-wrap gap-3 text-left"
       >
         <div className="flex items-center gap-2">
