@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import { computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash, computeShiftOnlineByMethod } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
 // close ("Z Reading") endpoint, nothing here is persisted.
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
     const db = getDb();
     const shift = db.prepare(`
       SELECT s.*, u.name as cashier_name, u.username, b.name as business_name
@@ -16,8 +20,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       LEFT JOIN users u ON u.id = s.cashier_id
       LEFT JOIN businesses b ON b.id = s.business_id
       WHERE s.id = ?
-    `).get(params.id) as { id: number; starting_cash: number } | undefined;
+    `).get(params.id) as { id: number; cashier_id: number; starting_cash: number } | undefined;
     if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
+    // A cashier can always pull their own shift's X-reading (that's the
+    // whole point of the button on the POS screen); seeing another
+    // cashier's requires pos_reports/owner, same as the shift list/detail.
+    if (shift.cashier_id !== session.id && session.role !== 'owner' && !session.permissions.includes('pos_reports')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const totals = computeShiftSalesTotals(db, shift.id);
     const financingByProvider = computeShiftFinancingByProvider(db, shift.id);

@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// Deliberately readable by any authenticated 'pos' user for ANY sale ID, not
+// just the caller's own — Return/Exchange needs to look up a sale rung up by
+// a different cashier (a customer can return to whoever's on shift today,
+// not just who sold it). Sales History's own cashier-scoping lives in the
+// LIST route (GET /api/pos/sales) instead; this is the detail lookup that
+// list's "Find by Sale #/Receipt #" flow depends on. Session is still
+// required so this can't be hit by a fully unauthenticated caller.
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
     const db = getDb();
     const sale = db.prepare(`
       SELECT s.*, b.name as business_name, u.name as cashier_name

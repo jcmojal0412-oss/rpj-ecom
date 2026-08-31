@@ -7,6 +7,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    // Cross-cashier shift list/totals — the same "everyone's numbers" data
+    // middleware.ts's own comment says a plain 'pos' cashier shouldn't see
+    // (that's what 'pos_reports' is for). This route lives under /api/pos,
+    // not /api/pos/reports, so middleware's blanket check alone wasn't
+    // enough — checked here directly instead.
+    const session = await getSession();
+    if (!session || (session.role !== 'owner' && !session.permissions.includes('pos_reports'))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');

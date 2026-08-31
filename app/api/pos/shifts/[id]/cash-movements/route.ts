@@ -6,7 +6,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
     const db = getDb();
+    const shift = db.prepare('SELECT cashier_id FROM pos_shifts WHERE id = ?').get(params.id) as { cashier_id: number } | undefined;
+    if (!shift) return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
+    if (shift.cashier_id !== session.id && session.role !== 'owner' && !session.permissions.includes('pos_reports')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const rows = db.prepare(`
       SELECT m.*, u.name as created_by_name
       FROM pos_shift_cash_movements m

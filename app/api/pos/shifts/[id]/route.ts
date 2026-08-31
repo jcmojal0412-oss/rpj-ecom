@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import { CASH_APPLIED_SQL, ONLINE_APPLIED_SQL, computeShiftSalesTotals, computeShiftCashMovements, computeShiftFinancingByProvider, computeShiftCashRefunds, computeExpectedCash, computeShiftOnlineByMethod } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Full cross-cashier shift detail (every sale, cash movement, expense) —
+    // reserved for the Cashier's Report (pos_reports/owner), same reasoning
+    // as the shift list route.
+    const session = await getSession();
+    if (!session || (session.role !== 'owner' && !session.permissions.includes('pos_reports'))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const db = getDb();
     const shift = db.prepare(`
       SELECT s.*, u.name as cashier_name, u.username, b.name as business_name
