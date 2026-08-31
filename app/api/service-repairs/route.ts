@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
 
     const csNum   = cs_payment ? parseFloat(cs_payment) : 0;
     const cogsNum = cogs ? parseFloat(cogs) : 0;
+    if (!Number.isFinite(csNum) || csNum < 0 || !Number.isFinite(cogsNum) || cogsNum < 0) {
+      return NextResponse.json({ error: 'Customer Payment and COGS must be valid, non-negative numbers' }, { status: 400 });
+    }
     const labor   = csNum - cogsNum;
     const bns     = labor * SPLIT_BNS;
     const gerald  = labor * SPLIT_GERALD;

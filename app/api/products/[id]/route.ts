@@ -29,7 +29,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const id   = Number(params.id);
 
     if ('reorder_point' in body && Object.keys(body).length === 1) {
-      db.prepare('UPDATE products SET reorder_point=? WHERE id=?').run(body.reorder_point, id);
+      const reorderNum = Number(body.reorder_point);
+      if (!Number.isFinite(reorderNum) || reorderNum < 0) {
+        return NextResponse.json({ error: 'Reorder Point must be a valid, non-negative number' }, { status: 400 });
+      }
+      db.prepare('UPDATE products SET reorder_point=? WHERE id=?').run(reorderNum, id);
       return NextResponse.json({ ok: true });
     }
 
@@ -39,9 +43,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const { name, barcode, category, cogs, srp, reorder_point } = body;
+    if (!name?.trim()) return NextResponse.json({ error: 'Product Name is required' }, { status: 400 });
+    const cogsNum = Number(cogs) || 0;
+    const srpNum = Number(srp) || 0;
+    const reorderNum = reorder_point != null ? Number(reorder_point) : 10;
+    if (cogsNum < 0 || srpNum < 0 || !Number.isFinite(reorderNum) || reorderNum < 0) {
+      return NextResponse.json({ error: 'COGS, SRP, and Reorder Point must be valid, non-negative numbers' }, { status: 400 });
+    }
     db.prepare(
       'UPDATE products SET name=?,barcode=?,category=?,cogs=?,srp=?,reorder_point=? WHERE id=?'
-    ).run(name, barcode || null, resolveProductCategory(db, category), cogs, srp, reorder_point, id);
+    ).run(name.trim(), barcode || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

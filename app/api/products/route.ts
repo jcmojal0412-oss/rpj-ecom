@@ -28,9 +28,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { sku, name, barcode, category, cogs, srp, reorder_point } = body;
 
+    if (!sku?.trim() || !name?.trim()) {
+      return NextResponse.json({ error: 'SKU and Product Name are required' }, { status: 400 });
+    }
+    const cogsNum = Number(cogs) || 0;
+    const srpNum = Number(srp) || 0;
+    const reorderNum = reorder_point != null ? Number(reorder_point) : 10;
+    if (cogsNum < 0 || srpNum < 0 || !Number.isFinite(reorderNum) || reorderNum < 0) {
+      return NextResponse.json({ error: 'COGS, SRP, and Reorder Point must be valid, non-negative numbers' }, { status: 400 });
+    }
+
     const info = db.prepare(
       'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?,?,?,?,?,?,?)'
-    ).run(sku, name, barcode || null, resolveProductCategory(db, category), cogs, srp, reorder_point ?? 10);
+    ).run(sku.trim(), name.trim(), barcode || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum);
 
     db.prepare(
       "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime('now'))"

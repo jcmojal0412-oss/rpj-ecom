@@ -12,10 +12,20 @@ const UPLOAD_DIR = process.env.DATABASE_PATH
   ? path.join(path.dirname(process.env.DATABASE_PATH), 'ai-fb-ads')
   : path.join(process.cwd(), 'public', 'ai-fb-ads');
 
+// Same allowlist + size cap as app/api/upload/receipt/route.ts — the
+// extension used to be taken verbatim from the client-supplied media type
+// with no validation and no size limit at all.
+const VALID_EXTENSIONS: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
 function saveImage(base64: string, mediaType: string, prefix: string): Promise<string> {
-  const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+  const ext = VALID_EXTENSIONS[mediaType] || 'png';
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.byteLength > MAX_IMAGE_BYTES) {
+    return Promise.reject(new Error('Image too large (max 20MB)'));
+  }
   const filename = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  return writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(base64, 'base64')).then(() => filename);
+  return writeFile(path.join(UPLOAD_DIR, filename), buffer).then(() => filename);
 }
 
 // Persists the FINAL creative — the raw AI-generated poster (Headline/

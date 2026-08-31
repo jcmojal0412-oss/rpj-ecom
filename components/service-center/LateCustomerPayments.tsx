@@ -13,6 +13,7 @@ interface Props {
 
 export default function LateCustomerPayments({ repairs, onSettled }: Props) {
   const [payingWeek, setPayingWeek] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
 
   const unpaid = repairs.filter(r => r.status === 'ONGOING');
 
@@ -28,9 +29,11 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
 
   const markPaid = async (key: string, items: Repair[]) => {
     setPayingWeek(key);
+    setPayError(null);
     try {
+      const failed: string[] = [];
       for (const r of items) {
-        await fetch(`/api/service-repairs/${r.id}`, {
+        const res = await fetch(`/api/service-repairs/${r.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -40,6 +43,10 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
             paid_to_tech: r.paid_to_tech, tech_paid_date: r.tech_paid_date,
           }),
         });
+        if (!res.ok) failed.push(r.order_no || r.repair_details || `#${r.id}`);
+      }
+      if (failed.length > 0) {
+        setPayError(`Failed to mark as paid: ${failed.join(', ')}. Please retry.`);
       }
       onSettled();
     } finally {
@@ -68,6 +75,10 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
           <p className="text-xs text-gray-400">Jobs still marked Ongoing from previous weeks — customer balance not yet collected</p>
         </div>
       </div>
+
+      {payError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{payError}</div>
+      )}
 
       <div className="space-y-4">
         {lateGroups.map(([key, { monday, items }]) => {

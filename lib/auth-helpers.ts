@@ -36,7 +36,14 @@ export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
   if (!salt || !hash) return false;
   const computed = createHash('sha256').update(password + ':' + salt + ':' + APP_SECRET).digest('hex');
-  return computed === hash;
+  // Constant-time compare — a plain === leaks how many leading characters
+  // matched via response timing, in theory letting an attacker recover the
+  // hash byte-by-byte. Same reasoning already applied to decodeSession's
+  // signature check below.
+  const computedBuf = Buffer.from(computed, 'hex');
+  const hashBuf = Buffer.from(hash, 'hex');
+  if (computedBuf.length !== hashBuf.length) return false;
+  return timingSafeEqual(computedBuf, hashBuf);
 }
 
 // ── Session token ─────────────────────────────────────────────────────────────

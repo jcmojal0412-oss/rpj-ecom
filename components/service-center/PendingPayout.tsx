@@ -13,6 +13,7 @@ interface Props {
 
 export default function PendingPayout({ repairs, onPaid }: Props) {
   const [payingWeek, setPayingWeek] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
 
   const pending = repairs.filter(r => r.status === 'CUSTOMER PAID' && !r.paid_to_tech);
 
@@ -27,10 +28,12 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
 
   const payWeek = async (key: string, items: Repair[]) => {
     setPayingWeek(key);
+    setPayError(null);
     try {
       const today = todayISO();
+      const failed: string[] = [];
       for (const r of items) {
-        await fetch(`/api/service-repairs/${r.id}`, {
+        const res = await fetch(`/api/service-repairs/${r.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -40,6 +43,13 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
             paid_to_tech: true, tech_paid_date: today,
           }),
         });
+        // fetch() doesn't throw on a non-2xx response — without this check,
+        // one failed PUT in the batch was silently swallowed and the whole
+        // week still got marked paid.
+        if (!res.ok) failed.push(r.order_no || r.repair_details || `#${r.id}`);
+      }
+      if (failed.length > 0) {
+        setPayError(`Failed to mark as paid: ${failed.join(', ')}. Please retry.`);
       }
       onPaid();
     } finally {
@@ -68,6 +78,10 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
           <p className="text-xs text-gray-400">Customer-paid jobs not yet settled with the technician — cutoff Monday to Sunday, paid the following Monday</p>
         </div>
       </div>
+
+      {payError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{payError}</div>
+      )}
 
       <div className="space-y-4">
         {sortedGroups.map(([key, { monday, items }]) => {

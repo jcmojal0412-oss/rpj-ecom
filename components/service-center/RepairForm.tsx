@@ -27,6 +27,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
   const [paidToTech,     setPaidToTech]     = useState(!!initial?.paid_to_tech);
   const [techPaidDate,   setTechPaidDate]   = useState(initial?.tech_paid_date?.slice(0, 10) ?? '');
   const [submitting,     setSubmitting]     = useState(false);
+  const [error,          setError]          = useState('');
 
   // New repairs get a suggested Order No. (BNS-{year}-####) prefilled as
   // soon as the form opens — still editable, but the field is required so
@@ -50,6 +51,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
     e.preventDefault();
     if (!repairDate) return;
     setSubmitting(true);
+    setError('');
     try {
       const body = {
         repair_date: repairDate,
@@ -68,7 +70,12 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
 
       const url = initial ? `/api/service-repairs/${initial.id}` : '/api/service-repairs';
       const method = initial ? 'PUT' : 'POST';
-      await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to save. Please try again.');
+        return;
+      }
       onSuccess();
     } finally {
       setSubmitting(false);
@@ -77,6 +84,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="form-label">Date *</label>
