@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { verifyPassword } from '@/lib/auth-helpers';
+import { checkManagerPinLockout, recordManagerPinFailure, resetManagerPinAttempts, lockoutMessage } from '@/lib/pos-manager-pin';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,13 +44,18 @@ export async function POST(req: NextRequest) {
 
     let pinAuthorized = false;
     if (session.role !== 'owner') {
+      const lockout = checkManagerPinLockout(db, session.id);
+      if (lockout.locked) return NextResponse.json({ error: lockoutMessage(lockout.minutesLeft!) }, { status: 429 });
+
       const pinRow = db.prepare(`SELECT value FROM app_settings WHERE key = 'pos_manager_pin_hash'`).get() as { value: string } | undefined;
       if (!pinRow?.value) {
         return NextResponse.json({ error: 'Only the owner can backfill a sale not in the system (no manager PIN has been set up yet).' }, { status: 403 });
       }
       if (!manager_pin || !verifyPassword(String(manager_pin), pinRow.value)) {
+        recordManagerPinFailure(db, session.id);
         return NextResponse.json({ error: 'Incorrect manager PIN' }, { status: 403 });
       }
+      resetManagerPinAttempts(db, session.id);
       pinAuthorized = true;
     }
 

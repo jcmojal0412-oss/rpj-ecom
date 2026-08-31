@@ -77,10 +77,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Attributed to the shift open right now — the shift whose drawer the
     // cash is actually leaving — never the original sale's (possibly
-    // long-closed) shift.
+    // long-closed) shift. Required, same as checkout: a refund processed
+    // with no shift open still hands cash back (or credits the drawer's
+    // books) with nothing to reconcile it against later.
     const openShift = db.prepare(
       `SELECT id FROM pos_shifts WHERE business_id = ? AND cashier_id = ? AND status = 'Open'`
     ).get(sale.business_id, session.id) as { id: number } | undefined;
+    if (!openShift) {
+      return NextResponse.json({ error: 'You need to Start Shift before processing a refund.' }, { status: 400 });
+    }
 
     const insertRefund = db.prepare(`
       INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned, shift_id)

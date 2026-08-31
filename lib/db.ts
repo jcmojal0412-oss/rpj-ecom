@@ -139,6 +139,16 @@ function initSchema() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    -- Per-cashier lockout on the shared Manager PIN (used for manual sale
+    -- backfill) — keyed by the cashier entering it, not globally, so one
+    -- cashier mistyping it repeatedly doesn't lock everyone else out of a
+    -- PIN they might type correctly.
+    CREATE TABLE IF NOT EXISTS pos_manager_pin_attempts (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      failed_attempts INTEGER DEFAULT 0,
+      locked_until TEXT
+    );
   `);
 }
 

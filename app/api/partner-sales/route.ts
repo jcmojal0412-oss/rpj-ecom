@@ -61,9 +61,14 @@ export async function POST(req: NextRequest) {
   try {
     const db = getDb();
     const { partner_id, amount, period_label, sale_date, notes } = await req.json();
+    const amountNum = Number(amount);
+    if (!partner_id) return NextResponse.json({ error: 'Partner is required' }, { status: 400 });
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    }
     const info = db.prepare(
       'INSERT INTO partner_sales (partner_id, amount, period_label, sale_date, notes) VALUES (?,?,?,?,?)'
-    ).run(partner_id, amount, period_label ?? null, sale_date ?? null, notes ?? null);
+    ).run(partner_id, amountNum, period_label ?? null, sale_date ?? null, notes ?? null);
     return NextResponse.json({ id: Number(info.lastInsertRowid) }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

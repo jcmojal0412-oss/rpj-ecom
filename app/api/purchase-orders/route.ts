@@ -26,6 +26,16 @@ export async function POST(req: NextRequest) {
             total_amount, paid_amount, payment_date, payment_notes } = await req.json();
 
     const itemList = (items ?? []) as { product_id: number; quantity: number; unit_cost: number }[];
+    for (const item of itemList) {
+      const qty = Number(item.quantity);
+      const cost = Number(item.unit_cost);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return NextResponse.json({ error: 'Every item needs a quantity greater than 0' }, { status: 400 });
+      }
+      if (!Number.isFinite(cost) || cost < 0) {
+        return NextResponse.json({ error: 'Every item needs a valid, non-negative unit cost' }, { status: 400 });
+      }
+    }
     const total = total_amount ?? itemList.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
 
     let newId: number;

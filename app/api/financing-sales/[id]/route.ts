@@ -14,8 +14,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!provider || !PROVIDERS.includes(provider)) {
       return NextResponse.json({ error: 'Valid provider is required' }, { status: 400 });
     }
-    if (amount == null || isNaN(Number(amount))) {
-      return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
+    if (amount == null || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
     }
 
     db.prepare(`

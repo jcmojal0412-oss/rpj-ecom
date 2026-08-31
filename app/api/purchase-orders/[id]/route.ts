@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const db = getDb();
     const body = await req.json();
     const existing = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(params.id) as
-      { status: string; po_number: string } | undefined;
+      { status: string; po_number: string; received_at: string | null } | undefined;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Payment update
@@ -61,7 +61,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         `UPDATE purchase_orders SET status=?, received_at=CASE WHEN ?='received' THEN datetime('now') ELSE received_at END WHERE id=?`
       ).run(status, status, params.id);
 
-      if (status === 'received' && existing.status !== 'received') {
+      // received_at (not the current status) is the real guard — status can
+      // be moved received -> pending -> received again (e.g. a correction),
+      // but received_at only ever gets set once below, so this only credits
+      // inventory the first time this PO is ever actually received, never
+      // on a re-transition into 'received'.
+      if (status === 'received' && !existing.received_at) {
         const items = db.prepare('SELECT * FROM po_items WHERE po_id=?').all(params.id) as
           { product_id: number; quantity: number; unit_cost: number }[];
         for (const item of items) {

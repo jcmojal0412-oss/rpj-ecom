@@ -103,9 +103,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       amountToPay <= 0 ? 'Exchange Credit'
       : (String(payment_method || '').trim() || (onlineNum > 0 ? 'Online' : 'Cash'));
 
+    // Required, same as checkout and refund: an exchange both hands back
+    // (or credits) the returned item's value and takes a new payment, with
+    // nothing to reconcile either side against if no shift is open.
     const openShift = db.prepare(
       `SELECT id FROM pos_shifts WHERE business_id = ? AND cashier_id = ? AND status = 'Open'`
     ).get(originalSale.business_id, session.id) as { id: number } | undefined;
+    if (!openShift) {
+      return NextResponse.json({ error: 'You need to Start Shift before processing an exchange.' }, { status: 400 });
+    }
 
     const insertRefund = db.prepare(`
       INSERT INTO pos_refunds (sale_id, refund_date, total_refund, reason, cashier_id, refund_method, cash_out_amount, freebies_returned, shift_id)
