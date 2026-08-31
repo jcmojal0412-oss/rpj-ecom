@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, ClipboardList } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import ImportModal from '@/components/products/ImportModal';
+import BulkCountImportModal from './BulkCountImportModal';
 import StockForm from './StockForm';
 import MovementLog from './MovementLog';
 import NegativeStockPanel from './NegativeStockPanel';
@@ -31,6 +32,7 @@ export default function InventoryClient() {
   const [editingStock, setEditingStock] = useState<number | null>(null);
   const [stockVal, setStockVal] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showBulkCount, setShowBulkCount] = useState(false);
   const [movementRefreshKey, setMovementRefreshKey] = useState(0);
   const { toast, showToast, clearToast } = useToast();
 
@@ -102,9 +104,14 @@ export default function InventoryClient() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-sm text-gray-500 mt-1">Manage stock levels and movements</p>
         </div>
-        <button onClick={() => setShowImport(true)} className="btn-secondary">
-          <FileSpreadsheet size={16} /> Bulk Import (Excel)
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowBulkCount(true)} className="btn-secondary">
+            <ClipboardList size={16} /> Bulk Stock Count
+          </button>
+          <button onClick={() => setShowImport(true)} className="btn-secondary">
+            <FileSpreadsheet size={16} /> Bulk Import (Excel)
+          </button>
+        </div>
       </div>
 
       {/* Negative Stock — physically impossible, needs a real recount */}
@@ -242,6 +249,14 @@ export default function InventoryClient() {
         <ImportModal
           onSuccess={() => { showToast('Products imported successfully!'); fetchInventory(); }}
           onClose={() => setShowImport(false)}
+        />
+      </Modal>
+
+      {/* Bulk Stock Count Modal */}
+      <Modal open={showBulkCount} onClose={() => setShowBulkCount(false)} title="Bulk Stock Count" size="md">
+        <BulkCountImportModal
+          onSuccess={() => { showToast('Stock counts updated!'); fetchInventory(); }}
+          onClose={() => setShowBulkCount(false)}
         />
       </Modal>
     </div>
