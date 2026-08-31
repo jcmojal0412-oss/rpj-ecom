@@ -54,6 +54,7 @@ export default function DashboardClient() {
   const [attentionLoaded, setAttentionLoaded] = useState(false);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
+  const [invValueSort, setInvValueSort] = useState<'none' | 'desc' | 'asc'>('none');
   const [fast,        setFast]        = useState<ChartItem[]>([]);
   const [slow,        setSlow]        = useState<ChartItem[]>([]);
   const [dailyTop,    setDailyTop]    = useState<DailyItem[]>([]);
@@ -133,9 +134,19 @@ export default function DashboardClient() {
     fetchDailyTop(period);
   };
 
+  const sortedSummary = useMemo(() => {
+    if (invValueSort === 'none') return summary;
+    const dir = invValueSort === 'desc' ? -1 : 1;
+    return [...summary].sort((a, b) => (a.inventory_value - b.inventory_value) * dir);
+  }, [summary, invValueSort]);
+
+  const cycleInvValueSort = () => {
+    setInvValueSort(s => (s === 'none' ? 'desc' : s === 'desc' ? 'asc' : 'none'));
+  };
+
   const exportCSV = () => {
     const headers = ['SKU', 'Product Name', 'COGS', 'Opening Stock', 'Stock In', 'Stock Out', 'Remaining', 'Inventory Value'];
-    const rows = summary.map(r => [
+    const rows = sortedSummary.map(r => [
       r.sku, r.name, r.cogs, r.opening_stock, r.stock_in, r.stock_out, r.remaining, r.inventory_value.toFixed(2)
     ]);
     const totals = ['TOTAL', '', '',
@@ -374,13 +385,20 @@ export default function DashboardClient() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#E5EAF0]">
-                {['SKU','Product Name','COGS','Opening','Stock In','Stock Out','Remaining','Inv. Value'].map(h => (
+                {['SKU','Product Name','COGS','Opening','Stock In','Stock Out','Remaining'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#66758A] uppercase tracking-wider">{h}</th>
                 ))}
+                <th
+                  onClick={cycleInvValueSort}
+                  title="Click to sort by Inventory Value"
+                  className="px-4 py-3 text-left text-xs font-semibold text-[#66758A] uppercase tracking-wider cursor-pointer select-none hover:text-[#16233B] transition-colors"
+                >
+                  Inv. Value {invValueSort === 'desc' ? '↓' : invValueSort === 'asc' ? '↑' : ''}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {summary.map((row, i) => (
+              {sortedSummary.map((row, i) => (
                 <tr key={row.sku} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F6F8FC]'}>
                   <td className="px-4 py-3 text-sm font-mono text-xs font-semibold text-[#66758A]">{row.sku}</td>
                   <td className="px-4 py-3 text-sm font-medium text-[#16233B]">{row.name}</td>
