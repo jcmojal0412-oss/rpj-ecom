@@ -15,7 +15,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   const db = getDb();
   const entry = db.prepare(`
-    SELECT e.*, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at, p.voided_at
+    SELECT e.*, p.label as period_label, p.from_date, p.to_date, p.pay_date, p.status as period_status, p.payslips_generated_at, p.voided_at
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
     WHERE e.id = ?
   `).get(params.id) as any;

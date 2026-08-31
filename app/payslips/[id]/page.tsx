@@ -105,7 +105,7 @@ export default function PayslipPrintPage() {
             <div className="ps-emp-field"><span className="ps-emp-label">Position</span><span className="ps-emp-value">{entry.position_snapshot || '—'}</span></div>
             <div className="ps-emp-field"><span className="ps-emp-label">Salary Type</span><span className="ps-emp-value">{entry.salary_type_snapshot}</span></div>
             <div className="ps-emp-field"><span className="ps-emp-label">{isDaily ? 'Daily Rate' : 'Monthly Salary'}</span><span className="ps-emp-value">{formatCurrency(entry.basic_rate_snapshot)}</span></div>
-            <div className="ps-emp-field"><span className="ps-emp-label">Pay Date</span><span className="ps-emp-value">{formatDate(entry.to_date)}</span></div>
+            <div className="ps-emp-field"><span className="ps-emp-label">Pay Date</span><span className="ps-emp-value">{formatDate(entry.pay_date || entry.to_date)}</span></div>
             <div className="ps-emp-field"><span className="ps-emp-label">Pay Period</span><span className="ps-emp-value">{formatDate(entry.from_date)}&ndash;{formatDate(entry.to_date)}</span></div>
             <div className="ps-emp-field"><span className="ps-emp-label">Days Worked</span><span className="ps-emp-value">{daysWorked} / {entry.work_days_count}</span></div>
           </div>

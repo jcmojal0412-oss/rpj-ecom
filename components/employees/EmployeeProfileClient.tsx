@@ -59,6 +59,7 @@ interface EmployeeDetail {
   basic_rate: number;
   allowance: number;
   ot_eligible: number;
+  payroll_schedule: 'A' | 'B' | null;
   // sss_number/philhealth_number/pagibig_number are OMITTED entirely (not
   // just null) by the API for a viewer without 'payroll' permission — see
   // app/api/employees/[id]/route.ts. Their presence as a key is itself the
@@ -182,6 +183,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
     basic_rate: employee.basic_rate,
     allowance: employee.allowance,
     ot_eligible: !!employee.ot_eligible,
+    payroll_schedule: employee.payroll_schedule ?? null,
     sss_number: employee.sss_number ?? '',
     philhealth_number: employee.philhealth_number ?? '',
     pagibig_number: employee.pagibig_number ?? '',
@@ -436,6 +438,18 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             <input type="checkbox" checked={form.ot_eligible} onChange={e => set({ ot_eligible: e.target.checked })} />
             OT Eligible
           </label>
+          <div>
+            <label className="form-label">Payroll Schedule</label>
+            <select
+              className={`form-input ${!form.payroll_schedule ? 'text-amber-600' : ''}`}
+              value={form.payroll_schedule ?? ''}
+              onChange={e => set({ payroll_schedule: (e.target.value || null) as 'A' | 'B' | null })}
+            >
+              <option value="">Not set — excluded from payroll runs</option>
+              <option value="A">Schedule A (cutoff 21-5 → pay 15th, cutoff 6-20 → pay 30th)</option>
+              <option value="B">Schedule B (cutoff 16-30 → pay 8th, cutoff 1-15 → pay 23rd)</option>
+            </select>
+          </div>
         </div>
 
         {/* Statutory Contributions — SSS/PhilHealth/Pag-IBIG numbers are

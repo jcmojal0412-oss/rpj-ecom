@@ -35,6 +35,7 @@ export default function PayslipsClient() {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="table-header">Period</th>
+                  <th className="table-header">Pay Date</th>
                   <th className="table-header">Employee</th>
                   <th className="table-header">Net Pay</th>
                   <th className="table-header"></th>
@@ -44,6 +45,7 @@ export default function PayslipsClient() {
                 {payslips.map((p: any) => (
                   <tr key={p.id} onClick={() => router.push(`/payslips/${p.id}`)} className="hover:bg-gray-50/60 cursor-pointer">
                     <td className="table-cell">{p.period_label}</td>
+                    <td className="table-cell text-gray-500">{formatDate(p.pay_date || p.to_date)}</td>
                     <td className="table-cell font-medium text-gray-900">{p.employee_name_snapshot}</td>
                     <td className="table-cell font-semibold">{formatCurrency(p.net_pay)}</td>
                     <td className="table-cell text-orange-600 text-xs font-medium">View →</td>

@@ -17,6 +17,7 @@ interface Employee {
   employment_type: string;
   employment_status: 'Active' | 'Inactive' | 'Resigned' | 'Terminated';
   attendance_enabled: number;
+  payroll_schedule: 'A' | 'B' | null;
   default_shift: { id: number; name: string; start_time: string; end_time: string } | null;
 }
 
@@ -155,6 +156,7 @@ export default function EmployeesClient() {
                   <th className="table-header">Default Shift</th>
                   <th className="table-header">Employment Status</th>
                   <th className="table-header">Attendance Tracking</th>
+                  <th className="table-header">Payroll Schedule</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -173,6 +175,9 @@ export default function EmployeesClient() {
                     </td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}><span className={STATUS_BADGE[e.employment_status]}>{e.employment_status}</span></td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>
+                      {e.payroll_schedule ? <span className="badge-blue">Schedule {e.payroll_schedule}</span> : <span className="badge-amber">Not set</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (!isAdmin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     const rows = db.prepare(`
       SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
-        p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
+        p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.pay_date, p.status as period_status, p.payslips_generated_at
       FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
       WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL AND p.voided_at IS NULL
       ORDER BY p.from_date DESC
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (isAdmin) {
     const rows = db.prepare(`
       SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
-        p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
+        p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.pay_date, p.status as period_status, p.payslips_generated_at
       FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
       WHERE p.voided_at IS NULL
       ORDER BY p.from_date DESC, e.employee_name_snapshot ASC
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   const rows = db.prepare(`
     SELECT e.id, e.employee_name_snapshot, e.employee_code_snapshot, e.net_pay, e.gross_pay,
-      p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.status as period_status, p.payslips_generated_at
+      p.id as period_id, p.label as period_label, p.from_date, p.to_date, p.pay_date, p.status as period_status, p.payslips_generated_at
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
     WHERE e.employee_id = ? AND p.payslips_generated_at IS NOT NULL AND p.voided_at IS NULL
     ORDER BY p.from_date DESC

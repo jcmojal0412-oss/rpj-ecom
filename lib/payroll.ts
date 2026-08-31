@@ -168,27 +168,76 @@ export interface PayrollCutoff {
   from: string;
   to: string;
   label: string;
-  payDate: string; // same as `to` — cutoff ends the day it pays
+  payDate: string; // NOT necessarily `to` — see getScheduleCutoffs below, paydate can lag the cutoff's end by several days.
 }
 
-// Default semi-monthly cutoffs — "1-15" and "16-End of Month". (Previously
-// tried a 4x-monthly schedule — 1-8/9-15/16-23/24-end — but that's on hold
-// per owner request; reverted back to 2x/month. The array-shaped return and
-// the "cutoff must have already ended" disabled-state in PayrollClient's
-// StepSelectPeriod both carry over unchanged, since neither is specific to
-// the cutoff count.) Pure date math, no DB.
-export function getDefaultCutoffs(year: number, month1to12: number): { cutoffs: PayrollCutoff[] } {
-  const mm = String(month1to12).padStart(2, '0');
-  const lastDay = new Date(year, month1to12, 0).getDate();
-  const monthName = new Date(year, month1to12 - 1, 1).toLocaleString('en-US', { month: 'long' });
-  const d = (day: number) => `${year}-${mm}-${String(day).padStart(2, '0')}`;
-  const ranges: [number, number][] = [[1, 15], [16, lastDay]];
+export type PayrollScheduleId = 'A' | 'B';
+
+export const PAYROLL_SCHEDULE_LABELS: Record<PayrollScheduleId, string> = {
+  A: 'Schedule A',
+  B: 'Schedule B',
+};
+
+function clampDay(year: number, month1to12: number, day: number): number {
+  return Math.min(day, new Date(year, month1to12, 0).getDate()); // e.g. day 30 in Feb -> 28/29
+}
+function ymd(year: number, month1to12: number, day: number): string {
+  return `${year}-${String(month1to12).padStart(2, '0')}-${String(clampDay(year, month1to12, day)).padStart(2, '0')}`;
+}
+function shiftMonth(year: number, month1to12: number, delta: number): [number, number] {
+  let m = month1to12 + delta, y = year;
+  while (m > 12) { m -= 12; y++; }
+  while (m < 1) { m += 12; y--; }
+  return [y, m];
+}
+function monthName(year: number, month1to12: number): string {
+  return new Date(year, month1to12 - 1, 1).toLocaleString('en-US', { month: 'long' });
+}
+
+// Two named, per-employee-assignable cutoff schedules (employees.payroll_schedule),
+// replacing the old single company-wide "1-15 / 16-End, paid same day" schedule.
+// Both are still semi-monthly, but with different day boundaries AND a real lag
+// between a cutoff's end and its payday — set per the owner's actual payroll rules:
+//   Schedule A: cutoff 21-5 -> pay 15th   |  cutoff 6-20  -> pay 30th
+//   Schedule B: cutoff 16-30 -> pay 8th   |  cutoff 1-15  -> pay 23rd
+// `month1to12` anchors by PAYDATE month — both of a schedule's cutoffs for a given
+// month pay out within that same displayed month, even though a cutoff's own start
+// (Schedule A's 21st, Schedule B's 16th) falls in the prior calendar month.
+export function getScheduleCutoffs(schedule: PayrollScheduleId, year: number, month1to12: number): { cutoffs: PayrollCutoff[] } {
+  const mName = monthName(year, month1to12);
+  const [py, pm] = shiftMonth(year, month1to12, -1);
+  const pName = monthName(py, pm);
+
+  if (schedule === 'A') {
+    return {
+      cutoffs: [
+        {
+          from: ymd(py, pm, 21), to: ymd(year, month1to12, 5),
+          label: `${pName} 21 – ${mName} 5, ${year} (Schedule A)`,
+          payDate: ymd(year, month1to12, 15),
+        },
+        {
+          from: ymd(year, month1to12, 6), to: ymd(year, month1to12, 20),
+          label: `${mName} 6-20, ${year} (Schedule A)`,
+          payDate: ymd(year, month1to12, 30),
+        },
+      ],
+    };
+  }
+
+  const lastDayPrev = new Date(py, pm, 0).getDate();
   return {
-    cutoffs: ranges.map(([from, to]) => ({
-      from: d(from),
-      to: d(to),
-      label: `${monthName} ${from}-${to}, ${year}`,
-      payDate: d(to),
-    })),
+    cutoffs: [
+      {
+        from: ymd(py, pm, 16), to: ymd(py, pm, lastDayPrev),
+        label: `${pName} 16-${lastDayPrev}, ${py} (Schedule B)`,
+        payDate: ymd(year, month1to12, 8),
+      },
+      {
+        from: ymd(year, month1to12, 1), to: ymd(year, month1to12, 15),
+        label: `${mName} 1-15, ${year} (Schedule B)`,
+        payDate: ymd(year, month1to12, 23),
+      },
+    ],
   };
 }

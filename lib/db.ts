@@ -499,6 +499,13 @@ function migrateSchema() {
     const cols = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name);
     if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   };
+  // Which of the two named payroll cutoff schedules this employee is paid
+  // on (see getScheduleCutoffs in lib/payroll.ts) — deliberately nullable
+  // with NO default. The owner wants every employee explicitly assigned to
+  // A or B rather than silently defaulted, so an unassigned employee is
+  // excluded from payroll generation until someone picks one on their
+  // profile (see app/api/payroll/periods/route.ts POST).
+  addColIfMissing('employees', 'payroll_schedule', "payroll_schedule TEXT CHECK(payroll_schedule IN ('A','B'))");
   addColIfMissing('attendance_events', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
   addColIfMissing('attendance_ot_requests', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
   addColIfMissing('attendance_corrections', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
@@ -776,6 +783,17 @@ function migrateSchema() {
   // payroll_adjustments/payroll_audit_log fully intact.
   addColIfMissing('payroll_periods', 'voided_at', 'voided_at TEXT');
   addColIfMissing('payroll_periods', 'voided_by', 'voided_by INTEGER REFERENCES users(id)');
+
+  // Multi-schedule payroll (two named cutoff schedules, each with its own
+  // payday lag — see getScheduleCutoffs in lib/payroll.ts). `schedule` is
+  // NULL on periods generated before this migration (single company-wide
+  // schedule, no concept of "which one") — left NULL rather than backfilled
+  // to 'A', since neither schedule actually matches what those old periods
+  // used. `pay_date` IS backfilled to the old to_date for those, since that
+  // WAS the real payday under the old same-day-pay assumption.
+  addColIfMissing('payroll_periods', 'schedule', "schedule TEXT CHECK(schedule IN ('A','B'))");
+  addColIfMissing('payroll_periods', 'pay_date', 'pay_date TEXT');
+  db.exec(`UPDATE payroll_periods SET pay_date = to_date WHERE pay_date IS NULL`);
 
   // Statutory Contributions V1 — SSS, PhilHealth, Pag-IBIG. Employee share
   // reduces Net Pay; employer share (+ SSS EC) is tracked as company cost

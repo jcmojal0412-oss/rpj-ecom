@@ -77,6 +77,8 @@ export async function POST(req: NextRequest) {
     // on the [id] PUT route.
     const canEditStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
 
+    const payrollSchedule = body.payroll_schedule === 'A' || body.payroll_schedule === 'B' ? body.payroll_schedule : null;
+
     let newId = 0;
     runTransaction(() => {
       const info = db.prepare(`
@@ -84,10 +86,10 @@ export async function POST(req: NextRequest) {
           full_name, mobile_number, email, address, birthday, emergency_contact_name, emergency_contact_number,
           position, department, branch, date_hired, employment_type, employment_status,
           work_days, rest_day, attendance_enabled, linked_user_id,
-          salary_type, basic_rate, allowance, ot_eligible,
+          salary_type, basic_rate, allowance, ot_eligible, payroll_schedule,
           sss_number, philhealth_number, pagibig_number, sss_enabled, philhealth_enabled, pagibig_enabled,
           sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
-        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?, ?,?,?)
+        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?)
       `).run(
         body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
         body.birthday || null, body.emergency_contact_name || null, body.emergency_contact_number || null,
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
         Array.isArray(body.work_days) ? body.work_days.join(',') : '1,2,3,4,5',
         body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
         body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
-        body.ot_eligible === false ? 0 : 1,
+        body.ot_eligible === false ? 0 : 1, payrollSchedule,
         canEditStatutoryIds ? (body.sss_number || null) : null,
         canEditStatutoryIds ? (body.philhealth_number || null) : null,
         canEditStatutoryIds ? (body.pagibig_number || null) : null,

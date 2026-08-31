@@ -5,7 +5,7 @@ import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowL
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
-import { getDefaultCutoffs, type AdjustmentType } from '@/lib/payroll';
+import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', for_review: 'For Review', approved: 'Approved', paid: 'Paid', locked: 'Locked',
@@ -29,6 +29,7 @@ const EARNING_TYPES: AdjustmentType[] = ['bonus', 'incentive', 'additional_allow
 export default function PayrollClient() {
   const { toast, showToast, clearToast } = useToast();
   const [periods, setPeriods] = useState<any[]>([]);
+  const [unassignedCount, setUnassignedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'wizard'>('list');
   const [activePeriodId, setActivePeriodId] = useState<number | null>(null);
@@ -44,7 +45,11 @@ export default function PayrollClient() {
 
   const fetchPeriods = () => {
     setLoading(true);
-    fetch('/api/payroll/periods').then(r => r.json()).then(d => { setPeriods(Array.isArray(d) ? d : []); setLoading(false); });
+    fetch('/api/payroll/periods').then(r => r.json()).then(d => {
+      setPeriods(Array.isArray(d?.periods) ? d.periods : []);
+      setUnassignedCount(typeof d?.unassigned_count === 'number' ? d.unassigned_count : 0);
+      setLoading(false);
+    });
   };
   useEffect(fetchPeriods, []);
 
@@ -78,6 +83,15 @@ export default function PayrollClient() {
             <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
             <p className="text-sm text-gray-500 mt-1">Simple, guided payroll — one period at a time.</p>
           </div>
+          {unassignedCount > 0 && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+              <p className="text-sm text-amber-800">
+                <strong>{unassignedCount} active employee{unassignedCount === 1 ? '' : 's'}</strong> {unassignedCount === 1 ? 'has' : 'have'} no Payroll Schedule (A or B) assigned yet
+                and will be excluded from every payroll run until set. Assign it on each employee's profile, under Compensation.
+              </p>
+            </div>
+          )}
           <PeriodList periods={periods} loading={loading} onOpen={openPeriod} onStartNew={startNew} onRefresh={fetchPeriods} showToast={showToast} />
         </>
       ) : (
@@ -141,6 +155,8 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="table-header">Period</th>
+                  <th className="table-header">Schedule</th>
+                  <th className="table-header">Pay Date</th>
                   <th className="table-header">Employees</th>
                   <th className="table-header">Total Net Pay</th>
                   <th className="table-header">Status</th>
@@ -152,6 +168,8 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
                 {periods.map(p => (
                   <tr key={p.id} onClick={() => onOpen(p)} className="hover:bg-gray-50/60 cursor-pointer">
                     <td className="table-cell font-medium text-gray-900">{p.label}</td>
+                    <td className="table-cell text-gray-500">{p.schedule ? PAYROLL_SCHEDULE_LABELS[p.schedule as PayrollScheduleId] : '—'}</td>
+                    <td className="table-cell text-gray-500">{p.pay_date ? formatDate(p.pay_date) : '—'}</td>
                     <td className="table-cell">{p.employee_count}</td>
                     <td className="table-cell font-medium">{formatCurrency(p.total_net_pay)}</td>
                     <td className="table-cell"><span className={STATUS_BADGE[p.status]}>{STATUS_LABEL[p.status]}</span></td>
@@ -182,7 +200,7 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
 
 const STEP_LABELS = ['Select Payroll Period', 'Generate Payroll', 'Check Issues', 'Review Payroll', 'Approve & Generate Payslips'];
 
-interface PeriodRange { from: string; to: string; label: string }
+interface PeriodRange { from: string; to: string; label: string; payDate: string; schedule: PayrollScheduleId }
 
 function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showToast }: {
   periodId: number | null; initialStep: number; onBackToList: () => void;
@@ -263,13 +281,19 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
 function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => void }) {
   const now = new Date(Date.now() + 8 * 3600 * 1000);
   const todayISO = now.toISOString().slice(0, 10);
+  const [schedule, setSchedule] = useState<PayrollScheduleId>('A');
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const [selected, setSelected] = useState<number | null>(null);
   const [label, setLabel] = useState('');
 
-  const { cutoffs } = getDefaultCutoffs(year, month);
+  const { cutoffs } = getScheduleCutoffs(schedule, year, month);
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+
+  const changeSchedule = (s: PayrollScheduleId) => {
+    setSchedule(s);
+    setSelected(null);
+  };
 
   const changeMonth = (delta: number) => {
     let m = month + delta, y = year;
@@ -287,14 +311,28 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
   const next = () => {
     if (selected === null) return;
     const range = cutoffs[selected];
-    onSelected({ from: range.from, to: range.to, label: label.trim() || range.label });
+    onSelected({ from: range.from, to: range.to, label: label.trim() || range.label, payDate: range.payDate, schedule });
   };
 
   return (
     <div className="card space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Select a payroll period</p>
-        <p className="text-sm text-gray-500 mt-0.5">Choose which cutoff you want to run payroll for.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Choose the schedule and cutoff you want to run payroll for.</p>
+      </div>
+
+      <div className="flex items-center justify-center gap-2">
+        {(['A', 'B'] as PayrollScheduleId[]).map(s => (
+          <button
+            key={s}
+            onClick={() => changeSchedule(s)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              schedule === s ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {PAYROLL_SCHEDULE_LABELS[s]}
+          </button>
+        ))}
       </div>
 
       <div className="flex items-center justify-center gap-4">
@@ -318,6 +356,7 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
             >
               <p className="text-lg font-bold text-gray-900">{i === 0 ? '1st Half' : '2nd Half'}</p>
               <p className="text-sm text-gray-500">{c.label}</p>
+              <p className="text-xs text-gray-400 mt-1">Pay Date: {formatDate(c.payDate)}</p>
               {notEnded && <p className="text-xs text-amber-600 mt-1">Cutoff hasn&apos;t ended yet</p>}
             </button>
           );
@@ -350,7 +389,7 @@ function StepGeneratePayroll({ range, onGenerated, showToast }: { range: PeriodR
     try {
       const res = await fetch('/api/payroll/periods', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from_date: range.from, to_date: range.to, label: range.label }),
+        body: JSON.stringify({ from_date: range.from, to_date: range.to, label: range.label, pay_date: range.payDate, schedule: range.schedule }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to generate payroll.'); return; }
@@ -366,7 +405,7 @@ function StepGeneratePayroll({ range, onGenerated, showToast }: { range: PeriodR
       <div>
         <p className="text-base font-semibold text-gray-900">Ready to generate payroll</p>
         <p className="text-sm text-gray-500 mt-1">{range.label}</p>
-        <p className="text-xs text-gray-400 mt-1">{formatDate(range.from)} – {formatDate(range.to)}</p>
+        <p className="text-xs text-gray-400 mt-1">{formatDate(range.from)} – {formatDate(range.to)} · Pay Date: {formatDate(range.payDate)}</p>
       </div>
       <p className="text-sm text-gray-600 max-w-md mx-auto">
         This will automatically pull in attendance, approved overtime, and leave records for every employee in this period.
@@ -793,6 +832,7 @@ function StepApproveAndPayslips({ period, entries, onRefresh, showToast }: { per
         <p className="text-sm text-gray-500">Total Net Payroll</p>
         <p className="text-3xl font-bold text-gray-900 mt-1">{formatCurrency(netPayroll)}</p>
         <p className="text-xs text-gray-400 mt-1">{entries.length} employee(s) — {period.label}</p>
+        {period.pay_date && <p className="text-xs text-gray-400 mt-0.5">Pay Date: {formatDate(period.pay_date)}</p>}
         <p className="text-xs text-gray-400 mt-2">
           Status: <span className={STATUS_BADGE[period.status]}>{STATUS_LABEL[period.status]}</span>
         </p>

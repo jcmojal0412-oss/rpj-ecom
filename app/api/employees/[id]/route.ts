@@ -69,12 +69,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       if (conflict) return NextResponse.json({ error: 'That system user is already linked to another employee.' }, { status: 409 });
     }
 
+    const payrollSchedule = body.payroll_schedule === 'A' || body.payroll_schedule === 'B' ? body.payroll_schedule : null;
+
     db.prepare(`
       UPDATE employees SET
         full_name=?, mobile_number=?, email=?, address=?, birthday=?, emergency_contact_name=?, emergency_contact_number=?,
         position=?, department=?, branch=?, date_hired=?, employment_type=?, employment_status=?,
         work_days=?, rest_day=?, attendance_enabled=?, linked_user_id=?,
-        salary_type=?, basic_rate=?, allowance=?, ot_eligible=?,
+        salary_type=?, basic_rate=?, allowance=?, ot_eligible=?, payroll_schedule=?,
         sss_enabled=?, philhealth_enabled=?, pagibig_enabled=?
       WHERE id=?
     `).run(
@@ -85,7 +87,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       Array.isArray(body.work_days) ? body.work_days.join(',') : '1,2,3,4,5',
       body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
       body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
-      body.ot_eligible === false ? 0 : 1,
+      body.ot_eligible === false ? 0 : 1, payrollSchedule,
       body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1,
       params.id
     );
