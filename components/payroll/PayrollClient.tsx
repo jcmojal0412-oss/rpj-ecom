@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2, Archive } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2, Archive, Settings } from 'lucide-react';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
-import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
+import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, roundOtMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', for_review: 'For Review', approved: 'Approved', paid: 'Paid', locked: 'Locked',
@@ -32,6 +32,7 @@ export default function PayrollClient() {
   const [unassignedCount, setUnassignedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'wizard'>('list');
+  const [showSettings, setShowSettings] = useState(false);
   const [activePeriodId, setActivePeriodId] = useState<number | null>(null);
   const [initialStep, setInitialStep] = useState(1);
   // Only bumps when the wizard should actually reset (opening a different
@@ -79,10 +80,20 @@ export default function PayrollClient() {
 
       {view === 'list' ? (
         <>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
-            <p className="text-sm text-gray-500 mt-1">Simple, guided payroll — one period at a time.</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
+              <p className="text-sm text-gray-500 mt-1">Simple, guided payroll — one period at a time.</p>
+            </div>
+            <button onClick={() => setShowSettings(true)} className="btn-secondary text-sm shrink-0">
+              <Settings size={15} /> Payroll Settings
+            </button>
           </div>
+          {showSettings && (
+            <Modal open={showSettings} onClose={() => setShowSettings(false)} title="Payroll Settings" size="sm">
+              <PayrollSettingsForm onClose={() => setShowSettings(false)} showToast={showToast} />
+            </Modal>
+          )}
           {unassignedCount > 0 && (
             <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
               <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
@@ -191,6 +202,68 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Payroll Settings ─────────────────────────────────────────────────────
+
+function PayrollSettingsForm({ onClose, showToast }: { onClose: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [multiplier, setMultiplier] = useState('1.25');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/payroll/settings').then(r => r.json()).then(d => {
+      setMultiplier(String(d.ot_multiplier ?? 1.25));
+      setLoading(false);
+    });
+  }, []);
+
+  const save = async () => {
+    const value = Number(multiplier);
+    if (!Number.isFinite(value) || value < 1 || value > 5) { setError('Enter a number between 1 and 5.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/payroll/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ot_multiplier: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to save.'); return; }
+      showToast('Payroll settings updated!');
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-300" size={22} /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="form-label">OT Multiplier</label>
+        <input type="number" min="1" max="5" step="0.05" className="form-input max-w-[140px]" value={multiplier} onChange={e => setMultiplier(e.target.value)} />
+        <p className="text-xs text-gray-400 mt-1.5">
+          Applied to every approved OT minute, e.g. 1.25 = 125% of the hourly rate. Applies uniformly — this system
+          doesn't yet distinguish rest-day/holiday OT with a separate rate. Takes effect on the next payroll you generate;
+          already-generated periods keep the rate they were created with.
+        </p>
+      </div>
+      <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-xs text-gray-500">
+        OT and Late are both billed in fixed 30-minute blocks (OT rounds down to the last completed block, Late rounds up) — not adjustable here.
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary text-sm disabled:opacity-50">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          {saving ? 'Saving...' : 'Save'}
+        </button>
       </div>
     </div>
   );
@@ -693,7 +766,11 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
                 {' '}· Undertime: <b>{fmtMin(entry.undertime_minutes)}</b> · Excess Break: <b>{fmtMin(entry.excess_break_minutes)}</b>
               </p>
               <p>Absence days: <b>{entry.absence_days}</b> · Unpaid Leave days: <b>{entry.unpaid_leave_days}</b></p>
-              <p>Approved OT: <b>{fmtMin(entry.approved_ot_minutes)}</b> at <b>{entry.ot_multiplier_snapshot}×</b> rate</p>
+              <p>
+                Approved OT: <b>{fmtMin(entry.approved_ot_minutes)}</b>
+                {entry.approved_ot_minutes > 0 && <span className="text-gray-400"> (billed as {fmtMin(roundOtMinutesToBlock(entry.approved_ot_minutes))} — 30-min blocks)</span>}
+                {' '}at <b>{entry.ot_multiplier_snapshot}×</b> rate
+              </p>
               <p>Daily rate used for deductions: <b>{formatCurrency(entry.daily_rate ?? (entry.salary_type_snapshot === 'Daily' ? entry.basic_rate_snapshot : (entry.work_days_count > 0 ? (entry.basic_rate_snapshot / 2) / entry.work_days_count : 0)))}</b></p>
             </div>
           )}

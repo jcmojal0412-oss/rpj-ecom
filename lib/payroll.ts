@@ -42,6 +42,23 @@ export function roundLateMinutesToBlock(lateMinutes: number): number {
   return Math.ceil(lateMinutes / LATE_ROUNDING_BLOCK_MINUTES) * LATE_ROUNDING_BLOCK_MINUTES;
 }
 
+export const OT_ROUNDING_BLOCK_MINUTES = 30;
+
+// OT is billed in 30-minute blocks too, but rounded DOWN — the opposite
+// direction from Late. A completed 30-min block gets paid in full; a
+// partial one (1-29 minutes into the next block) pays nothing for that
+// partial stretch. Matches HR's stated rule: "30 minute consider as 30
+// minute OT, less than 30 minutes wala pong OT" — separately, requests
+// under attendance_min_minutes_before_ot (also 30 by default) never even
+// get flagged as OT at all (see flagPotentialOvertime in
+// lib/attendance-jobs.ts); this floor is what additionally trims a
+// larger-but-not-block-aligned approval (e.g. 47 approved minutes bills as
+// only 30, not 47) at the payroll math step.
+export function roundOtMinutesToBlock(otMinutes: number): number {
+  if (otMinutes <= 0) return 0;
+  return Math.floor(otMinutes / OT_ROUNDING_BLOCK_MINUTES) * OT_ROUNDING_BLOCK_MINUTES;
+}
+
 export type AdjustmentType =
   | 'bonus' | 'incentive' | 'additional_allowance' | 'other_earning'
   | 'cash_advance' | 'loan_deduction' | 'other_deduction';
@@ -126,7 +143,7 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
     ? dailyRate * input.workDaysInPeriod
     : input.basicRate / 2;
 
-  const otPay = input.approvedOtMinutes * perMinuteRate * input.otMultiplier;
+  const otPay = roundOtMinutesToBlock(input.approvedOtMinutes) * perMinuteRate * input.otMultiplier;
   const allowancePay = input.allowance;
 
   const bonusEarnings = input.adjustments
