@@ -28,6 +28,19 @@
 //   inside a component.
 
 export const STANDARD_MINUTES_PER_DAY = 480; // 8-hour reference workday
+export const LATE_ROUNDING_BLOCK_MINUTES = 30;
+
+// Late is billed in 30-minute blocks, rounded UP — 1 minute late costs the
+// same as 30, 31 minutes costs the same as 60, and so on. Requested
+// explicitly by the owner (a discipline-oriented policy, not a plain
+// proportional "pay for exactly the minutes missed" deduction). Undertime
+// and Excess Break are NOT rounded this way — only Late — since the request
+// was scoped to Late specifically. 0 minutes late stays 0 (never rounds up
+// to a full block).
+export function roundLateMinutesToBlock(lateMinutes: number): number {
+  if (lateMinutes <= 0) return 0;
+  return Math.ceil(lateMinutes / LATE_ROUNDING_BLOCK_MINUTES) * LATE_ROUNDING_BLOCK_MINUTES;
+}
 
 export type AdjustmentType =
   | 'bonus' | 'incentive' | 'additional_allowance' | 'other_earning'
@@ -125,7 +138,7 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
 
   const grossPay = basicPay + otPay + allowancePay + bonusEarnings;
 
-  const lateDeduction = input.lateMinutes * perMinuteRate;
+  const lateDeduction = roundLateMinutesToBlock(input.lateMinutes) * perMinuteRate;
   const undertimeDeduction = input.undertimeMinutes * perMinuteRate;
   const excessBreakDeduction = input.excessBreakMinutes * perMinuteRate;
   const absenceDeduction = input.absenceDays * dailyRate;

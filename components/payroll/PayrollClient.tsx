@@ -5,7 +5,7 @@ import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowL
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
-import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
+import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', for_review: 'For Review', approved: 'Approved', paid: 'Paid', locked: 'Locked',
@@ -687,7 +687,11 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
             <div className="bg-gray-50 rounded-xl p-3.5 text-xs text-gray-600 space-y-1.5">
               <p>Salary Type: <b>{entry.salary_type_snapshot}</b> — Rate used: <b>{formatCurrency(entry.basic_rate_snapshot)}</b></p>
               <p>Configured work days in period: <b>{entry.work_days_count}</b></p>
-              <p>Late: <b>{fmtMin(entry.late_minutes)}</b> · Undertime: <b>{fmtMin(entry.undertime_minutes)}</b> · Excess Break: <b>{fmtMin(entry.excess_break_minutes)}</b></p>
+              <p>
+                Late: <b>{fmtMin(entry.late_minutes)}</b>
+                {entry.late_minutes > 0 && <span className="text-gray-400"> (billed as {fmtMin(roundLateMinutesToBlock(entry.late_minutes))} — 30-min blocks)</span>}
+                {' '}· Undertime: <b>{fmtMin(entry.undertime_minutes)}</b> · Excess Break: <b>{fmtMin(entry.excess_break_minutes)}</b>
+              </p>
               <p>Absence days: <b>{entry.absence_days}</b> · Unpaid Leave days: <b>{entry.unpaid_leave_days}</b></p>
               <p>Approved OT: <b>{fmtMin(entry.approved_ot_minutes)}</b> at <b>{entry.ot_multiplier_snapshot}×</b> rate</p>
               <p>Daily rate used for deductions: <b>{formatCurrency(entry.daily_rate ?? (entry.salary_type_snapshot === 'Daily' ? entry.basic_rate_snapshot : (entry.work_days_count > 0 ? (entry.basic_rate_snapshot / 2) / entry.work_days_count : 0)))}</b></p>
