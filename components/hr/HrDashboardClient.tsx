@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2, Users, Clock3, AlertTriangle, Coffee, FileEdit, Palmtree, AlertCircle, ChevronDown, X } from 'lucide-react';
+import { Loader2, Users, Clock3, AlertTriangle, Coffee, FileEdit, Palmtree, AlertCircle, ChevronDown, X, LogIn, LogOut, Utensils, ImageOff } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { resolvePeriod, PERIOD_OPTIONS, type PeriodKey } from '@/lib/marketing-analytics';
 import { Toast, useToast } from '@/components/ui/Toast';
+import Modal from '@/components/ui/Modal';
 import { OtReviewModal, CorrectionReviewModal } from '@/components/attendance/AttendanceAdminClient';
 import { LeaveReviewModal } from '@/components/leave/LeaveManagementClient';
 
@@ -20,7 +20,6 @@ type CardKey = 'present' | 'late' | 'absent' | 'onBreak';
 // lives in HR Settings instead — this page never shows a formula or a
 // config field, only outcomes and actions.
 export default function HrDashboardClient() {
-  const router = useRouter();
   const { toast, showToast, clearToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [presentList, setPresentList] = useState<PersonRow[]>([]);
@@ -34,6 +33,7 @@ export default function HrDashboardClient() {
   const [reviewingOt, setReviewingOt] = useState<any | null>(null);
   const [reviewingCorrection, setReviewingCorrection] = useState<any | null>(null);
   const [reviewingLeave, setReviewingLeave] = useState<any | null>(null);
+  const [viewingDay, setViewingDay] = useState<{ employeeId: number; employeeName: string; date: string } | null>(null);
 
   // Present/Late/Absent are date-ranged (Today/Yesterday/Last Week/...);
   // On Break and Needs Your Attention are inherently "right now" concepts —
@@ -217,13 +217,17 @@ export default function HrDashboardClient() {
               </button>
             ))}
             {attention.missingTimeOut.map((r: any) => (
-              <div key={`missing-${r.employee_id}`} onClick={() => router.push('/attendance')} className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors cursor-pointer">
+              <button
+                key={`missing-${r.employee_id}`}
+                onClick={() => setViewingDay({ employeeId: r.employee_id, employeeName: r.employee_name, date: todayISO() })}
+                className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors"
+              >
                 <span className="flex items-center gap-2 text-sm text-gray-700">
                   <AlertCircle size={14} className="text-red-500 shrink-0" />
                   Missing Time Out — {r.employee_name} (today)
                 </span>
-                <span className="text-xs text-gray-400 font-medium">View →</span>
-              </div>
+                <span className="text-xs text-orange-600 font-medium">View →</span>
+              </button>
             ))}
           </div>
         )}
@@ -238,6 +242,82 @@ export default function HrDashboardClient() {
       {reviewingLeave && (
         <LeaveReviewModal request={reviewingLeave} onClose={() => setReviewingLeave(null)} onDone={() => { setReviewingLeave(null); showToast('Leave request reviewed!'); fetchAll(); }} />
       )}
+      {viewingDay && (
+        <DayEventsModal
+          employeeId={viewingDay.employeeId}
+          employeeName={viewingDay.employeeName}
+          date={viewingDay.date}
+          onClose={() => setViewingDay(null)}
+        />
+      )}
     </div>
+  );
+}
+
+const EVENT_LABELS: Record<string, { label: string; icon: typeof LogIn }> = {
+  TIME_IN: { label: 'Time In', icon: LogIn },
+  TIME_OUT: { label: 'Time Out', icon: LogOut },
+  LUNCH_OUT: { label: 'Lunch Break', icon: Utensils },
+  LUNCH_IN: { label: 'End Lunch Break', icon: Utensils },
+  COFFEE_OUT: { label: 'Coffee Break', icon: Coffee },
+  COFFEE_IN: { label: 'End Coffee Break', icon: Coffee },
+};
+
+// Every punch for one employee's one day, each with its selfie if one was
+// captured (only Time In/Out and Lunch Out/In ever require one — see
+// eventRequiresSelfie in lib/attendance.ts; Coffee Break never does, and an
+// employee could also be on a shift/date where selfie_required was off).
+function DayEventsModal({ employeeId, employeeName, date, onClose }: {
+  employeeId: number; employeeName: string; date: string; onClose: () => void;
+}) {
+  const [events, setEvents] = useState<{ id: number; event_type: string; event_time: string; photo_path: string | null }[] | null>(null);
+  const [zoomedPhoto, setZoomedPhoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/attendance/day-events?employee_id=${employeeId}&date=${date}`)
+      .then(r => r.json())
+      .then(d => setEvents(Array.isArray(d.events) ? d.events : []));
+  }, [employeeId, date]);
+
+  return (
+    <Modal open={true} onClose={onClose} title={`${employeeName} — ${formatDate(date)}`} size="sm">
+      {events === null ? (
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-gray-300" size={22} /></div>
+      ) : events.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">No punches recorded for this day.</p>
+      ) : (
+        <div className="space-y-3">
+          {events.map(e => {
+            const meta = EVENT_LABELS[e.event_type] ?? { label: e.event_type, icon: Clock3 };
+            const Icon = meta.icon;
+            const time = new Date(e.event_time).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+            const photoUrl = e.photo_path ? `/api/attendance/photos/${e.photo_path}` : null;
+            return (
+              <div key={e.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                {photoUrl ? (
+                  <button onClick={() => setZoomedPhoto(photoUrl)} className="shrink-0">
+                    <img src={photoUrl} alt={meta.label} className="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                  </button>
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                    <ImageOff size={18} className="text-gray-300" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><Icon size={14} className="text-gray-400" /> {meta.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{time}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {zoomedPhoto && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80" onClick={() => setZoomedPhoto(null)}>
+          <img src={zoomedPhoto} alt="Selfie" className="max-w-full max-h-full rounded-lg" />
+        </div>
+      )}
+    </Modal>
   );
 }
