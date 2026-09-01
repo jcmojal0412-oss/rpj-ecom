@@ -11,7 +11,7 @@ import { formatCurrency, todayISO } from '@/lib/utils';
 import { resolvePeriod, pctChange, PERIOD_OPTIONS, type PeriodKey } from '@/lib/marketing-analytics';
 import MovingChart from './MovingChart';
 import Spinner from '@/components/ui/Spinner';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 
 interface KPIs {
   inventoryValue: number;
@@ -34,6 +34,8 @@ interface SummaryRow {
   remaining: number; inventory_value: number;
 }
 
+interface InvTrendDay { date: string; opening: number; stockInValue: number; stockOutValue: number; closing: number; }
+
 interface ChartItem { sku: string; name: string; total_out: number; quantity?: number; }
 interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
 type DailyPeriod = 'today' | 'yesterday' | '7days';
@@ -55,6 +57,7 @@ export default function DashboardClient() {
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [invValueSort, setInvValueSort] = useState<'none' | 'desc' | 'asc'>('none');
+  const [invTrend, setInvTrend] = useState<InvTrendDay[]>([]);
   const [fast,        setFast]        = useState<ChartItem[]>([]);
   const [slow,        setSlow]        = useState<ChartItem[]>([]);
   const [dailyTop,    setDailyTop]    = useState<DailyItem[]>([]);
@@ -100,6 +103,14 @@ export default function DashboardClient() {
       setAttention(d.items ?? []);
       setAttentionLoaded(true);
     }).catch(() => setAttentionLoaded(true));
+  }, []);
+
+  // Fixed trailing-14-day window, not tied to the period filter above —
+  // answers "why does Total Inventory Value look flat" by reconstructing
+  // day-by-day closing value from today's real total, undoing each day's
+  // net stock movement (see app/api/dashboard/inventory-value-trend).
+  useEffect(() => {
+    fetch('/api/dashboard/inventory-value-trend').then(r => r.json()).then(d => setInvTrend(d.trend ?? []));
   }, []);
 
   const fetchPeriodKpis = useCallback(async (from: string, to: string, prevFrom: string, prevTo: string) => {
@@ -259,6 +270,60 @@ export default function DashboardClient() {
           />
         )}
       </div>
+
+      {/* Inventory Value Trend */}
+      {invTrend.length > 0 && (
+        <div className="bg-white border border-[#E5EAF0] rounded-xl p-5 sm:p-6">
+          <h2 className="text-base font-semibold text-[#16233B]">Inventory Value Trend</h2>
+          <p className="text-xs text-[#66758A] mt-0.5 mb-4">
+            Last 14 days — Total Inventory Value moves with both directions at once: Stock Out (sales) pulls it down,
+            Stock In (restocks and Bulk Stock Count entries for products counted for the first time) pushes it back up.
+            That&apos;s why the top KPI can look flat even while items are actively selling.
+          </p>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={invTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="invValueFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#B68B3C" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#B68B3C" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#EEF1F5" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} tick={{ fontSize: 11, fill: '#66758A' }} axisLine={{ stroke: '#E5EAF0' }} tickLine={false} />
+                <YAxis tickFormatter={v => formatCurrency(v).replace('.00', '')} tick={{ fontSize: 11, fill: '#66758A' }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  labelFormatter={d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  contentStyle={{ borderRadius: 8, borderColor: '#E5EAF0', fontSize: 12 }}
+                />
+                <Area type="monotone" dataKey="closing" name="Closing Value" stroke="#B68B3C" strokeWidth={2} fill="url(#invValueFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="overflow-x-auto mt-4">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#E5EAF0]">
+                  {['Date', 'Stock In (₱)', 'Stock Out (₱)', 'Closing Value'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invTrend.slice().reverse().map((d, i) => (
+                  <tr key={d.date} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F6F8FC]'}>
+                    <td className="px-3 py-2 text-[#16233B]">{new Date(d.date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</td>
+                    <td className="px-3 py-2 text-green-700 font-medium">{d.stockInValue > 0 ? `+${formatCurrency(d.stockInValue)}` : '—'}</td>
+                    <td className="px-3 py-2 text-red-600 font-medium">{d.stockOutValue > 0 ? `-${formatCurrency(d.stockOutValue)}` : '—'}</td>
+                    <td className="px-3 py-2 font-semibold text-[#16233B]">{formatCurrency(d.closing)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Attention Needed */}
       {attentionLoaded && (
