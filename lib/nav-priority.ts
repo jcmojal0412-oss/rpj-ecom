@@ -28,11 +28,13 @@ export const MODULE_LANDING_PRIORITY: { module: string; href: string }[] = [
 ];
 
 // Owner always lands on the Dashboard. A staff account lands on the first
-// module it actually has, in the priority order above — Dashboard only as
-// a last-resort fallback (e.g. a staff account with no module assigned
-// yet), since / itself isn't permission-gated.
+// module it actually has, in the priority order above. / itself now
+// requires the 'dashboard' permission (see middleware.ts) — a staff
+// account with no module assigned at all falls back to /no-access rather
+// than /, since landing there would just bounce them straight into
+// middleware's own dashboard-permission redirect.
 export function resolveLandingPath(role: string, permissions: string[]): string {
   if (role === 'owner') return '/';
   const match = MODULE_LANDING_PRIORITY.find(m => permissions.includes(m.module));
-  return match ? match.href : '/';
+  return match ? match.href : '/no-access';
 }

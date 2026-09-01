@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { MODULE_LANDING_PRIORITY } from '@/lib/nav-priority';
 
 const SESSION_COOKIE = 'rpj_session';
 const APP_SECRET = 'rpj-corp-ecom-2026-local'; // must match lib/auth-helpers.ts
@@ -101,7 +102,7 @@ const ROUTE_MODULES: [string, string][] = [
   ['/api/service-repairs', 'service_center'],
   ['/marketing-analytics',     'marketing_analytics'],
   ['/api/marketing-analytics', 'marketing_analytics'],
-  // ['/ai-product-researcher', 'ai_product_researcher'], // hidden — re-enable when ready
+  ['/ai-product-researcher', 'ai_product_researcher'], // nobody is granted this yet — owner-only in practice until someone is
   // Booking-settings APIs are partners-gated (same population as Discovery
   // Calls), so these must come before the generic '/api/settings' owner-only
   // catch-all below — first startsWith match wins.
@@ -155,6 +156,18 @@ async function verifySession(token: string): Promise<{ role: string; permissions
   }
 }
 
+// Where to send a user away from a page they're not allowed on — their own
+// first accessible module (same priority list used at login), never a
+// bare '/', since '/' itself now requires 'dashboard' (see below) and
+// would otherwise bounce a non-dashboard user right back into another
+// denial. /no-access is the true last resort, for a staff account with no
+// module assigned at all — it carries no permission requirement itself.
+function landingPathFor(user: { role: string; permissions: string[] }): string {
+  if (user.role === 'owner') return '/';
+  const match = MODULE_LANDING_PRIORITY.find(m => user.permissions.includes(m.module));
+  return match ? match.href : '/no-access';
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -181,14 +194,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // '/' (Operations Dashboard — inventory value, financing figures,
+  // cross-module Attention counts) is checked separately from the
+  // prefix-matching ROUTE_MODULES loop below rather than added to that
+  // array: every pathname starts with '/', so a ['/', 'dashboard'] entry in
+  // a startsWith()-matched list would silently swallow every other path
+  // that doesn't match anything more specific above it. Found via a report
+  // that a Service-Center-only account could see Total Inventory Value by
+  // just navigating to the bare root URL — '/' had never been in
+  // ROUTE_MODULES at all, only hidden from that account's Sidebar nav.
+  if (pathname === '/' && user.role !== 'owner' && !user.permissions.includes('dashboard')) {
+    return NextResponse.redirect(new URL(landingPathFor(user), request.url));
+  }
+
   // Check route-level permission
   for (const [route, module_] of ROUTE_MODULES) {
     if (pathname.startsWith(route)) {
       if (module_ === '_owner' && user.role !== 'owner') {
-        return NextResponse.redirect(new URL('/', request.url));
+        return NextResponse.redirect(new URL(landingPathFor(user), request.url));
       }
       if (module_ !== '_owner' && !user.permissions.includes(module_) && user.role !== 'owner') {
-        return NextResponse.redirect(new URL('/', request.url));
+        return NextResponse.redirect(new URL(landingPathFor(user), request.url));
       }
       break;
     }
