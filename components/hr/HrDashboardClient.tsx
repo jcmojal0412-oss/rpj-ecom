@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Users, Clock3, AlertTriangle, Coffee, FileEdit, Palmtree, AlertCircle, ChevronDown, X, LogIn, LogOut, Utensils, ImageOff } from 'lucide-react';
+import { Loader2, Users, Clock3, AlertTriangle, Coffee, FileEdit, Palmtree, AlertCircle, ChevronDown, X, LogIn, LogOut, Utensils, ImageOff, Cake } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { resolvePeriod, PERIOD_OPTIONS, type PeriodKey } from '@/lib/marketing-analytics';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -34,6 +34,8 @@ export default function HrDashboardClient() {
   const [reviewingCorrection, setReviewingCorrection] = useState<any | null>(null);
   const [reviewingLeave, setReviewingLeave] = useState<any | null>(null);
   const [viewingDay, setViewingDay] = useState<{ employeeId: number; employeeName: string; date: string } | null>(null);
+  const [birthdaysToday, setBirthdaysToday] = useState<{ id: number; full_name: string; position: string | null; turning: number }[]>([]);
+  const [birthdaysUpcoming, setBirthdaysUpcoming] = useState<{ id: number; full_name: string; position: string | null; daysUntil: number; turning: number }[]>([]);
 
   // Present/Late/Absent are date-ranged (Today/Yesterday/Last Week/...);
   // On Break and Needs Your Attention are inherently "right now" concepts —
@@ -82,6 +84,15 @@ export default function HrDashboardClient() {
     const id = setInterval(fetchAll, REFRESH_MS);
     return () => clearInterval(id);
   }, [range.from, range.to]);
+
+  // Not date-range-dependent (there's no "birthdays last week" reading of
+  // this) — fetched once, separate from the period-driven fetchAll above.
+  useEffect(() => {
+    fetch('/api/hr/birthdays').then(r => r.json()).then(d => {
+      setBirthdaysToday(d.today ?? []);
+      setBirthdaysUpcoming(d.upcoming ?? []);
+    });
+  }, []);
 
   const totalAttention = attention.pendingOt.length + attention.pendingCorrections.length + attention.pendingLeave.length + attention.missingTimeOut.length;
 
@@ -174,6 +185,42 @@ export default function HrDashboardClient() {
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(birthdaysToday.length > 0 || birthdaysUpcoming.length > 0) && (
+        <div className={`card space-y-3 ${birthdaysToday.length > 0 ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-2 border-pink-200' : ''}`}>
+          {birthdaysToday.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Cake className="text-pink-500" size={20} />
+                <p className="text-base font-semibold text-gray-900">Happy Birthday!</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {birthdaysToday.map(b => (
+                  <span key={b.id} className="inline-flex items-center gap-1.5 bg-white rounded-full px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm">
+                    🎉 {b.full_name}{b.turning > 0 ? ` — turning ${b.turning}` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {birthdaysUpcoming.length > 0 && (
+            <div className={birthdaysToday.length > 0 ? 'pt-2 border-t border-pink-100' : ''}>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5 flex items-center gap-1.5">
+                {birthdaysToday.length === 0 && <Cake size={14} className="text-gray-400" />}
+                Upcoming Birthdays
+              </p>
+              <div className="space-y-1">
+                {birthdaysUpcoming.map(b => (
+                  <div key={b.id} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">{b.full_name}</span>
+                    <span className="text-gray-400 text-xs">in {b.daysUntil} day{b.daysUntil === 1 ? '' : 's'}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
