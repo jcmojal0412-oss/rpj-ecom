@@ -233,6 +233,18 @@ export async function POST(req: NextRequest) {
     // covered by the financing provider, not money owed back or forward.
     const changeDue = financing_provider ? 0 : totalPayment - amountDue;
 
+    // derivedPaymentMethod above only ever reflects the cash/online legs —
+    // computed before financing was even checked, so a Cash-downpayment +
+    // Financing sale used to save payment_method as just "Cash", silently
+    // dropping the financing portion from the Payment Method Report's
+    // grouping (found via a real mismatch against the Cashier's Report,
+    // which reads financing_amount directly and never had this gap).
+    // Appended here, after financingProviderVal is known, rather than
+    // baked into derivedPaymentMethod itself, so a pure Split-mode sale
+    // (payments[] with no financing_provider) keeps its exact original label.
+    const finalPaymentMethod = [derivedPaymentMethod, financingProviderVal ? `${financingProviderVal} Financing` : null]
+      .filter(Boolean).join(' + ') || null;
+
     // A sale is now REQUIRED to belong to an open shift — a sale rung up
     // with no active shift used to complete fine with shift_id left NULL,
     // which meant its cash was physically collected but never counted
@@ -282,7 +294,7 @@ export async function POST(req: NextRequest) {
       const info = insertSale.run(
         business_id, todayISO(), subtotal, discountNum, feeNum, taxPercentNum, taxAmount,
         serviceChargeNum, deliveryFeeNum, total, cashNum, onlineNum, changeDue,
-        derivedPaymentMethod, reference_no?.trim() || null,
+        finalPaymentMethod, reference_no?.trim() || null,
         session.id, notes?.trim() || null, openShift?.id ?? null,
         financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
         downpaymentAppliedNum, nextReceiptNo(db),
