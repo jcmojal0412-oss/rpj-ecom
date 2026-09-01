@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, ArrowUpDown, ChevronLeft, ChevronRight, Wrench, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -44,6 +44,10 @@ export default function PaymentMethodReportClient() {
   const [page, setPage] = useState(1);
   const { toast, showToast, clearToast } = useToast();
 
+  const [isOwner, setIsOwner] = useState(false);
+  const [mismatchCount, setMismatchCount] = useState(0);
+  const [fixing, setFixing] = useState(false);
+
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
   const buildQuery = useCallback(() => {
@@ -63,11 +67,38 @@ export default function PaymentMethodReportClient() {
     setLoading(false);
   }, [buildQuery]);
 
+  // Owner-only: sales whose payment_method is missing a "<Provider> Financing"
+  // mention even though financing_provider is set (see
+  // app/api/pos/reports/payment-methods/fix-financing/route.ts) — a bug in
+  // the checkout route, fixed for new sales going forward, but old sales in
+  // whatever range is currently on screen may still need a one-time correction.
+  const fetchMismatchCount = useCallback(async () => {
+    if (!isOwner) return;
+    const d = await fetch(`/api/pos/reports/payment-methods/fix-financing?${buildQuery().toString()}`).then(r => r.json());
+    setMismatchCount(Array.isArray(d.mismatched) ? d.mismatched.length : 0);
+  }, [buildQuery, isOwner]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchMismatchCount(); }, [fetchMismatchCount]);
   useEffect(() => {
     fetch('/api/businesses').then(r => r.json()).then(d => setBusinesses(d.rows ?? []));
     fetch('/api/pos/reports/cashiers').then(r => r.json()).then(d => setCashiers((d.rows ?? []).filter((c: CashierOption) => c.cashier_id)));
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setIsOwner(u?.role === 'owner'));
   }, []);
+
+  const runFix = async () => {
+    setFixing(true);
+    try {
+      const res = await fetch(`/api/pos/reports/payment-methods/fix-financing?${buildQuery().toString()}`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Failed to fix labels', 'error'); return; }
+      showToast(`Fixed ${d.updated} sale${d.updated === 1 ? '' : 's'}!`);
+      await fetchData();
+      await fetchMismatchCount();
+    } finally {
+      setFixing(false);
+    }
+  };
 
   const sortedSales = useMemo(() => {
     const rows = data?.sales ?? [];
@@ -169,6 +200,22 @@ export default function PaymentMethodReportClient() {
           </div>
         )}
       </div>
+
+      {isOwner && mismatchCount > 0 && (
+        <div className="card flex items-center justify-between gap-3 border-2 border-amber-200 bg-amber-50 print:hidden">
+          <div className="flex items-center gap-2.5">
+            <Wrench className="text-amber-600 shrink-0" size={18} />
+            <p className="text-sm text-amber-800">
+              <strong>{mismatchCount} sale{mismatchCount === 1 ? '' : 's'}</strong> in this range {mismatchCount === 1 ? 'has' : 'have'} an incomplete payment label
+              (financing was used but not reflected — e.g. shows just &quot;Cash&quot; instead of &quot;Cash + Salmon Financing&quot;).
+            </p>
+          </div>
+          <button onClick={runFix} disabled={fixing} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50">
+            {fixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+            {fixing ? 'Fixing...' : 'Fix Now'}
+          </button>
+        </div>
+      )}
 
       {loading || !data ? (
         <div className="flex justify-center py-12"><Spinner /></div>
