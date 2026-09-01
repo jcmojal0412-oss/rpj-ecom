@@ -712,9 +712,13 @@ function migrateSchema() {
       locked_by INTEGER REFERENCES users(id),
       locked_at TEXT,
       payslips_generated_by INTEGER REFERENCES users(id),
-      payslips_generated_at TEXT,
-      UNIQUE(from_date, to_date)
+      payslips_generated_at TEXT
     );
+    -- No inline UNIQUE(from_date, to_date) here on purpose — see the
+    -- voided_at-aware partial unique index created further below, once
+    -- schedule/voided_at exist. A hard, non-partial constraint on just
+    -- (from_date, to_date) would let a VOIDED period permanently block
+    -- ever regenerating that exact cutoff again.
 
     CREATE TABLE IF NOT EXISTS payroll_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -794,6 +798,73 @@ function migrateSchema() {
   addColIfMissing('payroll_periods', 'schedule', "schedule TEXT CHECK(schedule IN ('A','B'))");
   addColIfMissing('payroll_periods', 'pay_date', 'pay_date TEXT');
   db.exec(`UPDATE payroll_periods SET pay_date = to_date WHERE pay_date IS NULL`);
+
+  // One-time rebuild for any DB created before the inline UNIQUE(from_date,
+  // to_date) constraint above was removed — that old constraint has no
+  // concept of "voided," so voiding a period and trying to regenerate the
+  // exact same cutoff hit a raw SQLite UNIQUE-constraint error forever
+  // (found via QA on the multi-schedule payroll feature). Guarded by
+  // checking the table's actual stored SQL, so this only ever runs once.
+  const periodsTableSql = (db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='payroll_periods'`).get() as { sql: string } | undefined)?.sql ?? '';
+  if (periodsTableSql.includes('UNIQUE(from_date, to_date)')) {
+    // payroll_entries.payroll_period_id and payroll_audit_log.payroll_period_id
+    // both hold a NOT NULL/plain FK reference into this table — with
+    // foreign_keys=ON (set at connection open, see top of this file),
+    // DROP TABLE payroll_periods fails while either still has rows
+    // pointing at it. Same ids get preserved by the SELECT below, so every
+    // existing reference stays valid the moment the rename completes.
+    db.pragma('foreign_keys = OFF');
+    try {
+    db.exec(`
+      DROP TABLE IF EXISTS payroll_periods_new;
+      CREATE TABLE payroll_periods_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_date TEXT NOT NULL,
+        to_date TEXT NOT NULL,
+        label TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft','for_review','approved','paid','locked')) DEFAULT 'draft',
+        generated_by INTEGER REFERENCES users(id),
+        generated_at TEXT DEFAULT (datetime('now')),
+        reviewed_by INTEGER REFERENCES users(id),
+        reviewed_at TEXT,
+        approved_by INTEGER REFERENCES users(id),
+        approved_at TEXT,
+        paid_by INTEGER REFERENCES users(id),
+        paid_at TEXT,
+        locked_by INTEGER REFERENCES users(id),
+        locked_at TEXT,
+        payslips_generated_by INTEGER REFERENCES users(id),
+        payslips_generated_at TEXT,
+        voided_at TEXT,
+        voided_by INTEGER REFERENCES users(id),
+        schedule TEXT CHECK(schedule IN ('A','B')),
+        pay_date TEXT
+      );
+      INSERT INTO payroll_periods_new SELECT
+        id, from_date, to_date, label, status, generated_by, generated_at,
+        reviewed_by, reviewed_at, approved_by, approved_at, paid_by, paid_at,
+        locked_by, locked_at, payslips_generated_by, payslips_generated_at,
+        voided_at, voided_by, schedule, pay_date
+      FROM payroll_periods;
+      DROP TABLE payroll_periods;
+      ALTER TABLE payroll_periods_new RENAME TO payroll_periods;
+    `);
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+  }
+
+  // The real duplicate-prevention constraint now: same cutoff + schedule
+  // can't collide while ACTIVE (voided_at IS NULL), but a voided one never
+  // blocks a fresh regenerate. schedule is included so, in principle,
+  // different schedules could ever share an exact date range without
+  // tripping this (getScheduleCutoffs' actual day boundaries never
+  // literally overlap between A and B, but this keeps the constraint
+  // honest about what "duplicate" really means here).
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_periods_unique_active
+      ON payroll_periods(from_date, to_date, schedule) WHERE voided_at IS NULL;
+  `);
 
   // Statutory Contributions V1 — SSS, PhilHealth, Pag-IBIG. Employee share
   // reduces Net Pay; employer share (+ SSS EC) is tracked as company cost

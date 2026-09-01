@@ -69,7 +69,11 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id FROM payroll_periods WHERE from_date = ? AND to_date = ? AND schedule = ?').get(from_date, to_date, schedule);
+    // voided_at IS NULL — a voided period must never permanently block
+    // regenerating that same cutoff (e.g. HR voided a mistake and wants to
+    // redo it correctly). The GET list already excludes voided periods the
+    // same way; this check needs to match or a void becomes a dead zone.
+    const existing = db.prepare('SELECT id FROM payroll_periods WHERE from_date = ? AND to_date = ? AND schedule = ? AND voided_at IS NULL').get(from_date, to_date, schedule);
     if (existing) return NextResponse.json({ error: 'A payroll period already exists for this exact date range and schedule.' }, { status: 409 });
 
     const otMultiplierRow = db.prepare(`SELECT value FROM app_settings WHERE key = 'payroll_ot_multiplier'`).get() as { value: string } | undefined;
