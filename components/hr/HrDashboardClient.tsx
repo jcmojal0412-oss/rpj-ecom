@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Users, Clock3, AlertTriangle, Coffee, FileEdit, Palmtree, AlertCircle } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
+import { resolvePeriod, PERIOD_OPTIONS, type PeriodKey } from '@/lib/marketing-analytics';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { OtReviewModal, CorrectionReviewModal } from '@/components/attendance/AttendanceAdminClient';
 import { LeaveReviewModal } from '@/components/leave/LeaveManagementClient';
@@ -27,10 +28,25 @@ export default function HrDashboardClient() {
   const [reviewingCorrection, setReviewingCorrection] = useState<any | null>(null);
   const [reviewingLeave, setReviewingLeave] = useState<any | null>(null);
 
+  // Present/Late/Absent are date-ranged (Today/Yesterday/Last Week/...);
+  // On Break and Needs Your Attention are inherently "right now" concepts —
+  // there's no such thing as "on break yesterday" — so they stay live/
+  // current regardless of this filter (see the On Break card below, which
+  // only shows a number when period === 'today').
+  const [period, setPeriod] = useState<PeriodKey>('today');
+  const [customFrom, setCustomFrom] = useState(todayISO());
+  const [customTo, setCustomTo] = useState(todayISO());
+  const [appliedCustom, setAppliedCustom] = useState({ from: todayISO(), to: todayISO() });
+
+  const range = useMemo(
+    () => resolvePeriod(period, todayISO(), appliedCustom.from, appliedCustom.to),
+    [period, appliedCustom]
+  );
+  const periodLabel = PERIOD_OPTIONS.find(o => o.key === period)?.label ?? 'Today';
+
   const fetchAll = () => {
-    const today = todayISO();
     Promise.all([
-      fetch(`/api/attendance/records?from=${today}&to=${today}`).then(r => r.json()),
+      fetch(`/api/attendance/records?from=${range.from}&to=${range.to}`).then(r => r.json()),
       fetch('/api/attendance/live-status').then(r => r.json()),
       fetch('/api/hr/needs-attention').then(r => r.json()),
     ]).then(([records, live, needsAttention]) => {
@@ -55,26 +71,51 @@ export default function HrDashboardClient() {
     fetchAll();
     const id = setInterval(fetchAll, REFRESH_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [range.from, range.to]);
 
   const totalAttention = attention.pendingOt.length + attention.pendingCorrections.length + attention.pendingLeave.length + attention.missingTimeOut.length;
 
   if (loading) return <div className="flex justify-center py-24"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
 
   const cards = [
-    { label: 'Present Today', value: counts.present, icon: Users, color: 'text-green-600 bg-green-50' },
-    { label: 'Late Today', value: counts.late, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Absent Today', value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
-    { label: 'On Break', value: counts.onBreak, icon: Coffee, color: 'text-orange-600 bg-orange-50' },
+    { label: `Present ${periodLabel}`, value: counts.present, icon: Users, color: 'text-green-600 bg-green-50' },
+    { label: `Late ${periodLabel}`, value: counts.late, icon: Clock3, color: 'text-amber-600 bg-amber-50' },
+    { label: `Absent ${periodLabel}`, value: counts.absent, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
+    { label: 'On Break', value: period === 'today' ? counts.onBreak : null, icon: Coffee, color: 'text-orange-600 bg-orange-50' },
   ];
 
   return (
     <div className="p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Today at a glance</p>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">{periodLabel} at a glance</p>
+        </div>
+
+        <div className="flex flex-col items-end gap-2">
+          <select
+            value={period}
+            onChange={e => setPeriod(e.target.value as PeriodKey)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-orange-400"
+          >
+            {PERIOD_OPTIONS.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          {period === 'custom' && (
+            <div className="flex items-center flex-wrap gap-2">
+              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+              <span className="text-gray-300 text-xs">to</span>
+              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+              <button
+                onClick={() => setAppliedCustom({ from: customFrom, to: customTo })}
+                className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-md px-3 py-1.5"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -83,7 +124,8 @@ export default function HrDashboardClient() {
             <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
             <div>
               <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value}</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value === null ? '—' : c.value}</p>
+              {c.value === null && <p className="text-[10px] text-gray-400 mt-0.5">Only shown for &quot;Today&quot;</p>}
             </div>
           </div>
         ))}
