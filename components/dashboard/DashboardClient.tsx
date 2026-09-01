@@ -20,6 +20,7 @@ interface KPIs {
   stockOut: number;
   prevStockIn: number | null;
   prevStockOut: number | null;
+  stockOutByBusiness: { business_name: string; total: number }[];
 }
 
 interface FinancingSummary { available: boolean; total: number; prevTotal: number | null; }
@@ -121,7 +122,7 @@ export default function DashboardClient() {
     // reject as a whole and skip the setKpiLoading(false) below).
     const [k, fin] = await Promise.all([
       fetch(`/api/dashboard/kpis?${params}`).then(r => r.json())
-        .catch(() => ({ inventoryValue: 0, totalSkus: 0, stockIn: 0, stockOut: 0, prevStockIn: null, prevStockOut: null })),
+        .catch(() => ({ inventoryValue: 0, totalSkus: 0, stockIn: 0, stockOut: 0, prevStockIn: null, prevStockOut: null, stockOutByBusiness: [] })),
       fetch(`/api/dashboard/financing-summary?${params}`).then(r => r.json())
         .catch(() => ({ available: false, total: 0, prevTotal: null })),
     ]);
@@ -259,6 +260,7 @@ export default function DashboardClient() {
           icon={TrendingDown} iconColor="#DC2626" iconBg="#FDEDED"
           changePct={stockOutChange}
           loading={kpiLoading}
+          subLines={kpis?.stockOutByBusiness?.map(b => ({ label: b.business_name, value: `${b.total} units` }))}
         />
         {showFinancingCard && (
           <KpiCard
@@ -594,10 +596,11 @@ function DailyTopSection({ data, label, period, onPeriodChange }: {
   );
 }
 
-function KpiCard({ label, value, unit, icon: Icon, iconColor, iconBg, changePct, loading }: {
+function KpiCard({ label, value, unit, icon: Icon, iconColor, iconBg, changePct, loading, subLines }: {
   label: string; value: string; unit?: string;
   icon: React.ElementType; iconColor: string; iconBg: string;
   changePct?: number | null; loading?: boolean;
+  subLines?: { label: string; value: string }[];
 }) {
   return (
     <div className="bg-white border border-[#E5EAF0] rounded-xl p-5">
@@ -614,6 +617,16 @@ function KpiCard({ label, value, unit, icon: Icon, iconColor, iconBg, changePct,
         <div className={`flex items-center gap-1 mt-1.5 text-xs font-semibold ${changePct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
           {changePct >= 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
           {Math.abs(changePct).toFixed(1)}% vs previous period
+        </div>
+      )}
+      {!loading && subLines && subLines.length > 0 && (
+        <div className="mt-2.5 pt-2.5 border-t border-[#EEF1F5] space-y-1">
+          {subLines.map(s => (
+            <div key={s.label} className="flex items-center justify-between text-xs">
+              <span className="text-[#66758A]">{s.label}</span>
+              <span className="font-semibold text-[#16233B]">{s.value}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
