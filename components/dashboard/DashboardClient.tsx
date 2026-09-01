@@ -35,7 +35,10 @@ interface SummaryRow {
   remaining: number; inventory_value: number;
 }
 
-interface InvTrendDay { date: string; opening: number; stockInValue: number; stockOutValue: number; closing: number; }
+interface InvTrendDay {
+  date: string; opening: number; stockInValue: number; stockOutValue: number; closing: number;
+  stockOutByBusiness: { business_name: string; value: number }[];
+}
 
 interface ChartItem { sku: string; name: string; total_out: number; quantity?: number; }
 interface DailyItem  { sku: string; name: string; total_out: number; total_in: number; }
@@ -151,6 +154,15 @@ export default function DashboardClient() {
     const dir = invValueSort === 'desc' ? -1 : 1;
     return [...summary].sort((a, b) => (a.inventory_value - b.inventory_value) * dir);
   }, [summary, invValueSort]);
+
+  // Column set for the trend table's per-business Stock Out breakdown —
+  // whichever businesses actually show up across the 14-day window, "Other"
+  // (unattributed movements) always last regardless of its value that day.
+  const stockOutBusinessNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const day of invTrend) for (const b of day.stockOutByBusiness) if (b.value > 0) names.add(b.business_name);
+    return [...names].sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b));
+  }, [invTrend]);
 
   const cycleInvValueSort = () => {
     setInvValueSort(s => (s === 'none' ? 'desc' : s === 'desc' ? 'asc' : 'none'));
@@ -307,20 +319,33 @@ export default function DashboardClient() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-[#E5EAF0]">
-                  {['Date', 'Stock In (₱)', 'Stock Out (₱)', 'Closing Value'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider">{h}</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider">Date</th>
+                  <th className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider">Stock In (₱)</th>
+                  {stockOutBusinessNames.map(name => (
+                    <th key={name} className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider whitespace-nowrap">
+                      Stock Out — {name} (₱)
+                    </th>
                   ))}
+                  <th className="px-3 py-2 text-left font-semibold text-[#66758A] uppercase tracking-wider">Closing Value</th>
                 </tr>
               </thead>
               <tbody>
-                {invTrend.slice().reverse().map((d, i) => (
-                  <tr key={d.date} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F6F8FC]'}>
-                    <td className="px-3 py-2 text-[#16233B]">{new Date(d.date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</td>
-                    <td className="px-3 py-2 text-green-700 font-medium">{d.stockInValue > 0 ? `+${formatCurrency(d.stockInValue)}` : '—'}</td>
-                    <td className="px-3 py-2 text-red-600 font-medium">{d.stockOutValue > 0 ? `-${formatCurrency(d.stockOutValue)}` : '—'}</td>
-                    <td className="px-3 py-2 font-semibold text-[#16233B]">{formatCurrency(d.closing)}</td>
-                  </tr>
-                ))}
+                {invTrend.slice().reverse().map((d, i) => {
+                  const byBusiness = new Map(d.stockOutByBusiness.map(b => [b.business_name, b.value]));
+                  return (
+                    <tr key={d.date} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F6F8FC]'}>
+                      <td className="px-3 py-2 text-[#16233B]">{new Date(d.date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</td>
+                      <td className="px-3 py-2 text-green-700 font-medium">{d.stockInValue > 0 ? `+${formatCurrency(d.stockInValue)}` : '—'}</td>
+                      {stockOutBusinessNames.map(name => {
+                        const value = byBusiness.get(name) ?? 0;
+                        return (
+                          <td key={name} className="px-3 py-2 text-red-600 font-medium">{value > 0 ? `-${formatCurrency(value)}` : '—'}</td>
+                        );
+                      })}
+                      <td className="px-3 py-2 font-semibold text-[#16233B]">{formatCurrency(d.closing)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
