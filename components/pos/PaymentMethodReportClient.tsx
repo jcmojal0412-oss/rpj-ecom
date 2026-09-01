@@ -15,7 +15,8 @@ interface MethodSale {
   id: number; created_at: string; payment_method: string | null; total: number;
   cashier_name: string | null; business_name: string | null;
 }
-interface ReportData { totalSales: number; totalCount: number; byMethod: MethodRow[]; sales: MethodSale[]; }
+interface LegTotals { cash: number; online: { method: string; amount: number }[]; financing: number; }
+interface ReportData { totalSales: number; totalCount: number; byMethod: MethodRow[]; sales: MethodSale[]; byLeg: LegTotals; }
 
 type SortKey = 'id' | 'created_at' | 'business_name' | 'cashier_name' | 'payment_method' | 'total';
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
@@ -231,6 +232,34 @@ export default function PaymentMethodReportClient() {
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{data.totalCount}</p>
             </div>
           </div>
+
+          {data.byLeg && (
+            <div className="card">
+              <h2 className="text-base font-semibold text-gray-900">Actual Cash / Online / Financing</h2>
+              <p className="text-xs text-gray-500 mt-0.5 mb-4">
+                A Cash + Financing sale is split into its actual legs here, so this matches the Cashier&apos;s Report&apos;s Payment Breakdown
+                exactly — unlike the table below, which shows each sale&apos;s full value under its combined label instead.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <div className="bg-gray-50 rounded-xl px-4 py-3 min-w-[120px]">
+                  <p className="text-xs text-gray-500">Cash</p>
+                  <p className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">{formatCurrency(data.byLeg.cash)}</p>
+                </div>
+                {data.byLeg.online.map(o => (
+                  <div key={o.method} className="bg-gray-50 rounded-xl px-4 py-3 min-w-[120px]">
+                    <p className="text-xs text-gray-500">{o.method}</p>
+                    <p className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">{formatCurrency(o.amount)}</p>
+                  </div>
+                ))}
+                {data.byLeg.financing > 0 && (
+                  <div className="bg-amber-50 rounded-xl px-4 py-3 min-w-[120px]">
+                    <p className="text-xs text-amber-700">Financing</p>
+                    <p className="text-lg font-bold text-amber-800 tabular-nums mt-0.5">{formatCurrency(data.byLeg.financing)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <h2 className="text-base font-semibold text-gray-900 mb-4">By Payment Method</h2>

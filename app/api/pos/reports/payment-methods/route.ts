@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { buildPaymentMethodQuery } from '@/lib/pos-payment-method-report';
+import { CASH_APPLIED_SQL, computeOnlineByMethodInRange } from '@/lib/pos-shift-totals';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,11 +38,31 @@ export async function GET(req: NextRequest) {
       ORDER BY s.created_at DESC
     `).all(...params);
 
+    // "By Payment Method" above groups by the exact label used at checkout
+    // ("Cash + Salmon Financing" shows its full sale value on one row) — a
+    // fair, honest view of which combinations happened, but not directly
+    // comparable to the Cashier's Report's Payment Breakdown, which instead
+    // decomposes every sale into its raw legs (so a combo sale's cash
+    // portion counts toward Cash, its financing portion toward Financing,
+    // separately). Both are correct; they answer different questions. This
+    // second summary exists so the two reports can be read side by side
+    // without doing that mental math — reuses the exact same
+    // CASH_APPLIED_SQL / computeOnlineByMethodInRange / financing_amount
+    // logic the shift-level report already uses, just scoped to this
+    // report's own date/business/cashier filter instead of one shift.
+    const legTotals = db.prepare(`
+      SELECT COALESCE(SUM(${CASH_APPLIED_SQL}),0) as cash_applied,
+             COALESCE(SUM(s.financing_amount),0) as financing_applied
+      FROM pos_sales s WHERE ${where}
+    `).get(...params) as { cash_applied: number; financing_applied: number };
+    const onlineByMethod = computeOnlineByMethodInRange(db, where, params);
+
     return NextResponse.json({
       totalSales: summary.total_sales,
       totalCount: summary.total_count,
       byMethod,
       sales,
+      byLeg: { cash: legTotals.cash_applied, online: onlineByMethod, financing: legTotals.financing_applied },
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
