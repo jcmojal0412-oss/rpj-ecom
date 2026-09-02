@@ -242,7 +242,7 @@ export default function InventoryClient() {
       </div>
 
       {/* Movement Log */}
-      <MovementLog refreshKey={movementRefreshKey} />
+      <MovementLog refreshKey={movementRefreshKey} onVoided={() => { showToast('Entry voided — stock updated'); fetchInventory(); }} />
 
       {/* Bulk Import Modal */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Products via Excel" size="md">

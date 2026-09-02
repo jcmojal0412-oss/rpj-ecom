@@ -506,6 +506,14 @@ function migrateSchema() {
   // excluded from payroll generation until someone picks one on their
   // profile (see app/api/payroll/periods/route.ts POST).
   addColIfMissing('employees', 'payroll_schedule', "payroll_schedule TEXT CHECK(payroll_schedule IN ('A','B'))");
+
+  // Void for a manual Stock In/Stock Out entry (staff mis-click/typo) — see
+  // app/api/stock-movements/[id]/void, owner-only. Soft-delete like every
+  // other void in this app: the row stays for the audit trail, its quantity
+  // effect on inventory gets reversed once, and it's excluded from active
+  // totals going forward.
+  addColIfMissing('stock_movements', 'voided_at', 'voided_at TEXT');
+  addColIfMissing('stock_movements', 'voided_by', 'voided_by INTEGER REFERENCES users(id)');
   addColIfMissing('attendance_events', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
   addColIfMissing('attendance_ot_requests', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
   addColIfMissing('attendance_corrections', 'employee_id', 'employee_id INTEGER REFERENCES employees(id)');
