@@ -9,7 +9,7 @@ export async function GET() {
     // POS grid order: manually pinned items (pos_featured, set on the
     // Products page) first, then everything else alphabetical.
     const rows = db.prepare(`
-      SELECT p.id, p.sku, p.name, p.category, p.srp, p.pos_featured,
+      SELECT p.id, p.sku, p.name, p.barcode, p.category, p.srp, p.pos_featured,
              COALESCE(i.quantity, 0) as quantity
       FROM products p
       LEFT JOIN inventory i ON i.product_id = p.id

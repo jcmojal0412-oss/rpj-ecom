@@ -599,7 +599,7 @@ export default function PosClient() {
         // so hiding them behind a separate checkbox would defeat it.
         if (p.quantity <= 0 && !showOutOfStock && !allowZeroStock) return false;
       }
-      if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+      if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !(p.barcode ?? '').toLowerCase().includes(q)) return false;
       return true;
     });
   }, [products, search, category, showOutOfStock, allowZeroStock]);
