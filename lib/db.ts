@@ -242,6 +242,22 @@ function migrateSchema() {
   if (!prodCols.includes('perceived_value_score'))   db.exec('ALTER TABLE products ADD COLUMN perceived_value_score REAL');
   if (!prodCols.includes('ai_research_json'))        db.exec('ALTER TABLE products ADD COLUMN ai_research_json TEXT');
   if (!prodCols.includes('barcode'))                 db.exec('ALTER TABLE products ADD COLUMN barcode TEXT');
+  // Barcode uniqueness enforcement — previously any two products could share
+  // a barcode with no error, which is exactly the kind of thing that makes
+  // the wrong product resolve at a scan/lookup. Enforced as a partial unique
+  // index (blank/NULL barcodes stay unrestricted, matching that field being
+  // optional). Guarded against already-existing duplicates so this can't
+  // crash the app on boot — if any are found, the index is skipped and
+  // logged instead; the app-level check in the products API is what
+  // actually blocks new duplicates from being created going forward.
+  const dupBarcodes = db.prepare(
+    `SELECT barcode, COUNT(*) as n FROM products WHERE barcode IS NOT NULL AND barcode != '' GROUP BY barcode HAVING n > 1`
+  ).all() as { barcode: string; n: number }[];
+  if (dupBarcodes.length === 0) {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode_unique ON products(barcode) WHERE barcode IS NOT NULL AND barcode != ''`);
+  } else {
+    console.warn(`[db] Skipping unique barcode index — ${dupBarcodes.length} barcode(s) are already duplicated across products: ${dupBarcodes.map(d => d.barcode).join(', ')}. Resolve them (e.g. clear the barcode on the extra products) to enable full enforcement.`);
+  }
   // Manually pinned to the front of the POS product grid (e.g. cellphone
   // accessories, freebie items) — shown ahead of the fast-moving sort.
   if (!prodCols.includes('pos_featured'))            db.exec('ALTER TABLE products ADD COLUMN pos_featured INTEGER DEFAULT 0');

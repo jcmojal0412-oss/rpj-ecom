@@ -62,6 +62,13 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const findSku = db.prepare('SELECT id FROM products WHERE sku = ?');
     const getInv = db.prepare('SELECT COALESCE(quantity,0) as q FROM inventory WHERE product_id = ?');
+    const findBarcode = db.prepare('SELECT id, sku FROM products WHERE barcode = ?');
+    // Barcodes must be unique — tracks both against what's already in the DB
+    // (excluding the row's own existing product, since re-importing it with
+    // its own unchanged barcode isn't a conflict) and against other rows in
+    // this same file, so two new products sharing one barcode by mistake
+    // don't both sail through as separate inserts.
+    const barcodesSeenThisImport = new Map<string, number>(); // barcode -> rowNum
 
     // Categories are free text, but casing must stay consistent — otherwise
     // the same category (e.g. "Electronics" vs "ELECTRONICS") splits into
@@ -111,6 +118,23 @@ export async function POST(req: NextRequest) {
       const barcode = String(row['BARCODE'] ?? '').trim() || null;
 
       const existing = findSku.get(sku) as { id: number } | undefined;
+
+      if (barcode) {
+        const dbDupe = findBarcode.get(barcode) as { id: number; sku: string } | undefined;
+        if (dbDupe && dbDupe.id !== existing?.id) {
+          errors.push(`Row ${rowNum} (${sku}): Barcode "${barcode}" is already used by product ${dbDupe.sku} — skipped`);
+          skipped++;
+          continue;
+        }
+        const seenAtRow = barcodesSeenThisImport.get(barcode);
+        if (seenAtRow) {
+          errors.push(`Row ${rowNum} (${sku}): Barcode "${barcode}" is duplicated with row ${seenAtRow} in this file — skipped`);
+          skipped++;
+          continue;
+        }
+        barcodesSeenThisImport.set(barcode, rowNum);
+      }
+
       const oldQty = existing ? ((getInv.get(existing.id) as { q: number } | undefined)?.q ?? 0) : 0;
       plans.push({ rowNum, sku, name, barcode, category, cogs, srp, qty, reorderPoint, existingId: existing?.id ?? null, oldQty });
     }

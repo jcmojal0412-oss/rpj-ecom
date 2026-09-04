@@ -37,10 +37,17 @@ export async function POST(req: NextRequest) {
     if (cogsNum < 0 || srpNum < 0 || !Number.isFinite(reorderNum) || reorderNum < 0) {
       return NextResponse.json({ error: 'COGS, SRP, and Reorder Point must be valid, non-negative numbers' }, { status: 400 });
     }
+    const barcodeTrim = typeof barcode === 'string' ? barcode.trim() : '';
+    if (barcodeTrim) {
+      const dupe = db.prepare('SELECT sku, name FROM products WHERE barcode = ?').get(barcodeTrim) as { sku: string; name: string } | undefined;
+      if (dupe) {
+        return NextResponse.json({ error: `Barcode "${barcodeTrim}" is already used by ${dupe.name} (${dupe.sku}). Barcodes must be unique.` }, { status: 409 });
+      }
+    }
 
     const info = db.prepare(
       'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?,?,?,?,?,?,?)'
-    ).run(sku.trim(), name.trim(), barcode || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum);
+    ).run(sku.trim(), name.trim(), barcodeTrim || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum);
 
     db.prepare(
       "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime('now'))"
@@ -51,6 +58,9 @@ export async function POST(req: NextRequest) {
     const msg = String(e);
     if (msg.includes('UNIQUE constraint failed: products.sku')) {
       return NextResponse.json({ error: 'SKU already exists. Please use a different SKU.' }, { status: 409 });
+    }
+    if (msg.includes('idx_products_barcode_unique') || msg.includes('UNIQUE constraint failed: products.barcode')) {
+      return NextResponse.json({ error: 'That barcode is already used by another product. Barcodes must be unique.' }, { status: 409 });
     }
     return NextResponse.json({ error: msg }, { status: 500 });
   }

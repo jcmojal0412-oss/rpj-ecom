@@ -50,12 +50,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (cogsNum < 0 || srpNum < 0 || !Number.isFinite(reorderNum) || reorderNum < 0) {
       return NextResponse.json({ error: 'COGS, SRP, and Reorder Point must be valid, non-negative numbers' }, { status: 400 });
     }
+    const barcodeTrim = typeof barcode === 'string' ? barcode.trim() : '';
+    if (barcodeTrim) {
+      const dupe = db.prepare('SELECT sku, name FROM products WHERE barcode = ? AND id != ?').get(barcodeTrim, id) as { sku: string; name: string } | undefined;
+      if (dupe) {
+        return NextResponse.json({ error: `Barcode "${barcodeTrim}" is already used by ${dupe.name} (${dupe.sku}). Barcodes must be unique.` }, { status: 409 });
+      }
+    }
     db.prepare(
       'UPDATE products SET name=?,barcode=?,category=?,cogs=?,srp=?,reorder_point=? WHERE id=?'
-    ).run(name.trim(), barcode || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum, id);
+    ).run(name.trim(), barcodeTrim || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    const msg = String(e);
+    if (msg.includes('idx_products_barcode_unique') || msg.includes('UNIQUE constraint failed: products.barcode')) {
+      return NextResponse.json({ error: 'That barcode is already used by another product. Barcodes must be unique.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
