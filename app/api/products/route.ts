@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
     if (!sku?.trim() || !name?.trim()) {
       return NextResponse.json({ error: 'SKU and Product Name are required' }, { status: 400 });
     }
+    const skuTrim = sku.trim();
+    const existingSku = db.prepare('SELECT name FROM products WHERE sku = ?').get(skuTrim) as { name: string } | undefined;
+    if (existingSku) {
+      return NextResponse.json({ error: `SKU "${skuTrim}" already exists (${existingSku.name}). Please use a different SKU.` }, { status: 409 });
+    }
     const cogsNum = Number(cogs) || 0;
     const srpNum = Number(srp) || 0;
     const reorderNum = reorder_point != null ? Number(reorder_point) : 10;
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const info = db.prepare(
       'INSERT INTO products (sku, name, barcode, category, cogs, srp, reorder_point) VALUES (?,?,?,?,?,?,?)'
-    ).run(sku.trim(), name.trim(), barcodeTrim || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum);
+    ).run(skuTrim, name.trim(), barcodeTrim || null, resolveProductCategory(db, category), cogsNum, srpNum, reorderNum);
 
     db.prepare(
       "INSERT INTO inventory (product_id, quantity, last_updated) VALUES (?,0,datetime('now'))"

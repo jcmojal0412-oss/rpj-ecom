@@ -69,6 +69,11 @@ export async function POST(req: NextRequest) {
     // this same file, so two new products sharing one barcode by mistake
     // don't both sail through as separate inserts.
     const barcodesSeenThisImport = new Map<string, number>(); // barcode -> rowNum
+    // Same idea for brand-new SKUs — two rows in the same file introducing
+    // the same not-yet-existing SKU would otherwise both plan as "new" (the
+    // DB doesn't know about either yet) and only fail at write time, one at
+    // a time, with a raw SQLite error instead of a clear skip.
+    const newSkusSeenThisImport = new Map<string, number>(); // sku -> rowNum
 
     // Categories are free text, but casing must stay consistent — otherwise
     // the same category (e.g. "Electronics" vs "ELECTRONICS") splits into
@@ -118,6 +123,16 @@ export async function POST(req: NextRequest) {
       const barcode = String(row['BARCODE'] ?? '').trim() || null;
 
       const existing = findSku.get(sku) as { id: number } | undefined;
+
+      if (!existing) {
+        const seenSkuAtRow = newSkusSeenThisImport.get(sku);
+        if (seenSkuAtRow) {
+          errors.push(`Row ${rowNum} (${sku}): SKU is duplicated with row ${seenSkuAtRow} in this file — skipped`);
+          skipped++;
+          continue;
+        }
+        newSkusSeenThisImport.set(sku, rowNum);
+      }
 
       if (barcode) {
         const dbDupe = findBarcode.get(barcode) as { id: number; sku: string } | undefined;
