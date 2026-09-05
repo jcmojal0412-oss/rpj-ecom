@@ -15,7 +15,7 @@ interface Summary {
   byDay: { date: string; total: number; orders: number }[];
 }
 interface CashierRow { cashier_id: number | null; cashier_name: string | null; orders: number; total: number; }
-interface MoverRow { product_id: number; product_name: string; sku: string | null; qty_sold: number; quantity?: number; }
+interface MoverRow { product_id: number; product_name: string; sku: string | null; qty_sold: number; quantity?: number; revenue?: number; }
 
 export default function PosReportsClient() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -234,7 +234,7 @@ export default function PosReportsClient() {
                         <p className="text-sm font-medium text-gray-800 truncate">{m.product_name}</p>
                         <p className="text-xs text-gray-400">{m.sku}</p>
                       </div>
-                      <span className="text-sm font-bold text-gray-900 tabular-nums shrink-0">{m.qty_sold}</span>
+                      <span className="text-sm font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(m.revenue ?? 0)}</span>
                     </div>
                   ))}
                 </div>

@@ -18,13 +18,16 @@ export async function GET(req: NextRequest) {
     if (businessId) { saleClauses.push('s.business_id = ?'); saleParams.push(Number(businessId)); }
     const saleWhere = saleClauses.join(' AND ');
 
+    // Ranked by revenue (peso amount), not units — a handful of a
+    // high-ticket item can matter more to the business than a pile of a
+    // cheap one, which pure quantity ranking can't show.
     const fast = db.prepare(`
-      SELECT i.product_id, i.product_name, i.sku, SUM(i.quantity) as qty_sold
+      SELECT i.product_id, i.product_name, i.sku, SUM(i.quantity) as qty_sold, COALESCE(SUM(i.line_total),0) as revenue
       FROM pos_sale_items i
       JOIN pos_sales s ON s.id = i.sale_id
       WHERE ${saleWhere}
       GROUP BY i.product_id, i.product_name, i.sku
-      ORDER BY qty_sold DESC
+      ORDER BY revenue DESC
       LIMIT 20
     `).all(...saleParams);
 
