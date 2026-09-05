@@ -84,6 +84,52 @@ export function buildGrossSalesQuery(req: NextRequest) {
   return { sql, params };
 }
 
+export interface DailyDetailRow {
+  date: string; product_id: number; product_name: string; sku: string | null; category: string | null; qty_sold: number;
+}
+
+// Same filters/refund-netting idea as buildDetailQuery, but grouped by day
+// too — answers "how many units per day", which the totals-only detail
+// query can't (it collapses the whole date range into one row per product).
+// Cost/revenue aren't needed for this view, so the query stays lighter.
+export function buildDailyDetailQuery(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
+  const businessId = searchParams.get('business_id');
+  const productId = searchParams.get('product_id');
+  const category = searchParams.get('category');
+  const cashierId = searchParams.get('cashier_id');
+
+  const clauses: string[] = [`s.status != 'Voided'`, `i.product_id IS NOT NULL`];
+  const params: (string | number)[] = [];
+  if (from) { clauses.push('s.sale_date >= ?'); params.push(from); }
+  if (to) { clauses.push('s.sale_date <= ?'); params.push(to); }
+  if (businessId) { clauses.push('s.business_id = ?'); params.push(Number(businessId)); }
+  if (productId) { clauses.push('i.product_id = ?'); params.push(Number(productId)); }
+  if (category) { clauses.push('p.category = ?'); params.push(category); }
+  if (cashierId) { clauses.push('s.cashier_id = ?'); params.push(Number(cashierId)); }
+
+  const sql = `
+    WITH refund_agg AS (
+      SELECT ri.sale_item_id, SUM(ri.quantity) as refunded_qty
+      FROM pos_refund_items ri
+      GROUP BY ri.sale_item_id
+    )
+    SELECT s.sale_date as date, i.product_id, i.product_name, i.sku, p.category,
+           SUM(i.quantity - COALESCE(ra.refunded_qty,0)) as qty_sold
+    FROM pos_sale_items i
+    JOIN pos_sales s ON s.id = i.sale_id
+    LEFT JOIN products p ON p.id = i.product_id
+    LEFT JOIN refund_agg ra ON ra.sale_item_id = i.id
+    WHERE ${clauses.join(' AND ')}
+    GROUP BY s.sale_date, i.product_id, i.product_name, i.sku, p.category
+    HAVING qty_sold > 0
+    ORDER BY s.sale_date DESC, qty_sold DESC
+  `;
+  return { sql, params };
+}
+
 export function computeRows(raw: DetailRow[]) {
   return raw.map(r => {
     const totalDiscount = r.total_discount || 0;

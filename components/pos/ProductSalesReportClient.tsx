@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, Search, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import type { Business, Product, ProductSalesRow } from './constants';
 
 interface CashierOption { cashier_id: number | null; cashier_name: string | null; }
+interface DailyRow { date: string; product_id: number; product_name: string; sku: string | null; category: string | null; qty_sold: number; }
 
 type SortKey = keyof Pick<ProductSalesRow, 'product_name' | 'category' | 'qty_sold' | 'unit_cost' | 'total_cost' | 'unit_price' | 'total_sales' | 'total_discount' | 'profit'>;
 
@@ -39,6 +40,7 @@ export default function ProductSalesReportClient() {
 
   const [rows, setRows] = useState<ProductSalesRow[]>([]);
   const [grossSales, setGrossSales] = useState<number | null>(null);
+  const [dailyRows, setDailyRows] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('qty_sold');
@@ -70,8 +72,17 @@ export default function ProductSalesReportClient() {
     setRows(data.rows ?? []);
     setGrossSales(typeof data.grossSales === 'number' ? data.grossSales : null);
     setPage(1);
+    // Day-by-day units only makes sense once narrowed to a category or a
+    // single product — across the whole catalog it'd just be a huge,
+    // unreadable date x product grid.
+    if (category || productId) {
+      const daily = await fetch(`/api/pos/reports/products/daily?${buildQuery().toString()}`).then(r => r.json());
+      setDailyRows(daily.rows ?? []);
+    } else {
+      setDailyRows([]);
+    }
     setLoading(false);
-  }, [buildQuery]);
+  }, [buildQuery, category, productId]);
 
   useEffect(() => { fetchRows(); }, [fetchRows]);
   useEffect(() => {
@@ -105,6 +116,17 @@ export default function ProductSalesReportClient() {
     total_discount: acc.total_discount + r.total_discount,
     profit: acc.profit + r.profit,
   }), { qty_sold: 0, total_cost: 0, total_sales: 0, total_discount: 0, profit: 0 }), [filteredRows]);
+
+  const dailyGroups = useMemo(() => {
+    const byDate = new Map<string, { date: string; items: DailyRow[]; dayTotal: number }>();
+    for (const r of dailyRows) {
+      const g = byDate.get(r.date) ?? { date: r.date, items: [], dayTotal: 0 };
+      g.items.push(r);
+      g.dayTotal += r.qty_sold;
+      byDate.set(r.date, g);
+    }
+    return [...byDate.values()].sort((a, b) => b.date.localeCompare(a.date));
+  }, [dailyRows]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const paged = filteredRows.slice((page - 1) * pageSize, page * pageSize);
@@ -293,6 +315,51 @@ export default function ProductSalesReportClient() {
           </div>
         )}
       </div>
+
+      {(category || productId) && (
+        <div className="card print:hidden">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">
+            Daily Units Sold{category ? ` — ${category}` : ''}{productId ? ` — ${products.find(p => String(p.id) === productId)?.name ?? ''}` : ''}
+          </h2>
+          <p className="text-xs text-gray-400 mb-3">Net of refunds/exchanges, same filters as above.</p>
+          {dailyGroups.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No sales match these filters.</p>
+          ) : (
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-gray-100">
+                    <th className="table-header">Date</th>
+                    <th className="table-header">Product</th>
+                    <th className="table-header">SKU</th>
+                    <th className="table-header text-right">Qty Sold</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyGroups.map(g => (
+                    <Fragment key={g.date}>
+                      {g.items.map((r, idx) => (
+                        <tr key={`${g.date}-${r.product_id}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="table-cell text-gray-500">{idx === 0 ? formatDate(g.date) : ''}</td>
+                          <td className="table-cell font-medium">{r.product_name}</td>
+                          <td className="table-cell text-gray-400 font-mono text-xs">{r.sku || '—'}</td>
+                          <td className="table-cell text-right tabular-nums">{r.qty_sold}</td>
+                        </tr>
+                      ))}
+                      {g.items.length > 1 && (
+                        <tr key={`${g.date}-total`} className="bg-gray-100 font-semibold">
+                          <td className="table-cell" colSpan={3}>Day Total</td>
+                          <td className="table-cell text-right tabular-nums">{g.dayTotal}</td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
