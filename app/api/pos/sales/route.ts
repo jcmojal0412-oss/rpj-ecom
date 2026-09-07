@@ -279,11 +279,22 @@ export async function POST(req: NextRequest) {
     // counting yet), but the resulting on-hand number should never actually
     // go negative. Negative counts don't mean anything physically and just
     // make every later Stock In undershoot what the cashier expects.
+    //
+    // CRITICAL: the floor must NOT be applied to the delta itself in the
+    // VALUES clause, because `excluded.quantity` in the ON CONFLICT branch
+    // reads back that same already-floored value — MAX(0, ?) with a
+    // negative delta (every real sale) evaluates to 0 before the conflict
+    // branch ever runs, so `quantity = MAX(0, quantity + excluded.quantity)`
+    // became `quantity = MAX(0, quantity + 0)`, a no-op. Every POS sale's
+    // stock_movements OUT row was being logged correctly while the actual
+    // on-hand inventory.quantity never moved — this was the real cause
+    // behind "stock not decreasing" reports. The raw delta is now bound
+    // separately for the conflict branch so it isn't pre-floored.
     const adjustInventory = db.prepare(`
       INSERT INTO inventory (product_id, quantity, last_updated)
       VALUES (?, MAX(0, ?), datetime('now'))
       ON CONFLICT(product_id) DO UPDATE SET
-        quantity = MAX(0, quantity + excluded.quantity),
+        quantity = MAX(0, quantity + ?),
         last_updated = datetime('now')
     `);
     const insertPayment = db.prepare(`
@@ -306,7 +317,7 @@ export async function POST(req: NextRequest) {
         // but the store still physically hands over real stock.
         if (l.product_id != null) {
           insertMovement.run(l.product_id, l.quantity, l.is_freebie ? `POS Sale #${id} (Freebie)` : `POS Sale #${id}`);
-          adjustInventory.run(l.product_id, -l.quantity);
+          adjustInventory.run(l.product_id, -l.quantity, -l.quantity);
         }
       }
       for (const leg of paymentLegs) {
