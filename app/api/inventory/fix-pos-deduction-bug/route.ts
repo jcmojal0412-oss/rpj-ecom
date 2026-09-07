@@ -4,41 +4,35 @@ import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// One-time correction for the inventory-deduction bug fixed in
-// app/api/pos/sales/route.ts (see that commit) — introduced 2026-08-29
-// 16:46:45 UTC (Railway deploy of commit 11bd709, "Floor POS checkout stock
-// deduction at 0"), which made every regular POS sale/freebie line's stock
-// deduction a silent no-op: the stock_movements OUT row was logged
-// correctly every time, but inventory.quantity never actually moved.
-//
-// The fix only needs to resync inventory.quantity to match what the
-// already-correct stock_movements ledger says should have happened — no new
-// movement rows are written here, since the original "POS Sale #..." rows
-// already fully and correctly describe what was sold; only the derived
-// on-hand counter was wrong. Exchange-driven OUT rows are excluded because
-// the Exchange route has always used a correct upsert (never shared this
-// bug), so backing them out again here would double-deduct.
-const BUG_LIVE_SINCE = '2026-08-29 16:46:45';
-
+// Recomputes every product's true on-hand quantity directly from the full
+// stock_movements ledger (SUM(IN) - SUM(OUT), voided rows excluded, floored
+// at 0) instead of comparing against or adjusting the current
+// inventory.quantity. Every quantity-affecting action in this app (manual
+// Stock In/Out, PO receiving, POS sales, refunds, exchanges, void, bulk
+// count) always writes a movement row with the correct quantity — the
+// ledger itself was never wrong, only inventory.quantity (the running
+// counter) could drift from it. Recomputing from scratch is what makes this
+// safe to run any number of times: unlike an earlier version of this tool
+// that subtracted a "missed quantity" delta from whatever inventory.quantity
+// currently held (which was NOT safe to re-run — clicking it multiple times
+// re-subtracted the same amount each time, driving some products to 0), this
+// always lands on the same correct absolute number regardless of how many
+// times it's been run before or what inventory.quantity currently says.
 function findAffected(db: ReturnType<typeof getDb>) {
   const rows = db.prepare(`
-    SELECT sm.product_id, p.sku, p.name, COALESCE(i.quantity, 0) as current_stock,
-           SUM(sm.quantity) as missed_qty
-    FROM stock_movements sm
-    JOIN products p ON p.id = sm.product_id
-    LEFT JOIN inventory i ON i.product_id = sm.product_id
-    WHERE sm.type = 'OUT' AND sm.voided_at IS NULL
-      AND sm.note LIKE 'POS Sale #%' AND sm.note NOT LIKE '%(Exchange)%'
-      AND sm.moved_at >= ?
-    GROUP BY sm.product_id, p.sku, p.name, i.quantity
-    HAVING missed_qty > 0
-    ORDER BY missed_qty DESC
-  `).all(BUG_LIVE_SINCE) as { product_id: number; sku: string; name: string; current_stock: number; missed_qty: number }[];
+    SELECT p.id as product_id, p.sku, p.name, COALESCE(i.quantity, 0) as current_stock,
+      COALESCE(SUM(CASE WHEN sm.type='IN' THEN sm.quantity ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN sm.type='OUT' THEN sm.quantity ELSE 0 END), 0) as true_raw
+    FROM products p
+    LEFT JOIN inventory i ON i.product_id = p.id
+    LEFT JOIN stock_movements sm ON sm.product_id = p.id AND sm.voided_at IS NULL
+    GROUP BY p.id, p.sku, p.name, i.quantity
+  `).all() as { product_id: number; sku: string; name: string; current_stock: number; true_raw: number }[];
 
-  return rows.map(r => ({
-    ...r,
-    corrected_stock: Math.max(0, r.current_stock - r.missed_qty),
-  }));
+  return rows
+    .map(r => ({ ...r, true_quantity: Math.max(0, r.true_raw) }))
+    .filter(r => r.true_quantity !== r.current_stock)
+    .sort((a, b) => Math.abs(b.true_quantity - b.current_stock) - Math.abs(a.true_quantity - a.current_stock));
 }
 
 export async function GET() {
@@ -47,8 +41,7 @@ export async function GET() {
 
   const db = getDb();
   const affected = findAffected(db);
-  const totalMissedUnits = affected.reduce((s, r) => s + r.missed_qty, 0);
-  return NextResponse.json({ affected, totalMissedUnits, bugLiveSince: BUG_LIVE_SINCE });
+  return NextResponse.json({ affected });
 }
 
 export async function POST() {
@@ -59,9 +52,13 @@ export async function POST() {
   const affected = findAffected(db);
   if (affected.length === 0) return NextResponse.json({ corrected: 0, products: [] });
 
-  const update = db.prepare('UPDATE inventory SET quantity = ?, last_updated = datetime(\'now\') WHERE product_id = ?');
+  const upsert = db.prepare(`
+    INSERT INTO inventory (product_id, quantity, last_updated)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(product_id) DO UPDATE SET quantity = ?, last_updated = datetime('now')
+  `);
   runTransaction(() => {
-    for (const row of affected) update.run(row.corrected_stock, row.product_id);
+    for (const row of affected) upsert.run(row.product_id, row.true_quantity, row.true_quantity);
   });
 
   return NextResponse.json({ corrected: affected.length, products: affected });

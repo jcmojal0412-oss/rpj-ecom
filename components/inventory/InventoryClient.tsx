@@ -51,15 +51,17 @@ export default function InventoryClient() {
     setMovementRefreshKey(k => k + 1);
   }, []);
 
-  // Owner-only: one-time correction banner for the POS checkout deduction
-  // bug (see app/api/inventory/fix-pos-deduction-bug) — every regular POS
-  // sale from 2026-08-29 onward logged its stock_movements OUT row
-  // correctly but never actually decremented inventory.quantity.
+  // Owner-only: recomputes every product's true quantity from the full
+  // stock_movements ledger and flags any that drift from the stored
+  // inventory.quantity (see app/api/inventory/fix-pos-deduction-bug) — safe
+  // to run any number of times since it always lands on the same correct
+  // absolute number, not a relative adjustment.
   const fetchBugStatus = useCallback(async () => {
     const d = await fetch('/api/inventory/fix-pos-deduction-bug').then(r => r.ok ? r.json() : null);
     if (!d) return;
-    setBugAffectedCount(Array.isArray(d.affected) ? d.affected.length : 0);
-    setBugMissedUnits(d.totalMissedUnits ?? 0);
+    const affected = Array.isArray(d.affected) ? d.affected : [];
+    setBugAffectedCount(affected.length);
+    setBugMissedUnits(affected.reduce((s: number, r: { current_stock: number; true_quantity: number }) => s + Math.abs(r.true_quantity - r.current_stock), 0));
   }, []);
 
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
@@ -155,9 +157,9 @@ export default function InventoryClient() {
           <div className="flex items-center gap-2.5">
             <Wrench className="text-red-600 shrink-0" size={18} />
             <p className="text-sm text-red-800">
-              <strong>{bugAffectedCount} product{bugAffectedCount === 1 ? '' : 's'}</strong> ({bugMissedUnits} unit{bugMissedUnits === 1 ? '' : 's'} total)
-              still show stock too high from a checkout bug (Aug 29–Sep 7) where POS sales logged correctly but never actually reduced on-hand quantity.
-              This corrects the count to match what was actually sold — it does not touch any sale record.
+              <strong>{bugAffectedCount} product{bugAffectedCount === 1 ? '' : 's'}</strong> ({bugMissedUnits} unit{bugMissedUnits === 1 ? '' : 's'} total difference)
+              don&apos;t match their true stock movement history (from the Aug 29–Sep 7 checkout bug, and any leftover drift from correcting it).
+              This resets each one to exactly what its movement log says — safe to run again if needed, and doesn&apos;t touch any sale record.
             </p>
           </div>
           <button onClick={runFixBug} disabled={fixingBug} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
