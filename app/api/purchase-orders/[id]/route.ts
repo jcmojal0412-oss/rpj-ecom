@@ -70,8 +70,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const items = db.prepare('SELECT * FROM po_items WHERE po_id=?').all(params.id) as
           { product_id: number; quantity: number; unit_cost: number }[];
         for (const item of items) {
-          db.prepare(`UPDATE inventory SET quantity=quantity+?, last_updated=datetime('now') WHERE product_id=?`)
-            .run(item.quantity, item.product_id);
+          // Upsert — see app/api/purchase-orders/route.ts for why a plain
+          // UPDATE silently undercounts a product with no inventory row yet.
+          db.prepare(`
+            INSERT INTO inventory (product_id, quantity, last_updated)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(product_id) DO UPDATE SET
+              quantity = quantity + excluded.quantity,
+              last_updated = datetime('now')
+          `).run(item.product_id, item.quantity);
           db.prepare('INSERT INTO stock_movements (product_id,type,quantity,note,moved_at) VALUES (?,?,?,?,datetime("now"))')
             .run(item.product_id, 'IN', item.quantity, `PO ${existing.po_number} received`);
           // Same simple-override COGS update as the create-with-status='received' path.

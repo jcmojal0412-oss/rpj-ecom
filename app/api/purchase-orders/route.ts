@@ -62,9 +62,18 @@ export async function POST(req: NextRequest) {
         ).run(newId, item.product_id, item.quantity, item.unit_cost);
 
         if (status === 'received') {
-          db.prepare(
-            `UPDATE inventory SET quantity=quantity+?, last_updated=datetime('now') WHERE product_id=?`
-          ).run(item.quantity, item.product_id);
+          // Upsert: a plain UPDATE silently affects zero rows if this product
+          // has no inventory row yet (never stocked/counted before) — the PO
+          // would "receive" successfully with the stock_movements IN row
+          // written, but the actual on-hand count would never move,
+          // undercounting real stock with no error anywhere.
+          db.prepare(`
+            INSERT INTO inventory (product_id, quantity, last_updated)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(product_id) DO UPDATE SET
+              quantity = quantity + excluded.quantity,
+              last_updated = datetime('now')
+          `).run(item.product_id, item.quantity);
           db.prepare(
             'INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?,?,?,?,datetime("now"))'
           ).run(item.product_id, 'IN', item.quantity, `PO ${po_number}`);
