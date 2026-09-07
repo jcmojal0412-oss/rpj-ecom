@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Undo2, Loader2 } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Undo2, Loader2, Search } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 
@@ -25,10 +25,17 @@ function isManualNote(note: string): boolean {
 export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: number; onVoided?: () => void }) {
   const [moves, setMoves] = useState<Movement[]>([]);
   const [days, setDays] = useState('7');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [voidingId, setVoidingId] = useState<number | null>(null);
   const [error, setError] = useState('');
+
+  const filteredMoves = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return moves;
+    return moves.filter(m => m.sku.toLowerCase().includes(q) || m.name.toLowerCase().includes(q) || m.note.toLowerCase().includes(q));
+  }, [moves, search]);
 
   const fetchMoves = () => {
     setLoading(true);
@@ -59,26 +66,38 @@ export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: num
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-base font-semibold text-gray-900">Stock Movement Log</h2>
-        <select
-          className="form-input w-auto text-xs"
-          value={days}
-          onChange={e => setDays(e.target.value)}
-        >
-          <option value="7">Last 7 days</option>
-          <option value="14">Last 14 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+            <input
+              className="form-input w-48 text-xs pl-8"
+              placeholder="Search SKU, product, note..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <select
+            className="form-input w-auto text-xs"
+            value={days}
+            onChange={e => setDays(e.target.value)}
+          >
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 365 days</option>
+          </select>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
       {loading ? (
         <div className="flex justify-center py-8"><Spinner /></div>
-      ) : moves.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">No movements in this period.</p>
+      ) : filteredMoves.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">{search ? 'No movements match your search.' : 'No movements in this period.'}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -90,7 +109,7 @@ export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: num
               </tr>
             </thead>
             <tbody>
-              {moves.map((m, i) => {
+              {filteredMoves.map((m, i) => {
                 const voided = !!m.voided_at;
                 const canVoid = isOwner && !voided && isManualNote(m.note);
                 return (

@@ -31,13 +31,18 @@ export async function GET() {
       FROM inventory i JOIN products p ON p.id = i.product_id
     `).get() as { value: number }).value;
 
+    // A voided movement (see app/api/stock-movements/[id]/void) reverses its
+    // effect directly on inventory.quantity rather than inserting an
+    // offsetting stock_movements row — so the original row must be excluded
+    // here too, or it double-counts (real current value already excludes
+    // it, but this historical log wouldn't).
     const dailyRows = db.prepare(`
       SELECT date(sm.moved_at) as date,
         COALESCE(SUM(CASE WHEN sm.type='IN' THEN sm.quantity * p.cogs ELSE 0 END),0) as stock_in_value,
         COALESCE(SUM(CASE WHEN sm.type='OUT' THEN sm.quantity * p.cogs ELSE 0 END),0) as stock_out_value
       FROM stock_movements sm
       JOIN products p ON p.id = sm.product_id
-      WHERE date(sm.moved_at) >= ?
+      WHERE date(sm.moved_at) >= ? AND sm.voided_at IS NULL
       GROUP BY date(sm.moved_at)
     `).all(windowStart) as { date: string; stock_in_value: number; stock_out_value: number }[];
 
@@ -55,7 +60,7 @@ export async function GET() {
       JOIN products p ON p.id = sm.product_id
       LEFT JOIN pos_sales s ON sm.note LIKE 'POS Sale #%' AND s.id = CAST(REPLACE(sm.note, 'POS Sale #', '') AS INTEGER)
       LEFT JOIN businesses b ON b.id = s.business_id
-      WHERE sm.type = 'OUT' AND date(sm.moved_at) >= ?
+      WHERE sm.type = 'OUT' AND sm.voided_at IS NULL AND date(sm.moved_at) >= ?
       GROUP BY date(sm.moved_at), business_name
     `).all(windowStart) as { date: string; business_name: string; value: number }[];
 
