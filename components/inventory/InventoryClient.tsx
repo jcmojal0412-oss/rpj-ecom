@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, ClipboardList } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, ClipboardList, Wrench, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -34,6 +34,10 @@ export default function InventoryClient() {
   const [showImport, setShowImport] = useState(false);
   const [showBulkCount, setShowBulkCount] = useState(false);
   const [movementRefreshKey, setMovementRefreshKey] = useState(0);
+  const [isOwner, setIsOwner] = useState(false);
+  const [bugAffectedCount, setBugAffectedCount] = useState(0);
+  const [bugMissedUnits, setBugMissedUnits] = useState(0);
+  const [fixingBug, setFixingBug] = useState(false);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchInventory = useCallback(async () => {
@@ -47,7 +51,39 @@ export default function InventoryClient() {
     setMovementRefreshKey(k => k + 1);
   }, []);
 
+  // Owner-only: one-time correction banner for the POS checkout deduction
+  // bug (see app/api/inventory/fix-pos-deduction-bug) — every regular POS
+  // sale from 2026-08-29 onward logged its stock_movements OUT row
+  // correctly but never actually decremented inventory.quantity.
+  const fetchBugStatus = useCallback(async () => {
+    const d = await fetch('/api/inventory/fix-pos-deduction-bug').then(r => r.ok ? r.json() : null);
+    if (!d) return;
+    setBugAffectedCount(Array.isArray(d.affected) ? d.affected.length : 0);
+    setBugMissedUnits(d.totalMissedUnits ?? 0);
+  }, []);
+
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+      const owner = u?.role === 'owner';
+      setIsOwner(owner);
+      if (owner) fetchBugStatus();
+    });
+  }, [fetchBugStatus]);
+
+  const runFixBug = async () => {
+    setFixingBug(true);
+    try {
+      const res = await fetch('/api/inventory/fix-pos-deduction-bug', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Failed to correct stock', 'error'); return; }
+      showToast(`Corrected stock for ${d.corrected} product${d.corrected === 1 ? '' : 's'}!`);
+      await fetchInventory();
+      await fetchBugStatus();
+    } finally {
+      setFixingBug(false);
+    }
+  };
 
   useEffect(() => {
     const q = search.toLowerCase();
@@ -113,6 +149,23 @@ export default function InventoryClient() {
           </button>
         </div>
       </div>
+
+      {isOwner && bugAffectedCount > 0 && (
+        <div className="card flex items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
+          <div className="flex items-center gap-2.5">
+            <Wrench className="text-red-600 shrink-0" size={18} />
+            <p className="text-sm text-red-800">
+              <strong>{bugAffectedCount} product{bugAffectedCount === 1 ? '' : 's'}</strong> ({bugMissedUnits} unit{bugMissedUnits === 1 ? '' : 's'} total)
+              still show stock too high from a checkout bug (Aug 29–Sep 7) where POS sales logged correctly but never actually reduced on-hand quantity.
+              This corrects the count to match what was actually sold — it does not touch any sale record.
+            </p>
+          </div>
+          <button onClick={runFixBug} disabled={fixingBug} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
+            {fixingBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+            {fixingBug ? 'Correcting...' : 'Correct Stock Now'}
+          </button>
+        </div>
+      )}
 
       {/* Negative Stock — physically impossible, needs a real recount */}
       <NegativeStockPanel refreshKey={movementRefreshKey} />
