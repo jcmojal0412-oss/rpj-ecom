@@ -164,11 +164,13 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
   }
 
   const controller = new AbortController();
-  // Each of the two parallel calls now asks for roughly half the content
-  // the old single call did, so 45s (well under the route's 60s
-  // maxDuration) is comfortable margin rather than the near-zero headroom
-  // the previous single-call design had.
-  const timeout = setTimeout(() => controller.abort(), 45000);
+  // Measured in production: even the smaller, post-split per-call content
+  // (bot prompts + up to 10 follow-ups, or up to 5 ad creatives) routinely
+  // took longer than 45s end-to-end against the live Anthropic API — 45s
+  // was too aggressive. 60s per call, run in parallel via Promise.all in
+  // generateAdCopy(), still keeps total wall-clock well under the route's
+  // 75s maxDuration.
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   let res: Response;
   try {

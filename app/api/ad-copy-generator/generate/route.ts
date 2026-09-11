@@ -3,11 +3,10 @@ import { getSession } from '@/lib/auth';
 import { generateAdCopy, AdCopyGeneratorError, type AdCopyInput } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-// generateAdCopy() now issues two smaller Claude calls in parallel (ad
-// content + BotCake content) instead of one large one, each aborting at
-// 45s internally — 60s leaves comfortable margin for both to resolve plus
-// JSON parsing/response serialization.
-export const maxDuration = 60;
+// generateAdCopy() issues two Claude calls in parallel (ad content +
+// BotCake content), each aborting at 60s internally — 75s leaves margin
+// for both to resolve plus JSON parsing/response serialization.
+export const maxDuration = 75;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
