@@ -127,11 +127,21 @@ function buildInputLines(input: AdCopyInput): string {
 // latency (both run concurrently) and gives each call a comfortably sized
 // max_tokens budget instead of one shared, easily-exhausted ceiling.
 
+const FB_ADS_COMPLIANCE_RULES = `Facebook Ads Policy compliance (this copy goes straight into Ads Manager — violations risk ad rejection or account restriction):
+- No superlative/absolute claims without substantiation: avoid "best", "#1", "guaranteed", "miracle", "instant results", "cure".
+- No definitive before/after or medical/curative claims, especially for health, beauty, or supplement products — phrase benefits as "helps improve", "supports", or "designed to" rather than stating a guaranteed outcome or specific timeframe (e.g. don't promise skin will look a certain way "in 2 weeks").
+- Never call out or imply a negative personal attribute, health condition, or flaw about the reader (no "Struggling with...?", "Bakit ang taba mo?", "Tired of your dark spots?" style negative framing) — lead with the product/benefit instead.
+- No fake urgency or fabricated scarcity — don't invent countdown timers, fake low-stock numbers, or claims not present in the actual Promo/Offer given.
+- Avoid engagement-bait phrasing Meta restricts, like "double tap", "tag a friend to win", "share this post" — a "Comment [keyword]" CTA is fine, used once, not stacked with other engagement asks.
+- No ALL CAPS words (short acronyms like COD are fine) and no more than one exclamation point per line — over-punctuation reads as spammy to both readers and Meta's automated review.`;
+
 function buildAdContentPrompt(input: AdCopyInput): { system: string; user: string } {
   const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
 
 ${VOICE_RULES}
 ${input.productImageBase64 ? `- A photo of the actual product is attached — ground the copy in what it really looks like (color, form factor, material, size cues) instead of generic claims.` : ''}
+
+${FB_ADS_COMPLIANCE_RULES}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
