@@ -81,36 +81,13 @@ function extractJson(text: string): unknown {
   }
 }
 
-function buildPrompt(input: AdCopyInput): { system: string; user: string } {
-  const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into a BotCake AI Messenger automation setup and into Facebook Ads Manager.
-
-Voice rules:
+const VOICE_RULES = `Voice rules:
 - Hook in the first line. No generic openers like "Introducing" or "Are you tired of".
 - Write in the requested language/dialect. Taglish means a natural mix of Tagalog and English the way real Filipino sellers post — not a stiff translation.
 - Short paragraphs/line breaks the way real FB posts and Messenger chats look. Light, natural emoji use that fits the tone — don't overdo it.
-- Always weave in the exact price, offer, and shop trust signals given — never invent numbers or claims.
+- Always weave in the exact price, offer, and shop trust signals given — never invent numbers or claims.`;
 
-You must produce FIVE pieces of content, and respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
-{
-  "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order.",
-  "adCreatives": [
-    {
-      "headline": "string — short FB Ads Manager headline, max ~40 chars, curiosity or benefit-led",
-      "primaryText": "string — the FB ad's primary text/caption, 2-4 short lines, ends with an engagement prompt (e.g. Comment a keyword)",
-      "messagingTemplate": "string — the message shown when someone clicks 'Send Message' on the ad, restating the offer and inviting them to ask questions",
-      "quickReplies": ["string", "string", "string"] // 3 short quick-reply button labels a customer might tap, e.g. "Paano ito gumagana?", "May stock pa?", "Order na ako!"
-    }
-  ],
-  "salesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) that instructs the sales chatbot how to behave: role/identity for this specific shop and product, a Personality section (bullet traits like Friendly, Professional, Natural, Never sound robotic), a Key Features section, a Price section, a Responsibilities section (qualify interest, answer questions, handle objections, close the sale, ask for order details), written in simple Taglish guidance the way a real prompt-engineered assistant persona reads.",
-  "afterSalesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) for the AFTER-SALES assistant: role/identity, Personality section, Key Features recap, Price, and a Responsibilities section focused on post-purchase support only (order status, delivery updates, concerns, returns) — instruct it to understand the customer's concern before replying.",
-  "followUpMessages": ["string", "string"] // a Messenger broadcast nurture sequence sent to someone who inquired but hasn't ordered yet. Each message must escalate urgency or add a new angle (limited stock, social proof, curiosity hook, reminder, last call) — never just repeat the same pitch. Use the literal placeholders {{first_name}} and {{PRICING}} inside these messages wherever a name or price would appear, so BotCake fills them in per-recipient at send time — do NOT write the actual price or a real name in these messages.
-}
-
-Generate exactly ${input.variants} entr${input.variants === 1 ? 'y' : 'ies'} in adCreatives.
-${input.followUpCount > 0
-    ? `Generate exactly ${input.followUpCount} entries in followUpMessages, in send order (message 1 first, escalating from there).`
-    : `Return an empty array for followUpMessages.`}`;
-
+function buildInputLines(input: AdCopyInput): string {
   const features = input.keyFeatures.filter(Boolean);
   const lines = [
     `Product/Service: ${input.productName}`,
@@ -127,24 +104,71 @@ ${input.followUpCount > 0
     input.legitimacyInfo ? `Trust/Legitimacy Info (weave in naturally, don't just list it): ${input.legitimacyInfo}` : null,
     input.additionalInstructions ? `Additional Instructions: ${input.additionalInstructions}` : null,
   ].filter(Boolean);
-
-  return { system, user: lines.join('\n') };
+  return lines.join('\n');
 }
 
-async function callClaude(system: string, userPrompt: string, temperature: number): Promise<string> {
+// Two independent, parallel-callable prompts instead of one big request —
+// a single call asking for all 5 sections (up to 5 ad variants + 2 full
+// markdown system prompts + up to 10 follow-ups) was measured to exceed
+// 80s end-to-end against the live Anthropic API, well past what a single
+// non-streaming request should take. Splitting roughly halves wall-clock
+// latency (both run concurrently) and gives each call a comfortably sized
+// max_tokens budget instead of one shared, easily-exhausted ceiling.
+
+function buildAdContentPrompt(input: AdCopyInput): { system: string; user: string } {
+  const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
+
+${VOICE_RULES}
+
+Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
+{
+  "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order.",
+  "adCreatives": [
+    {
+      "headline": "string — short FB Ads Manager headline, max ~40 chars, curiosity or benefit-led",
+      "primaryText": "string — the FB ad's primary text/caption, 2-4 short lines, ends with an engagement prompt (e.g. Comment a keyword)",
+      "messagingTemplate": "string — the message shown when someone clicks 'Send Message' on the ad, restating the offer and inviting them to ask questions",
+      "quickReplies": ["string", "string", "string"] // 3 short quick-reply button labels a customer might tap, e.g. "Paano ito gumagana?", "May stock pa?", "Order na ako!"
+    }
+  ]
+}
+
+Generate exactly ${input.variants} entr${input.variants === 1 ? 'y' : 'ies'} in adCreatives.`;
+
+  return { system, user: buildInputLines(input) };
+}
+
+function buildBotContentPrompt(input: AdCopyInput): { system: string; user: string } {
+  const system = `You are an expert Filipino e-commerce chatbot prompt engineer, writing BotCake AI system prompts and Messenger broadcast copy for an online seller.
+
+${VOICE_RULES}
+
+Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
+{
+  "salesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) that instructs the sales chatbot how to behave: role/identity for this specific shop and product, a Personality section (bullet traits like Friendly, Professional, Natural, Never sound robotic), a Key Features section, a Price section, a Responsibilities section (qualify interest, answer questions, handle objections, close the sale, ask for order details), written in simple Taglish guidance the way a real prompt-engineered assistant persona reads.",
+  "afterSalesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) for the AFTER-SALES assistant: role/identity, Personality section, Key Features recap, Price, and a Responsibilities section focused on post-purchase support only (order status, delivery updates, concerns, returns) — instruct it to understand the customer's concern before replying.",
+  "followUpMessages": ["string", "string"] // a Messenger broadcast nurture sequence sent to someone who inquired but hasn't ordered yet. Each message must escalate urgency or add a new angle (limited stock, social proof, curiosity hook, reminder, last call) — never just repeat the same pitch. Use the literal placeholders {{first_name}} and {{PRICING}} inside these messages wherever a name or price would appear, so BotCake fills them in per-recipient at send time — do NOT write the actual price or a real name in these messages.
+}
+
+${input.followUpCount > 0
+    ? `Generate exactly ${input.followUpCount} entries in followUpMessages, in send order (message 1 first, escalating from there).`
+    : `Return an empty array for followUpMessages.`}`;
+
+  return { system, user: buildInputLines(input) };
+}
+
+async function callClaude(system: string, userPrompt: string, temperature: number, maxTokens: number): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
   }
 
   const controller = new AbortController();
-  // Kept below the route's `maxDuration = 60` in app/api/ad-copy-generator/
-  // generate/route.ts is NOT enough headroom for a max-settings request
-  // (5 variants + 10 follow-ups + 2 full system prompts) — that route's
-  // maxDuration was raised to 90s to match. Aborting at 80s (not 90s)
-  // leaves time for JSON parsing + response serialization before the
-  // platform's own hard kill would otherwise produce a raw, unhandled timeout.
-  const timeout = setTimeout(() => controller.abort(), 80000);
+  // Each of the two parallel calls now asks for roughly half the content
+  // the old single call did, so 45s (well under the route's 60s
+  // maxDuration) is comfortable margin rather than the near-zero headroom
+  // the previous single-call design had.
+  const timeout = setTimeout(() => controller.abort(), 45000);
 
   let res: Response;
   try {
@@ -157,10 +181,7 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
       },
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
-        // 4096 truncated mid-JSON at max settings (5 variants + 10
-        // follow-ups + 2 full markdown system prompts realistically needs
-        // ~4-4.2k+ content tokens before JSON overhead). 8192 leaves margin.
-        max_tokens: 8192,
+        max_tokens: maxTokens,
         temperature,
         system,
         messages: [{ role: 'user', content: userPrompt }],
@@ -187,30 +208,38 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
 }
 
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
-  const { system, user } = buildPrompt(input);
   const temperature = Math.min(1, Math.max(0, input.creativity));
-  const raw = await callClaude(system, user, temperature);
-  const parsed = extractJson(raw) as any;
 
-  const adCreatives: AdCreativeVariant[] = Array.isArray(parsed?.adCreatives)
-    ? parsed.adCreatives.map((v: any) => ({
+  const adPrompt = buildAdContentPrompt(input);
+  const botPrompt = buildBotContentPrompt(input);
+
+  const [adRaw, botRaw] = await Promise.all([
+    callClaude(adPrompt.system, adPrompt.user, temperature, 4096),
+    callClaude(botPrompt.system, botPrompt.user, temperature, 4096),
+  ]);
+
+  const adParsed = extractJson(adRaw) as any;
+  const botParsed = extractJson(botRaw) as any;
+
+  const adCreatives: AdCreativeVariant[] = Array.isArray(adParsed?.adCreatives)
+    ? adParsed.adCreatives.map((v: any) => ({
         headline: String(v?.headline ?? ''),
         primaryText: String(v?.primaryText ?? ''),
         messagingTemplate: String(v?.messagingTemplate ?? ''),
         quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => String(q)) : [],
       }))
     : [];
-  const followUpMessages: string[] = Array.isArray(parsed?.followUpMessages)
-    ? parsed.followUpMessages.map((m: any) => String(m))
+  const followUpMessages: string[] = Array.isArray(botParsed?.followUpMessages)
+    ? botParsed.followUpMessages.map((m: any) => String(m))
     : [];
 
-  const mainFlowReply = String(parsed?.mainFlowReply ?? '');
-  const salesPrompt = String(parsed?.salesPrompt ?? '');
-  const afterSalesPrompt = String(parsed?.afterSalesPrompt ?? '');
+  const mainFlowReply = String(adParsed?.mainFlowReply ?? '');
+  const salesPrompt = String(botParsed?.salesPrompt ?? '');
+  const afterSalesPrompt = String(botParsed?.afterSalesPrompt ?? '');
 
-  // All five sections are required by the system prompt — treat a missing
-  // one as a generation failure rather than silently returning a blank
-  // section the user might paste into a live BotCake chatbot unnoticed.
+  // All five sections are required by the two system prompts — treat a
+  // missing one as a generation failure rather than silently returning a
+  // blank section the user might paste into a live BotCake chatbot unnoticed.
   if (!adCreatives.length) {
     throw new AdCopyGeneratorError('AI did not return any ad creatives.');
   }

@@ -3,10 +3,11 @@ import { getSession } from '@/lib/auth';
 import { generateAdCopy, AdCopyGeneratorError, type AdCopyInput } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-// Raised from 60s — a max-settings request (5 variants + 10 follow-ups +
-// 2 full system prompts) needs more than 60s of margin above the internal
-// 80s abort in lib/ad-copy-generator.ts's callClaude().
-export const maxDuration = 90;
+// generateAdCopy() now issues two smaller Claude calls in parallel (ad
+// content + BotCake content) instead of one large one, each aborting at
+// 45s internally — 60s leaves comfortable margin for both to resolve plus
+// JSON parsing/response serialization.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
