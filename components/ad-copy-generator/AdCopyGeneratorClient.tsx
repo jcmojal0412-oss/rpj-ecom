@@ -1,12 +1,46 @@
 'use client';
 
-import { useState } from 'react';
-import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle, Upload, Sparkles } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { AdCopyResult } from '@/lib/ad-copy-generator';
 
 const LANGUAGES = ['Taglish', 'English', 'Filipino'] as const;
 const FOLLOW_UP_OPTIONS = [0, 5, 10] as const;
+
+/** Resize to max 1200px + compress to JPEG — keeps upload/token size down. */
+function compressToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1200;
+      let w = img.naturalWidth || img.width;
+      let h = img.naturalHeight || img.height;
+      if (w > MAX || h > MAX) {
+        const r = Math.min(MAX / w, MAX / h);
+        w = Math.round(w * r);
+        h = Math.round(h * r);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w || 1;
+      canvas.height = h || 1;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('Compression failed')); return; }
+        const reader = new FileReader();
+        reader.onload = () => resolve({ base64: (reader.result as string).split(',')[1], mediaType: 'image/jpeg' });
+        reader.onerror = () => reject(new Error('Read failed'));
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
 
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -60,9 +94,47 @@ export default function AdCopyGeneratorClient() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<AdCopyResult | null>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [autofilling, setAutofilling] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const setFeature = (i: number, value: string) => setKeyFeatures(f => f.map((v, idx) => idx === i ? value : v));
   const addFeature = () => keyFeatures.length < 5 && setKeyFeatures(f => [...f, '']);
   const removeFeature = (i: number) => setKeyFeatures(f => f.filter((_, idx) => idx !== i));
+
+  const onFileChange = (file: File | null) => {
+    setImageFile(file);
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(file ? URL.createObjectURL(file) : null);
+  };
+
+  const autofillFromImage = async () => {
+    if (!imageFile) return;
+    setError('');
+    setAutofilling(true);
+    try {
+      const { base64, mediaType } = await compressToBase64(imageFile);
+      const res = await fetch('/api/ad-copy-generator/autofill', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Could not analyze the image. Please try again.'); return; }
+      setProductName(data.productName || '');
+      setDescription(data.description || '');
+      if (Array.isArray(data.keyFeatures) && data.keyFeatures.length) {
+        const filled = [...data.keyFeatures].slice(0, 5);
+        while (filled.length < 3) filled.push('');
+        setKeyFeatures(filled);
+      }
+      showToast('Auto-filled from image!');
+    } catch (e: any) {
+      setError('Could not analyze the image. Please try again.');
+    } finally {
+      setAutofilling(false);
+    }
+  };
 
   const generate = async () => {
     setError('');
@@ -74,6 +146,15 @@ export default function AdCopyGeneratorClient() {
     setGenerating(true);
     setResult(null);
     try {
+      let productImage: { base64: string; mediaType: string } | null = null;
+      if (imageFile) {
+        try {
+          productImage = await compressToBase64(imageFile);
+        } catch {
+          // Non-fatal — generate without the image rather than blocking the whole request.
+        }
+      }
+
       const res = await fetch('/api/ad-copy-generator/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,6 +174,8 @@ export default function AdCopyGeneratorClient() {
           payment_method: paymentMethod || undefined,
           legitimacy_info: legitimacyInfo || undefined,
           additional_instructions: additionalInstructions || undefined,
+          product_image_base64: productImage?.base64,
+          product_image_media_type: productImage?.mediaType,
         }),
       });
       const data = await res.json();
@@ -119,6 +202,28 @@ export default function AdCopyGeneratorClient() {
         {/* LEFT: Inputs */}
         <div className="card space-y-5">
           <p className="text-sm font-semibold text-gray-700">Product Details</p>
+
+          <div>
+            <label className="form-label">Product Image <span className="text-gray-400 font-normal">— optional, for auto-fill &amp; more accurate copy</span></label>
+            {imagePreviewUrl ? (
+              <div className="relative">
+                <img src={imagePreviewUrl} alt="Product" className="w-full h-40 object-contain bg-gray-50 rounded-lg border border-gray-200" />
+                <button onClick={() => onFileChange(null)} className="absolute top-2 right-2 btn-secondary text-xs py-1 px-2 bg-white">Remove</button>
+              </div>
+            ) : (
+              <button onClick={() => fileInputRef.current?.click()} className="w-full h-28 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors">
+                <Upload size={20} />
+                <span className="text-xs font-medium">Upload Product Image</span>
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => onFileChange(e.target.files?.[0] || null)} />
+            {imageFile && (
+              <button onClick={autofillFromImage} disabled={autofilling} className="btn-secondary text-xs py-1.5 px-3 mt-2 flex items-center gap-1.5 disabled:opacity-50">
+                {autofilling ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {autofilling ? 'Analyzing...' : 'Auto-fill from image'}
+              </button>
+            )}
+          </div>
 
           <div>
             <label className="form-label">Product / Service Name</label>

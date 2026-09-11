@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       product_name, description, key_features, target_audience,
       language, tone, creativity, variants, follow_up_count,
       shop_name, price, promo_offer, delivery_time, payment_method, legitimacy_info,
-      additional_instructions,
+      additional_instructions, product_image_base64, product_image_media_type,
     } = body;
 
     if (!product_name?.trim()) {
@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
       paymentMethod: payment_method?.trim() || undefined,
       legitimacyInfo: legitimacy_info?.trim() || undefined,
       additionalInstructions: additional_instructions?.trim() || undefined,
+      productImageBase64: typeof product_image_base64 === 'string' ? product_image_base64 : undefined,
+      productImageMediaType: typeof product_image_media_type === 'string' ? product_image_media_type : undefined,
     };
 
     const result = await generateAdCopy(input);

@@ -23,6 +23,14 @@ export interface AdCopyInput {
   paymentMethod?: string;
   legitimacyInfo?: string;
   additionalInstructions?: string;
+  productImageBase64?: string;
+  productImageMediaType?: string;
+}
+
+export interface ProductAutofillResult {
+  productName: string;
+  description: string;
+  keyFeatures: string[];
 }
 
 export interface AdCreativeVariant {
@@ -123,6 +131,7 @@ function buildAdContentPrompt(input: AdCopyInput): { system: string; user: strin
   const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
 
 ${VOICE_RULES}
+${input.productImageBase64 ? `- A photo of the actual product is attached — ground the copy in what it really looks like (color, form factor, material, size cues) instead of generic claims.` : ''}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
@@ -161,7 +170,12 @@ ${input.followUpCount > 0
   return { system, user: buildInputLines(input) };
 }
 
-async function callClaude(system: string, userPrompt: string, maxTokens: number): Promise<string> {
+interface ImageInput {
+  base64: string;
+  mediaType: string;
+}
+
+async function callClaude(system: string, userPrompt: string, maxTokens: number, image?: ImageInput): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
@@ -192,7 +206,15 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
         model: ANTHROPIC_MODEL,
         max_tokens: maxTokens,
         system,
-        messages: [{ role: 'user', content: userPrompt }],
+        messages: [{
+          role: 'user',
+          content: image
+            ? [
+                { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+                { type: 'text', text: userPrompt },
+              ]
+            : userPrompt,
+        }],
       }),
       signal: controller.signal,
     });
@@ -220,12 +242,49 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
   return textBlock?.text ?? '';
 }
 
+// Vision extraction to auto-fill Product Name/Description/Key Features from
+// an uploaded product photo — a separate, small call (not part of the main
+// ad-copy generation) so the user can review/edit the extracted fields
+// before generating.
+export async function analyzeProductImage(imageBase64: string, mediaType: string): Promise<ProductAutofillResult> {
+  const system = `You are an expert e-commerce product analyst for the Filipino market. Look at the product photo and extract marketable details a seller would use to list this product.
+
+Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
+{
+  "productName": "string — a short, marketable product name based on what's visible in the photo",
+  "description": "string — a 1-2 sentence product description covering what it is and its main benefit",
+  "keyFeatures": ["string", "string"] // up to 5 short key features/selling points visible or reasonably implied by the photo (material, function, design, included items, etc.)
+}`;
+
+  const raw = await callClaude(system, 'Analyze this product photo and extract the details.', 1024, { base64: imageBase64, mediaType });
+  const parsed = extractJson(raw) as any;
+
+  const productName = String(parsed?.productName ?? '');
+  if (!productName.trim()) {
+    throw new AdCopyGeneratorError('Could not identify a product from this image — try a clearer photo or fill in the details manually.');
+  }
+
+  return {
+    productName,
+    description: String(parsed?.description ?? ''),
+    keyFeatures: Array.isArray(parsed?.keyFeatures) ? parsed.keyFeatures.slice(0, 5).map((f: any) => String(f)) : [],
+  };
+}
+
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
   const adPrompt = buildAdContentPrompt(input);
   const botPrompt = buildBotContentPrompt(input);
+  const productImage: ImageInput | undefined = input.productImageBase64
+    ? { base64: input.productImageBase64, mediaType: input.productImageMediaType || 'image/jpeg' }
+    : undefined;
 
   const [adRaw, botRaw] = await Promise.all([
-    callClaude(adPrompt.system, adPrompt.user, 4096),
+    // Only the ad-facing content call gets the image — it's the one where
+    // visual grounding (what the product actually looks like) matters for
+    // headline/primary text quality. The BotCake system prompts are
+    // behavioral, not visual, so skipping the image there avoids paying
+    // for it twice.
+    callClaude(adPrompt.system, adPrompt.user, 4096, productImage),
     callClaude(botPrompt.system, botPrompt.user, 4096),
   ]);
 
