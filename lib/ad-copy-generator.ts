@@ -1,4 +1,8 @@
-const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+// Repeated production timeouts at max settings (5 variants + 10 follow-ups)
+// persisted even after raising the per-call timeout to 60s — the prior
+// 'claude-sonnet-4-6' id is an older, slower generation than what's
+// current. Switched to the current Sonnet model.
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 
 export class AdCopyGeneratorError extends Error {}
 
