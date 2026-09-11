@@ -106,6 +106,7 @@ export const MODULES = [
   { key: 'leave_management', label: 'Leave Management', icon: '🌴' },
   { key: 'payroll',          label: 'Payroll', icon: '💵' },
   { key: 'calculator',       label: 'Ecom Calculator',  icon: '🧮' },
+  { key: 'ad_copy_generator', label: 'Ad Copy Generator', icon: '📝' },
   { key: 'ai_product_researcher', label: 'AI Product Researcher', icon: '🤖' },
   { key: 'service_center',   label: 'Service Center',   icon: '🔧' },
   { key: 'marketing_analytics', label: 'Marketing Analytics', icon: '📣' },

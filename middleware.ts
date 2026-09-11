@@ -82,6 +82,8 @@ const ROUTE_MODULES: [string, string][] = [
   // /payslips and /api/payslips paths, deliberately left unlisted here so
   // any logged-in employee can reach their own payslip.
   ['/calculator',       'calculator'],
+  ['/ad-copy-generator',       'ad_copy_generator'],
+  ['/api/ad-copy-generator',   'ad_copy_generator'],
   // POS Reports (Dashboard/Cashier's Report/Product Sales/Discount Report)
   // expose cross-cashier financial data — gated separately from checkout so
   // a plain cashier can be given 'pos' (checkout + Sales History, needed for

@@ -10,7 +10,7 @@ import {
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, Wrench, CalendarClock, Landmark, Megaphone,
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
-  MoreVertical, ScanBarcode, History,
+  MoreVertical, ScanBarcode, History, PenTool,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
@@ -93,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Ecom Calculator',  href: '/calculator',       icon: Calculator,   module: 'calculator'       },
       { label: 'Product Research', href: '/product-research', icon: FlaskConical, module: 'product_research' },
+      { label: 'Ad Copy Generator', href: '/ad-copy-generator', icon: PenTool,    module: 'ad_copy_generator' },
     ],
   },
   {
