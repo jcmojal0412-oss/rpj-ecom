@@ -36,16 +36,47 @@ export interface AdCopyResult {
   followUpMessages: string[];
 }
 
+// Scans forward from the first '{' tracking brace depth (ignoring braces
+// inside string literals) to find the matching closing '}' — unlike a
+// greedy regex to the LAST '}' in the text, this is immune to trailing
+// prose/commentary after the JSON object that happens to contain braces
+// (e.g. the model mentioning the literal {{PRICING}} placeholder outside
+// the JSON body).
+function extractBalancedJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null; // unbalanced — likely truncated (hit max_tokens mid-object)
+}
+
 function extractJson(text: string): unknown {
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) {
-    console.error('[ad-copy-generator] no JSON found in response text:', text.slice(0, 1000));
-    throw new AdCopyGeneratorError('AI response did not contain valid JSON.');
+  const candidate = extractBalancedJsonObject(text);
+  if (!candidate) {
+    console.error('[ad-copy-generator] no balanced JSON object found in response text:', text.slice(0, 1000));
+    throw new AdCopyGeneratorError('AI response was incomplete or did not contain valid JSON — try again, or lower the variant/follow-up counts.');
   }
   try {
-    return JSON.parse(match[0]);
+    return JSON.parse(candidate);
   } catch (parseErr) {
-    console.error('[ad-copy-generator] JSON.parse failed:', parseErr, 'raw match:', match[0].slice(0, 1000));
+    console.error('[ad-copy-generator] JSON.parse failed:', parseErr, 'raw match:', candidate.slice(0, 1000));
     throw new AdCopyGeneratorError('Failed to parse AI response as JSON.');
   }
 }
@@ -107,7 +138,13 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  // Kept below the route's `maxDuration = 60` in app/api/ad-copy-generator/
+  // generate/route.ts is NOT enough headroom for a max-settings request
+  // (5 variants + 10 follow-ups + 2 full system prompts) — that route's
+  // maxDuration was raised to 90s to match. Aborting at 80s (not 90s)
+  // leaves time for JSON parsing + response serialization before the
+  // platform's own hard kill would otherwise produce a raw, unhandled timeout.
+  const timeout = setTimeout(() => controller.abort(), 80000);
 
   let res: Response;
   try {
@@ -120,7 +157,10 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
       },
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
-        max_tokens: 4096,
+        // 4096 truncated mid-JSON at max settings (5 variants + 10
+        // follow-ups + 2 full markdown system prompts realistically needs
+        // ~4-4.2k+ content tokens before JSON overhead). 8192 leaves margin.
+        max_tokens: 8192,
         temperature,
         system,
         messages: [{ role: 'user', content: userPrompt }],
@@ -164,15 +204,35 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     ? parsed.followUpMessages.map((m: any) => String(m))
     : [];
 
+  const mainFlowReply = String(parsed?.mainFlowReply ?? '');
+  const salesPrompt = String(parsed?.salesPrompt ?? '');
+  const afterSalesPrompt = String(parsed?.afterSalesPrompt ?? '');
+
+  // All five sections are required by the system prompt — treat a missing
+  // one as a generation failure rather than silently returning a blank
+  // section the user might paste into a live BotCake chatbot unnoticed.
   if (!adCreatives.length) {
     throw new AdCopyGeneratorError('AI did not return any ad creatives.');
   }
+  if (!mainFlowReply.trim()) {
+    throw new AdCopyGeneratorError('AI did not return a Main Flow reply.');
+  }
+  if (!salesPrompt.trim()) {
+    throw new AdCopyGeneratorError('AI did not return a Sales Prompt.');
+  }
+  if (!afterSalesPrompt.trim()) {
+    throw new AdCopyGeneratorError('AI did not return an After-Sales Prompt.');
+  }
 
-  return {
-    mainFlowReply: String(parsed?.mainFlowReply ?? ''),
-    adCreatives,
-    salesPrompt: String(parsed?.salesPrompt ?? ''),
-    afterSalesPrompt: String(parsed?.afterSalesPrompt ?? ''),
-    followUpMessages,
-  };
+  // Best-effort — the model is only instructed via prose to match these
+  // counts, so a mismatch isn't a hard failure (partial results are still
+  // useful), but it's worth surfacing in logs rather than passing silently.
+  if (adCreatives.length !== input.variants) {
+    console.warn(`[ad-copy-generator] requested ${input.variants} ad creative variant(s), got ${adCreatives.length}`);
+  }
+  if (input.followUpCount > 0 && followUpMessages.length !== input.followUpCount) {
+    console.warn(`[ad-copy-generator] requested ${input.followUpCount} follow-up message(s), got ${followUpMessages.length}`);
+  }
+
+  return { mainFlowReply, adCreatives, salesPrompt, afterSalesPrompt, followUpMessages };
 }

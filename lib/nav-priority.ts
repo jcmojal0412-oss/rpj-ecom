@@ -16,6 +16,7 @@ export const MODULE_LANDING_PRIORITY: { module: string; href: string }[] = [
   { module: 'purchase_orders', href: '/purchase-orders' },
   { module: 'calculator', href: '/calculator' },
   { module: 'product_research', href: '/product-research' },
+  { module: 'ad_copy_generator', href: '/ad-copy-generator' },
   { module: 'expenses', href: '/expenses' },
   { module: 'financing', href: '/financing-sales' },
   { module: 'reports', href: '/reports' },
