@@ -97,6 +97,7 @@ export default function AdCopyGeneratorClient() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [autofilling, setAutofilling] = useState(false);
+  const [generatingFeatures, setGeneratingFeatures] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const setFeature = (i: number, value: string) => setKeyFeatures(f => f.map((v, idx) => idx === i ? value : v));
@@ -133,6 +134,36 @@ export default function AdCopyGeneratorClient() {
       setError('Could not analyze the image. Please try again.');
     } finally {
       setAutofilling(false);
+    }
+  };
+
+  // Scoped version of autofill — only touches Key Features, leaving
+  // Product Name/Description alone (useful when those are already typed
+  // and the user just wants AI-suggested features from the photo).
+  const generateFeaturesFromImage = async () => {
+    if (!imageFile) { setError('Upload a product image first.'); return; }
+    setError('');
+    setGeneratingFeatures(true);
+    try {
+      const { base64, mediaType } = await compressToBase64(imageFile);
+      const res = await fetch('/api/ad-copy-generator/autofill', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Could not analyze the image. Please try again.'); return; }
+      if (Array.isArray(data.keyFeatures) && data.keyFeatures.length) {
+        const filled = [...data.keyFeatures].slice(0, 5);
+        while (filled.length < 3) filled.push('');
+        setKeyFeatures(filled);
+        showToast('Features generated from image!');
+      } else {
+        setError('Could not identify features from this image.');
+      }
+    } catch (e: any) {
+      setError('Could not analyze the image. Please try again.');
+    } finally {
+      setGeneratingFeatures(false);
     }
   };
 
@@ -236,7 +267,15 @@ export default function AdCopyGeneratorClient() {
           </div>
 
           <div>
-            <label className="form-label">Key Features <span className="text-gray-400 font-normal">— up to 5</span></label>
+            <div className="flex items-center justify-between">
+              <label className="form-label mb-0">Key Features <span className="text-gray-400 font-normal">— up to 5</span></label>
+              {imageFile && (
+                <button onClick={generateFeaturesFromImage} disabled={generatingFeatures} className="text-xs text-orange-600 font-medium flex items-center gap-1 disabled:opacity-50">
+                  {generatingFeatures ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  {generatingFeatures ? 'Generating...' : 'Generate with AI'}
+                </button>
+              )}
+            </div>
             <div className="space-y-1.5">
               {keyFeatures.map((f, i) => (
                 <div key={i} className="flex gap-1.5">
