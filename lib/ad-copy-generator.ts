@@ -161,7 +161,7 @@ ${input.followUpCount > 0
   return { system, user: buildInputLines(input) };
 }
 
-async function callClaude(system: string, userPrompt: string, temperature: number, maxTokens: number): Promise<string> {
+async function callClaude(system: string, userPrompt: string, maxTokens: number): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
@@ -186,9 +186,11 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
+        // `temperature` is deprecated/rejected (400) for this model — the
+        // Creativity slider is currently informational only, kept in the
+        // UI for when/if a supported knob is reintroduced.
         model: ANTHROPIC_MODEL,
         max_tokens: maxTokens,
-        temperature,
         system,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -214,14 +216,12 @@ async function callClaude(system: string, userPrompt: string, temperature: numbe
 }
 
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
-  const temperature = Math.min(1, Math.max(0, input.creativity));
-
   const adPrompt = buildAdContentPrompt(input);
   const botPrompt = buildBotContentPrompt(input);
 
   const [adRaw, botRaw] = await Promise.all([
-    callClaude(adPrompt.system, adPrompt.user, temperature, 4096),
-    callClaude(botPrompt.system, botPrompt.user, temperature, 4096),
+    callClaude(adPrompt.system, adPrompt.user, 4096),
+    callClaude(botPrompt.system, botPrompt.user, 4096),
   ]);
 
   const adParsed = extractJson(adRaw) as any;
