@@ -212,7 +212,12 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number)
   }
 
   const data = await res.json();
-  return data?.content?.[0]?.text ?? '';
+  // Don't blindly read content[0] — this model can prepend non-text blocks
+  // (e.g. a "thinking" block) before the actual text block, which was
+  // silently returning '' and surfacing as a confusing JSON-parse failure.
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const textBlock = blocks.find((b: any) => b?.type === 'text');
+  return textBlock?.text ?? '';
 }
 
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
