@@ -200,6 +200,30 @@ const VOICE_RULES = `Voice rules:
 - Short paragraphs/line breaks the way real FB posts and Messenger chats look. Light, natural emoji use that fits the tone — don't overdo it.
 - Always weave in the exact price, offer, and shop trust signals given — never invent numbers or claims.`;
 
+// Shared hook-writing style — the single rule set both the Image/Photo and
+// Video generators use for every hook they produce (3 Main Hook Options,
+// Extra Hooks, regenerated hooks, and the AI Best Pick). Keeping this in one
+// place is what keeps the two generators' hooks from drifting apart in
+// style, since both prompt builders splice this same block into their HOOK
+// ENGINE section.
+const HOOK_STYLE_RULES = `HOOK WRITING STYLE — applies to every hook you write (the 3 main hook options, extra hooks, and any regenerated hook):
+
+SIMPLE, EVERYDAY TAGLISH (when Language = Taglish): write the way an ordinary Filipino sounds on Facebook, not the way a textbook or a news article sounds. Avoid deep/formal/literary Filipino words — if a simpler Taglish or English word exists, use it. Blacklist words to avoid when a simpler alternative exists: "ipagpaliban", "tahanan", "handog", "kagamitan", "makabuluhan", "kaakit-akit", "kapaki-pakinabang", "natatangi", "pagmamay-ari", "pakinabang", "maituturing", "mainam", "maaliwalas", "kaaya-aya", "taglay", "hatid", "makapagbigay". Preferred everyday vocabulary: ganda, sulit, easy, upgrade, pang-gift, pang-bahay, pang-mommy, pang-araw-araw, ang sosyal, ang linis tingnan, ang convenient, ang cute, ang useful, ang handy, ready, instant, perfect, swak, worth it, nakaka-excite, game changer. Mix in natural English words/phrases the way real Filipino online sellers do ("GAME CHANGER", "INSTANT UPGRADE", "SO WORTH IT", "WAIT TIL YOU SEE THIS") instead of forcing an awkward Filipino translation.
+
+EMOTION, NOT A FLAT STATEMENT: every hook needs real emotional energy — excitement, curiosity, desire, relief, urgency, surprise, delight, FOMO, gifting warmth, aspiration, or convenience-relief. A hook that just states a fact ("Pwede ito para sa bahay at balcony", "May payment options para sa gadgets") is not acceptable — find the feeling underneath the fact and lead with that instead.
+
+EMOJIS: include 1-2 emojis per hook that actually match the product/angle — never random or unrelated ones. Pick from whichever fits: 😍 ✨ 🔥 🎁 💛 💙 📱 🏠 🛍️ 🎄 🔔 🧿 😱 👀 💸 🚚 ⭐. Do not overload with more than 2.
+
+SHORT AND PUNCHY: 4-12 words is the sweet spot, 15 words is the hard ceiling. One strong thought only — no semicolons, no stacked clauses, no explaining. The hook is the emotional punch; the explanation belongs in the body copy, not the hook.
+
+DIFFERENT ANGLES, EACH EMOTIONALLY ALIVE: when writing multiple hooks (the 3 main options, or the extra hooks), each angle must carry its own distinct emotional flavor, not just a different topic stated flatly — e.g. a Curiosity hook should feel like a tease, a Gift hook should feel warm, a Desire hook should feel aspirational.
+
+THE FACEBOOK GUT-CHECK: before finalizing any hook, silently ask "would a real Filipino ecommerce seller actually post this on their Facebook page?" If it reads like a brochure, a formal essay, a news article, corporate marketing copy, or a stiff machine translation, rewrite it simpler and warmer.
+
+TONE MATCHES ENERGY: read the Tone given in the input above/below (if any) and match hook energy to it — Friendly: warm, casual, light emoji; Persuasive: stronger desire + a clear benefit; Aggressive: punchier, more urgent, higher energy; Premium: elegant, minimal, aspirational, fewer emojis; UGC: casual and spontaneous, like a real customer talking; Masa: simple, relatable, energetic. If no clear tone is given, default to conversational + persuasive + emotional.
+
+These style rules layer on top of (never override) the no-price-in-hook, no-financial-shaming, no-overclaim, verified-claims, and scarcity-gating rules elsewhere in this prompt.`;
+
 function buildInputLines(input: AdCopyInput): string {
   const features = input.keyFeatures.filter(Boolean);
   const lines = [
@@ -282,17 +306,22 @@ ${FB_ADS_COMPLIANCE_RULES}
 
 ${HIGH_CONVERSION_TECHNIQUES}
 
-${forcedHook ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, messagingTemplate, and quickReplies so the ENTIRE ad coheres around this specific angle — e.g. Gift → focus on recipient appeal/occasions/meaning; Feature/Product Demonstration → focus on what happens when used/visual experience/functional benefit; Loss Aversion → what the customer overlooks/misses by not having it; Scarcity → the verified availability/deadline only. Do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.` : `
+${forcedHook ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, messagingTemplate, and quickReplies so the ENTIRE ad coheres around this specific angle — e.g. Gift → focus on recipient appeal/occasions/meaning; Feature/Product Demonstration → focus on what happens when used/visual experience/functional benefit; Loss Aversion → what the customer overlooks/misses by not having it; Scarcity → the verified availability/deadline only. Do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.
+
+${HOOK_STYLE_RULES}` : `
 HOOK ENGINE — do this before writing anything:
 Identify the likely buyer and the strongest customer desire/problem/buying motivation. Choose exactly 3 STRATEGICALLY DIFFERENT angles from this list — never 3 variations of the same angle:
 - Loss Aversion (what the customer may miss/regret/overlook by ignoring it — never fake fear)
 - Feature/Product Demonstration (turn the single most visually interesting or functional feature into a scroll-stopping observation, not a spec statement)
 - Scarcity/Urgency (ONLY if the Promo/Offer or Additional Instructions below explicitly states limited stock, a sale end date, or limited release — otherwise exclude this angle entirely; never invent "unti na lang stock", "last chance", "hanggang today lang")
 - Gift/Emotional, Curiosity (create an information gap), Visual Scroll Stopper, Pain/Problem (genuine, not manufactured insecurity), Problem-Solution, Desire/Lifestyle, Convenience, Benefit (not a restated feature), Pattern Interrupt, UGC/Natural (sounds like a real customer/creator, not a formal ad), Symbolic/Meaning (conservative, never presents superstition as fact)
-For the 3 chosen angles, draft candidate hooks and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, and compliance risk. Do not show this reasoning — only the final selected hooks.
-HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline/the Offer section — never in the hook itself. Keep each hook to about 5-14 words, understandable in one glance — not a paragraph.
+
+${HOOK_STYLE_RULES}
+
+For the 3 chosen angles, draft candidate hooks per the style rules above and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, emotional impact, natural Taglish/Filipino feel, Facebook feed fit, emoji fit, simplicity, and compliance risk. Reject any candidate that is too formal, too deep/literary in Filipino, too long, or emotionally flat — even if it is technically correct. Do not show this reasoning — only the final selected hooks.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline/the Offer section — never in the hook itself.
 Avoid defaulting to question hooks ("Looking for...?", "Have you ever...?", "Pagod ka na ba...?", "Gusto mo ba...?", "Ilang beses mo na ba naisip...?") — use them only when genuinely the strongest option. Avoid generic hooks ("Introducing our amazing...", "The perfect product for you...", "Something cute pero useful...", "Order yours today...") as openers.
-Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases — e.g. NOT "ganda nito sa balcony" / "ganda nito sa bahay" / "ganda nito pang-regalo", which are the same angle three times). Mark exactly one as isBestPick based on product fit, target audience, and scroll-stop/conversion potential — do NOT default to whichever angle happens to be Offer/Value/hard-sell just because it mentions the deal loudest. adCreatives[0] must be built around the isBestPick hook/angle, with the price/offer introduced afterward in primaryText/headline as normal.`}
+Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases — e.g. NOT "ganda nito sa balcony" / "ganda nito sa bahay" / "ganda nito pang-regalo", which are the same angle three times). Mark exactly one as isBestPick based on product fit, target audience, and scroll-stop/conversion potential, using the AI Best Pick criteria above — do NOT default to whichever angle happens to be Offer/Value/hard-sell just because it mentions the deal loudest. adCreatives[0] must be built around the isBestPick hook/angle, with the price/offer introduced afterward in primaryText/headline as normal.`}
 
 DO NOT TURN KEY FEATURES INTO THE AD VERBATIM. Key Features are input data, not the advertisement. For each relevant feature, ask "why should the customer care?" and convert it into a benefit, desire, use case, visual appeal, or emotional value — e.g. "Big Lucky Eye design" becomes "Instant statement piece kahit simple lang ang corner ng bahay," not "Big Lucky Eye design na eye-catching." Never invent a benefit not reasonably supported by the input. Avoid supplier-catalog/spec-sheet vocabulary ("ornate", "filigree", "meticulously crafted", "sophisticated", "exquisite") unless truly unavoidable.
 
@@ -867,12 +896,18 @@ If no Ad Objective is given, default to a direct message-based CTA.`;
     : `No financing detail was visible in the video — do not mention financing, installment, down payment, or approval terms at all.`;
 
   const hookEngine = forcedHook
-    ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, description, and cta so the ENTIRE ad coheres around this specific angle — do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.`
+    ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, description, and cta so the ENTIRE ad coheres around this specific angle — do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.
+
+${HOOK_STYLE_RULES}`
     : `HOOK ENGINE — do this before writing anything else:
-Identify the likely buyer and the strongest motivation for THIS content type. Choose exactly 3 STRATEGICALLY DIFFERENT angles — never 3 variations of the same angle — from a mix of: Visual Scroll Stopper, Curiosity, Desire, Problem, Pain, Product Demonstration, Price/Value, Gift, Convenience, Lifestyle, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery, Store Advantage (wide selection/trusted seller — only for STORE PROMOTION/SALE content types)${analysis.financingInfo ? ', Financing (only using the exact financing detail given below, never embellished)' : ''}. Silently score each candidate for how likely it is to stop a Filipino Facebook scroller for THIS specific content, then keep only the 3 strongest — do not show your brainstorming, only the final selected hooks. Do NOT default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?") unless it is genuinely the strongest option — that should be rare, not the default.
-HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline — never in the hook itself. Keep each hook to about 5-14 words, understandable in one glance.
+Identify the likely buyer and the strongest motivation for THIS content type. Choose exactly 3 STRATEGICALLY DIFFERENT angles — never 3 variations of the same angle — from a mix of: Visual Scroll Stopper, Curiosity, Desire, Problem, Pain, Product Demonstration, Price/Value, Gift, Convenience, Lifestyle, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery, Store Advantage (wide selection/trusted seller — only for STORE PROMOTION/SALE content types)${analysis.financingInfo ? ', Financing (only using the exact financing detail given below, never embellished)' : ''}.
+
+${HOOK_STYLE_RULES}
+
+Silently score each candidate for how likely it is to stop a Filipino Facebook scroller for THIS specific content, weighing emotional impact, natural Taglish/Filipino feel, Facebook feed fit, emoji fit, and simplicity alongside the usual scroll-stop/relevance/clarity criteria — reject anything too formal, too deep/literary in Filipino, too long, or emotionally flat even if it's technically correct — then keep only the 3 strongest. Do not show your brainstorming, only the final selected hooks. Do NOT default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?") unless it is genuinely the strongest option — that should be rare, not the default.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline — never in the hook itself.
 NEVER write a hook (or any copy) that assumes or questions the buyer's financial situation — banned style: "Kulang sa cash ka ba?", "Wala ka pang budget?", "Hirap ka na bang mag-ipon?". This is financial shaming and is never acceptable, financing angle or not.
-Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases). Mark exactly one as isBestPick based on genuine fit and scroll-stop/conversion potential — do NOT default to whichever angle happens to be financing, price, or hard-sell just because it's the loudest. versions[0] must be built around the isBestPick hook/angle.`;
+Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases). Mark exactly one as isBestPick based on genuine fit and scroll-stop/conversion potential, using the criteria above — do NOT default to whichever angle happens to be financing, price, or hard-sell just because it's the loudest. versions[0] must be built around the isBestPick hook/angle.`;
 
   const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist specializing in Philippine Facebook and Meta advertising.
 
@@ -936,7 +971,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
     {"category": "Desire", "hook": "string"},
     {"category": "Sales", "hook": "string"},
     {"category": "UGC", "hook": "string"}
-  ] // exactly 10 entries spanning these 6 categories (not necessarily even per category) — each genuinely different, not filler, same no-price/no-shaming/no-overclaim rules as above`}
+  ] // exactly 10 entries spanning these 6 categories (not necessarily even per category) — each genuinely different, not filler, same HOOK WRITING STYLE + no-price/no-shaming/no-overclaim rules as above`}
 }`;
 
   const analysisLines = [
