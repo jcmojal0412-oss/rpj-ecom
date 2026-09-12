@@ -1,3 +1,5 @@
+import { logAiUsage } from './db';
+
 // Repeated production timeouts at max settings (5 variants + 10 follow-ups)
 // persisted even after raising the per-call timeout to 60s — the prior
 // 'claude-sonnet-4-6' id is an older, slower generation than what's
@@ -204,7 +206,7 @@ interface ImageInput {
   mediaType: string;
 }
 
-async function callClaude(system: string, userPrompt: string, maxTokens: number, images?: ImageInput[]): Promise<string> {
+async function callClaude(feature: string, system: string, userPrompt: string, maxTokens: number, images?: ImageInput[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
@@ -263,6 +265,16 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number,
   }
 
   const data = await res.json();
+
+  const inputTokens = Number(data?.usage?.input_tokens) || 0;
+  const outputTokens = Number(data?.usage?.output_tokens) || 0;
+  try {
+    logAiUsage(feature, inputTokens, outputTokens);
+  } catch (e) {
+    // Never let usage logging break the actual generation.
+    console.error('[ad-copy-generator] failed to log AI usage:', e);
+  }
+
   // Don't blindly read content[0] — this model can prepend non-text blocks
   // (e.g. a "thinking" block) before the actual text block, which was
   // silently returning '' and surfacing as a confusing JSON-parse failure.
@@ -285,7 +297,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
   "keyFeatures": ["string", "string"] // up to 5 short key features/selling points visible or reasonably implied by the photo (material, function, design, included items, etc.)
 }`;
 
-  const raw = await callClaude(system, 'Analyze this product photo and extract the details.', 1024, [{ base64: imageBase64, mediaType }]);
+  const raw = await callClaude('photo_autofill', system, 'Analyze this product photo and extract the details.', 1024, [{ base64: imageBase64, mediaType }]);
   const parsed = extractJson(raw) as any;
 
   const productName = String(parsed?.productName ?? '');
@@ -313,8 +325,8 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     // headline/primary text quality. The BotCake system prompts are
     // behavioral, not visual, so skipping the image there avoids paying
     // for it twice.
-    callClaude(adPrompt.system, adPrompt.user, 4096, productImage),
-    callClaude(botPrompt.system, botPrompt.user, 4096),
+    callClaude('text_ad_content', adPrompt.system, adPrompt.user, 4096, productImage),
+    callClaude('text_bot_content', botPrompt.system, botPrompt.user, 4096),
   ]);
 
   const adParsed = extractJson(adRaw) as any;
@@ -483,7 +495,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
   "tone": "string — the tone this video suggests (e.g. playful, premium, practical, homey)"
 }`;
 
-  const raw = await callClaude(system, buildVideoInputLines(input), 2048, frames);
+  const raw = await callClaude('video_analysis', system, buildVideoInputLines(input), 2048, frames);
   const parsed = extractJson(raw) as any;
 
   const productName = String(parsed?.productName ?? input.productName ?? '');
@@ -568,7 +580,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
 
   const user = `${analysisLines}\n\n${buildVideoInputLines(input)}`;
 
-  const raw = await callClaude(system, user, 4096);
+  const raw = await callClaude('video_copy', system, user, 4096);
   const parsed = extractJson(raw) as any;
 
   const versions: VideoAdVersion[] = Array.isArray(parsed?.versions)

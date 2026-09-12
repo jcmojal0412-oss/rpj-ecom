@@ -168,6 +168,7 @@ const NAV_GROUPS: NavGroup[] = [
     groupIcon: Settings,
     items: [
       { label: 'User Management', href: '/settings/users', icon: Users, module: '_owner' },
+      { label: 'AI Usage', href: '/ai-usage', icon: Wallet, module: '_owner' },
     ],
   },
 ];

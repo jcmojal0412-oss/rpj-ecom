@@ -1675,6 +1675,22 @@ function migrateSchema() {
   }
 
   seedCcCategoriesIfEmpty();
+
+  // AI Usage — logs token usage/estimated cost per Claude API call across
+  // AI features (Ad Copy Generator text/photo/video, autofill, etc.) so the
+  // owner can see daily spend without leaving the app. `feature` identifies
+  // which call site logged the row.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_usage_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      feature TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      estimated_cost_php REAL NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_usage_log_created ON ai_usage_log(created_at);
+  `);
 }
 
 function seedBusinessesIfEmpty() {
@@ -2024,4 +2040,70 @@ function seedIfEmpty() {
 
   // Mark as seeded permanently — even if all products are deleted later, won't re-seed
   db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('products_seeded', '1')").run();
+}
+
+// ── AI Usage Tracking ────────────────────────────────────────────────────────
+// Claude Sonnet 5 pricing: $2/1M input tokens, $10/1M output tokens.
+// USD→PHP is a fixed approximate rate (not live FX) — good enough for a
+// rough daily-spend view, not for accounting.
+const CLAUDE_SONNET_5_INPUT_USD_PER_M = 2;
+const CLAUDE_SONNET_5_OUTPUT_USD_PER_M = 10;
+const USD_TO_PHP = 58;
+
+export function logAiUsage(feature: string, inputTokens: number, outputTokens: number) {
+  const costUsd = (inputTokens / 1_000_000) * CLAUDE_SONNET_5_INPUT_USD_PER_M
+    + (outputTokens / 1_000_000) * CLAUDE_SONNET_5_OUTPUT_USD_PER_M;
+  const costPhp = costUsd * USD_TO_PHP;
+  getDb().prepare(
+    'INSERT INTO ai_usage_log (feature, input_tokens, output_tokens, estimated_cost_php) VALUES (?,?,?,?)'
+  ).run(feature, inputTokens, outputTokens, costPhp);
+}
+
+export interface AiUsageDaySummary {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostPhp: number;
+  calls: number;
+}
+
+// Last N days (including today), oldest first, zero-filled for days with no calls.
+export function getAiUsageDailySummary(days = 30): AiUsageDaySummary[] {
+  const rows = getDb().prepare(`
+    SELECT date(created_at) as date,
+           SUM(input_tokens) as inputTokens,
+           SUM(output_tokens) as outputTokens,
+           SUM(estimated_cost_php) as estimatedCostPhp,
+           COUNT(*) as calls
+    FROM ai_usage_log
+    WHERE created_at >= datetime('now', ?)
+    GROUP BY date(created_at)
+  `).all(`-${days} days`) as AiUsageDaySummary[];
+
+  const byDate = new Map(rows.map(r => [r.date, r]));
+  const result: AiUsageDaySummary[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const row = byDate.get(dateStr);
+    result.push(row
+      ? { date: dateStr, inputTokens: row.inputTokens, outputTokens: row.outputTokens, estimatedCostPhp: row.estimatedCostPhp, calls: row.calls }
+      : { date: dateStr, inputTokens: 0, outputTokens: 0, estimatedCostPhp: 0, calls: 0 });
+  }
+  return result;
+}
+
+export function getAiUsageByFeature(days = 30): { feature: string; inputTokens: number; outputTokens: number; estimatedCostPhp: number; calls: number }[] {
+  return getDb().prepare(`
+    SELECT feature,
+           SUM(input_tokens) as inputTokens,
+           SUM(output_tokens) as outputTokens,
+           SUM(estimated_cost_php) as estimatedCostPhp,
+           COUNT(*) as calls
+    FROM ai_usage_log
+    WHERE created_at >= datetime('now', ?)
+    GROUP BY feature
+    ORDER BY estimatedCostPhp DESC
+  `).all(`-${days} days`) as any;
 }

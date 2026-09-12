@@ -116,6 +116,8 @@ const ROUTE_MODULES: [string, string][] = [
 ['/api/settings',     '_owner'], // owner-only flag
 ['/command-center',   '_owner'], // owner-only flag — personal CEO tool (Goldie)
 ['/api/command-center', '_owner'], // owner-only flag
+['/ai-usage',         '_owner'], // owner-only flag — AI API cost visibility
+['/api/ai-usage',     '_owner'], // owner-only flag
 ];
 
 // Always returns a Uint8Array backed by a real ArrayBuffer (never SharedArrayBuffer),
