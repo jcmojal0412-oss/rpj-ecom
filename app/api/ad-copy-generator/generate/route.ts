@@ -4,9 +4,11 @@ import { generateAdCopy, parseAdCopyInputBody, AdCopyGeneratorError } from '@/li
 
 export const dynamic = 'force-dynamic';
 // generateAdCopy() issues two Claude calls in parallel (ad content +
-// BotCake content), each aborting at 60s internally — 75s leaves margin
-// for both to resolve plus JSON parsing/response serialization.
-export const maxDuration = 75;
+// BotCake content). text_ad_content now uses a 100s internal timeout (its
+// system prompt grew large enough to genuinely need it, same as video's
+// text_ad_content-equivalent) — 115s leaves margin for both to resolve
+// plus JSON parsing/response serialization.
+export const maxDuration = 115;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();

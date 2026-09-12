@@ -901,7 +901,11 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     // headline/primary text quality. The BotCake system prompts are
     // behavioral, not visual, so skipping the image there avoids paying
     // for it twice.
-    callClaude('text_ad_content', adPrompt.system, adPrompt.user, 8192, productImage),
+    // timeoutMs raised from the 60s default — this system prompt shares
+    // the same accumulated rule set as video's text_ad_content-equivalent
+    // (Tone config, Price Visibility, Caption structure, naturalness
+    // rules) and started timing out against the live API at 60s too.
+    callClaude('text_ad_content', adPrompt.system, adPrompt.user, 8192, productImage, 100000),
     callClaude('text_bot_content', botPrompt.system, botPrompt.user, 4096),
   ]);
 
@@ -987,7 +991,11 @@ export async function regenerateAdCreativeHook(
   previousHooks?: string[]
 ): Promise<{ adCreative: AdCreativeVariant; hookOptions: AdHookOption[] }> {
   const prompt = buildAdContentPrompt(input, forcedHook, previousHooks, true);
-  const raw = await callClaude('text_ad_hook_regen', prompt.system, prompt.user, 4096);
+  // timeoutMs raised defensively — singleAdOnly only trims the JSON output
+  // schema, not the large preceding rule sections, so this call sends the
+  // same accumulated system prompt as the full generation (just requests
+  // less output back).
+  const raw = await callClaude('text_ad_hook_regen', prompt.system, prompt.user, 4096, undefined, 80000);
   const parsed = extractJson(raw) as any;
   const verifiedClaims = buildTextVerifiedClaims(input);
 
@@ -1526,7 +1534,9 @@ export async function regenerateVideoAdCreativeHook(
   previousHooks?: string[],
 ): Promise<{ adVersion: VideoAdVersion; hookOptions: AdHookOption[] }> {
   const prompt = buildVideoAdContentPrompt(analysis, input, forcedHook, previousHooks, undefined, true);
-  const raw = await callClaude('video_ad_hook_regen', prompt.system, prompt.user, 4096);
+  // timeoutMs raised defensively — same accumulated system prompt as the
+  // full video_copy generation, just requesting less output back.
+  const raw = await callClaude('video_ad_hook_regen', prompt.system, prompt.user, 4096, undefined, 80000);
   const parsed = extractJson(raw) as any;
 
   const first = Array.isArray(parsed?.versions) ? parsed.versions[0] : null;

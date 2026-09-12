@@ -3,7 +3,10 @@ import { getSession } from '@/lib/auth';
 import { regenerateVideoAdCreativeHook, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, CONTENT_TYPES, TONE_OPTIONS, type VideoAnalysis, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 45;
+// regenerateVideoAdCreativeHook()'s callClaude call uses an 80s internal
+// timeout (same large accumulated system prompt as full generation) — 95s
+// leaves margin for parsing/serialization.
+export const maxDuration = 95;
 
 // Powers both "Use This Hook" (selected_hook/selected_angle set) and
 // "Generate 3 New Hooks" (omitted) for video mode — always text-only,
