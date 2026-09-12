@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle, Upload, Sparkles, RefreshCw } from 'lucide-react';
+import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle, Upload, Sparkles, RefreshCw, Lightbulb } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { AdCopyResult } from '@/lib/ad-copy-generator';
 
@@ -491,6 +491,19 @@ export default function AdCopyGeneratorClient() {
             </div>
           ) : result ? (
             <div className="space-y-6">
+              {/* AI Ad Strategy */}
+              {(result.detectedAudience || result.strongestSellingPoint || result.hookOptions.some(h => h.isBestPick)) && (
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Lightbulb size={14} className="text-orange-500" />
+                    <p className="text-xs font-semibold text-gray-700">AI Ad Strategy</p>
+                  </div>
+                  {result.detectedAudience && <p className="text-xs text-gray-600"><span className="text-gray-400">Detected Audience:</span> {result.detectedAudience}</p>}
+                  {result.hookOptions.find(h => h.isBestPick)?.angle && <p className="text-xs text-gray-600"><span className="text-gray-400">Recommended Angle:</span> {result.hookOptions.find(h => h.isBestPick)?.angle}</p>}
+                  {result.strongestSellingPoint && <p className="text-xs text-gray-600"><span className="text-gray-400">Strongest Selling Point:</span> {result.strongestSellingPoint}</p>}
+                </div>
+              )}
+
               {/* Choose Your Hook — only affects adCreatives[0] */}
               {result.hookOptions.length > 0 && (
                 <div className="space-y-2">

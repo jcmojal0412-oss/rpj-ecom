@@ -76,6 +76,8 @@ export interface AdCopyResult {
   mainFlowReply: string;
   adCreatives: AdCreativeVariant[];
   hookOptions: AdHookOption[]; // 3 alternate hooks for adCreatives[0] only
+  detectedAudience: string; // the audience actually used — given or inferred
+  strongestSellingPoint: string; // one-sentence "why buy" summary for the AI Ad Strategy panel
   salesPrompt: string;
   afterSalesPrompt: string;
   followUpMessages: string[];
@@ -464,6 +466,8 @@ ${previousHooks?.length ? `\nAlready-used hooks this session (generate genuinely
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
+  ${singleAdOnly ? '' : `"detectedAudience": "string — the target audience this copy was actually written for, whether given by the user or inferred (e.g. 'Home décor and gift buyers, likely women 25-55')",
+  "strongestSellingPoint": "string — ONE short sentence naming the single most compelling reason a customer would buy this, based on the actual input given — not a restated feature list",`}
   "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order. Chat tone, not ad tone.",
   ${forcedHook ? '' : `"hookOptions": [
     {"hook": "string — normal case, will be uppercased by the app", "angle": "string — the angle name", "isBestPick": true},
@@ -708,6 +712,8 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
   const mainFlowReply = stripUnverifiedClaims(String(adParsed?.mainFlowReply ?? ''), verifiedClaims);
   const salesPrompt = String(botParsed?.salesPrompt ?? '');
   const afterSalesPrompt = String(botParsed?.afterSalesPrompt ?? '');
+  const detectedAudience = String(adParsed?.detectedAudience ?? input.targetAudience ?? '');
+  const strongestSellingPoint = String(adParsed?.strongestSellingPoint ?? '');
 
   // All five sections are required by the two system prompts — treat a
   // missing one as a generation failure rather than silently returning a
@@ -735,7 +741,16 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     console.warn(`[ad-copy-generator] requested ${input.followUpCount} follow-up message(s), got ${followUpMessages.length}`);
   }
 
-  return { mainFlowReply, adCreatives, hookOptions: normalizeHookOptions(hookOptions, adCreatives[0]?.hook ?? ''), salesPrompt, afterSalesPrompt, followUpMessages };
+  return {
+    mainFlowReply,
+    adCreatives,
+    hookOptions: normalizeHookOptions(hookOptions, adCreatives[0]?.hook ?? ''),
+    detectedAudience,
+    strongestSellingPoint,
+    salesPrompt,
+    afterSalesPrompt,
+    followUpMessages,
+  };
 }
 
 // Lightweight, text-only regeneration of JUST the first ad creative — used
