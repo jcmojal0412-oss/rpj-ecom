@@ -25,6 +25,22 @@ export const TARGET_AUDIENCE_PRESETS = [
 
 export const AD_OBJECTIVES = ['Sales / Conversion', 'Engagement', 'Retargeting', 'Product Awareness'] as const;
 
+// Kept identical to lib/ad-copy-generator.ts TONE_OPTIONS (and
+// AdCopyGeneratorClient.tsx's copy) so both generators share the exact same
+// Tone list and behavior.
+export const TONE_OPTIONS = [
+  'Friendly & Persuasive',
+  'Minimalist',
+  'Premium / Yayamanin',
+  'Aggressive Sale',
+  'Masa / Sulit',
+  'UGC / Casual',
+  'Emotional',
+  'Curiosity / Scroll Stopper',
+  'Trust / Straightforward',
+  'Playful / Fun',
+] as const;
+
 export const COPY_LENGTH_OPTIONS = [
   { value: 'Short', label: 'Short (~40-80 words)' },
   { value: 'Standard', label: 'Standard (~80-150 words)' },

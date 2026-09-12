@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { analyzeProductVideo, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
+import { analyzeProductVideo, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, TONE_OPTIONS, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
 import { extractVideoFrames, VideoProcessingError } from '@/lib/video-frames';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     const copyLength = (COPY_LENGTHS as readonly string[]).includes(copyLengthRaw)
       ? copyLengthRaw as VideoAdCopyInput['copyLength']
       : 'Standard';
+    const toneRaw = String(formData.get('tone') || 'Friendly & Persuasive');
+    const tone = (TONE_OPTIONS as readonly string[]).includes(toneRaw)
+      ? toneRaw as VideoAdCopyInput['tone']
+      : 'Friendly & Persuasive';
 
     const input: VideoAdCopyInput = {
       productName: (formData.get('product_name') as string)?.trim() || undefined,
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest) {
       originalPrice: (formData.get('original_price') as string)?.trim() || undefined,
       targetAudience: (formData.get('target_audience') as string)?.trim() || undefined,
       language: validLanguages.includes(languageRaw) ? (languageRaw as VideoAdCopyInput['language']) : 'Taglish',
+      tone,
       adObjective: (formData.get('ad_objective') as string)?.trim() || undefined,
       adAngle,
       copyLength,

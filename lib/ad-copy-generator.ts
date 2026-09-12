@@ -10,13 +10,31 @@ export class AdCopyGeneratorError extends Error {}
 
 export const TEXT_AD_OBJECTIVES = ['Messages', 'Comment Automation', 'Website Sales', 'Engagement'] as const;
 
+// Shared Tone preset — one list, one behavior set, used identically by both
+// the Image/Photo and Video generators (see TONE_CONFIGS below) so a given
+// Tone produces consistent copywriting behavior regardless of which
+// generator it's used from. Tone is independent of Ad Angle: Angle picks
+// the selling idea, Tone picks how it's said.
+export const TONE_OPTIONS = [
+  'Friendly & Persuasive',
+  'Minimalist',
+  'Premium / Yayamanin',
+  'Aggressive Sale',
+  'Masa / Sulit',
+  'UGC / Casual',
+  'Emotional',
+  'Curiosity / Scroll Stopper',
+  'Trust / Straightforward',
+  'Playful / Fun',
+] as const;
+
 export interface AdCopyInput {
   productName: string;
   description?: string;
   keyFeatures: string[];
   targetAudience?: string;
   language: 'Taglish' | 'English' | 'Filipino';
-  tone: string;
+  tone: typeof TONE_OPTIONS[number];
   creativity: number; // 0–1, mapped to Claude's temperature
   variants: number; // 1–5, applies to adCreatives
   followUpCount: 0 | 5 | 10;
@@ -223,11 +241,37 @@ DIFFERENT ANGLES, EACH EMOTIONALLY ALIVE: when writing multiple hooks (the 3 mai
 
 THE SOCIAL-MEDIA GUT-CHECK: before finalizing any hook, silently ask "would a real Filipino ecommerce seller actually post this on Facebook or TikTok?" It should feel like a Facebook ad, a TikTok caption, or a UGC opener — never a product brochure, formal Filipino, a supplier listing, a chatbot sentence, or a school essay. If it reads that way, rewrite it simpler and warmer.
 
-TONE MATCHES ENERGY: read the Tone given in the input above/below (if any) and match hook energy to it — Friendly: warm, casual, light emoji; Persuasive: stronger desire + a clear benefit; Aggressive: punchier, more urgent, higher energy; Premium: elegant, minimal, aspirational, fewer emojis; UGC: casual and spontaneous, like a real customer talking; Masa: simple, relatable, energetic. If no clear tone is given, default to conversational + persuasive + emotional.
+TONE MATCHES ENERGY: the TONE CONFIGURATION block elsewhere in this prompt is the authority on hook energy, word choice, and emoji count for the selected Tone — follow it exactly for the hook, don't fall back to a generic energy level.
 
 INTERNAL HOOK SCORING (do not show this reasoning, only the final hooks): before choosing your final 3 (or 10, for extra hooks), internally brainstorm at least 9 candidate hooks across different angles, then silently score each 1-10 on: Emotional Impact, Scroll-Stop Potential, Natural Taglish, Product Relevance, Angle Fit, Simplicity, Emoji Fit, Curiosity/Desire, and Ad Objective Fit. Only keep candidates scoring at least 8/10 on Emotional Impact, Natural Taglish, AND Product Relevance — if your best candidate for an angle scores below 8 on any of those three, rewrite it before including it, don't ship it anyway.
 
 These style rules layer on top of (never override) the no-price-in-hook, no-financial-shaming, no-overclaim, verified-claims, and scarcity-gating rules elsewhere in this prompt.`;
+
+// One shared Tone configuration for BOTH generators — Tone controls HOW the
+// copy is said (word choice, sentence length, emotional intensity, emoji
+// count/style, hook/primaryText/headline/CTA feel); Ad Angle stays a
+// completely separate control for WHAT selling idea is used. Deliberately
+// detailed per-tone (not just the tone name dropped into the prompt) so
+// each preset produces genuinely different copywriting behavior, not the
+// same copy with a label attached.
+const TONE_CONFIGS: Record<typeof TONE_OPTIONS[number], string> = {
+  'Friendly & Persuasive': 'Natural and approachable, conversational Taglish. Moderate emotional energy — warm but not over-the-top. Word choice: everyday, friendly words, never stiff or corporate. Sentence length: short-to-medium, easy to read. Emoji count for the hook: 1-2. Primary Text: builds interest conversationally, then persuades gently, never pushy. Headline: warm and inviting. CTA: a friendly invitation to act, not a hard push. This is the safe general-purpose default.',
+  'Minimalist': 'Short, clean, direct — cut every unnecessary word. Word choice: plain, no filler adjectives, no hype words. Sentence length: very short, fragments are fine. Emoji count for the hook: 0-1, only if it adds real value. Primary Text: a few tight lines, zero padding. Headline: 3-6 words, clean. CTA: short and plain ("Order now.", "Shop now."). Avoid excessive hype entirely.',
+  'Premium / Yayamanin': 'Aspirational and elegant but still easy to understand — never stiff or corporate. Word choice: "sosyal", "premium-looking", "elegant", "classy", "expensive-looking" — never deep/formal Filipino, never an exaggerated quality claim ("best quality", "world-class") that isn\'t verified. Sentence length: medium, polished, unhurried. Emotional intensity: quietly confident, aspirational, never loud. Emoji count for the hook: 0-2, elegant choices (✨💎) over loud ones (🔥😱). Primary Text: paints a lifestyle/status feeling. Headline: elegant and aspirational. CTA: composed, e.g. "Reserve yours today."',
+  'Aggressive Sale': 'High-energy ecommerce sales tone — urgency, a strong CTA, offer emphasis, FOMO ONLY when verified by the Verified Claims/offer flags (never invent "Limited Stock", "Today Only", "Last Chance"). Word choice: punchy, action-driven. Sentence length: short and punchy. Emotional intensity: high energy (loud tone, not loud formatting — body copy still follows the ALL CAPS/exclamation-point compliance rules elsewhere in this prompt). Emoji count for the hook: 1-3, higher-energy choices (🔥😱🛒💥), never spammed. Primary Text: drives hard toward the offer/CTA using only verified urgency. Headline: bold, benefit + urgency. CTA: strong and direct, e.g. "Order Now!", "Grab Yours Today!"',
+  'Masa / Sulit': 'Very simple, everyday Taglish, relatable to the average Filipino shopper. Word choice: "sulit", "panalo", "ang mura", "worth it", "okay na okay" — practical and value-focused, never formal. Sentence length: short, plain, spoken-language rhythm. Emotional intensity: warm, relatable, down-to-earth excitement. Emoji count for the hook: 1-2, simple and warm (💛🔥). Primary Text: emphasizes value, practicality, everyday usefulness. Headline: value-forward. CTA: simple and direct, e.g. "Order na, sulit na sulit!"',
+  'UGC / Casual': 'Sounds like a real customer, creator, or TikTok/Facebook user talking — not a seller. Word choice: casual filler phrases ("wait...", "grabe", "honestly", "ang ganda pala nito", "di ko inexpect..."). Sentence length: short, conversational, can trail off naturally. Emotional intensity: genuine surprise/reaction energy, never scripted-sounding. Emoji count for the hook: 1-2, natural reaction emojis (😍👀). Primary Text: reads like a spontaneous reaction, not an ad script. Headline: casual, reaction-style. CTA: soft and peer-to-peer, e.g. "Check niyo na rin, sobrang worth it."',
+  'Emotional': 'Leans into kilig, family, gifting, care, special moments, nostalgia, desire, surprise. Word choice: warm and heartfelt, sincere, never cheesy or over-dramatic. Sentence length: medium, lets the feeling breathe. Emotional intensity: warm and touching but restrained — do not overdo the drama. Emoji count for the hook: 1-3, emotional choices (❤️🥹🎁💛✨). Primary Text: centers the feeling/relationship/moment. Headline: heartfelt. CTA: a warm invitation tied to the emotion.',
+  'Curiosity / Scroll Stopper': 'Prioritizes information gaps and pattern interrupts that make people want to keep reading/watching. Word choice: teasing, intriguing, open-loop phrasing ("wait til you see this", "akala mo normal lang..."). Sentence length: short, punchy, often trails into a reveal. Emotional intensity: high curiosity/surprise — never fake clickbait the body copy doesn\'t pay off. Emoji count for the hook: 1-2 (👀😱✨). Primary Text: opens a gap, then genuinely resolves it with the real product benefit. Headline: intriguing, not fully explained. CTA: "See it for yourself — message us."',
+  'Trust / Straightforward': 'Clear, specific, low-hype — for customers who want direct information, not a sales pitch. Word choice: plain and factual, no exaggeration. Sentence length: clear and complete, no dramatic fragments. Emotional intensity: calm and confident, not hyped. Emoji count for the hook: 0-1, minimal. Primary Text: plainly states what the product is, what it does, the main benefit, and the verified offer. Headline: descriptive, not clickbait. CTA: direct and low-pressure, e.g. "Message us for details."',
+  'Playful / Fun': 'Energetic, witty, light-hearted. Word choice: playful Taglish, light humor, natural wordplay — never childish unless the product itself is for kids/toys. Sentence length: short-to-medium, bouncy rhythm. Emotional intensity: upbeat and fun, energetic without being aggressive. Emoji count for the hook: 1-2, fun/playful choices. Primary Text: light and entertaining while still landing the benefit and CTA. Headline: witty. CTA: fun and inviting.',
+};
+
+function buildToneGuidance(tone: typeof TONE_OPTIONS[number]): string {
+  return `TONE CONFIGURATION — Tone controls HOW you write (word choice, sentence length, emotional intensity, emoji usage, hook/primaryText/headline/CTA feel); it is completely independent from Ad Angle, which controls WHAT selling idea is used. Do not just drop the tone name into the copy — write with genuinely different behavior per tone, as specified:
+Selected Tone: ${tone}
+${TONE_CONFIGS[tone]}`;
+}
 
 // Broad Unicode ranges covering the emoji this prompt asks the model to use
 // (emoticons, dingbats/hearts, transport, supplemental symbols, misc
@@ -376,6 +420,8 @@ Your job is NOT to simply summarize a product. Your job is to identify the stron
 
 ${VOICE_RULES}
 ${input.productImageBase64 ? `- A photo of the actual product is attached — ground the copy in what it really looks like (color, form factor, material, size cues) instead of generic claims.` : ''}
+
+${buildToneGuidance(input.tone)}
 
 ${FB_ADS_COMPLIANCE_RULES}
 (Exception: the "hook" field below is deliberately written in full caps by the application after you return it — write it as a normal short sentence, do not add your own caps or extra punctuation for this.)
@@ -597,7 +643,7 @@ export function parseAdCopyInputBody(body: any): AdCopyInput {
     keyFeatures: Array.isArray(key_features) ? key_features.filter(Boolean).slice(0, 5) : [],
     targetAudience: target_audience?.trim() || undefined,
     language: validLanguages.includes(language) ? language : 'Taglish',
-    tone: tone?.trim() || 'Friendly at persuasive',
+    tone: (TONE_OPTIONS as readonly string[]).includes(tone) ? tone : 'Friendly & Persuasive',
     creativity: typeof creativity === 'number' ? creativity : 0.7,
     variants: Math.min(5, Math.max(1, Number(variants) || 1)),
     followUpCount: (followUpAllowed.includes(Number(follow_up_count)) ? Number(follow_up_count) : 0) as 0 | 5 | 10,
@@ -762,6 +808,7 @@ export interface VideoAdCopyInput {
   originalPrice?: string;
   targetAudience?: string;
   language: 'Taglish' | 'English' | 'Filipino';
+  tone: typeof TONE_OPTIONS[number];
   adObjective?: string;
   adAngle: 'AUTO' | typeof AD_ANGLES[number];
   copyLength: typeof COPY_LENGTHS[number];
@@ -828,6 +875,7 @@ function buildVideoInputLines(input: VideoAdCopyInput): string {
     input.originalPrice ? `Original Price: ${input.originalPrice}` : null,
     input.targetAudience ? `Target Audience: ${input.targetAudience}` : null,
     `Language: ${input.language}`,
+    `Tone: ${input.tone}`,
     input.adObjective ? `Ad Objective: ${input.adObjective}` : null,
     input.adAngle !== 'AUTO' ? `Required Ad Angle: ${input.adAngle}` : `Ad Angle: AUTO — choose the strongest angle yourself.`,
     offerText ? `Offer (use ONLY these terms, exactly — do not add or infer any other offer): ${offerText}` : `Offer: none given — do not state any price, discount, or promo unless it is visibly on-screen in the video.`,
@@ -1054,6 +1102,8 @@ Return exactly 3 hookOptions, one per chosen angle (genuinely different directio
 Your job is not to summarize what's in the video. Your job is to identify the strongest reason a customer would stop scrolling, care, and take action. Analyze the content analysis, audience, and offer given below. Find the strongest advertising angle first. Then write concise, specific, and natural advertising copy around ONE big idea. Never fabricate facts, offers, guarantees, certifications, or trust claims. Your copy should feel human-written, commercially sharp, mobile-friendly, and appropriate for Philippine ecommerce.
 
 ${VOICE_RULES}
+
+${buildToneGuidance(input.tone)}
 
 ${FB_ADS_COMPLIANCE_RULES}
 (Exception: the "hook" field below is deliberately written in full caps by the application after you return it — write it as a normal short sentence, do not add your own caps or extra punctuation for this.)

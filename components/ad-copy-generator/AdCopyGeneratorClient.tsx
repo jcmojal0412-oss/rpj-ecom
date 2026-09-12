@@ -9,6 +9,20 @@ const LANGUAGES = ['Taglish', 'English', 'Filipino'] as const;
 const FOLLOW_UP_OPTIONS = [0, 5, 10] as const;
 const AD_OBJECTIVES = ['Messages', 'Comment Automation', 'Website Sales', 'Engagement'] as const;
 const COPY_LENGTHS = ['Short', 'Standard', 'Long'] as const;
+// Kept identical to lib/ad-copy-generator.ts TONE_OPTIONS (and video-constants.ts's
+// copy) so both generators share the exact same Tone list.
+const TONE_OPTIONS = [
+  'Friendly & Persuasive',
+  'Minimalist',
+  'Premium / Yayamanin',
+  'Aggressive Sale',
+  'Masa / Sulit',
+  'UGC / Casual',
+  'Emotional',
+  'Curiosity / Scroll Stopper',
+  'Trust / Straightforward',
+  'Playful / Fun',
+] as const;
 // Only add these if genuinely true for the shop — they're suggestions the
 // seller opts into, not auto-asserted claims (a false "100% Business
 // Registered" claim would be the seller's own legal exposure, not just a
@@ -84,7 +98,7 @@ export default function AdCopyGeneratorClient() {
   const [keyFeatures, setKeyFeatures] = useState(['', '', '']);
   const [targetAudience, setTargetAudience] = useState('');
   const [language, setLanguage] = useState<typeof LANGUAGES[number]>('Taglish');
-  const [tone, setTone] = useState('Friendly at persuasive');
+  const [tone, setTone] = useState<typeof TONE_OPTIONS[number]>('Friendly & Persuasive');
   const [creativity, setCreativity] = useState(0.7);
   const [variants, setVariants] = useState(1);
   const [followUpCount, setFollowUpCount] = useState<typeof FOLLOW_UP_OPTIONS[number]>(10);
@@ -382,7 +396,9 @@ export default function AdCopyGeneratorClient() {
 
           <div>
             <label className="form-label">Tone</label>
-            <input type="text" className="form-input" value={tone} onChange={e => setTone(e.target.value)} placeholder="Friendly at persuasive" />
+            <select className="form-input" value={tone} onChange={e => setTone(e.target.value as typeof TONE_OPTIONS[number])}>
+              {TONE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

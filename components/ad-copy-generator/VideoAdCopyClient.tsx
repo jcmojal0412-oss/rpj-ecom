@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { VideoAnalysis, VideoAdCopyResult, VideoAdVersion } from '@/lib/ad-copy-generator';
-import { AD_ANGLE_OPTIONS, TARGET_AUDIENCE_PRESETS, AD_OBJECTIVES, COPY_LENGTH_OPTIONS } from './video-constants';
+import { AD_ANGLE_OPTIONS, TARGET_AUDIENCE_PRESETS, AD_OBJECTIVES, COPY_LENGTH_OPTIONS, TONE_OPTIONS } from './video-constants';
 
 // Labels the analysis panel by what the video actually shows — a store/sale
 // video isn't a "product", so calling it one there would be misleading.
@@ -82,6 +82,7 @@ export default function VideoAdCopyClient() {
   const [targetAudiencePreset, setTargetAudiencePreset] = useState<typeof TARGET_AUDIENCE_PRESETS[number]>('Auto Detect');
   const [customTargetAudience, setCustomTargetAudience] = useState('');
   const [language, setLanguage] = useState<typeof LANGUAGES[number]>('Taglish');
+  const [tone, setTone] = useState<typeof TONE_OPTIONS[number]>('Friendly & Persuasive');
   const [adObjective, setAdObjective] = useState<typeof AD_OBJECTIVES[number]>('Sales / Conversion');
   const [adAngle, setAdAngle] = useState<string>('AUTO');
   const [copyLength, setCopyLength] = useState<string>('Standard');
@@ -160,6 +161,7 @@ export default function VideoAdCopyClient() {
           original_price: originalPrice || undefined,
           target_audience: targetAudienceValue || undefined,
           language,
+          tone,
           ad_objective: adObjective,
           ad_angle: adAngle,
           copy_length: copyLength,
@@ -199,6 +201,7 @@ export default function VideoAdCopyClient() {
       if (originalPrice) formData.append('original_price', originalPrice);
       if (targetAudienceValue) formData.append('target_audience', targetAudienceValue);
       formData.append('language', language);
+      formData.append('tone', tone);
       formData.append('ad_objective', adObjective);
       formData.append('ad_angle', adAngle);
       formData.append('copy_length', copyLength);
@@ -248,6 +251,7 @@ export default function VideoAdCopyClient() {
           original_price: originalPrice || undefined,
           target_audience: targetAudienceValue || undefined,
           language,
+          tone,
           ad_objective: adObjective,
           ad_angle: adAngle,
           copy_length: copyLength,
@@ -361,6 +365,12 @@ export default function VideoAdCopyClient() {
                   {AD_ANGLE_OPTIONS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>
               </div>
+            </div>
+            <div>
+              <label className="form-label">Tone <span className="text-gray-400 font-normal">— how it's said, separate from Ad Angle (what idea is used)</span></label>
+              <select className="form-input" value={tone} onChange={e => setTone(e.target.value as typeof TONE_OPTIONS[number])}>
+                {TONE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <div>
               <label className="form-label">Copy Length</label>
