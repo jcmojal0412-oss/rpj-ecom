@@ -728,7 +728,7 @@ interface ImageInput {
   mediaType: string;
 }
 
-async function callClaude(feature: string, system: string, userPrompt: string, maxTokens: number, images?: ImageInput[]): Promise<string> {
+async function callClaude(feature: string, system: string, userPrompt: string, maxTokens: number, images?: ImageInput[], timeoutMs: number = 60000): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
@@ -740,8 +740,11 @@ async function callClaude(feature: string, system: string, userPrompt: string, m
   // took longer than 45s end-to-end against the live Anthropic API — 45s
   // was too aggressive. 60s per call, run in parallel via Promise.all in
   // generateAdCopy(), still keeps total wall-clock well under the route's
-  // 75s maxDuration.
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  // 75s maxDuration. video_copy passes a higher timeoutMs (see call site) —
+  // its system prompt has grown substantially across several rounds
+  // (Tone/SERVICE/Price-Visibility/Caption-structure rules all layered in)
+  // and started genuinely timing out against the live API at 60s.
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
@@ -1465,7 +1468,11 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
   // instructions above ask the model to reason more before finalizing
   // (Sonnet 5 runs adaptive thinking by default), so the old budget was
   // tight for that plus the actual 3-version + 10-hook JSON output.
-  const raw = await callClaude('video_copy', prompt.system, prompt.user, 8192);
+  // timeoutMs raised from the 60s default — this system prompt is now the
+  // largest in the app (Tone config + SERVICE framework + Price Visibility
+  // + Caption structure rules all layered on top of the base hook/copy
+  // rules) and was genuinely timing out against the live API at 60s.
+  const raw = await callClaude('video_copy', prompt.system, prompt.user, 8192, undefined, 100000);
   const parsed = extractJson(raw) as any;
 
   const claims = buildVideoVerifiedClaims(input);

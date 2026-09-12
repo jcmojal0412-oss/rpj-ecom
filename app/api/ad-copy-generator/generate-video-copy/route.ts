@@ -3,7 +3,10 @@ import { getSession } from '@/lib/auth';
 import { generateVideoAdCopy, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, CONTENT_TYPES, TONE_OPTIONS, type VideoAnalysis, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// generateVideoAdCopy()'s callClaude call now uses a 100s internal timeout
+// (its system prompt grew large enough to genuinely need it) — 115s here
+// leaves margin for JSON parsing/response serialization on top of that.
+export const maxDuration = 115;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
