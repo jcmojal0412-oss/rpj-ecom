@@ -1,12 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle, Upload, Sparkles } from 'lucide-react';
+import { PenTool, Loader2, Copy, Check, Plus, X, MessageSquareText, Bot, Headset, Megaphone, MessageCircle, Upload, Sparkles, RefreshCw } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { AdCopyResult } from '@/lib/ad-copy-generator';
 
 const LANGUAGES = ['Taglish', 'English', 'Filipino'] as const;
 const FOLLOW_UP_OPTIONS = [0, 5, 10] as const;
+const AD_OBJECTIVES = ['Messages', 'Comment Automation', 'Website Sales', 'Engagement'] as const;
+const COPY_LENGTHS = ['Short', 'Standard', 'Long'] as const;
 // Only add these if genuinely true for the shop — they're suggestions the
 // seller opts into, not auto-asserted claims (a false "100% Business
 // Registered" claim would be the seller's own legal exposure, not just a
@@ -86,6 +88,9 @@ export default function AdCopyGeneratorClient() {
   const [creativity, setCreativity] = useState(0.7);
   const [variants, setVariants] = useState(1);
   const [followUpCount, setFollowUpCount] = useState<typeof FOLLOW_UP_OPTIONS[number]>(10);
+  const [adObjective, setAdObjective] = useState<typeof AD_OBJECTIVES[number]>('Messages');
+  const [copyLength, setCopyLength] = useState<typeof COPY_LENGTHS[number]>('Standard');
+  const [regeneratingHook, setRegeneratingHook] = useState(false);
 
   const [shopName, setShopName] = useState('');
   const [price, setPrice] = useState('');
@@ -211,6 +216,8 @@ export default function AdCopyGeneratorClient() {
           creativity,
           variants,
           follow_up_count: followUpCount,
+          ad_objective: adObjective,
+          copy_length: copyLength,
           shop_name: shopName.trim(),
           price: price.trim(),
           promo_offer: promoOffer.trim(),
@@ -230,6 +237,55 @@ export default function AdCopyGeneratorClient() {
       setError('Ad copy generation failed. Please try again.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Powers both "Use This Hook" (hook+angle given) and "Generate 3 New
+  // Hooks" (omitted) — text-only, reuses the product info already typed in
+  // this form, never re-sends the image or re-runs the full generation.
+  const regenerateHook = async (hook?: string, angle?: string) => {
+    if (!result) return;
+    setError('');
+    setRegeneratingHook(true);
+    try {
+      const res = await fetch('/api/ad-copy-generator/regenerate-hook', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: productName.trim(),
+          description: description || undefined,
+          key_features: keyFeatures.filter(Boolean),
+          target_audience: targetAudience || undefined,
+          language,
+          tone,
+          creativity,
+          variants,
+          follow_up_count: followUpCount,
+          ad_objective: adObjective,
+          copy_length: copyLength,
+          shop_name: shopName.trim(),
+          price: price.trim(),
+          promo_offer: promoOffer.trim(),
+          delivery_time: deliveryTime || undefined,
+          payment_method: paymentMethod || undefined,
+          legitimacy_info: legitimacyInfo || undefined,
+          additional_instructions: additionalInstructions || undefined,
+          selected_hook: hook,
+          selected_angle: angle,
+          previous_hooks: result.hookOptions.map(h => h.hook),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Could not update the hook. Please try again.'); return; }
+      setResult(prev => prev ? {
+        ...prev,
+        adCreatives: [data.adCreative, ...prev.adCreatives.slice(1)],
+        hookOptions: data.hookOptions?.length ? data.hookOptions : prev.hookOptions,
+      } : prev);
+      showToast(hook ? 'Hook applied!' : 'New hooks generated!');
+    } catch {
+      setError('Could not update the hook. Please try again.');
+    } finally {
+      setRegeneratingHook(false);
     }
   };
 
@@ -329,6 +385,21 @@ export default function AdCopyGeneratorClient() {
             <input type="text" className="form-input" value={tone} onChange={e => setTone(e.target.value)} placeholder="Friendly at persuasive" />
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Ad Objective</label>
+              <select className="form-input" value={adObjective} onChange={e => setAdObjective(e.target.value as typeof AD_OBJECTIVES[number])}>
+                {AD_OBJECTIVES.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Copy Length</label>
+              <select className="form-input" value={copyLength} onChange={e => setCopyLength(e.target.value as typeof COPY_LENGTHS[number])}>
+                {COPY_LENGTHS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="form-label">Creativity <span className="text-gray-400 font-normal">({creativity.toFixed(1)})</span></label>
             <input type="range" min={0} max={1} step={0.1} value={creativity} onChange={e => setCreativity(Number(e.target.value))} className="w-full accent-orange-500" />
@@ -415,13 +486,54 @@ export default function AdCopyGeneratorClient() {
                 </div>
               </div>
 
+              {/* Choose Your Hook — only affects adCreatives[0] */}
+              {result.hookOptions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <SectionHeader icon={Sparkles} title="Choose Your Hook" subtitle="for the first ad" />
+                    <button onClick={() => regenerateHook()} disabled={regeneratingHook} className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50">
+                      {regeneratingHook ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      Generate 3 New Hooks
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {result.hookOptions.map((h, i) => {
+                      const active = h.hook === result.adCreatives[0]?.hook;
+                      return (
+                        <div key={i} className={`rounded-lg border-2 p-3 space-y-1.5 ${active ? 'border-orange-400 bg-orange-50/50' : 'border-gray-200'}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase">{h.angle}</span>
+                            {h.isBestPick && <span className="text-[10px] font-bold text-white bg-orange-500 rounded-full px-2 py-0.5">AI BEST PICK</span>}
+                            {active && <span className="text-[10px] font-semibold text-orange-600">● Active</span>}
+                          </div>
+                          <p className="text-sm font-bold text-gray-900">{h.hook}</p>
+                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || active} className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
+                            {active ? 'In Use' : 'Use This Hook'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Ad Creatives */}
               <div className="space-y-2">
                 <SectionHeader icon={Megaphone} title="Ad Creatives" subtitle="FB Ads Manager" />
                 <div className="space-y-3">
                   {result.adCreatives.map((v, i) => (
                     <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2.5">
-                      {result.adCreatives.length > 1 && <p className="text-xs font-semibold text-orange-600">Variant {i + 1}</p>}
+                      {result.adCreatives.length > 1 && <p className="text-xs font-semibold text-orange-600">Variant {i + 1}{v.angle ? ` — ${v.angle}` : ''}</p>}
+
+                      {v.hook && (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase">Hook</span>
+                            <CopyButton text={v.hook} />
+                          </div>
+                          <p className="text-sm font-bold text-gray-900">{v.hook}</p>
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex items-center justify-between">

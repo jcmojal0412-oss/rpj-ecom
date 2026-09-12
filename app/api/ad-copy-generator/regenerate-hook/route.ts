@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { generateAdCopy, parseAdCopyInputBody, AdCopyGeneratorError } from '@/lib/ad-copy-generator';
+import { regenerateAdCreativeHook, parseAdCopyInputBody, AdCopyGeneratorError } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-// generateAdCopy() issues two Claude calls in parallel (ad content +
-// BotCake content), each aborting at 60s internally — 75s leaves margin
-// for both to resolve plus JSON parsing/response serialization.
-export const maxDuration = 75;
+export const maxDuration = 45;
 
+// Powers both "Use This Hook" (selected_hook/selected_angle set) and
+// "Generate 3 New Hooks" (omitted) — always text-only, reuses the product
+// info already in the client's form state, never re-sends the image.
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -18,9 +18,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body.product_image_base64 || typeof body.product_image_base64 !== 'string') {
-      return NextResponse.json({ error: 'Product image is required.' }, { status: 400 });
-    }
     if (!body.product_name?.trim()) {
       return NextResponse.json({ error: 'Product name is required.' }, { status: 400 });
     }
@@ -35,13 +32,19 @@ export async function POST(req: NextRequest) {
     }
 
     const input = parseAdCopyInputBody(body);
-    const result = await generateAdCopy(input);
+    const { selected_hook, selected_angle, previous_hooks } = body;
+    const forcedHook = selected_hook?.trim() && selected_angle?.trim()
+      ? { hook: selected_hook.trim(), angle: selected_angle.trim() }
+      : undefined;
+    const previousHooks = Array.isArray(previous_hooks) ? previous_hooks.map(String) : undefined;
+
+    const result = await regenerateAdCreativeHook(input, forcedHook, previousHooks);
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error('[ad-copy-generator] generation error:', e?.message);
+    console.error('[ad-copy-generator] hook regeneration error:', e?.message);
     if (e instanceof AdCopyGeneratorError) {
       return NextResponse.json({ error: e.message }, { status: 502 });
     }
-    return NextResponse.json({ error: 'Ad copy generation failed. Please try again.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not update the hook. Please try again.' }, { status: 500 });
   }
 }

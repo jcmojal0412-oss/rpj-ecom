@@ -8,6 +8,8 @@ const ANTHROPIC_MODEL = 'claude-sonnet-5';
 
 export class AdCopyGeneratorError extends Error {}
 
+export const TEXT_AD_OBJECTIVES = ['Messages', 'Comment Automation', 'Website Sales', 'Engagement'] as const;
+
 export interface AdCopyInput {
   productName: string;
   description?: string;
@@ -18,6 +20,8 @@ export interface AdCopyInput {
   creativity: number; // 0–1, mapped to Claude's temperature
   variants: number; // 1–5, applies to adCreatives
   followUpCount: 0 | 5 | 10;
+  adObjective: typeof TEXT_AD_OBJECTIVES[number];
+  copyLength: typeof COPY_LENGTHS[number];
   shopName: string;
   price: string;
   promoOffer: string;
@@ -35,7 +39,15 @@ export interface ProductAutofillResult {
   keyFeatures: string[];
 }
 
+export interface AdHookOption {
+  hook: string;
+  angle: string;
+  isBestPick: boolean;
+}
+
 export interface AdCreativeVariant {
+  hook: string;
+  angle: string;
   headline: string;
   primaryText: string;
   messagingTemplate: string;
@@ -45,9 +57,84 @@ export interface AdCreativeVariant {
 export interface AdCopyResult {
   mainFlowReply: string;
   adCreatives: AdCreativeVariant[];
+  hookOptions: AdHookOption[]; // 3 alternate hooks for adCreatives[0] only
   salesPrompt: string;
   afterSalesPrompt: string;
   followUpMessages: string[];
+}
+
+// ── Verified Claims (text/photo flow) ───────────────────────────────────────
+// Deterministic, code-built — NOT AI-inferred. The three specific trust
+// phrases below are exactly what the Legitimacy Info quick-add chips insert
+// (see AdCopyGeneratorClient.tsx), so a substring match here reliably means
+// the seller actually opted into that claim, not that the AI invented it.
+export interface TextVerifiedClaims {
+  cod: boolean;
+  freeShipping: boolean;
+  original: boolean;
+  registeredBusiness: boolean;
+  permit: boolean;
+  moneyBackGuarantee: boolean;
+  warranty: boolean;
+  fdaApproved: boolean;
+}
+
+function buildTextVerifiedClaims(input: AdCopyInput): TextVerifiedClaims {
+  const legit = (input.legitimacyInfo || '').toLowerCase();
+  const payment = (input.paymentMethod || '').toLowerCase();
+  const promo = (input.promoOffer || '').toLowerCase();
+  return {
+    cod: payment.includes('cod') || payment.includes('cash on delivery') || promo.includes('cod') || promo.includes('cash on delivery'),
+    freeShipping: promo.includes('free shipping') || legit.includes('free shipping'),
+    original: legit.includes('original and legit') || legit.includes('100% original') || legit.includes('authentic'),
+    registeredBusiness: legit.includes('registered business') || legit.includes('business registered'),
+    permit: legit.includes('permit'),
+    moneyBackGuarantee: legit.includes('money-back guarantee') || legit.includes('money back guarantee'),
+    warranty: legit.includes('warranty'),
+    fdaApproved: legit.includes('fda'),
+  };
+}
+
+function describeVerifiedClaims(c: TextVerifiedClaims): string {
+  const on: string[] = [];
+  if (c.cod) on.push('Cash on Delivery (COD)');
+  if (c.freeShipping) on.push('Free Shipping');
+  if (c.original) on.push('100% Original / Authentic');
+  if (c.registeredBusiness) on.push('Registered Business');
+  if (c.permit) on.push('Business Permit');
+  if (c.moneyBackGuarantee) on.push('Money-Back Guarantee');
+  if (c.warranty) on.push('Warranty');
+  if (c.fdaApproved) on.push('FDA Approved');
+  return on.length ? on.join(', ') : 'NONE — do not state ANY trust/legitimacy/guarantee claim (no "original", "legit", "registered", "permit", "guarantee", "warranty", "FDA", etc.).';
+}
+
+// Second line of defense on top of the prompt instruction — strips known
+// unverified-claim phrases out of generated text if their guard is false,
+// so a prompt-following slip doesn't reach the user.
+const CLAIM_STRIP_RULES: { active: (c: TextVerifiedClaims) => boolean; patterns: RegExp[] }[] = [
+  { active: c => !c.original, patterns: [/100%\s*original[^.\n]*\.?/gi, /\boriginal\s*(and|at)\s*legit\b[^.\n]*\.?/gi, /\bauthentic\s*product\b[^.\n]*\.?/gi] },
+  { active: c => !c.moneyBackGuarantee, patterns: [/money[\s-]?back guarantee[^.\n]*\.?/gi] },
+  { active: c => !c.registeredBusiness, patterns: [/registered business[^.\n]*\.?/gi] },
+  { active: c => !c.permit, patterns: [/\bwith permit\b[^.\n]*\.?/gi, /\bbusiness permit\b[^.\n]*\.?/gi] },
+  { active: c => !c.fdaApproved, patterns: [/fda[\s-]?approved[^.\n]*\.?/gi] },
+  { active: c => !c.warranty, patterns: [/\bwarranty\b[^.\n]*\.?/gi] },
+  { active: c => !c.freeShipping, patterns: [/free shipping[^.\n]*\.?/gi] },
+  { active: c => !c.cod, patterns: [/\bcod\b[^.\n]*\.?/gi, /cash on delivery[^.\n]*\.?/gi] },
+];
+
+function stripUnverifiedClaims(text: string, claims: TextVerifiedClaims): string {
+  if (!text) return text;
+  let result = text;
+  for (const { active, patterns } of CLAIM_STRIP_RULES) {
+    if (!active(claims)) continue;
+    for (const p of patterns) result = result.replace(p, '');
+  }
+  return result
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
+    .join('\n')
+    .replace(/[ \t]{2,}/g, ' ');
 }
 
 // Scans forward from the first '{' tracking brace depth (ignoring braces
@@ -154,32 +241,77 @@ const HIGH_CONVERSION_TECHNIQUES = `High-conversion techniques (apply all of the
 - End every piece with exactly ONE unmistakable next action — tell them precisely what to type or click, never stack multiple competing CTAs.
 - If a real promo/offer was given, state its actual terms with confidence — let urgency come from truth (e.g. "sa ngayon lang available ang promo price na ito") rather than invented countdowns or fabricated stock numbers.`;
 
-function buildAdContentPrompt(input: AdCopyInput): { system: string; user: string } {
-  const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
+const TEXT_COPY_LENGTH_GUIDANCE: Record<typeof COPY_LENGTHS[number], string> = {
+  Short: 'primaryText should run about 40-80 words.',
+  Standard: 'primaryText should run about 80-150 words.',
+  Long: 'primaryText should run about 150-250 words — every sentence must still earn its place, never pad with filler.',
+};
+
+const TEXT_CTA_GUIDANCE = `CTA must match the Ad Objective given below:
+- "Messages": "Message us to order", "Send us a message for ordering details."
+- "Comment Automation": a comment-keyword CTA, e.g. 'Comment "LUCKY" and we'll send you the details.'
+- "Website Sales": "Tap Shop Now to order."
+- "Engagement": an engagement-appropriate CTA suited to the product, not a hard sell.
+Do not default to "Comment ___" for every objective — only use it when the objective is Comment Automation.`;
+
+function buildAdContentPrompt(input: AdCopyInput, forcedHook?: { hook: string; angle: string }, previousHooks?: string[]): { system: string; user: string } {
+  const verifiedClaims = buildTextVerifiedClaims(input);
+  const singleAdOnly = !!forcedHook; // used by the lightweight "use this hook" / "new hooks" regeneration path
+
+  const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist and Facebook/Meta Ads copywriter specializing in Philippine ecommerce.
+
+Your job is NOT to simply summarize a product. Your job is to identify the strongest reason a customer would stop scrolling, care about the product, understand its value, and take action. Analyze the product information, key features, target audience, price, and offer given below. Find the strongest advertising angle FIRST. Then create specific, natural, persuasive, mobile-friendly advertising copy around ONE BIG IDEA. Write like a skilled Filipino ecommerce marketer, not a corporate copywriter or generic AI assistant. Never fabricate product information, offers, guarantees, certifications, discounts, or trust claims.
 
 ${VOICE_RULES}
 ${input.productImageBase64 ? `- A photo of the actual product is attached — ground the copy in what it really looks like (color, form factor, material, size cues) instead of generic claims.` : ''}
 
 ${FB_ADS_COMPLIANCE_RULES}
+(Exception: the "hook" field below is deliberately written in full caps by the application after you return it — write it as a normal short sentence, do not add your own caps or extra punctuation for this.)
 
 ${HIGH_CONVERSION_TECHNIQUES}
 
-HOOK ENGINE: before writing a headline/primaryText, silently consider several hook angles for this product (visual scroll-stopper, curiosity, desire, problem/pain, product demonstration, price/value, gift, lifestyle, social status, before/after) and pick the strongest one — do not default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?", "Introducing our amazing...") unless it's genuinely the strongest option for this product, which should be rare. If ${input.variants} variant(s) are requested, each must center on one clearly different big idea/angle, not the same ad reworded. Convert features into benefits in plain conversational language — never a supplier-catalog or spec-sheet tone (avoid "ornate", "filigree", "meticulously crafted", "sophisticated", "exquisite" unless truly unavoidable).
+${forcedHook ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, messagingTemplate, and quickReplies so the ENTIRE ad coheres around this specific angle — e.g. a Gift angle should focus the body on gifting/recipient appeal/occasions/meaning; a Product Demonstration angle should focus on what happens when used/visual experience/functional benefit; a Value/Price angle should focus on value/bundle/offer/what the customer gets. Do not just swap the opening line and leave the rest generic.` : `
+HOOK ENGINE — do this before writing anything:
+Identify the likely buyer and the strongest customer desire/problem/buying motivation. Internally generate several advertising angles from this list: Curiosity, Visual Scroll Stopper, Desire, Lifestyle, Pain/Problem, Problem-Solution, Product Demonstration, Benefit, Gift, Value/Price, Convenience, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery, Symbolic Meaning, Offer, UGC Style. For the strongest 2-3 angles, draft candidate hooks and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, and compliance risk. Do not show this reasoning — only the final selected hooks.
+Avoid defaulting to question hooks ("Looking for...?", "Have you ever...?", "Pagod ka na ba...?", "Gusto mo ba...?", "Ilang beses mo na ba naisip...?") — use them only when genuinely the strongest option. Use a healthy mix of statement hooks, curiosity, visual pattern interrupt, product demo, desire, contradiction, value, emotional, benefit, and discovery styles instead. Avoid generic hooks ("Introducing our amazing...", "The perfect product for you...", "Something cute pero useful...", "Order yours today...") as openers.
+Return exactly 3 hookOptions, each from a genuinely different angle (not paraphrases of each other), and mark exactly one as isBestPick (the one you'd actually run). adCreatives[0] must be built around the isBestPick hook/angle.`}
+
+DO NOT TURN KEY FEATURES INTO THE AD VERBATIM. Key Features are input data, not the advertisement. For each relevant feature, ask "why should the customer care?" and convert it into a benefit, desire, use case, visual appeal, or emotional value — e.g. "Big Lucky Eye design" becomes "Instant statement piece kahit simple lang ang corner ng bahay," not "Big Lucky Eye design na eye-catching." Never invent a benefit not reasonably supported by the input. Avoid supplier-catalog/spec-sheet vocabulary ("ornate", "filigree", "meticulously crafted", "sophisticated", "exquisite") unless truly unavoidable.
+
+SYMBOLIC / SUPERSTITION CLAIMS: never present luck, protection, healing, or similar symbolic beliefs as proven fact. Instead of "Pang-swerte at proteksyon," prefer "Lucky Eye symbol traditionally associated with good luck & protection" or "Inspired by the traditional Lucky Eye symbol." Keep this conservative — never promise the product will actually bring luck, protection, or a health outcome.
+
+VERIFIED CLAIMS ONLY — critical: the ONLY trust/offer claims you may state are: ${describeVerifiedClaims(verifiedClaims)}. Never state a claim not on this list (no "100% original", "registered business", "with permit", "money-back guarantee", "warranty", "FDA approved", "doctor recommended") even if it seems like a safe assumption for this kind of product.
+
+${TEXT_CTA_GUIDANCE}
+
+${input.targetAudience ? '' : 'Target Audience was left blank — infer a likely audience internally from the product (e.g. "Home décor and gift buyers, likely women 25-55") and write for that audience, but do not state a fabricated demographic as if the seller confirmed it.'}
+
+MAIN FLOW vs FACEBOOK AD — these must sound different, not identical: mainFlowReply should sound like a helpful, friendly, conversational online sales assistant (BotCake chat tone). adCreatives content (headline/primaryText/messagingTemplate) should sound like real performance advertising — scroll-stopping, direct, specific, persuasive, emotionally relevant, mobile-friendly. Do not make the Facebook ad content sound like a chatbot reply.
+
+LENGTH: ${TEXT_COPY_LENGTH_GUIDANCE[input.copyLength]}
+
+QUALITY GATE: before finalizing, check whether primaryText is basically just Product Name + Key Features + Price restated in sentence form. If so, rewrite it — the final ad must add an advertising angle and a reason to care, not just summarize the input fields.
+${previousHooks?.length ? `\nAlready-used hooks this session (generate genuinely different ones, not close variants of these): ${previousHooks.map(h => `"${h}"`).join(', ')}` : ''}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
-  "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order.",
+  "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order. Chat tone, not ad tone.",
+  ${singleAdOnly ? '' : `"hookOptions": [
+    {"hook": "string — normal case, will be uppercased by the app", "angle": "string — the angle name", "isBestPick": true},
+    {"hook": "string", "angle": "string", "isBestPick": false},
+    {"hook": "string", "angle": "string", "isBestPick": false}
+  ], // exactly 3, genuinely different angles`}
   "adCreatives": [
     {
-      "headline": "string — short FB Ads Manager headline, max ~40 chars, from the hook engine above",
-      "primaryText": "string — the FB ad's primary text/caption, 2-4 short lines, ends with an engagement prompt (e.g. Comment a keyword)",
+      "hook": "string — normal case, same as the active hook for this variant (hookOptions[isBestPick] for adCreatives[0])",
+      "angle": "string — the angle name for this variant",
+      "headline": "string — 3-10 words, not all-caps, from the strongest of several internally-considered headline angles (benefit/desire/offer/curiosity/lifestyle/gift/value) — not just Product Name + Price",
+      "primaryText": "string — starts with the hook, then body per LENGTH above, ad tone not chat tone",
       "messagingTemplate": "string — the message shown when someone clicks 'Send Message' on the ad, restating the offer and inviting them to ask questions",
-      "quickReplies": ["string", "string", "string"] // 3 short quick-reply button labels a customer might tap, e.g. "Paano ito gumagana?", "May stock pa?", "Order na ako!"
+      "quickReplies": ["string", "string", "string"] // 3 short quick-reply button labels a customer might tap
     }
-  ]
-}
-
-Generate exactly ${input.variants} entr${input.variants === 1 ? 'y' : 'ies'} in adCreatives.`;
+  ] // exactly ${input.variants} entries${input.variants > 1 ? `, each with a genuinely different big idea/angle (not the same ad reworded)` : ''}
+}`;
 
   return { system, user: buildInputLines(input) };
 }
@@ -322,6 +454,44 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
   };
 }
 
+// Shared request-body → AdCopyInput parsing, used by both /generate and
+// /regenerate-hook so the two routes can't drift on validation/defaults.
+export function parseAdCopyInputBody(body: any): AdCopyInput {
+  const {
+    product_name, description, key_features, target_audience,
+    language, tone, creativity, variants, follow_up_count,
+    ad_objective, copy_length,
+    shop_name, price, promo_offer, delivery_time, payment_method, legitimacy_info,
+    additional_instructions, product_image_base64, product_image_media_type,
+  } = body;
+
+  const validLanguages = ['Taglish', 'English', 'Filipino'];
+  const followUpAllowed = [0, 5, 10];
+
+  return {
+    productName: product_name?.trim() || '',
+    description: description?.trim() || undefined,
+    keyFeatures: Array.isArray(key_features) ? key_features.filter(Boolean).slice(0, 5) : [],
+    targetAudience: target_audience?.trim() || undefined,
+    language: validLanguages.includes(language) ? language : 'Taglish',
+    tone: tone?.trim() || 'Friendly at persuasive',
+    creativity: typeof creativity === 'number' ? creativity : 0.7,
+    variants: Math.min(5, Math.max(1, Number(variants) || 1)),
+    followUpCount: (followUpAllowed.includes(Number(follow_up_count)) ? Number(follow_up_count) : 0) as 0 | 5 | 10,
+    adObjective: (TEXT_AD_OBJECTIVES as readonly string[]).includes(ad_objective) ? ad_objective : 'Messages',
+    copyLength: (COPY_LENGTHS as readonly string[]).includes(copy_length) ? copy_length : 'Standard',
+    shopName: shop_name?.trim() || '',
+    price: price?.trim() || '',
+    promoOffer: promo_offer?.trim() || '',
+    deliveryTime: delivery_time?.trim() || undefined,
+    paymentMethod: payment_method?.trim() || undefined,
+    legitimacyInfo: legitimacy_info?.trim() || undefined,
+    additionalInstructions: additional_instructions?.trim() || undefined,
+    productImageBase64: typeof product_image_base64 === 'string' ? product_image_base64 : undefined,
+    productImageMediaType: typeof product_image_media_type === 'string' ? product_image_media_type : undefined,
+  };
+}
+
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
   const adPrompt = buildAdContentPrompt(input);
   const botPrompt = buildBotContentPrompt(input);
@@ -335,26 +505,36 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     // headline/primary text quality. The BotCake system prompts are
     // behavioral, not visual, so skipping the image there avoids paying
     // for it twice.
-    callClaude('text_ad_content', adPrompt.system, adPrompt.user, 4096, productImage),
+    callClaude('text_ad_content', adPrompt.system, adPrompt.user, 8192, productImage),
     callClaude('text_bot_content', botPrompt.system, botPrompt.user, 4096),
   ]);
 
   const adParsed = extractJson(adRaw) as any;
   const botParsed = extractJson(botRaw) as any;
+  const verifiedClaims = buildTextVerifiedClaims(input);
 
   const adCreatives: AdCreativeVariant[] = Array.isArray(adParsed?.adCreatives)
     ? adParsed.adCreatives.map((v: any) => ({
-        headline: String(v?.headline ?? ''),
-        primaryText: String(v?.primaryText ?? ''),
-        messagingTemplate: String(v?.messagingTemplate ?? ''),
+        hook: String(v?.hook ?? '').toUpperCase(),
+        angle: String(v?.angle ?? ''),
+        headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
+        primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
+        messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
         quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => String(q)) : [],
+      }))
+    : [];
+  const hookOptions: AdHookOption[] = Array.isArray(adParsed?.hookOptions)
+    ? adParsed.hookOptions.slice(0, 3).map((h: any) => ({
+        hook: String(h?.hook ?? '').toUpperCase(),
+        angle: String(h?.angle ?? ''),
+        isBestPick: !!h?.isBestPick,
       }))
     : [];
   const followUpMessages: string[] = Array.isArray(botParsed?.followUpMessages)
     ? botParsed.followUpMessages.map((m: any) => String(m))
     : [];
 
-  const mainFlowReply = String(adParsed?.mainFlowReply ?? '');
+  const mainFlowReply = stripUnverifiedClaims(String(adParsed?.mainFlowReply ?? ''), verifiedClaims);
   const salesPrompt = String(botParsed?.salesPrompt ?? '');
   const afterSalesPrompt = String(botParsed?.afterSalesPrompt ?? '');
 
@@ -384,7 +564,47 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     console.warn(`[ad-copy-generator] requested ${input.followUpCount} follow-up message(s), got ${followUpMessages.length}`);
   }
 
-  return { mainFlowReply, adCreatives, salesPrompt, afterSalesPrompt, followUpMessages };
+  return { mainFlowReply, adCreatives, hookOptions, salesPrompt, afterSalesPrompt, followUpMessages };
+}
+
+// Lightweight, text-only regeneration of JUST the first ad creative — used
+// by "Use This Hook" (forcedHook set) and "Generate 3 New Hooks" (forcedHook
+// omitted). Never touches mainFlowReply/salesPrompt/afterSalesPrompt/
+// followUpMessages and never re-sends the product image, so it's much
+// cheaper than a full generateAdCopy() call.
+export async function regenerateAdCreativeHook(
+  input: AdCopyInput,
+  forcedHook?: { hook: string; angle: string },
+  previousHooks?: string[]
+): Promise<{ adCreative: AdCreativeVariant; hookOptions: AdHookOption[] }> {
+  const prompt = buildAdContentPrompt(input, forcedHook, previousHooks);
+  const raw = await callClaude('text_ad_hook_regen', prompt.system, prompt.user, 4096);
+  const parsed = extractJson(raw) as any;
+  const verifiedClaims = buildTextVerifiedClaims(input);
+
+  const first = Array.isArray(parsed?.adCreatives) ? parsed.adCreatives[0] : null;
+  if (!first) {
+    throw new AdCopyGeneratorError('AI did not return an ad creative.');
+  }
+
+  const adCreative: AdCreativeVariant = {
+    hook: String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase(),
+    angle: String(first?.angle ?? forcedHook?.angle ?? ''),
+    headline: stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims),
+    primaryText: stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims),
+    messagingTemplate: stripUnverifiedClaims(String(first?.messagingTemplate ?? ''), verifiedClaims),
+    quickReplies: Array.isArray(first?.quickReplies) ? first.quickReplies.map((q: any) => String(q)) : [],
+  };
+
+  const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
+    ? parsed.hookOptions.slice(0, 3).map((h: any) => ({
+        hook: String(h?.hook ?? '').toUpperCase(),
+        angle: String(h?.angle ?? ''),
+        isBestPick: !!h?.isBestPick,
+      }))
+    : [];
+
+  return { adCreative, hookOptions };
 }
 
 // ── Video Ad Copy (v1) ──────────────────────────────────────────────────────
