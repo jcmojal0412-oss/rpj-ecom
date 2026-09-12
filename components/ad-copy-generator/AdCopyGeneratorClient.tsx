@@ -491,17 +491,6 @@ export default function AdCopyGeneratorClient() {
             </div>
           ) : result ? (
             <div className="space-y-6">
-              {/* Main Flow first auto-reply */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <SectionHeader icon={MessageCircle} title="Main Flow" subtitle="first auto-reply" />
-                  <CopyButton text={result.mainFlowReply} />
-                </div>
-                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{result.mainFlowReply}</p>
-                </div>
-              </div>
-
               {/* Choose Your Hook — only affects adCreatives[0] */}
               {result.hookOptions.length > 0 && (
                 <div className="space-y-2">
@@ -534,13 +523,16 @@ export default function AdCopyGeneratorClient() {
               )}
 
               {/* Ad Creatives */}
-              <div className="space-y-2">
-                <SectionHeader icon={Megaphone} title="Ad Creatives" subtitle="FB Ads Manager" />
-                <div className="space-y-3">
-                  {result.adCreatives.map((v, i) => (
-                    <div key={i} className="rounded-lg border border-gray-200 p-3 space-y-2.5">
-                      {result.adCreatives.length > 1 && <p className="text-xs font-semibold text-orange-600">Variant {i + 1}{v.angle ? ` — ${v.angle}` : ''}</p>}
-
+              {result.adCreatives.map((v, i) => {
+                const isBest = i === 0;
+                const fullAd = [v.hook, v.headline, v.primaryText].filter(Boolean).join('\n\n');
+                return (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <SectionHeader icon={Megaphone} title={isBest ? 'Best Ad Copy' : `Alternative Ad Version ${i + 1}`} subtitle={v.angle || (isBest ? 'FB Ads Manager' : undefined)} />
+                      {isBest && <CopyButton text={fullAd} label="Copy Full Ad" />}
+                    </div>
+                    <div className={`rounded-lg p-3 space-y-2.5 ${isBest ? 'border-2 border-orange-200 bg-orange-50/40' : 'border border-gray-200'}`}>
                       {v.hook && (
                         <div>
                           <div className="flex items-center justify-between">
@@ -561,34 +553,51 @@ export default function AdCopyGeneratorClient() {
 
                       <div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Primary Text</span>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Caption / Primary Text</span>
                           <CopyButton text={v.primaryText} />
                         </div>
                         <p className="text-sm text-gray-700 whitespace-pre-wrap">{v.primaryText}</p>
                       </div>
-
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Messaging Template</span>
-                          <CopyButton text={v.messagingTemplate} />
-                        </div>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{v.messagingTemplate}</p>
-                      </div>
-
-                      {v.quickReplies.length > 0 && (
-                        <div>
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Quick Replies</span>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {v.quickReplies.map((q, qi) => (
-                              <span key={qi} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2.5 py-1">{q}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  ))}
+                  </div>
+                );
+              })}
+
+              {/* Main Flow — support output for chat automation, shown after the ad copy itself */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <SectionHeader icon={MessageCircle} title="Main Flow" subtitle="First Auto-Reply" />
+                  <CopyButton text={result.mainFlowReply} />
+                </div>
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{result.mainFlowReply}</p>
                 </div>
               </div>
+
+              {/* Messaging Template — from the Best Ad Copy variant */}
+              {result.adCreatives[0]?.messagingTemplate && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <SectionHeader icon={MessageSquareText} title="Messaging Template" subtitle="Send Message click-through" />
+                    <CopyButton text={result.adCreatives[0].messagingTemplate} />
+                  </div>
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{result.adCreatives[0].messagingTemplate}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Replies — from the Best Ad Copy variant */}
+              {result.adCreatives[0]?.quickReplies.length > 0 && (
+                <div className="space-y-2">
+                  <SectionHeader icon={MessageSquareText} title="Quick Replies" />
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.adCreatives[0].quickReplies.map((q, qi) => (
+                      <span key={qi} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded-full px-2.5 py-1">{q}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* BotCake Sales Prompt */}
               <div className="space-y-2">
