@@ -7,6 +7,11 @@ import type { AdCopyResult } from '@/lib/ad-copy-generator';
 
 const LANGUAGES = ['Taglish', 'English', 'Filipino'] as const;
 const FOLLOW_UP_OPTIONS = [0, 5, 10] as const;
+// Only add these if genuinely true for the shop — they're suggestions the
+// seller opts into, not auto-asserted claims (a false "100% Business
+// Registered" claim would be the seller's own legal exposure, not just a
+// copy-quality issue).
+const LEGITIMACY_SUGGESTIONS = ['Money-Back Guarantee', '100% Original and Legit', '100% Business Registered with Permit'];
 
 /** Resize to max 1200px + compress to JPEG — keeps upload/token size down. */
 function compressToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
@@ -80,7 +85,7 @@ export default function AdCopyGeneratorClient() {
   const [tone, setTone] = useState('Friendly at persuasive');
   const [creativity, setCreativity] = useState(0.7);
   const [variants, setVariants] = useState(1);
-  const [followUpCount, setFollowUpCount] = useState<typeof FOLLOW_UP_OPTIONS[number]>(0);
+  const [followUpCount, setFollowUpCount] = useState<typeof FOLLOW_UP_OPTIONS[number]>(10);
 
   const [shopName, setShopName] = useState('');
   const [price, setPrice] = useState('');
@@ -103,6 +108,14 @@ export default function AdCopyGeneratorClient() {
   const setFeature = (i: number, value: string) => setKeyFeatures(f => f.map((v, idx) => idx === i ? value : v));
   const addFeature = () => keyFeatures.length < 5 && setKeyFeatures(f => [...f, '']);
   const removeFeature = (i: number) => setKeyFeatures(f => f.filter((_, idx) => idx !== i));
+
+  const addLegitimacySuggestion = (s: string) => {
+    setLegitimacyInfo(prev => {
+      const parts = prev.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.includes(s)) return prev;
+      return [...parts, s].join(', ');
+    });
+  };
 
   const onFileChange = (file: File | null) => {
     setImageFile(file);
@@ -359,6 +372,12 @@ export default function AdCopyGeneratorClient() {
             <div>
               <label className="form-label">Legitimacy Info <span className="text-gray-400 font-normal">— optional, e.g. reviews, years in business</span></label>
               <textarea className="form-input" rows={2} value={legitimacyInfo} onChange={e => setLegitimacyInfo(e.target.value)} placeholder="e.g. 5000+ satisfied customers, DTI registered" />
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {LEGITIMACY_SUGGESTIONS.map(s => (
+                  <button key={s} onClick={() => addLegitimacySuggestion(s)} className="text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full px-2.5 py-1 hover:border-orange-300 hover:text-orange-600 transition-colors">+ {s}</button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Only add these if genuinely true for your business.</p>
             </div>
             <div>
               <label className="form-label">Additional Instructions <span className="text-gray-400 font-normal">— optional</span></label>
