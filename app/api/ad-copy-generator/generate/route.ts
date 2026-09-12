@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
       additional_instructions, product_image_base64, product_image_media_type,
     } = body;
 
+    if (!product_image_base64 || typeof product_image_base64 !== 'string') {
+      return NextResponse.json({ error: 'Product image is required.' }, { status: 400 });
+    }
     if (!product_name?.trim()) {
       return NextResponse.json({ error: 'Product name is required.' }, { status: 400 });
     }

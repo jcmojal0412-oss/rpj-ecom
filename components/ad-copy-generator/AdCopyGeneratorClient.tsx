@@ -182,6 +182,7 @@ export default function AdCopyGeneratorClient() {
 
   const generate = async () => {
     setError('');
+    if (!imageFile) { setError('Product image is required.'); return; }
     if (!productName.trim()) { setError('Product/Service name is required.'); return; }
     if (!shopName.trim()) { setError('Shop name is required.'); return; }
     if (!price.trim()) { setError('Price is required.'); return; }
@@ -190,13 +191,12 @@ export default function AdCopyGeneratorClient() {
     setGenerating(true);
     setResult(null);
     try {
-      let productImage: { base64: string; mediaType: string } | null = null;
-      if (imageFile) {
-        try {
-          productImage = await compressToBase64(imageFile);
-        } catch {
-          // Non-fatal — generate without the image rather than blocking the whole request.
-        }
+      let productImage: { base64: string; mediaType: string };
+      try {
+        productImage = await compressToBase64(imageFile);
+      } catch {
+        setError('Could not process the product image. Please try a different photo.');
+        return;
       }
 
       const res = await fetch('/api/ad-copy-generator/generate', {
@@ -248,7 +248,7 @@ export default function AdCopyGeneratorClient() {
           <p className="text-sm font-semibold text-gray-700">Product Details</p>
 
           <div>
-            <label className="form-label">Product Image <span className="text-gray-400 font-normal">— optional, for auto-fill &amp; more accurate copy</span></label>
+            <label className="form-label">Product Image <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">— for auto-fill &amp; more accurate copy</span></label>
             {imagePreviewUrl ? (
               <div className="relative">
                 <img src={imagePreviewUrl} alt="Product" className="w-full h-40 object-contain bg-gray-50 rounded-lg border border-gray-200" />
@@ -270,7 +270,7 @@ export default function AdCopyGeneratorClient() {
           </div>
 
           <div>
-            <label className="form-label">Product / Service Name</label>
+            <label className="form-label">Product / Service Name <span className="text-red-500">*</span></label>
             <input type="text" className="form-input" value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g. GlowUp Vitamin C Serum" />
           </div>
 
@@ -351,12 +351,12 @@ export default function AdCopyGeneratorClient() {
                 <input type="text" className="form-input" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="e.g. Bodega ni Suki" />
               </div>
               <div>
-                <label className="form-label">Price (₱)</label>
+                <label className="form-label">Price (₱) <span className="text-red-500">*</span></label>
                 <input type="text" className="form-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="e.g. 499" />
               </div>
             </div>
             <div>
-              <label className="form-label">Promo / Offer</label>
+              <label className="form-label">Promo / Offer <span className="text-red-500">*</span></label>
               <input type="text" className="form-input" value={promoOffer} onChange={e => setPromoOffer(e.target.value)} placeholder="e.g. BUY 1 TAKE 1, FREE SHIPPING" />
             </div>
             <div className="grid grid-cols-2 gap-3">
