@@ -206,23 +206,89 @@ const VOICE_RULES = `Voice rules:
 // place is what keeps the two generators' hooks from drifting apart in
 // style, since both prompt builders splice this same block into their HOOK
 // ENGINE section.
-const HOOK_STYLE_RULES = `HOOK WRITING STYLE — applies to every hook you write (the 3 main hook options, extra hooks, and any regenerated hook):
+const HOOK_STYLE_RULES = `HOOK WRITING STYLE — applies to EVERY hook you write (the 3 main hook options, extra hooks, and any regenerated hook). Technically-correct-but-flat hooks are not acceptable — a hook that just restates a fact ("Ito ang box na pwedeng maging start ng forever niyo", "Hawak mo lang, alam mo nang may nakatagong ring sa loob", "Order lang, deliver na sa harap niyo, walang advance kailangan") must be rewritten, not shipped.
 
-SIMPLE, EVERYDAY TAGLISH (when Language = Taglish): write the way an ordinary Filipino sounds on Facebook, not the way a textbook or a news article sounds. Avoid deep/formal/literary Filipino words — if a simpler Taglish or English word exists, use it. Blacklist words to avoid when a simpler alternative exists: "ipagpaliban", "tahanan", "handog", "kagamitan", "makabuluhan", "kaakit-akit", "kapaki-pakinabang", "natatangi", "pagmamay-ari", "pakinabang", "maituturing", "mainam", "maaliwalas", "kaaya-aya", "taglay", "hatid", "makapagbigay". Preferred everyday vocabulary: ganda, sulit, easy, upgrade, pang-gift, pang-bahay, pang-mommy, pang-araw-araw, ang sosyal, ang linis tingnan, ang convenient, ang cute, ang useful, ang handy, ready, instant, perfect, swak, worth it, nakaka-excite, game changer. Mix in natural English words/phrases the way real Filipino online sellers do ("GAME CHANGER", "INSTANT UPGRADE", "SO WORTH IT", "WAIT TIL YOU SEE THIS") instead of forcing an awkward Filipino translation.
+SIMPLE, EVERYDAY TAGLISH (when Language = Taglish): write the way an ordinary Filipino sounds on Facebook, not the way a textbook, brochure, or news article sounds. Avoid deep/formal/literary Filipino words — if a simpler Taglish or English word exists, use it. Blacklist words/phrasing to avoid when a simpler alternative exists: "ipagpaliban", "tahanan", "handog", "kagamitan", "makabuluhan", "kaakit-akit", "kapaki-pakinabang", "natatangi", "pagmamay-ari", "pakinabang", "maituturing", "mainam", "maaliwalas", "kaaya-aya", "taglay", "hatid", "makapagbigay", "maging simula ng forever niyo", "nakatagong singsing/ring sa loob", "maihatid sa inyong tahanan". Preferred everyday vocabulary: ganda, sulit, easy, upgrade, pang-gift, pang-bahay, pang-mommy, pang-araw-araw, ang sosyal, ang linis tingnan, ang convenient, ang cute, ang useful, ang handy, ready, instant, perfect, swak, worth it, nakaka-excite, kilig, game changer. Mix in natural English words/phrases the way real Filipino online sellers do ("GAME CHANGER", "INSTANT UPGRADE", "SO WORTH IT", "WAIT TIL YOU SEE THIS", "DELIVERED STRAIGHT TO YOU", "PERFECT PANG-PROPOSE") instead of forcing an awkward Filipino translation.
 
-EMOTION, NOT A FLAT STATEMENT: every hook needs real emotional energy — excitement, curiosity, desire, relief, urgency, surprise, delight, FOMO, gifting warmth, aspiration, or convenience-relief. A hook that just states a fact ("Pwede ito para sa bahay at balcony", "May payment options para sa gadgets") is not acceptable — find the feeling underneath the fact and lead with that instead.
+HARD REQUIREMENT — REAL EMOTION: before finalizing any hook, silently ask "Anong mararamdaman ng customer sa hook na ito?" (what would the customer actually feel reading this?). If the honest answer is "nothing specific," rewrite it. Every hook must clearly trigger at least one of: excitement, curiosity, desire, kilig, surprise, relief, urgency, FOMO, aspiration, gifting emotion, convenience-relief, or delight. Match the emotion to the angle, don't just describe the angle:
+- Gift/Emotional angle → lead with kilig, meaning, surprise, the recipient's reaction, a special moment — not a dry description of what's inside the box.
+- Feature/Product Demonstration angle → lead with surprise, curiosity, "wait for it," a visual reveal — not a spec-style statement of what the feature is.
+- Convenience angle → lead with relief, ease, "ready na," less hassle — not logistics-documentation phrasing ("may COD", "may payment options available").
 
-EMOJIS: include 1-2 emojis per hook that actually match the product/angle — never random or unrelated ones. Pick from whichever fits: 😍 ✨ 🔥 🎁 💛 💙 📱 🏠 🛍️ 🎄 🔔 🧿 😱 👀 💸 🚚 ⭐. Do not overload with more than 2.
+HARD REQUIREMENT — EMOJIS: every hook must contain at least 1 emoji, ideally 1-2, chosen to match the actual emotion and product/angle — never random or unrelated ones (this is enforced in code as a backstop, but you must include the right emoji yourself, not rely on the backstop). Pick from whichever fits, e.g.: Romantic/Engagement/Gift 💍 ❤️ 🥹 ✨ 🎁 💛, Curiosity 👀 😱 ✨, Gadget 📱 🔥 ✨, Home 🏠 😍 ✨, Christmas 🎄 ✨ ❤️, Beauty ✨ 😍 💖, general delight/desire 😍 ✨ 🔥 ⭐, urgency 🔥 😱, convenience 🚚 ⭐. Do not overload with more than 2.
 
-SHORT AND PUNCHY: 4-12 words is the sweet spot, 15 words is the hard ceiling. One strong thought only — no semicolons, no stacked clauses, no explaining. The hook is the emotional punch; the explanation belongs in the body copy, not the hook.
+SHORT AND PUNCHY: 4-12 words is the sweet spot, 15 words is the hard ceiling where practical. One strong thought only — no semicolons, no stacked clauses, no explaining. The hook is the emotional punch; the explanation belongs in the body copy, not the hook.
 
-DIFFERENT ANGLES, EACH EMOTIONALLY ALIVE: when writing multiple hooks (the 3 main options, or the extra hooks), each angle must carry its own distinct emotional flavor, not just a different topic stated flatly — e.g. a Curiosity hook should feel like a tease, a Gift hook should feel warm, a Desire hook should feel aspirational.
+DIFFERENT ANGLES, EACH EMOTIONALLY ALIVE: when writing multiple hooks (the 3 main options, or the extra hooks), each angle must carry its own distinct emotional flavor, not just a different topic stated flatly — e.g. a Curiosity hook should feel like a tease, a Gift hook should feel warm, a Desire hook should feel aspirational. Extra Hooks follow this exact same bar as the 3 main hooks — never a lower-quality fallback list.
 
-THE FACEBOOK GUT-CHECK: before finalizing any hook, silently ask "would a real Filipino ecommerce seller actually post this on their Facebook page?" If it reads like a brochure, a formal essay, a news article, corporate marketing copy, or a stiff machine translation, rewrite it simpler and warmer.
+THE SOCIAL-MEDIA GUT-CHECK: before finalizing any hook, silently ask "would a real Filipino ecommerce seller actually post this on Facebook or TikTok?" It should feel like a Facebook ad, a TikTok caption, or a UGC opener — never a product brochure, formal Filipino, a supplier listing, a chatbot sentence, or a school essay. If it reads that way, rewrite it simpler and warmer.
 
 TONE MATCHES ENERGY: read the Tone given in the input above/below (if any) and match hook energy to it — Friendly: warm, casual, light emoji; Persuasive: stronger desire + a clear benefit; Aggressive: punchier, more urgent, higher energy; Premium: elegant, minimal, aspirational, fewer emojis; UGC: casual and spontaneous, like a real customer talking; Masa: simple, relatable, energetic. If no clear tone is given, default to conversational + persuasive + emotional.
 
+INTERNAL HOOK SCORING (do not show this reasoning, only the final hooks): before choosing your final 3 (or 10, for extra hooks), internally brainstorm at least 9 candidate hooks across different angles, then silently score each 1-10 on: Emotional Impact, Scroll-Stop Potential, Natural Taglish, Product Relevance, Angle Fit, Simplicity, Emoji Fit, Curiosity/Desire, and Ad Objective Fit. Only keep candidates scoring at least 8/10 on Emotional Impact, Natural Taglish, AND Product Relevance — if your best candidate for an angle scores below 8 on any of those three, rewrite it before including it, don't ship it anyway.
+
 These style rules layer on top of (never override) the no-price-in-hook, no-financial-shaming, no-overclaim, verified-claims, and scarcity-gating rules elsewhere in this prompt.`;
+
+// Broad Unicode ranges covering the emoji this prompt asks the model to use
+// (emoticons, dingbats/hearts, transport, supplemental symbols, misc
+// symbols & arrows) — used as a code-level backstop, not the primary
+// mechanism (the prompt above is): if a model slip ships a hook with zero
+// emoji, we deterministically append one instead of silently displaying a
+// flat hook, mirroring this file's existing pattern of never trusting a
+// "hard requirement" to the prompt alone (see stripUnverifiedClaims).
+const EMOJI_PATTERN = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+
+// Keyword → emoji fallback, checked against the hook's angle/category name.
+// Order matters (first match wins); falls back to a neutral ✨ if nothing
+// matches, so a hook is never displayed with zero emoji.
+const FALLBACK_EMOJI_RULES: [RegExp, string][] = [
+  [/gift|regalo|surpris/i, '🎁💛'],
+  [/romantic|engagement|propose|wedding/i, '💍❤️'],
+  [/curiosity|reveal|discover/i, '👀✨'],
+  [/gadget|tech|phone|device/i, '📱✨'],
+  [/home|decor|bahay/i, '🏠✨'],
+  [/christmas|pasko|holiday/i, '🎄✨'],
+  [/beauty|skin|glow/i, '✨💖'],
+  [/urgency|scarcity|loss/i, '🔥😱'],
+  [/convenience|delivery|ugc/i, '🚚⭐'],
+];
+
+function pickFallbackEmoji(angleOrCategory: string): string {
+  for (const [pattern, emoji] of FALLBACK_EMOJI_RULES) {
+    if (pattern.test(angleOrCategory)) return emoji;
+  }
+  return '✨';
+}
+
+// Single shared finish-line for every hook this file generates (Image/Photo
+// AND Video, main hook options, extra hooks, and regenerated hooks): applies
+// the mandatory ALL CAPS formatting, warns (doesn't silently fix) if a price
+// slipped through, and deterministically appends a fallback emoji if the
+// model shipped a hook with none — so the "every hook has emoji" hard
+// requirement holds even when a prompt instruction is missed, without
+// paying for an extra regeneration round-trip.
+function finalizeHook(raw: unknown, angleOrCategory: string, context: string): string {
+  let hook = String(raw ?? '').trim();
+  warnIfHookHasPrice(hook, context);
+  if (hook && !EMOJI_PATTERN.test(hook)) {
+    hook = `${hook} ${pickFallbackEmoji(angleOrCategory)}`;
+    console.warn(`[ad-copy-generator] hook had no emoji, appended fallback (${context}): ${hook}`);
+  }
+  return hook.toUpperCase();
+}
+
+// The prompt tells the model "the ad must be built around whichever hook you
+// flag isBestPick" but nothing enforced that the model actually kept those
+// two things in sync — a model slip could mark hookOptions[1] best while
+// building the ad around hookOptions[0]'s hook, showing an "AI BEST PICK"
+// badge on a card that isn't the "Active" one. Deterministically resync
+// isBestPick to whichever option matches the hook actually used, so the UI
+// badge and the active-hook indicator can never disagree.
+function normalizeHookOptions(hookOptions: AdHookOption[], activeHook: string): AdHookOption[] {
+  if (!hookOptions.length) return hookOptions;
+  const matched = hookOptions.some(h => h.hook === activeHook);
+  return hookOptions.map((h, i) => ({ ...h, isBestPick: matched ? h.hook === activeHook : i === 0 }));
+}
 
 function buildInputLines(input: AdCopyInput): string {
   const features = input.keyFeatures.filter(Boolean);
@@ -290,9 +356,19 @@ const TEXT_CTA_GUIDANCE = `CTA must match the Ad Objective given below:
 - "Engagement": an engagement-appropriate CTA suited to the product, not a hard sell.
 Do not default to "Comment ___" for every objective — only use it when the objective is Comment Automation.`;
 
-function buildAdContentPrompt(input: AdCopyInput, forcedHook?: { hook: string; angle: string }, previousHooks?: string[]): { system: string; user: string } {
+function buildAdContentPrompt(
+  input: AdCopyInput,
+  forcedHook?: { hook: string; angle: string },
+  previousHooks?: string[],
+  // Callers that only want ONE ad creative back (both "Use This Hook" AND
+  // "Generate 3 New Hooks" in regenerateAdCreativeHook) must pass this
+  // explicitly true — deriving it from `!!forcedHook` alone was a bug: with
+  // forcedHook omitted ("Generate 3 New Hooks"), this fell through to the
+  // full `input.variants`-entry adCreatives schema while the caller still
+  // only budgeted 4096 tokens and only ever read adCreatives[0].
+  singleAdOnly: boolean = !!forcedHook,
+): { system: string; user: string } {
   const verifiedClaims = buildTextVerifiedClaims(input);
-  const singleAdOnly = !!forcedHook; // used by the lightweight "use this hook" / "new hooks" regeneration path
 
   const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist and Facebook/Meta Ads copywriter specializing in Philippine ecommerce.
 
@@ -357,7 +433,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
       "messagingTemplate": "string — the message shown when someone clicks 'Send Message' on the ad, restating the offer and inviting them to ask questions",
       "quickReplies": ["string", "string", "string"] // 3 short quick-reply button labels a customer might tap
     }
-  ] // exactly ${input.variants} entries${input.variants > 1 ? `, each with a genuinely different big idea/angle (not the same ad reworded)` : ''}
+  ] ${singleAdOnly ? '// exactly 1 entry' : `// exactly ${input.variants} entries${input.variants > 1 ? `, each with a genuinely different big idea/angle (not the same ad reworded)` : ''}`}
 }`;
 
   return { system, user: buildInputLines(input) };
@@ -562,11 +638,10 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
 
   const adCreatives: AdCreativeVariant[] = Array.isArray(adParsed?.adCreatives)
     ? adParsed.adCreatives.map((v: any) => {
-        const hook = String(v?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'adCreatives');
+        const angle = String(v?.angle ?? '');
         return {
-          hook,
-          angle: String(v?.angle ?? ''),
+          hook: finalizeHook(v?.hook, angle, 'adCreatives'),
+          angle,
           headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
           primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
           messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
@@ -576,9 +651,8 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     : [];
   const hookOptions: AdHookOption[] = Array.isArray(adParsed?.hookOptions)
     ? adParsed.hookOptions.slice(0, 3).map((h: any) => {
-        const hook = String(h?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'hookOptions');
-        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+        const angle = String(h?.angle ?? '');
+        return { hook: finalizeHook(h?.hook, angle, 'hookOptions'), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
   const followUpMessages: string[] = Array.isArray(botParsed?.followUpMessages)
@@ -615,7 +689,7 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     console.warn(`[ad-copy-generator] requested ${input.followUpCount} follow-up message(s), got ${followUpMessages.length}`);
   }
 
-  return { mainFlowReply, adCreatives, hookOptions, salesPrompt, afterSalesPrompt, followUpMessages };
+  return { mainFlowReply, adCreatives, hookOptions: normalizeHookOptions(hookOptions, adCreatives[0]?.hook ?? ''), salesPrompt, afterSalesPrompt, followUpMessages };
 }
 
 // Lightweight, text-only regeneration of JUST the first ad creative — used
@@ -628,7 +702,7 @@ export async function regenerateAdCreativeHook(
   forcedHook?: { hook: string; angle: string },
   previousHooks?: string[]
 ): Promise<{ adCreative: AdCreativeVariant; hookOptions: AdHookOption[] }> {
-  const prompt = buildAdContentPrompt(input, forcedHook, previousHooks);
+  const prompt = buildAdContentPrompt(input, forcedHook, previousHooks, true);
   const raw = await callClaude('text_ad_hook_regen', prompt.system, prompt.user, 4096);
   const parsed = extractJson(raw) as any;
   const verifiedClaims = buildTextVerifiedClaims(input);
@@ -638,11 +712,10 @@ export async function regenerateAdCreativeHook(
     throw new AdCopyGeneratorError('AI did not return an ad creative.');
   }
 
-  const regenHook = String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase();
-  warnIfHookHasPrice(regenHook, 'regenerateAdCreativeHook');
+  const regenAngle = String(first?.angle ?? forcedHook?.angle ?? '');
   const adCreative: AdCreativeVariant = {
-    hook: regenHook,
-    angle: String(first?.angle ?? forcedHook?.angle ?? ''),
+    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateAdCreativeHook'),
+    angle: regenAngle,
     headline: stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims),
     primaryText: stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims),
     messagingTemplate: stripUnverifiedClaims(String(first?.messagingTemplate ?? ''), verifiedClaims),
@@ -651,13 +724,12 @@ export async function regenerateAdCreativeHook(
 
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
-        const hook = String(h?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'regenerateAdCreativeHook.hookOptions');
-        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+        const angle = String(h?.angle ?? '');
+        return { hook: finalizeHook(h?.hook, angle, 'regenerateAdCreativeHook.hookOptions'), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
 
-  return { adCreative, hookOptions };
+  return { adCreative, hookOptions: normalizeHookOptions(hookOptions, adCreative.hook) };
 }
 
 // ── Video Ad Copy (v1) ──────────────────────────────────────────────────────
@@ -783,6 +855,67 @@ function buildVerifiedClaims(input: VideoAdCopyInput): string {
   return claims.length ? claims.join('; ') : 'NONE — no offer, discount, guarantee, certification, or trust claim was provided for this request.';
 }
 
+// Code-level backstop for video copy, mirroring buildTextVerifiedClaims —
+// video's VideoOfferInput only ever carries cod/freeShipping as trust-style
+// claims (no legitimacy/warranty/FDA/permit free-text field like text mode
+// has), so every other TextVerifiedClaims flag is always false here: if the
+// model states "100% original" or "registered business" in video copy
+// anyway, stripUnverifiedClaims removes it unconditionally.
+function buildVideoVerifiedClaims(input: VideoAdCopyInput): TextVerifiedClaims {
+  return {
+    cod: !!input.offer.cod,
+    freeShipping: !!input.offer.freeShipping,
+    original: false,
+    registeredBusiness: false,
+    permit: false,
+    moneyBackGuarantee: false,
+    warranty: false,
+    fdaApproved: false,
+  };
+}
+
+// Video-specific deterministic backstop for the two prompt-only rules added
+// alongside content-type detection: financing conservatism (financingInfo
+// being non-empty must never license "0% interest"/"zero down"/"instant or
+// guaranteed approval" unless that exact phrase was actually seen on-screen)
+// and the general no-overclaims rule. Same rationale as CLAIM_STRIP_RULES —
+// don't just ask the model nicely when a regex can catch a slip.
+function stripVideoOverclaimsAndFinancing(text: string, financingInfo: string): string {
+  if (!text) return text;
+  const info = (financingInfo || '').toLowerCase();
+  let result = text;
+  const financingPatterns: [RegExp, string][] = [
+    [/0%\s*interest[^.\n]*\.?/gi, '0% interest'],
+    [/zero[\s-]?down(\s*payment)?[^.\n]*\.?/gi, 'zero down'],
+    [/instant approval[^.\n]*\.?/gi, 'instant approval'],
+    [/guaranteed approval[^.\n]*\.?/gi, 'guaranteed approval'],
+  ];
+  for (const [pattern, mustBeConfirmedBy] of financingPatterns) {
+    if (!info.includes(mustBeConfirmedBy)) {
+      result = result.replace(pattern, '');
+    }
+  }
+  const overclaimPatterns = [
+    /\bandito lahat\b[^.\n]*\.?/gi,
+    /\bpinakamura\b[^.\n]*\.?/gi,
+    /\bbest price\b[^.\n]*\.?/gi,
+    /\blowest price\b[^.\n]*\.?/gi,
+  ];
+  for (const pattern of overclaimPatterns) {
+    result = result.replace(pattern, '');
+  }
+  return result
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
+    .join('\n')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+function finalizeVideoBodyText(text: string, claims: TextVerifiedClaims, financingInfo: string): string {
+  return stripVideoOverclaimsAndFinancing(stripUnverifiedClaims(text, claims), financingInfo);
+}
+
 // Analyzes the video ONCE (this is the expensive, image-heavy call) and
 // returns a structured analysis. The AI must never fabricate facts — if a
 // detail isn't visible or given, it should say so plainly rather than guess.
@@ -873,8 +1006,15 @@ function buildVideoAdContentPrompt(
   forcedHook?: { hook: string; angle: string },
   previousHooks?: string[],
   extraInstruction?: string,
+  // Callers that only want ONE version back (both "Use This Hook" AND
+  // "Generate 3 New Hooks" in regenerateVideoAdCreativeHook) must pass this
+  // explicitly true — deriving it from `!!forcedHook` alone was a bug: with
+  // forcedHook omitted ("Generate 3 New Hooks"), this used to fall through
+  // to the full 3-versions + 10-extraHooks schema while the caller still
+  // only budgeted 4096 tokens and only ever read versions[0], risking
+  // truncated/invalid JSON on a supposedly cheap action.
+  singleAdOnly: boolean = !!forcedHook,
 ): { system: string; user: string } {
-  const singleAdOnly = !!forcedHook;
 
   const angleInstruction = forcedHook
     ? ''
@@ -1005,35 +1145,31 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
   const raw = await callClaude('video_copy', prompt.system, prompt.user, 8192);
   const parsed = extractJson(raw) as any;
 
+  const claims = buildVideoVerifiedClaims(input);
+
   const versions: VideoAdVersion[] = Array.isArray(parsed?.versions)
     ? parsed.versions.slice(0, 3).map((v: any) => {
-        const hook = String(v?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'video versions');
+        const angle = String(v?.angle ?? '');
         return {
-          angle: String(v?.angle ?? ''),
-          hook,
-          primaryText: String(v?.primaryText ?? ''),
-          headline: String(v?.headline ?? ''),
-          description: String(v?.description ?? ''),
+          angle,
+          hook: finalizeHook(v?.hook, angle, 'video versions'),
+          primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo),
+          headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo),
+          description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo),
           cta: String(v?.cta ?? ''),
         };
       })
     : [];
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
-        const hook = String(h?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'video hookOptions');
-        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+        const angle = String(h?.angle ?? '');
+        return { hook: finalizeHook(h?.hook, angle, 'video hookOptions'), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
   const extraHooks: VideoExtraHook[] = Array.isArray(parsed?.extraHooks)
     ? parsed.extraHooks.slice(0, 10).map((h: any) => {
-        const hook = String(h?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'video extraHooks');
-        return {
-          category: (['Curiosity', 'Problem', 'Benefit', 'Desire', 'Sales', 'UGC'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'],
-          hook,
-        };
+        const category = (['Curiosity', 'Problem', 'Benefit', 'Desire', 'Sales', 'UGC'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'];
+        return { category, hook: finalizeHook(h?.hook, category, 'video extraHooks') };
       })
     : [];
 
@@ -1041,7 +1177,7 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
     throw new AdCopyGeneratorError('AI did not return any ad copy versions.');
   }
 
-  return { versions, hookOptions, extraHooks };
+  return { versions, hookOptions: normalizeHookOptions(hookOptions, versions[0]?.hook ?? ''), extraHooks };
 }
 
 // Lightweight, text-only regeneration of JUST the best-pick video version —
@@ -1055,7 +1191,7 @@ export async function regenerateVideoAdCreativeHook(
   forcedHook?: { hook: string; angle: string },
   previousHooks?: string[],
 ): Promise<{ adVersion: VideoAdVersion; hookOptions: AdHookOption[] }> {
-  const prompt = buildVideoAdContentPrompt(analysis, input, forcedHook, previousHooks);
+  const prompt = buildVideoAdContentPrompt(analysis, input, forcedHook, previousHooks, undefined, true);
   const raw = await callClaude('video_ad_hook_regen', prompt.system, prompt.user, 4096);
   const parsed = extractJson(raw) as any;
 
@@ -1064,24 +1200,23 @@ export async function regenerateVideoAdCreativeHook(
     throw new AdCopyGeneratorError('AI did not return an ad version.');
   }
 
-  const regenHook = String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase();
-  warnIfHookHasPrice(regenHook, 'regenerateVideoAdCreativeHook');
+  const claims = buildVideoVerifiedClaims(input);
+  const regenAngle = String(first?.angle ?? forcedHook?.angle ?? '');
   const adVersion: VideoAdVersion = {
-    angle: String(first?.angle ?? forcedHook?.angle ?? ''),
-    hook: regenHook,
-    primaryText: String(first?.primaryText ?? ''),
-    headline: String(first?.headline ?? ''),
-    description: String(first?.description ?? ''),
+    angle: regenAngle,
+    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateVideoAdCreativeHook'),
+    primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo),
+    headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo),
+    description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo),
     cta: String(first?.cta ?? ''),
   };
 
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
-        const hook = String(h?.hook ?? '').toUpperCase();
-        warnIfHookHasPrice(hook, 'regenerateVideoAdCreativeHook.hookOptions');
-        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+        const angle = String(h?.angle ?? '');
+        return { hook: finalizeHook(h?.hook, angle, 'regenerateVideoAdCreativeHook.hookOptions'), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
 
-  return { adVersion, hookOptions };
+  return { adVersion, hookOptions: normalizeHookOptions(hookOptions, adVersion.hook) };
 }
