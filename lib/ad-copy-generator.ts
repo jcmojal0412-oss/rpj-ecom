@@ -98,6 +98,7 @@ export interface TextVerifiedClaims {
   moneyBackGuarantee: boolean;
   warranty: boolean;
   fdaApproved: boolean;
+  doctorRecommended: boolean;
 }
 
 function buildTextVerifiedClaims(input: AdCopyInput): TextVerifiedClaims {
@@ -113,6 +114,7 @@ function buildTextVerifiedClaims(input: AdCopyInput): TextVerifiedClaims {
     moneyBackGuarantee: legit.includes('money-back guarantee') || legit.includes('money back guarantee'),
     warranty: legit.includes('warranty'),
     fdaApproved: legit.includes('fda'),
+    doctorRecommended: legit.includes('doctor recommended') || legit.includes('doctor-recommended'),
   };
 }
 
@@ -126,7 +128,8 @@ function describeVerifiedClaims(c: TextVerifiedClaims): string {
   if (c.moneyBackGuarantee) on.push('Money-Back Guarantee');
   if (c.warranty) on.push('Warranty');
   if (c.fdaApproved) on.push('FDA Approved');
-  return on.length ? on.join(', ') : 'NONE — do not state ANY trust/legitimacy/guarantee claim (no "original", "legit", "registered", "permit", "guarantee", "warranty", "FDA", etc.).';
+  if (c.doctorRecommended) on.push('Doctor Recommended');
+  return on.length ? on.join(', ') : 'NONE — do not state ANY trust/legitimacy/guarantee claim (no "original", "legit", "registered", "permit", "guarantee", "warranty", "FDA", "doctor recommended", etc.).';
 }
 
 // Second line of defense on top of the prompt instruction — strips known
@@ -143,6 +146,12 @@ const CLAIM_STRIP_RULES: { active: (c: TextVerifiedClaims) => boolean; patterns:
   { active: c => !c.warranty, patterns: [/\bwarranty\b[^.\n]*\.?/gi] },
   { active: c => !c.freeShipping, patterns: [/free shipping[^.\n]*\.?/gi] },
   { active: c => !c.cod, patterns: [/\bcod\b[^.\n]*\.?/gi, /cash on delivery[^.\n]*\.?/gi] },
+  { active: c => !c.doctorRecommended, patterns: [/doctor[\s-]?recommended[^.\n]*\.?/gi] },
+  // Unconditional — Meta's own Advertising Standards ban curative/
+  // guaranteed-outcome health claims outright (see FB_ADS_COMPLIANCE_RULES);
+  // there's no structured field that could ever "verify" a cure/heal claim,
+  // so this strips regardless of any input, not gated by a boolean.
+  { active: () => true, patterns: [/\bcures?\b[^.\n]*\.?/gi, /\bheals?\b[^.\n]*\.?/gi, /\bhealing\b[^.\n]*\.?/gi, /guaranteed\s+(weight\s*loss|to\s+whiten|results?)[^.\n]*\.?/gi, /\bmiracle\b[^.\n]*\.?/gi] },
 ];
 
 function stripUnverifiedClaims(text: string, claims: TextVerifiedClaims): string {
@@ -180,6 +189,9 @@ const SHORT_FIELD_CLAIM_PATTERNS: { active: (c: TextVerifiedClaims) => boolean; 
   { active: c => !c.warranty, patterns: [/\bwarranty\b/gi] },
   { active: c => !c.freeShipping, patterns: [/free shipping\b/gi] },
   { active: c => !c.cod, patterns: [/\bcod\b/gi, /cash on delivery\b/gi] },
+  { active: c => !c.doctorRecommended, patterns: [/doctor[\s-]?recommended\b/gi] },
+  // Unconditional, same rationale as the long-field version above.
+  { active: () => true, patterns: [/\bcures?\b/gi, /\bheals?\b/gi, /\bhealing\b/gi, /guaranteed\s+(weight\s*loss|to\s+whiten|results?)\b/gi, /\bmiracle\b/gi] },
 ];
 
 // Only applies the whitespace/punctuation cleanup pass when a pattern
@@ -615,6 +627,29 @@ function buildTextCtaGuidance(hidePriceInAdCopy: boolean): string {
 Do not default to "Comment ___" for every objective — only use it when the objective is Comment Automation.${inquiryNote}`;
 }
 
+// Text/Photo generator only (per the request that introduced this) —
+// health/wellness/beauty/supplement products carry real regulatory and
+// platform-compliance risk that ordinary ecommerce products don't, so they
+// get a stricter, dedicated rule set layered on top of everything else in
+// this prompt. The core distinction: an ingredient being present does NOT
+// prove an outcome, so the model must never infer a health/beauty result
+// from an ingredient name — only state a claim that was actually given as
+// a claim (in Key Features/Description/Additional Instructions), never one
+// it reasoned its way into from a component list.
+const HEALTH_WELLNESS_CLAIM_RULES = `HEALTH / WELLNESS / BEAUTY PRODUCT SAFETY — applies whenever the product is a wellness coffee, supplement, slimming/beauty drink, collagen drink, herbal product, health oil, skincare item, or similar wellness product (decide this yourself from the product name/description/features; if it applies, treat every field below — hook, headline, primaryText, mainFlowReply, messagingTemplate, quickReplies — as high claim risk):
+
+DO NOT INVENT HEALTH OUTCOMES: never generate claims like "helps maintain healthy weight", "boosts metabolism", "burns fat", "improves mood", "improves focus", "boosts energy", "whitens skin", "glowing skin", "detox", "reduces appetite", "improves digestion", "relieves pain", "treats symptoms", "cures", or "heals" unless that exact claim was actually given to you as a claim (typed into Key Features, Description, or Additional Instructions) — never because you reasoned your way to it from an ingredient. An ingredient being present does NOT prove an outcome: "Contains L-carnitine" does NOT license "boosts metabolism" / "burns fat" / "helps weight loss"; "Contains glutathione" does NOT license "whitens skin" / "makes skin glow". If no explicit outcome claim was given, don't write one — sell on the ingredient/format/experience instead.
+
+INGREDIENT-LED COPY WHEN NO OUTCOME IS VERIFIED: lean on ingredients, format, convenience, flavor, routine, product experience, bundle/promo, packaging, and quantity instead. Style reference only (not literal) — weak: "Tumutulong mag-maintain ng healthy weight." — better: "20-in-1 coffee blend with L-carnitine." Weak: "Paputi at glow habang umiinom ng coffee." — better: "With glutathione as part of the blend."
+
+INGREDIENTS ARE NOT GUARANTEED RESULTS — WATCH YOUR VERBS: describe ingredients with "Contains...", "With...", "Made with...", or "Part of the [N]-in-1 blend..." — never "Will help you...", "Will make you...", "Guaranteed to...", or "Effective for..." unless that exact outcome was explicitly given as a verified claim.
+
+STRONGER HOOK WITHOUT MEDICAL CLAIMS: a wellness hook can still be scroll-stopping and emotional without a health claim — lean on curiosity, routine, ingredient discovery, convenience, product reveal, lifestyle, or promo instead (e.g. teasing "wait, may [ingredient] pala sa [product] na 'to?" style curiosity, or a routine/lifestyle angle) rather than promising a result. All the usual hook rules still apply (FULL CAPS, no price, 1-2 emojis, natural Taglish, concise).
+
+CAPTION FORMAT FOR WELLNESS PRODUCTS: Hook → one short lifestyle/product-intro paragraph → 3-4 SAFE product highlights (ingredients/format/flavor/routine — not outcome claims) as short bullets → verified promo teaser (if any) → CTA. This replaces the generic feature/benefit bullets from the CAPTION STRUCTURE above with ingredient/format highlights specifically for these products.
+
+MAIN FLOW MUST NOT ESCALATE CLAIMS: mainFlowReply, messagingTemplate, and quickReplies must never contain a stronger or different health claim than what's allowed in the public ad — the same "no invented outcome" rule applies there too. A safe Main Flow pattern: "Here's what's inside the blend:" followed by the actual verified ingredients, not a health promise.`;
+
 function buildAdContentPrompt(
   input: AdCopyInput,
   forcedHook?: { hook: string; angle: string },
@@ -667,6 +702,8 @@ ${NATURAL_COPY_RULES}
 ${CAPTION_STRUCTURE_RULES}
 
 SYMBOLIC / SUPERSTITION CLAIMS: for lucky charms, feng shui items, evil-eye products, and similar symbolic products, never say or imply the product actually brings luck, fortune, protection, or wealth as a factual result. Instead of "Pang-swerte at proteksyon" or "brings positive energy into your space," prefer conservative, lightly-worded phrasing like "Lucky vibes," "Inspired by traditional lucky coin symbolism," "Traditionally associated with good fortune," or "Meaningful symbolic design." Keep it light and conservative — never promise the product will actually bring luck, protection, wealth, or a health outcome.
+
+${HEALTH_WELLNESS_CLAIM_RULES}
 
 VERIFIED CLAIMS ONLY — critical: the ONLY trust/offer claims you may state are: ${describeVerifiedClaims(verifiedClaims)}. Never state a claim not on this list (no "100% original", "legit", "registered business", "with permit", "money-back guarantee", "warranty", "FDA approved", "doctor recommended") even if it seems like a safe assumption for this kind of product. This applies to EVERY field you return, including quickReplies and mainFlowReply — not just primaryText/headline. If COD was not confirmed above, do not write a quickReply like "Paano mag-COD?" — use a payment-neutral phrasing like "Paano umorder?" instead.
 
@@ -1166,6 +1203,7 @@ function buildVideoVerifiedClaims(input: VideoAdCopyInput): TextVerifiedClaims {
     moneyBackGuarantee: false,
     warranty: false,
     fdaApproved: false,
+    doctorRecommended: false,
   };
 }
 
