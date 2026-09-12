@@ -14,13 +14,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { image_base64, image_media_type } = body;
+    const { image_base64, image_media_type, language } = body;
 
     if (!image_base64 || typeof image_base64 !== 'string') {
       return NextResponse.json({ error: 'Product image is required.' }, { status: 400 });
     }
 
-    const result = await analyzeProductImage(image_base64, image_media_type || 'image/jpeg');
+    const validLanguages = ['Taglish', 'English', 'Filipino'];
+    const result = await analyzeProductImage(
+      image_base64,
+      image_media_type || 'image/jpeg',
+      validLanguages.includes(language) ? language : 'Taglish'
+    );
     return NextResponse.json(result);
   } catch (e: any) {
     console.error('[ad-copy-generator] autofill error:', e?.message);

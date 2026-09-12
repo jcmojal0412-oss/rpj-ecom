@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { analyzeProductVideo, AdCopyGeneratorError, AD_ANGLES, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
+import { analyzeProductVideo, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
 import { extractVideoFrames, VideoProcessingError } from '@/lib/video-frames';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +43,10 @@ export async function POST(req: NextRequest) {
       : 'AUTO';
     const validLanguages = ['Taglish', 'English', 'Filipino'];
     const languageRaw = String(formData.get('language') || 'Taglish');
+    const copyLengthRaw = String(formData.get('copy_length') || 'Standard');
+    const copyLength = (COPY_LENGTHS as readonly string[]).includes(copyLengthRaw)
+      ? copyLengthRaw as VideoAdCopyInput['copyLength']
+      : 'Standard';
 
     const input: VideoAdCopyInput = {
       productName: (formData.get('product_name') as string)?.trim() || undefined,
@@ -52,6 +56,7 @@ export async function POST(req: NextRequest) {
       language: validLanguages.includes(languageRaw) ? (languageRaw as VideoAdCopyInput['language']) : 'Taglish',
       adObjective: (formData.get('ad_objective') as string)?.trim() || undefined,
       adAngle,
+      copyLength,
       offer: {
         cod: formData.get('offer_cod') === 'true',
         freeShipping: formData.get('offer_free_shipping') === 'true',

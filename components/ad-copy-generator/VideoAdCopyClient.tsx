@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import type { VideoAnalysis, VideoAdCopyResult, VideoAdVersion } from '@/lib/ad-copy-generator';
-import { AD_ANGLE_OPTIONS, TARGET_AUDIENCE_PRESETS, AD_OBJECTIVES } from './video-constants';
+import { AD_ANGLE_OPTIONS, TARGET_AUDIENCE_PRESETS, AD_OBJECTIVES, COPY_LENGTH_OPTIONS } from './video-constants';
 
 const LANGUAGES = ['Taglish', 'Filipino', 'English'] as const;
 const MAX_VIDEO_MB = 100;
@@ -63,6 +63,7 @@ export default function VideoAdCopyClient() {
   const [language, setLanguage] = useState<typeof LANGUAGES[number]>('Taglish');
   const [adObjective, setAdObjective] = useState<typeof AD_OBJECTIVES[number]>('Sales / Conversion');
   const [adAngle, setAdAngle] = useState<string>('AUTO');
+  const [copyLength, setCopyLength] = useState<string>('Standard');
 
   const [offerCod, setOfferCod] = useState(false);
   const [offerFreeShipping, setOfferFreeShipping] = useState(false);
@@ -139,6 +140,7 @@ export default function VideoAdCopyClient() {
           language,
           ad_objective: adObjective,
           ad_angle: adAngle,
+          copy_length: copyLength,
           offer: offerPayload(),
           extra_instruction: extraInstruction,
         }),
@@ -177,6 +179,7 @@ export default function VideoAdCopyClient() {
       formData.append('language', language);
       formData.append('ad_objective', adObjective);
       formData.append('ad_angle', adAngle);
+      formData.append('copy_length', copyLength);
       formData.append('offer_cod', String(offerCod));
       formData.append('offer_free_shipping', String(offerFreeShipping));
       formData.append('offer_nationwide_delivery', String(offerNationwide));
@@ -296,6 +299,12 @@ export default function VideoAdCopyClient() {
                 </select>
               </div>
             </div>
+            <div>
+              <label className="form-label">Copy Length</label>
+              <select className="form-input" value={copyLength} onChange={e => setCopyLength(e.target.value)}>
+                {COPY_LENGTH_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-4 space-y-3">
@@ -348,6 +357,7 @@ export default function VideoAdCopyClient() {
                 {analysis.targetCustomer && <p className="text-xs text-gray-600"><span className="text-gray-400">Target Buyer:</span> {analysis.targetCustomer}</p>}
                 {(analysis.mainBenefits[0] || analysis.visualHook) && <p className="text-xs text-gray-600"><span className="text-gray-400">Strongest Selling Point:</span> {analysis.mainBenefits[0] || analysis.visualHook}</p>}
                 {analysis.recommendedAngle && <p className="text-xs text-gray-600"><span className="text-gray-400">Recommended Ad Angle:</span> {analysis.recommendedAngle}</p>}
+                {analysis.whyAngle && <p className="text-xs text-gray-600"><span className="text-gray-400">Why:</span> {analysis.whyAngle}</p>}
               </div>
 
               {/* Best Ad Copy — Version 1 */}

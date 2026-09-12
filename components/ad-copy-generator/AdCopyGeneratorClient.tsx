@@ -131,7 +131,7 @@ export default function AdCopyGeneratorClient() {
       const { base64, mediaType } = await compressToBase64(imageFile);
       const res = await fetch('/api/ad-copy-generator/autofill', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType }),
+        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType, language }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Could not analyze the image. Please try again.'); return; }
@@ -161,7 +161,7 @@ export default function AdCopyGeneratorClient() {
       const { base64, mediaType } = await compressToBase64(imageFile);
       const res = await fetch('/api/ad-copy-generator/autofill', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType }),
+        body: JSON.stringify({ image_base64: base64, image_media_type: mediaType, language }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Could not analyze the image. Please try again.'); return; }

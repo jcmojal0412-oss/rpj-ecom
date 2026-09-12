@@ -24,3 +24,9 @@ export const TARGET_AUDIENCE_PRESETS = [
 ] as const;
 
 export const AD_OBJECTIVES = ['Sales / Conversion', 'Engagement', 'Retargeting', 'Product Awareness'] as const;
+
+export const COPY_LENGTH_OPTIONS = [
+  { value: 'Short', label: 'Short (~40-80 words)' },
+  { value: 'Standard', label: 'Standard (~80-150 words)' },
+  { value: 'Long', label: 'Long (~150-250 words)' },
+] as const;
