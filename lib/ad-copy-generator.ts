@@ -137,6 +137,18 @@ function stripUnverifiedClaims(text: string, claims: TextVerifiedClaims): string
     .replace(/[ \t]{2,}/g, ' ');
 }
 
+// A hook is one short line, so unlike stripUnverifiedClaims (which removes
+// whole sentences/bullets), removing a price substring here would just leave
+// a broken fragment — not safe to auto-fix. This only detects and logs, so a
+// prompt-instruction slip is visible instead of silently shipping to the UI.
+const PRICE_IN_HOOK_PATTERN = /₱\s*\d|(?<!\d)\d+\s*%\s*(off|discount)|\bbuy\s*1\s*take\s*1\b|\bb1t1\b/i;
+
+function warnIfHookHasPrice(hook: string, context: string): void {
+  if (hook && PRICE_IN_HOOK_PATTERN.test(hook)) {
+    console.warn(`[ad-copy-generator] hook still contains price/offer language (${context}): ${hook}`);
+  }
+}
+
 // Scans forward from the first '{' tracking brace depth (ignoring braces
 // inside string literals) to find the matching closing '}' — unlike a
 // greedy regex to the LAST '}' in the text, this is immune to trailing
@@ -270,11 +282,17 @@ ${FB_ADS_COMPLIANCE_RULES}
 
 ${HIGH_CONVERSION_TECHNIQUES}
 
-${forcedHook ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, messagingTemplate, and quickReplies so the ENTIRE ad coheres around this specific angle — e.g. a Gift angle should focus the body on gifting/recipient appeal/occasions/meaning; a Product Demonstration angle should focus on what happens when used/visual experience/functional benefit; a Value/Price angle should focus on value/bundle/offer/what the customer gets. Do not just swap the opening line and leave the rest generic.` : `
+${forcedHook ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, messagingTemplate, and quickReplies so the ENTIRE ad coheres around this specific angle — e.g. Gift → focus on recipient appeal/occasions/meaning; Feature/Product Demonstration → focus on what happens when used/visual experience/functional benefit; Loss Aversion → what the customer overlooks/misses by not having it; Scarcity → the verified availability/deadline only. Do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.` : `
 HOOK ENGINE — do this before writing anything:
-Identify the likely buyer and the strongest customer desire/problem/buying motivation. Internally generate several advertising angles from this list: Curiosity, Visual Scroll Stopper, Desire, Lifestyle, Pain/Problem, Problem-Solution, Product Demonstration, Benefit, Gift, Value/Price, Convenience, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery, Symbolic Meaning, Offer, UGC Style. For the strongest 2-3 angles, draft candidate hooks and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, and compliance risk. Do not show this reasoning — only the final selected hooks.
-Avoid defaulting to question hooks ("Looking for...?", "Have you ever...?", "Pagod ka na ba...?", "Gusto mo ba...?", "Ilang beses mo na ba naisip...?") — use them only when genuinely the strongest option. Use a healthy mix of statement hooks, curiosity, visual pattern interrupt, product demo, desire, contradiction, value, emotional, benefit, and discovery styles instead. Avoid generic hooks ("Introducing our amazing...", "The perfect product for you...", "Something cute pero useful...", "Order yours today...") as openers.
-Return exactly 3 hookOptions, each from a genuinely different angle (not paraphrases of each other), and mark exactly one as isBestPick (the one you'd actually run). adCreatives[0] must be built around the isBestPick hook/angle.`}
+Identify the likely buyer and the strongest customer desire/problem/buying motivation. Choose exactly 3 STRATEGICALLY DIFFERENT angles from this list — never 3 variations of the same angle:
+- Loss Aversion (what the customer may miss/regret/overlook by ignoring it — never fake fear)
+- Feature/Product Demonstration (turn the single most visually interesting or functional feature into a scroll-stopping observation, not a spec statement)
+- Scarcity/Urgency (ONLY if the Promo/Offer or Additional Instructions below explicitly states limited stock, a sale end date, or limited release — otherwise exclude this angle entirely; never invent "unti na lang stock", "last chance", "hanggang today lang")
+- Gift/Emotional, Curiosity (create an information gap), Visual Scroll Stopper, Pain/Problem (genuine, not manufactured insecurity), Problem-Solution, Desire/Lifestyle, Convenience, Benefit (not a restated feature), Pattern Interrupt, UGC/Natural (sounds like a real customer/creator, not a formal ad), Symbolic/Meaning (conservative, never presents superstition as fact)
+For the 3 chosen angles, draft candidate hooks and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, and compliance risk. Do not show this reasoning — only the final selected hooks.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline/the Offer section — never in the hook itself. Keep each hook to about 5-14 words, understandable in one glance — not a paragraph.
+Avoid defaulting to question hooks ("Looking for...?", "Have you ever...?", "Pagod ka na ba...?", "Gusto mo ba...?", "Ilang beses mo na ba naisip...?") — use them only when genuinely the strongest option. Avoid generic hooks ("Introducing our amazing...", "The perfect product for you...", "Something cute pero useful...", "Order yours today...") as openers.
+Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases — e.g. NOT "ganda nito sa balcony" / "ganda nito sa bahay" / "ganda nito pang-regalo", which are the same angle three times). Mark exactly one as isBestPick based on product fit, target audience, and scroll-stop/conversion potential — do NOT default to whichever angle happens to be Offer/Value/hard-sell just because it mentions the deal loudest. adCreatives[0] must be built around the isBestPick hook/angle, with the price/offer introduced afterward in primaryText/headline as normal.`}
 
 DO NOT TURN KEY FEATURES INTO THE AD VERBATIM. Key Features are input data, not the advertisement. For each relevant feature, ask "why should the customer care?" and convert it into a benefit, desire, use case, visual appeal, or emotional value — e.g. "Big Lucky Eye design" becomes "Instant statement piece kahit simple lang ang corner ng bahay," not "Big Lucky Eye design na eye-catching." Never invent a benefit not reasonably supported by the input. Avoid supplier-catalog/spec-sheet vocabulary ("ornate", "filigree", "meticulously crafted", "sophisticated", "exquisite") unless truly unavoidable.
 
@@ -514,21 +532,25 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
   const verifiedClaims = buildTextVerifiedClaims(input);
 
   const adCreatives: AdCreativeVariant[] = Array.isArray(adParsed?.adCreatives)
-    ? adParsed.adCreatives.map((v: any) => ({
-        hook: String(v?.hook ?? '').toUpperCase(),
-        angle: String(v?.angle ?? ''),
-        headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
-        primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
-        messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
-        quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => String(q)) : [],
-      }))
+    ? adParsed.adCreatives.map((v: any) => {
+        const hook = String(v?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'adCreatives');
+        return {
+          hook,
+          angle: String(v?.angle ?? ''),
+          headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
+          primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
+          messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
+          quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => String(q)) : [],
+        };
+      })
     : [];
   const hookOptions: AdHookOption[] = Array.isArray(adParsed?.hookOptions)
-    ? adParsed.hookOptions.slice(0, 3).map((h: any) => ({
-        hook: String(h?.hook ?? '').toUpperCase(),
-        angle: String(h?.angle ?? ''),
-        isBestPick: !!h?.isBestPick,
-      }))
+    ? adParsed.hookOptions.slice(0, 3).map((h: any) => {
+        const hook = String(h?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'hookOptions');
+        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+      })
     : [];
   const followUpMessages: string[] = Array.isArray(botParsed?.followUpMessages)
     ? botParsed.followUpMessages.map((m: any) => String(m))
@@ -587,8 +609,10 @@ export async function regenerateAdCreativeHook(
     throw new AdCopyGeneratorError('AI did not return an ad creative.');
   }
 
+  const regenHook = String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase();
+  warnIfHookHasPrice(regenHook, 'regenerateAdCreativeHook');
   const adCreative: AdCreativeVariant = {
-    hook: String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase(),
+    hook: regenHook,
     angle: String(first?.angle ?? forcedHook?.angle ?? ''),
     headline: stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims),
     primaryText: stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims),
@@ -597,11 +621,11 @@ export async function regenerateAdCreativeHook(
   };
 
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
-    ? parsed.hookOptions.slice(0, 3).map((h: any) => ({
-        hook: String(h?.hook ?? '').toUpperCase(),
-        angle: String(h?.angle ?? ''),
-        isBestPick: !!h?.isBestPick,
-      }))
+    ? parsed.hookOptions.slice(0, 3).map((h: any) => {
+        const hook = String(h?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'regenerateAdCreativeHook.hookOptions');
+        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+      })
     : [];
 
   return { adCreative, hookOptions };
