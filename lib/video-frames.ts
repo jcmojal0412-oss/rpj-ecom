@@ -39,6 +39,7 @@ export async function extractVideoFrames(
       ]);
       durationSec = parseFloat(stdout.trim());
     } catch (e: any) {
+      console.error('[video-frames] ffprobe failed:', e?.message, 'stderr:', e?.stderr, 'code:', e?.code);
       throw new VideoProcessingError('Unable to read the video file — it may be corrupted or in an unsupported format.');
     }
     if (!durationSec || durationSec <= 0) {
@@ -60,9 +61,10 @@ export async function extractVideoFrames(
         ]);
         const buf = await readFile(framePath);
         frames.push({ base64: buf.toString('base64'), mediaType: 'image/jpeg', timestampSec: t });
-      } catch {
+      } catch (e: any) {
         // Skip a frame that fails to extract (e.g. right at a keyframe
         // boundary) rather than failing the whole analysis over one frame.
+        console.error(`[video-frames] frame ${i} extraction failed:`, e?.message, 'stderr:', e?.stderr, 'code:', e?.code);
       }
     }
 
