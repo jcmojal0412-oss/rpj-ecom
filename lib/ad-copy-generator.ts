@@ -204,7 +204,7 @@ interface ImageInput {
   mediaType: string;
 }
 
-async function callClaude(system: string, userPrompt: string, maxTokens: number, image?: ImageInput): Promise<string> {
+async function callClaude(system: string, userPrompt: string, maxTokens: number, images?: ImageInput[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AdCopyGeneratorError('ANTHROPIC_API_KEY is not configured on the server.');
@@ -237,9 +237,9 @@ async function callClaude(system: string, userPrompt: string, maxTokens: number,
         system,
         messages: [{
           role: 'user',
-          content: image
+          content: images?.length
             ? [
-                { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+                ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } })),
                 { type: 'text', text: userPrompt },
               ]
             : userPrompt,
@@ -285,7 +285,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
   "keyFeatures": ["string", "string"] // up to 5 short key features/selling points visible or reasonably implied by the photo (material, function, design, included items, etc.)
 }`;
 
-  const raw = await callClaude(system, 'Analyze this product photo and extract the details.', 1024, { base64: imageBase64, mediaType });
+  const raw = await callClaude(system, 'Analyze this product photo and extract the details.', 1024, [{ base64: imageBase64, mediaType }]);
   const parsed = extractJson(raw) as any;
 
   const productName = String(parsed?.productName ?? '');
@@ -303,8 +303,8 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
 export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> {
   const adPrompt = buildAdContentPrompt(input);
   const botPrompt = buildBotContentPrompt(input);
-  const productImage: ImageInput | undefined = input.productImageBase64
-    ? { base64: input.productImageBase64, mediaType: input.productImageMediaType || 'image/jpeg' }
+  const productImage: ImageInput[] | undefined = input.productImageBase64
+    ? [{ base64: input.productImageBase64, mediaType: input.productImageMediaType || 'image/jpeg' }]
     : undefined;
 
   const [adRaw, botRaw] = await Promise.all([
@@ -363,4 +363,234 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
   }
 
   return { mainFlowReply, adCreatives, salesPrompt, afterSalesPrompt, followUpMessages };
+}
+
+// ── Video Ad Copy (v1) ──────────────────────────────────────────────────────
+// Upload a product video → extract frames server-side (lib/video-frames.ts)
+// → analyze once, save the analysis → generate ad copy from the analysis.
+// The expensive step (analyzing frames) happens once; "Regenerate" and future
+// rewrite actions reuse the saved VideoAnalysis instead of re-sending frames.
+
+export const AD_ANGLES = [
+  'Pain/Problem', 'Problem-Solution', 'Fear/Loss Aversion', 'Curiosity', 'Masa/Sulit',
+  'Premium', 'Mommy/Family', 'Lifestyle', 'Before/After', 'Convenience',
+  'Social Proof', 'Urgency', 'Hard Sell', 'Soft Sell', 'UGC Style', 'Retargeting',
+] as const;
+
+export interface VideoOfferInput {
+  cod?: boolean;
+  freeShipping?: boolean;
+  nationwideDelivery?: boolean;
+  limitedStock?: boolean;
+  limitedTimeSale?: boolean;
+  discountPercent?: string;
+  customOffer?: string;
+}
+
+export interface VideoAdCopyInput {
+  productName?: string;
+  sellingPrice?: string;
+  originalPrice?: string;
+  targetAudience?: string;
+  language: 'Taglish' | 'English' | 'Filipino';
+  adObjective?: string;
+  adAngle: 'AUTO' | typeof AD_ANGLES[number];
+  offer: VideoOfferInput;
+}
+
+export interface VideoAnalysis {
+  productName: string;
+  productCategory: string;
+  targetCustomer: string;
+  mainProblem: string;
+  mainDesire: string;
+  mainBenefits: string[];
+  features: string[];
+  objections: string[];
+  visualHook: string;
+  offer: string;
+  recommendedAngle: string;
+  tone: string;
+}
+
+export interface VideoAdVersion {
+  angle: string;
+  hook: string;
+  primaryText: string;
+  headline: string;
+  description: string;
+  cta: string;
+}
+
+export interface VideoExtraHook {
+  category: 'Pain' | 'Curiosity' | 'Benefit' | 'Emotional' | 'Sales';
+  hook: string;
+}
+
+export interface VideoAdCopyResult {
+  versions: VideoAdVersion[];
+  extraHooks: VideoExtraHook[];
+}
+
+function describeOffer(offer: VideoOfferInput): string | null {
+  const parts: string[] = [];
+  if (offer.cod) parts.push('Cash on Delivery');
+  if (offer.freeShipping) parts.push('Free Shipping');
+  if (offer.nationwideDelivery) parts.push('Nationwide Delivery');
+  if (offer.limitedStock) parts.push('Limited Stock');
+  if (offer.limitedTimeSale) parts.push('Limited-Time Sale');
+  if (offer.discountPercent) parts.push(`${offer.discountPercent}% OFF`);
+  if (offer.customOffer) parts.push(offer.customOffer);
+  return parts.length ? parts.join(', ') : null;
+}
+
+function buildVideoInputLines(input: VideoAdCopyInput): string {
+  const offerText = describeOffer(input.offer);
+  const lines = [
+    input.productName ? `Product Name (user-provided): ${input.productName}` : null,
+    input.sellingPrice ? `Selling Price: ${input.sellingPrice}` : null,
+    input.originalPrice ? `Original Price: ${input.originalPrice}` : null,
+    input.targetAudience ? `Target Audience: ${input.targetAudience}` : null,
+    `Language: ${input.language}`,
+    input.adObjective ? `Ad Objective: ${input.adObjective}` : null,
+    input.adAngle !== 'AUTO' ? `Required Ad Angle: ${input.adAngle}` : `Ad Angle: AUTO — choose the strongest angle yourself.`,
+    offerText ? `Offer (use ONLY these terms, exactly — do not add or infer any other offer): ${offerText}` : `Offer: none given — do not state any price, discount, or promo unless it is visibly on-screen in the video.`,
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+// Analyzes the video ONCE (this is the expensive, image-heavy call) and
+// returns a structured analysis. The AI must never fabricate facts — if a
+// detail isn't visible or given, it should say so plainly rather than guess.
+export async function analyzeProductVideo(frames: ImageInput[], input: VideoAdCopyInput): Promise<VideoAnalysis> {
+  const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist and Facebook Ads copywriter, specializing in Philippine ecommerce. You are analyzing ${frames.length} frames sampled evenly from beginning to end of a short product video, to build a structured product analysis before any ad copy is written.
+
+Be conservative and honest: only state what you can actually see in the frames or what's explicitly given below. NEVER invent facts, health claims, certifications, guarantees, discounts, or promotions. If a detail is unknown, leave it blank rather than guessing.
+
+Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
+{
+  "productName": "string",
+  "productCategory": "string — short category label",
+  "targetCustomer": "string — who this realistically is for, based on what's shown",
+  "mainProblem": "string — the core problem/pain point this product addresses, if apparent from the video (empty string if not apparent)",
+  "mainDesire": "string — the core desire/outcome the customer wants",
+  "mainBenefits": ["string", ...] // up to 5, strongest benefits actually shown or demonstrated on screen
+  "features": ["string", ...] // up to 5, concrete features visible in the frames
+  "objections": ["string", ...] // up to 3, realistic buyer objections for this kind of product (price, trust, doubt)
+  "visualHook": "string — the single most attention-grabbing visual moment or on-screen text seen in the frames",
+  "offer": "string — ONLY price/discount/promo actually visible on-screen or given in the input below; empty string if none",
+  "recommendedAngle": "string — exactly one of: ${AD_ANGLES.join(', ')} — the strongest angle for this specific product, or the Required Ad Angle given below if one was specified",
+  "tone": "string — the tone this video suggests (e.g. playful, premium, practical, homey)"
+}`;
+
+  const raw = await callClaude(system, buildVideoInputLines(input), 2048, frames);
+  const parsed = extractJson(raw) as any;
+
+  const productName = String(parsed?.productName ?? input.productName ?? '');
+  if (!productName.trim()) {
+    throw new AdCopyGeneratorError('Could not identify a product from this video — try a clearer video or fill in the product name manually.');
+  }
+
+  return {
+    productName,
+    productCategory: String(parsed?.productCategory ?? ''),
+    targetCustomer: String(parsed?.targetCustomer ?? ''),
+    mainProblem: String(parsed?.mainProblem ?? ''),
+    mainDesire: String(parsed?.mainDesire ?? ''),
+    mainBenefits: Array.isArray(parsed?.mainBenefits) ? parsed.mainBenefits.slice(0, 5).map((x: any) => String(x)) : [],
+    features: Array.isArray(parsed?.features) ? parsed.features.slice(0, 5).map((x: any) => String(x)) : [],
+    objections: Array.isArray(parsed?.objections) ? parsed.objections.slice(0, 3).map((x: any) => String(x)) : [],
+    visualHook: String(parsed?.visualHook ?? ''),
+    offer: String(parsed?.offer ?? ''),
+    recommendedAngle: String(parsed?.recommendedAngle ?? (input.adAngle !== 'AUTO' ? input.adAngle : '')),
+    tone: String(parsed?.tone ?? ''),
+  };
+}
+
+// Cheap, text-only step — reuses the saved VideoAnalysis instead of the
+// video frames, so "Regenerate"/rewrite actions never re-pay for vision.
+export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoAdCopyInput, extraInstruction?: string): Promise<VideoAdCopyResult> {
+  const angleInstruction = input.adAngle !== 'AUTO'
+    ? `All 3 versions must use the "${input.adAngle}" angle — vary the hook/execution across versions, not the underlying angle.`
+    : `Version 1 = the single strongest/best-converting angle for this product. Version 2 = a distinctly different emotional or problem angle. Version 3 = a distinctly different curiosity or benefit angle. The three must read as genuinely different ads, not the same ad reworded.`;
+
+  const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist and Facebook Ads copywriter, specializing in Philippine ecommerce. You understand Taglish, Filipino ecommerce customers, COD-style buying behavior, social media buying psychology, scroll-stopping hooks, and benefit-based problem-solution advertising. You never fabricate facts — you only use what's in the product analysis given to you below.
+
+${VOICE_RULES}
+
+${FB_ADS_COMPLIANCE_RULES}
+
+${HIGH_CONVERSION_TECHNIQUES}
+
+Copywriting framework for every version: Strong Hook → Pain/Desire/Curiosity → Product Introduction → Main Benefit → Supporting Benefits → Offer (only if given) → Objection Handling (when appropriate) → Strong CTA. Do not force an identical structure every time — adapt it to the angle. Avoid generic AI phrasing like "Introducing our amazing product that will change your life" — hooks must be specific to THIS product's actual analysis below, original, not reused boilerplate.
+
+${angleInstruction}
+${extraInstruction ? `\nRewrite instruction for this request: ${extraInstruction}` : ''}
+
+Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
+{
+  "versions": [
+    {
+      "angle": "string — the angle name used for this version",
+      "hook": "string — the scroll-stopping opening line",
+      "primaryText": "string — the full FB primary text/caption: hook, 1-3 short paragraphs, optional benefit bullets (✅), offer if given, CTA — short paragraphs, mobile-readable",
+      "headline": "string — 3-10 words, not all-caps",
+      "description": "string — short Meta Ads description line",
+      "cta": "string — one of: Shop Now, Order Now, Get Yours Today, Message Us, Learn More"
+    }
+  ], // exactly 3 entries
+  "extraHooks": [
+    {"category": "Pain", "hook": "string"},
+    {"category": "Pain", "hook": "string"},
+    {"category": "Curiosity", "hook": "string"},
+    {"category": "Curiosity", "hook": "string"},
+    {"category": "Benefit", "hook": "string"},
+    {"category": "Benefit", "hook": "string"},
+    {"category": "Emotional", "hook": "string"},
+    {"category": "Emotional", "hook": "string"},
+    {"category": "Sales", "hook": "string"},
+    {"category": "Sales", "hook": "string"}
+  ] // exactly 10 entries, 2 per category, each genuinely different
+}`;
+
+  const analysisLines = [
+    `Product Name: ${analysis.productName}`,
+    analysis.productCategory ? `Category: ${analysis.productCategory}` : null,
+    analysis.targetCustomer ? `Target Customer: ${analysis.targetCustomer}` : null,
+    analysis.mainProblem ? `Main Problem: ${analysis.mainProblem}` : null,
+    analysis.mainDesire ? `Main Desire: ${analysis.mainDesire}` : null,
+    analysis.mainBenefits.length ? `Main Benefits:\n${analysis.mainBenefits.map(b => `- ${b}`).join('\n')}` : null,
+    analysis.features.length ? `Features:\n${analysis.features.map(f => `- ${f}`).join('\n')}` : null,
+    analysis.objections.length ? `Likely Objections:\n${analysis.objections.map(o => `- ${o}`).join('\n')}` : null,
+    analysis.visualHook ? `Visual Hook Seen In Video: ${analysis.visualHook}` : null,
+    analysis.tone ? `Tone: ${analysis.tone}` : null,
+  ].filter(Boolean).join('\n');
+
+  const user = `${analysisLines}\n\n${buildVideoInputLines(input)}`;
+
+  const raw = await callClaude(system, user, 4096);
+  const parsed = extractJson(raw) as any;
+
+  const versions: VideoAdVersion[] = Array.isArray(parsed?.versions)
+    ? parsed.versions.slice(0, 3).map((v: any) => ({
+        angle: String(v?.angle ?? ''),
+        hook: String(v?.hook ?? ''),
+        primaryText: String(v?.primaryText ?? ''),
+        headline: String(v?.headline ?? ''),
+        description: String(v?.description ?? ''),
+        cta: String(v?.cta ?? ''),
+      }))
+    : [];
+  const extraHooks: VideoExtraHook[] = Array.isArray(parsed?.extraHooks)
+    ? parsed.extraHooks.slice(0, 10).map((h: any) => ({
+        category: (['Pain', 'Curiosity', 'Benefit', 'Emotional', 'Sales'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'],
+        hook: String(h?.hook ?? ''),
+      }))
+    : [];
+
+  if (!versions.length) {
+    throw new AdCopyGeneratorError('AI did not return any ad copy versions.');
+  }
+
+  return { versions, extraHooks };
 }

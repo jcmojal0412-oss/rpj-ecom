@@ -1,7 +1,7 @@
-import AdCopyGeneratorClient from '@/components/ad-copy-generator/AdCopyGeneratorClient';
+import AdCopyGeneratorTabs from '@/components/ad-copy-generator/AdCopyGeneratorTabs';
 
 export const metadata = { title: 'Ad Copy Generator — RPJ Corp' };
 
 export default function AdCopyGeneratorPage() {
-  return <AdCopyGeneratorClient />;
+  return <AdCopyGeneratorTabs />;
 }
