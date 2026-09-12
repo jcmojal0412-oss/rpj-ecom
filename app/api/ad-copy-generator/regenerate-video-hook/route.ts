@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { generateVideoAdCopy, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, CONTENT_TYPES, type VideoAnalysis, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
+import { regenerateVideoAdCreativeHook, AdCopyGeneratorError, AD_ANGLES, COPY_LENGTHS, CONTENT_TYPES, type VideoAnalysis, type VideoAdCopyInput } from '@/lib/ad-copy-generator';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 45;
 
+// Powers both "Use This Hook" (selected_hook/selected_angle set) and
+// "Generate 3 New Hooks" (omitted) for video mode — always text-only,
+// reuses the saved VideoAnalysis, never re-sends video frames.
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -14,7 +17,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { analysis, product_name, selling_price, original_price, target_audience, language, ad_objective, ad_angle, copy_length, offer, extra_instruction } = body;
+    const {
+      analysis, product_name, selling_price, original_price, target_audience,
+      language, ad_objective, ad_angle, copy_length, offer,
+      selected_hook, selected_angle, previous_hooks,
+    } = body;
 
     if (!analysis || typeof analysis !== 'object' || !analysis.productName) {
       return NextResponse.json({ error: 'Missing product analysis — re-analyze the video first.' }, { status: 400 });
@@ -66,13 +73,18 @@ export async function POST(req: NextRequest) {
       tone: String(analysis.tone ?? ''),
     };
 
-    const result = await generateVideoAdCopy(validatedAnalysis, input, extra_instruction?.trim() || undefined);
+    const forcedHook = selected_hook?.trim() && selected_angle?.trim()
+      ? { hook: selected_hook.trim(), angle: selected_angle.trim() }
+      : undefined;
+    const previousHooks = Array.isArray(previous_hooks) ? previous_hooks.map(String) : undefined;
+
+    const result = await regenerateVideoAdCreativeHook(validatedAnalysis, input, forcedHook, previousHooks);
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error('[ad-copy-generator] video copy generation error:', e?.message);
+    console.error('[ad-copy-generator] video hook regeneration error:', e?.message);
     if (e instanceof AdCopyGeneratorError) {
       return NextResponse.json({ error: e.message }, { status: 502 });
     }
-    return NextResponse.json({ error: 'Ad copy generation failed. Please try again.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not update the hook. Please try again.' }, { status: 500 });
   }
 }

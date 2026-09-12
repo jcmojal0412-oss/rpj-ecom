@@ -9,6 +9,27 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import type { VideoAnalysis, VideoAdCopyResult, VideoAdVersion } from '@/lib/ad-copy-generator';
 import { AD_ANGLE_OPTIONS, TARGET_AUDIENCE_PRESETS, AD_OBJECTIVES, COPY_LENGTH_OPTIONS } from './video-constants';
 
+// Labels the analysis panel by what the video actually shows — a store/sale
+// video isn't a "product", so calling it one there would be misleading.
+const CONTENT_TYPE_LABELS: Record<string, { name: string; category: string }> = {
+  'SINGLE PRODUCT': { name: 'Detected Product', category: 'Category' },
+  'MULTIPLE PRODUCTS': { name: 'Products Shown', category: 'Category Mix' },
+  'STORE PROMOTION': { name: 'Store', category: 'Category Mix' },
+  'SALE / CAMPAIGN': { name: 'Campaign', category: 'Category Mix' },
+  SERVICE: { name: 'Service', category: 'Category' },
+  EVENT: { name: 'Event', category: 'Category' },
+};
+
+function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle?: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Icon size={14} className="text-orange-500" />
+      <p className="text-xs font-semibold text-gray-700">{title}</p>
+      {subtitle && <span className="text-[10px] text-gray-400 font-normal">— {subtitle}</span>}
+    </div>
+  );
+}
+
 const LANGUAGES = ['Taglish', 'Filipino', 'English'] as const;
 const MAX_VIDEO_MB = 100;
 
@@ -75,6 +96,7 @@ export default function VideoAdCopyClient() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingCopy, setGeneratingCopy] = useState(false);
+  const [regeneratingHook, setRegeneratingHook] = useState(false);
   const [stageText, setStageText] = useState('');
   const [error, setError] = useState('');
 
@@ -207,6 +229,47 @@ export default function VideoAdCopyClient() {
   const rewrite = (instruction: string) => {
     if (!analysis) return;
     generateCopyFromAnalysis(analysis, instruction);
+  };
+
+  // Powers both "Use This Hook" (hook+angle given) and "Generate 3 New
+  // Hooks" (omitted) — text-only, reuses the saved analysis, never
+  // re-sends the video frames or re-runs the full generation.
+  const regenerateHook = async (hook?: string, angle?: string) => {
+    if (!analysis || !result) return;
+    setError('');
+    setRegeneratingHook(true);
+    try {
+      const res = await fetch('/api/ad-copy-generator/regenerate-video-hook', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis,
+          product_name: productName || undefined,
+          selling_price: sellingPrice || undefined,
+          original_price: originalPrice || undefined,
+          target_audience: targetAudienceValue || undefined,
+          language,
+          ad_objective: adObjective,
+          ad_angle: adAngle,
+          copy_length: copyLength,
+          offer: offerPayload(),
+          selected_hook: hook,
+          selected_angle: angle,
+          previous_hooks: result.hookOptions.map(h => h.hook),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Could not update the hook. Please try again.'); return; }
+      setResult(prev => prev ? {
+        ...prev,
+        versions: [data.adVersion, ...prev.versions.slice(1)],
+        hookOptions: data.hookOptions?.length ? data.hookOptions : prev.hookOptions,
+      } : prev);
+      showToast(hook ? 'Hook applied!' : 'New hooks generated!');
+    } catch {
+      setError('Could not update the hook. Please try again.');
+    } finally {
+      setRegeneratingHook(false);
+    }
   };
 
   return (
@@ -352,13 +415,49 @@ export default function VideoAdCopyClient() {
             <div className="space-y-6">
               {/* AI Video Analysis */}
               <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 space-y-1.5">
-                <p className="text-xs font-semibold text-gray-700 mb-1">AI Video Analysis</p>
-                <p className="text-xs text-gray-600"><span className="text-gray-400">Detected Product:</span> {analysis.productName}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-gray-700">AI Video Analysis</p>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase bg-gray-100 rounded-full px-2 py-0.5">{analysis.contentType}</span>
+                </div>
+                <p className="text-xs text-gray-600"><span className="text-gray-400">{(CONTENT_TYPE_LABELS[analysis.contentType] || CONTENT_TYPE_LABELS['SINGLE PRODUCT']).name}:</span> {analysis.productName}</p>
+                {analysis.productCategory && <p className="text-xs text-gray-600"><span className="text-gray-400">{(CONTENT_TYPE_LABELS[analysis.contentType] || CONTENT_TYPE_LABELS['SINGLE PRODUCT']).category}:</span> {analysis.productCategory}</p>}
                 {analysis.targetCustomer && <p className="text-xs text-gray-600"><span className="text-gray-400">Target Buyer:</span> {analysis.targetCustomer}</p>}
                 {(analysis.mainBenefits[0] || analysis.visualHook) && <p className="text-xs text-gray-600"><span className="text-gray-400">Strongest Selling Point:</span> {analysis.mainBenefits[0] || analysis.visualHook}</p>}
+                {analysis.financingInfo && <p className="text-xs text-gray-600"><span className="text-gray-400">Financing:</span> {analysis.financingInfo}</p>}
                 {analysis.recommendedAngle && <p className="text-xs text-gray-600"><span className="text-gray-400">Recommended Ad Angle:</span> {analysis.recommendedAngle}</p>}
                 {analysis.whyAngle && <p className="text-xs text-gray-600"><span className="text-gray-400">Why:</span> {analysis.whyAngle}</p>}
               </div>
+
+              {/* Choose Your Hook — only affects versions[0] */}
+              {result.hookOptions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <SectionHeader icon={Sparkles} title="Choose Your Hook" subtitle="for the best ad copy" />
+                    <button onClick={() => regenerateHook()} disabled={regeneratingHook || busy} className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50">
+                      {regeneratingHook ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      Generate 3 New Hooks
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {result.hookOptions.map((h, i) => {
+                      const active = h.hook === result.versions[0]?.hook;
+                      return (
+                        <div key={i} className={`rounded-lg border-2 p-3 space-y-1.5 ${active ? 'border-orange-400 bg-orange-50/50' : 'border-gray-200'}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase">{h.angle}</span>
+                            {h.isBestPick && <span className="text-[10px] font-bold text-white bg-orange-500 rounded-full px-2 py-0.5">AI BEST PICK</span>}
+                            {active && <span className="text-[10px] font-semibold text-orange-600">● Active</span>}
+                          </div>
+                          <p className="text-sm font-bold text-gray-900">{h.hook}</p>
+                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || busy || active} className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
+                            {active ? 'In Use' : 'Use This Hook'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Best Ad Copy — Version 1 */}
               <div className="space-y-2">

@@ -667,7 +667,10 @@ export interface VideoAdCopyInput {
   offer: VideoOfferInput;
 }
 
+export const CONTENT_TYPES = ['SINGLE PRODUCT', 'MULTIPLE PRODUCTS', 'STORE PROMOTION', 'SALE / CAMPAIGN', 'SERVICE', 'EVENT'] as const;
+
 export interface VideoAnalysis {
+  contentType: typeof CONTENT_TYPES[number];
   productName: string;
   productCategory: string;
   targetCustomer: string;
@@ -678,6 +681,7 @@ export interface VideoAnalysis {
   objections: string[];
   visualHook: string;
   offer: string;
+  financingInfo: string;
   recommendedAngle: string;
   whyAngle: string;
   tone: string;
@@ -699,6 +703,7 @@ export interface VideoExtraHook {
 
 export interface VideoAdCopyResult {
   versions: VideoAdVersion[];
+  hookOptions: AdHookOption[]; // 3 alternate hooks for versions[0] only
   extraHooks: VideoExtraHook[];
 }
 
@@ -759,19 +764,25 @@ Be conservative and honest: only state what you can actually see in the frames o
 
 Write "mainBenefits" and "features" the way an ordinary Filipino buyer talks, NOT like a supplier catalog or spec sheet — 3-10 words each, one idea per entry. Never use words like "ornate", "filigree", "aesthetic centerpiece", "meticulously crafted", "intricate detailing", "sophisticated", "exquisite", or "premium craftsmanship" unless truly unavoidable. Convert technical description into what the customer gets: "Ornate silver-tone filigree border with beads" becomes "Elegant silver & blue details"; "Golden metal bells that create soft chime sounds" becomes "Soft chime sound from golden bells". A buyer should understand the product within 3-5 seconds of reading these.
 
+FIRST, detect what kind of content this actually is — do not label everything "SINGLE PRODUCT". Choose exactly one: ${CONTENT_TYPES.join(', ')}. A video showing one item is SINGLE PRODUCT; a video showing several different items for sale is MULTIPLE PRODUCTS; a video about a shop/warehouse/sale event covering many categories is STORE PROMOTION or SALE / CAMPAIGN (pick whichever fits — CAMPAIGN if it's a named sale event); a video about a repair/consultation/subscription-type offering is SERVICE; a video about a specific dated happening is EVENT. This changes what "productName" means — for a store/sale/campaign, use the store or campaign name instead of a single item name, and "productCategory" becomes the store's category mix (e.g. "gadgets, appliances, accessories").
+
+FINANCING: only fill "financingInfo" with financing/payment-plan details that are ACTUALLY visible on-screen (e.g. a named provider logo or text like "Financing available via Skyro"). Never infer "0% interest", "zero down payment", "instant approval", or "guaranteed approval" unless that exact phrase is visibly on-screen — "financing available" alone does NOT imply any of those. Leave financingInfo empty if nothing concrete is visible.
+
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
-  "productName": "string",
-  "productCategory": "string — short category label",
+  "contentType": "string — exactly one of: ${CONTENT_TYPES.join(', ')}",
+  "productName": "string — product name, OR the store/campaign name if contentType is STORE PROMOTION / SALE / CAMPAIGN",
+  "productCategory": "string — short category label, or the store's category mix for a store/campaign",
   "targetCustomer": "string — who this realistically is for, based on what's shown",
-  "mainProblem": "string — the core problem/pain point this product addresses, if apparent from the video (empty string if not apparent)",
+  "mainProblem": "string — the core problem/pain point this addresses, if apparent from the video (empty string if not apparent)",
   "mainDesire": "string — the core desire/outcome the customer wants",
   "mainBenefits": ["string", ...] // up to 5, strongest benefits actually shown or demonstrated on screen, in plain customer language (see rules above)
-  "features": ["string", ...] // up to 5, concrete features visible in the frames, in plain customer language (see rules above)
-  "objections": ["string", ...] // up to 3, realistic buyer objections for this kind of product (price, trust, doubt)
+  "features": ["string", ...] // up to 5, concrete features/categories/selection visible in the frames, in plain customer language (see rules above)
+  "objections": ["string", ...] // up to 3, realistic buyer objections (price, trust, doubt)
   "visualHook": "string — the single most attention-grabbing visual moment or on-screen text seen in the frames",
   "offer": "string — ONLY price/discount/promo actually visible on-screen or given in the input below; empty string if none",
-  "recommendedAngle": "string — exactly one of: ${AD_ANGLES.join(', ')} — the strongest angle for this specific product, or the Required Ad Angle given below if one was specified",
+  "financingInfo": "string — ONLY concrete financing/payment-plan details visibly on-screen (see FINANCING rule above); empty string if none",
+  "recommendedAngle": "string — exactly one of: ${AD_ANGLES.join(', ')} — the strongest angle given the content type, or the Required Ad Angle given below if one was specified",
   "whyAngle": "string — ONE short sentence explaining why this angle is the strongest fit, referencing what's actually visible in the video",
   "tone": "string — the tone this video suggests (e.g. playful, premium, practical, homey)"
 }`;
@@ -785,6 +796,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
   }
 
   return {
+    contentType: (CONTENT_TYPES as readonly string[]).includes(parsed?.contentType) ? parsed.contentType : 'SINGLE PRODUCT',
     productName,
     productCategory: String(parsed?.productCategory ?? ''),
     targetCustomer: String(parsed?.targetCustomer ?? ''),
@@ -795,6 +807,7 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
     objections: Array.isArray(parsed?.objections) ? parsed.objections.slice(0, 3).map((x: any) => String(x)) : [],
     visualHook: String(parsed?.visualHook ?? ''),
     offer: String(parsed?.offer ?? ''),
+    financingInfo: String(parsed?.financingInfo ?? ''),
     recommendedAngle: String(parsed?.recommendedAngle ?? (input.adAngle !== 'AUTO' ? input.adAngle : '')),
     whyAngle: String(parsed?.whyAngle ?? ''),
     tone: String(parsed?.tone ?? ''),
@@ -807,12 +820,38 @@ const COPY_LENGTH_GUIDANCE: Record<typeof COPY_LENGTHS[number], string> = {
   Long: 'primaryText should run about 150-250 words — enough room for a fuller story/demonstration, but every sentence must still earn its place. Never pad with filler to reach the length.',
 };
 
+// Content-type-aware advertising focus — what the ad should actually be
+// selling, since a store/sale video and a single-product video need
+// different strategies even though they share the same prompt.
+const CONTENT_TYPE_STRATEGY: Record<typeof CONTENT_TYPES[number], string> = {
+  'SINGLE PRODUCT': 'Sell the one product shown — build around its strongest single benefit or use case. Do not talk about "our store" or a wide selection.',
+  'MULTIPLE PRODUCTS': 'Sell the RANGE/VARIETY shown, not one item as if it were the whole video. Lead with what ties the products together (e.g. a category, a use case, a price range) rather than picking one item and ignoring the rest.',
+  'STORE PROMOTION': 'Sell the STORE/SHOP itself — trust, selection, convenience of buying from this specific seller. Use the "Store Advantage" angle (wide selection, one-stop shop, trusted seller) as a first-class option alongside the usual angles. Do not invent a single "product" that was never named.',
+  'SALE / CAMPAIGN': 'Sell the SALE EVENT — what makes this specific sale worth acting on now (real discount, real limited timeframe, real selection). Scarcity/urgency language is only allowed per the SCARCITY rule below — a sale name alone does not license fake urgency.',
+  SERVICE: 'Sell the OUTCOME of the service (what changes for the customer), not physical product features — build trust/expertise/reliability since services are bought on confidence.',
+  EVENT: 'Sell the EXPERIENCE of attending/participating — what happens there and why it is worth showing up, anchored to the actual date/details given.',
+};
+
 // Cheap, text-only step — reuses the saved VideoAnalysis instead of the
 // video frames, so "Regenerate"/rewrite actions never re-pay for vision.
-export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoAdCopyInput, extraInstruction?: string): Promise<VideoAdCopyResult> {
-  const angleInstruction = input.adAngle !== 'AUTO'
-    ? `All 3 versions must use the "${input.adAngle}" angle as the ONE big idea — vary the hook and execution across versions, not the underlying angle.`
-    : `Each version must be built around exactly ONE big advertising idea, and the three ideas must be genuinely different from each other — not the same ad paraphrased three times. For example: Version 1 could be a Lifestyle/Decor angle, Version 2 a Gift angle, Version 3 a Curiosity/Product-Discovery angle. Pick whichever three angles are actually strongest for THIS product — don't force a template if a different combination fits better.`;
+// forcedHook/previousHooks mirror the text-mode buildAdContentPrompt pattern:
+// when forcedHook is set this becomes a single-ad rewrite around that exact
+// hook/angle (used by the lightweight regenerateVideoAdCreativeHook below);
+// otherwise it's a normal 3-version + hookOptions + extraHooks generation.
+function buildVideoAdContentPrompt(
+  analysis: VideoAnalysis,
+  input: VideoAdCopyInput,
+  forcedHook?: { hook: string; angle: string },
+  previousHooks?: string[],
+  extraInstruction?: string,
+): { system: string; user: string } {
+  const singleAdOnly = !!forcedHook;
+
+  const angleInstruction = forcedHook
+    ? ''
+    : input.adAngle !== 'AUTO'
+      ? `All 3 versions must use the "${input.adAngle}" angle as the ONE big idea — vary the hook and execution across versions, not the underlying angle.`
+      : `Each version must be built around exactly ONE big advertising idea, and the three ideas must be genuinely different from each other — not the same ad paraphrased three times. Pick whichever three angles are actually strongest for THIS content — don't force a template if a different combination fits better.`;
 
   const ctaGuidance = `CTA must match the Ad Objective given below, not default to "comment":
 - "Sales / Conversion": a direct buying CTA — "Message us to order", "Order Now", or "Shop Now" — pick whichever fits how this specific ad is meant to convert (most Filipino ecommerce Messenger ads convert through a message, so default to a message-based CTA unless the objective clearly implies a shop link).
@@ -821,51 +860,75 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
 - "Product Awareness": a lower-commitment CTA — "Learn More", "See More", "Message us for details".
 If no Ad Objective is given, default to a direct message-based CTA.`;
 
+  const scarcityAllowed = !!(input.offer.limitedStock || input.offer.limitedTimeSale);
+
+  const financingLine = analysis.financingInfo
+    ? `Financing detail actually visible in the video: "${analysis.financingInfo}" — you may mention ONLY this exact detail, worded naturally. Do NOT add, imply, or embellish with "0% interest", "zero down payment", "instant approval", or "guaranteed approval" — none of those were confirmed, even though financing itself is available.`
+    : `No financing detail was visible in the video — do not mention financing, installment, down payment, or approval terms at all.`;
+
+  const hookEngine = forcedHook
+    ? `USE THIS EXACT HOOK AND ANGLE (already chosen by the user — do not change it): HOOK: "${forcedHook.hook}" / ANGLE: ${forcedHook.angle}. Rewrite primaryText, headline, description, and cta so the ENTIRE ad coheres around this specific angle — do not just swap the opening line and leave the rest generic. The price/offer still belongs in primaryText/headline as usual — this rule only governs the hook line itself, which stays as given above.`
+    : `HOOK ENGINE — do this before writing anything else:
+Identify the likely buyer and the strongest motivation for THIS content type. Choose exactly 3 STRATEGICALLY DIFFERENT angles — never 3 variations of the same angle — from a mix of: Visual Scroll Stopper, Curiosity, Desire, Problem, Pain, Product Demonstration, Price/Value, Gift, Convenience, Lifestyle, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery, Store Advantage (wide selection/trusted seller — only for STORE PROMOTION/SALE content types)${analysis.financingInfo ? ', Financing (only using the exact financing detail given below, never embellished)' : ''}. Silently score each candidate for how likely it is to stop a Filipino Facebook scroller for THIS specific content, then keep only the 3 strongest — do not show your brainstorming, only the final selected hooks. Do NOT default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?") unless it is genuinely the strongest option — that should be rare, not the default.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline — never in the hook itself. Keep each hook to about 5-14 words, understandable in one glance.
+NEVER write a hook (or any copy) that assumes or questions the buyer's financial situation — banned style: "Kulang sa cash ka ba?", "Wala ka pang budget?", "Hirap ka na bang mag-ipon?". This is financial shaming and is never acceptable, financing angle or not.
+Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases). Mark exactly one as isBestPick based on genuine fit and scroll-stop/conversion potential — do NOT default to whichever angle happens to be financing, price, or hard-sell just because it's the loudest. versions[0] must be built around the isBestPick hook/angle.`;
+
   const system = `You are RPJ ECOM's senior direct-response ecommerce advertising strategist specializing in Philippine Facebook and Meta advertising.
 
-Your job is not to summarize products. Your job is to identify the strongest reason a customer would stop scrolling, care about the product, and take action. Analyze the product analysis, audience, and offer given below. Find the strongest advertising angle first. Then write concise, specific, and natural advertising copy around ONE big idea. Never fabricate product facts, offers, guarantees, certifications, or trust claims. Your copy should feel human-written, commercially sharp, mobile-friendly, and appropriate for Philippine ecommerce.
+Your job is not to summarize what's in the video. Your job is to identify the strongest reason a customer would stop scrolling, care, and take action. Analyze the content analysis, audience, and offer given below. Find the strongest advertising angle first. Then write concise, specific, and natural advertising copy around ONE big idea. Never fabricate facts, offers, guarantees, certifications, or trust claims. Your copy should feel human-written, commercially sharp, mobile-friendly, and appropriate for Philippine ecommerce.
 
 ${VOICE_RULES}
 
 ${FB_ADS_COMPLIANCE_RULES}
+(Exception: the "hook" field below is deliberately written in full caps by the application after you return it — write it as a normal short sentence, do not add your own caps or extra punctuation for this.)
 
-HOOK ENGINE — do this before writing anything else:
-Internally brainstorm at least 10 candidate hooks for this product, drawing from a mix of these categories: Visual Scroll Stopper, Curiosity, Desire, Problem, Pain, Product Demonstration, Price/Value, Gift, Convenience, Lifestyle, Emotional, Social Status, Before/After, Loss Aversion, Pattern Interrupt, Product Discovery. Silently score each for how likely it is to stop a Filipino Facebook scroller for THIS specific product, then keep only the strongest for the final ads — do not show your brainstorming, only the final selected hooks. Do NOT default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?", "Introducing our amazing...") unless, after genuinely comparing it to the other categories, it really is the strongest option for this product — that should be rare, not the default.
+CONTENT TYPE: ${analysis.contentType}. ${CONTENT_TYPE_STRATEGY[analysis.contentType]}
 
-ONE AD = ONE BIG IDEA:
-${angleInstruction}
-Do not cram every feature, benefit, and selling point into one ad — pick the single strongest idea for each version and build around it.
+${hookEngine}
 
+${singleAdOnly ? '' : `ONE AD = ONE BIG IDEA:\n${angleInstruction}\nDo not cram every feature, benefit, and selling point into one ad — pick the single strongest idea for each version and build around it.\n`}
 BENEFIT OVER FEATURE:
-Convert relevant features into what the customer actually gets, in plain conversational language — never a supplier-catalog or spec-sheet tone. Avoid words like "ornate", "filigree", "aesthetic centerpiece", "meticulously crafted", "intricate detailing", "sophisticated", "exquisite", "premium craftsmanship" unless truly unavoidable. Example: "Golden bells with soft chime" → "Soft golden-bell chimes add a relaxing accent to your balcony, room or garden." Never invent a benefit not reasonably supported by the analysis below.
+Convert relevant features into what the customer actually gets, in plain conversational language — never a supplier-catalog or spec-sheet tone. Avoid words like "ornate", "filigree", "aesthetic centerpiece", "meticulously crafted", "intricate detailing", "sophisticated", "exquisite", "premium craftsmanship" unless truly unavoidable. Never invent a benefit not reasonably supported by the analysis below.
 
 HUMAN, NATURAL VOICE:
-Write like a real Filipino ecommerce marketer, not a translated template. Use natural Taglish when Taglish is selected — avoid stiff/awkward translation. Vary sentence structure; short punchy sentences are good. Avoid robotic phrasing, avoid excessive emojis, and avoid overusing "perfect pang gift", "something cute", "order yours now" unless genuinely the best fit here.
+Write like a real Filipino ecommerce marketer, not a translated template. Use natural Taglish when Taglish is selected. Vary sentence structure; avoid robotic phrasing and excessive emojis.
 
-VERIFIED CLAIMS ONLY — this is critical: NEVER state a registered-business claim, permit, "100% original", "authentic", FDA approval, doctor recommendation, money-back guarantee, free shipping, COD, a discount percentage, limited stock, or warranty UNLESS it appears in the Verified Claims list below. If Verified Claims says NONE, write copy with zero such claims — sell on the product's actual demonstrated merits instead.
+AVOID OVERCLAIMS: never say or imply "andito lahat", "pinakamura", "best price", "lowest price", "solved na lahat ng problema mo", or similar absolute/superlative claims that cannot be verified. Sell on real, specific merits instead.
+
+VERIFIED CLAIMS ONLY — this is critical: NEVER state a registered-business claim, permit, "100% original", "authentic", FDA approval, doctor recommendation, money-back guarantee, free shipping, COD, a discount percentage, limited stock, or warranty UNLESS it appears in the Verified Claims list below. If Verified Claims says NONE, write copy with zero such claims — sell on the content's actual demonstrated merits instead.
+
+FINANCING: ${financingLine}
+
+SCARCITY: ${scarcityAllowed ? 'Limited-Time Sale and/or Limited Stock was confirmed below — you may use real urgency language tied to that fact.' : 'Neither Limited-Time Sale nor Limited Stock was confirmed — do NOT invent urgency ("unti na lang stock", "last chance", "hanggang today lang", "ubos na"). Sell on merit, not fake scarcity.'}
 
 ${ctaGuidance}
 
-FLEXIBLE STRUCTURE — pick whichever fits the angle best, don't force one template every time. Examples: (Hook → Desire → Product → Benefit → Offer → CTA), (Hook → Product Demonstration → Why It Matters → Offer → CTA), (Hook → Problem → Product → Solution → CTA), (Hook → Gift Occasion → Product → Emotional Benefit → Offer → CTA).
+FLEXIBLE STRUCTURE — pick whichever fits the angle best, don't force one template every time. Examples: (Hook → Desire → Product → Benefit → Offer → CTA), (Hook → Product Demonstration → Why It Matters → Offer → CTA), (Hook → Problem → Product → Solution → CTA).
 
 LENGTH: ${COPY_LENGTH_GUIDANCE[input.copyLength]}
 
-INTERNAL QUALITY BAR before finalizing each version, silently score 1-10 on: Hook Strength, Specificity, Customer Desire, Product Relevance, Clarity, Naturalness, Offer Clarity, CTA Strength, Scroll-Stopping Potential, Compliance Risk. Don't finalize a version with Hook Strength, Naturalness, or Product Relevance below 8 unless the product analysis genuinely doesn't give you enough to do better — rewrite it internally first. The loudest ad is not necessarily the strongest one: prioritize specificity, clarity, customer desire, and natural language over ALL CAPS, "!!!", 🔥🔥🔥, fake urgency, or unverified scarcity.
-
-${extraInstruction ? `Rewrite instruction for this specific request: ${extraInstruction}` : ''}
+INTERNAL QUALITY BAR before finalizing, silently score 1-10 on: Hook Strength, Specificity, Customer Desire, Content Relevance, Clarity, Naturalness, Offer Clarity, CTA Strength, Scroll-Stopping Potential, Compliance Risk. Don't finalize copy with Hook Strength, Naturalness, or Relevance below 8 unless the analysis genuinely doesn't give you enough to do better. The loudest ad is not necessarily the strongest: prioritize specificity, clarity, and natural language over ALL CAPS, "!!!", 🔥🔥🔥, fake urgency, or unverified scarcity.
+${previousHooks?.length ? `\nAlready-used hooks this session (generate genuinely different ones, not close variants of these): ${previousHooks.map(h => `"${h}"`).join(', ')}` : ''}
+${extraInstruction ? `\nRewrite instruction for this specific request: ${extraInstruction}` : ''}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
+  ${singleAdOnly ? '' : `"hookOptions": [
+    {"hook": "string — normal case, will be uppercased by the app", "angle": "string — the angle name", "isBestPick": true},
+    {"hook": "string", "angle": "string", "isBestPick": false},
+    {"hook": "string", "angle": "string", "isBestPick": false}
+  ], // exactly 3, genuinely different angles`}
   "versions": [
     {
-      "angle": "string — the ONE big idea/angle name used for this version",
-      "hook": "string — the scroll-stopping opening line, from the hook engine above",
+      "angle": "string — the ONE big idea/angle name used for this version${forcedHook ? ` — must be "${forcedHook.angle}"` : ''}",
+      "hook": "string — normal case${forcedHook ? `, must be "${forcedHook.hook}"` : ', the scroll-stopping opening line, from the hook engine above'}",
       "primaryText": "string — the full FB primary text/caption, structure chosen per FLEXIBLE STRUCTURE above, length per LENGTH above",
       "headline": "string — 3-10 words, not all-caps",
       "description": "string — short Meta Ads description line",
       "cta": "string — chosen per the CTA guidance above"
     }
-  ], // exactly 3 entries, each a genuinely different big idea (or genuinely different execution of the same required angle)
+  ]${singleAdOnly ? ' // exactly 1 entry' : `, // exactly 3 entries, each a genuinely different big idea (or genuinely different execution of the same required angle)
   "extraHooks": [
     {"category": "Curiosity", "hook": "string"},
     {"category": "Problem", "hook": "string"},
@@ -873,11 +936,12 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
     {"category": "Desire", "hook": "string"},
     {"category": "Sales", "hook": "string"},
     {"category": "UGC", "hook": "string"}
-  ] // exactly 10 entries spanning these 6 categories (not necessarily even per category) — each genuinely different, not filler
+  ] // exactly 10 entries spanning these 6 categories (not necessarily even per category) — each genuinely different, not filler, same no-price/no-shaming/no-overclaim rules as above`}
 }`;
 
   const analysisLines = [
-    `Product Name: ${analysis.productName}`,
+    `Content Type: ${analysis.contentType}`,
+    `Product/Store Name: ${analysis.productName}`,
     analysis.productCategory ? `Category: ${analysis.productCategory}` : null,
     analysis.targetCustomer ? `Target Customer: ${analysis.targetCustomer}` : null,
     analysis.mainProblem ? `Main Problem: ${analysis.mainProblem}` : null,
@@ -891,33 +955,98 @@ Respond with ONLY a single JSON object (no markdown fences, no commentary) in ex
 
   const user = `${analysisLines}\n\n${buildVideoInputLines(input)}\n\nVerified Claims (the ONLY offer/trust claims allowed in this copy): ${buildVerifiedClaims(input)}`;
 
+  return { system, user };
+}
+
+// Cheap, text-only step — reuses the saved VideoAnalysis instead of the
+// video frames, so "Regenerate"/rewrite actions never re-pay for vision.
+export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoAdCopyInput, extraInstruction?: string): Promise<VideoAdCopyResult> {
+  const prompt = buildVideoAdContentPrompt(analysis, input, undefined, undefined, extraInstruction);
+
   // Raised from 4096 — the hook-engine + internal quality-scoring
   // instructions above ask the model to reason more before finalizing
   // (Sonnet 5 runs adaptive thinking by default), so the old budget was
   // tight for that plus the actual 3-version + 10-hook JSON output.
-  const raw = await callClaude('video_copy', system, user, 8192);
+  const raw = await callClaude('video_copy', prompt.system, prompt.user, 8192);
   const parsed = extractJson(raw) as any;
 
   const versions: VideoAdVersion[] = Array.isArray(parsed?.versions)
-    ? parsed.versions.slice(0, 3).map((v: any) => ({
-        angle: String(v?.angle ?? ''),
-        hook: String(v?.hook ?? ''),
-        primaryText: String(v?.primaryText ?? ''),
-        headline: String(v?.headline ?? ''),
-        description: String(v?.description ?? ''),
-        cta: String(v?.cta ?? ''),
-      }))
+    ? parsed.versions.slice(0, 3).map((v: any) => {
+        const hook = String(v?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'video versions');
+        return {
+          angle: String(v?.angle ?? ''),
+          hook,
+          primaryText: String(v?.primaryText ?? ''),
+          headline: String(v?.headline ?? ''),
+          description: String(v?.description ?? ''),
+          cta: String(v?.cta ?? ''),
+        };
+      })
+    : [];
+  const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
+    ? parsed.hookOptions.slice(0, 3).map((h: any) => {
+        const hook = String(h?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'video hookOptions');
+        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+      })
     : [];
   const extraHooks: VideoExtraHook[] = Array.isArray(parsed?.extraHooks)
-    ? parsed.extraHooks.slice(0, 10).map((h: any) => ({
-        category: (['Curiosity', 'Problem', 'Benefit', 'Desire', 'Sales', 'UGC'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'],
-        hook: String(h?.hook ?? ''),
-      }))
+    ? parsed.extraHooks.slice(0, 10).map((h: any) => {
+        const hook = String(h?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'video extraHooks');
+        return {
+          category: (['Curiosity', 'Problem', 'Benefit', 'Desire', 'Sales', 'UGC'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'],
+          hook,
+        };
+      })
     : [];
 
   if (!versions.length) {
     throw new AdCopyGeneratorError('AI did not return any ad copy versions.');
   }
 
-  return { versions, extraHooks };
+  return { versions, hookOptions, extraHooks };
+}
+
+// Lightweight, text-only regeneration of JUST the best-pick video version —
+// used by "Use This Hook" (forcedHook set) and "Generate 3 New Hooks"
+// (forcedHook omitted). Never touches versions[1]/versions[2]/extraHooks and
+// never re-sends video frames, so it's much cheaper than a full
+// generateVideoAdCopy() call.
+export async function regenerateVideoAdCreativeHook(
+  analysis: VideoAnalysis,
+  input: VideoAdCopyInput,
+  forcedHook?: { hook: string; angle: string },
+  previousHooks?: string[],
+): Promise<{ adVersion: VideoAdVersion; hookOptions: AdHookOption[] }> {
+  const prompt = buildVideoAdContentPrompt(analysis, input, forcedHook, previousHooks);
+  const raw = await callClaude('video_ad_hook_regen', prompt.system, prompt.user, 4096);
+  const parsed = extractJson(raw) as any;
+
+  const first = Array.isArray(parsed?.versions) ? parsed.versions[0] : null;
+  if (!first) {
+    throw new AdCopyGeneratorError('AI did not return an ad version.');
+  }
+
+  const regenHook = String(first?.hook ?? forcedHook?.hook ?? '').toUpperCase();
+  warnIfHookHasPrice(regenHook, 'regenerateVideoAdCreativeHook');
+  const adVersion: VideoAdVersion = {
+    angle: String(first?.angle ?? forcedHook?.angle ?? ''),
+    hook: regenHook,
+    primaryText: String(first?.primaryText ?? ''),
+    headline: String(first?.headline ?? ''),
+    description: String(first?.description ?? ''),
+    cta: String(first?.cta ?? ''),
+  };
+
+  const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
+    ? parsed.hookOptions.slice(0, 3).map((h: any) => {
+        const hook = String(h?.hook ?? '').toUpperCase();
+        warnIfHookHasPrice(hook, 'regenerateVideoAdCreativeHook.hookOptions');
+        return { hook, angle: String(h?.angle ?? ''), isBestPick: !!h?.isBestPick };
+      })
+    : [];
+
+  return { adVersion, hookOptions };
 }
