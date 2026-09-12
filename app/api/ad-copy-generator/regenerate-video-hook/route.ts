@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       analysis, product_name, selling_price, original_price, target_audience,
-      language, tone, ad_objective, ad_angle, copy_length, offer,
+      language, tone, ad_objective, ad_angle, copy_length, hide_price_in_ad_copy, offer,
       selected_hook, selected_angle, previous_hooks,
     } = body;
 
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       adObjective: ad_objective?.trim() || undefined,
       adAngle,
       copyLength,
+      hidePriceInAdCopy: hide_price_in_ad_copy === false ? false : true,
       offer: {
         cod: !!offer?.cod,
         freeShipping: !!offer?.freeShipping,

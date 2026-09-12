@@ -109,6 +109,7 @@ export default function AdCopyGeneratorClient() {
   const [shopName, setShopName] = useState('');
   const [price, setPrice] = useState('');
   const [promoOffer, setPromoOffer] = useState('');
+  const [hidePriceInAdCopy, setHidePriceInAdCopy] = useState(true);
   const [deliveryTime, setDeliveryTime] = useState('');
   // Was defaulting to 'COD' — since this field's value directly drives the
   // backend's COD-verified-claim check, a pre-filled default silently
@@ -237,6 +238,7 @@ export default function AdCopyGeneratorClient() {
           follow_up_count: followUpCount,
           ad_objective: adObjective,
           copy_length: copyLength,
+          hide_price_in_ad_copy: hidePriceInAdCopy,
           shop_name: shopName.trim(),
           price: price.trim(),
           promo_offer: promoOffer.trim(),
@@ -281,6 +283,7 @@ export default function AdCopyGeneratorClient() {
           follow_up_count: followUpCount,
           ad_objective: adObjective,
           copy_length: copyLength,
+          hide_price_in_ad_copy: hidePriceInAdCopy,
           shop_name: shopName.trim(),
           price: price.trim(),
           promo_offer: promoOffer.trim(),
@@ -450,6 +453,13 @@ export default function AdCopyGeneratorClient() {
             <div>
               <label className="form-label">Promo / Offer <span className="text-red-500">*</span></label>
               <input type="text" className="form-input" value={promoOffer} onChange={e => setPromoOffer(e.target.value)} placeholder="e.g. BUY 1 TAKE 1, FREE SHIPPING" />
+            </div>
+            <div>
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" className="mt-0.5" checked={hidePriceInAdCopy} onChange={e => setHidePriceInAdCopy(e.target.checked)} />
+                <span>Hide Price in Ad Copy</span>
+              </label>
+              <p className="text-[10px] text-gray-400 mt-1 ml-6">Hook, headline and caption won't show exact price. Promo mechanics like Buy 1 Take 1 can still be mentioned.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

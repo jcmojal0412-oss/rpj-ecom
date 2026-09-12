@@ -40,6 +40,7 @@ export interface AdCopyInput {
   followUpCount: 0 | 5 | 10;
   adObjective: typeof TEXT_AD_OBJECTIVES[number];
   copyLength: typeof COPY_LENGTHS[number];
+  hidePriceInAdCopy: boolean; // hides exact price from Hook/Headline/Caption to drive inquiries — price still appears in Main Flow/Messaging Template
   shopName: string;
   price: string;
   promoOffer: string;
@@ -194,11 +195,50 @@ function finalizeQuickReply(raw: unknown, claims: TextVerifiedClaims): string {
   return scrubbed === original ? original : 'Paano umorder?';
 }
 
+// Code-level backstop for "Hide Price in Ad Copy" — only matches an actual
+// currency-marked amount (₱, PHP, "pesos") or a per-month amount, never a
+// bare number, so promo mechanics like "Buy 1 Take 1" or "2 pcs" are never
+// touched. Two tiers, same rationale as the claim scrubbers above: short
+// fields (headline, description, CTA) get a tight phrase-only removal;
+// primaryText (multi-sentence body copy) gets the sentence-consuming
+// version since a price mention is usually embedded in a full sentence and
+// leaving a half-sentence behind would look broken.
+const EXACT_PRICE_PATTERN_SOURCE = String.raw`(₱\s*[\d,]+(?:\.\d+)?|\bphp\s*[\d,]+(?:\.\d+)?\b|\b[\d,]+(?:\.\d+)?\s*pesos?\b|\b[\d,]+(?:\.\d+)?\s*(?:\/|per)\s*month\b)`;
+
+function stripExactPriceShort(text: string): string {
+  if (!text) return text;
+  const pattern = new RegExp(EXACT_PRICE_PATTERN_SOURCE, 'gi');
+  return text.replace(pattern, '').replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
+}
+
+function stripExactPriceLong(text: string): string {
+  if (!text) return text;
+  const pattern = new RegExp(`[^.\\n]*${EXACT_PRICE_PATTERN_SOURCE}[^.\\n]*\\.?`, 'gi');
+  return text
+    .replace(pattern, '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
+    .join('\n')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+// Applies the "Hide Price in Ad Copy" backstop when enabled — a no-op
+// otherwise. 'short' = headline/description/CTA (tight phrase removal),
+// 'long' = primaryText/body (sentence-level removal).
+function applyPriceVisibility(text: string, hidePriceInAdCopy: boolean, tier: 'short' | 'long'): string {
+  if (!hidePriceInAdCopy || !text) return text;
+  return tier === 'short' ? stripExactPriceShort(text) : stripExactPriceLong(text);
+}
+
 // A hook is one short line, so unlike stripUnverifiedClaims (which removes
 // whole sentences/bullets), removing a price substring here would just leave
 // a broken fragment — not safe to auto-fix. This only detects and logs, so a
 // prompt-instruction slip is visible instead of silently shipping to the UI.
-const PRICE_IN_HOOK_PATTERN = /₱\s*\d|(?<!\d)\d+\s*%\s*(off|discount)|\bbuy\s*1\s*take\s*1\b|\bb1t1\b/i;
+// Deliberately does NOT flag "Buy 1 Take 1"/promo-mechanic mentions — those
+// are allowed in hooks even with price hiding on; only an actual peso
+// amount or percentage discount counts as "price" here.
+const PRICE_IN_HOOK_PATTERN = /₱\s*\d|(?<!\d)\d+\s*%\s*(off|discount)/i;
 
 function warnIfHookHasPrice(hook: string, context: string): void {
   if (hook && PRICE_IN_HOOK_PATTERN.test(hook)) {
@@ -255,7 +295,24 @@ const VOICE_RULES = `Voice rules:
 - Hook in the first line. No generic openers like "Introducing" or "Are you tired of".
 - Write in the requested language/dialect. Taglish means a natural mix of Tagalog and English the way real Filipino sellers post — not a stiff translation.
 - Short paragraphs/line breaks the way real FB posts and Messenger chats look. Light, natural emoji use that fits the tone — don't overdo it.
-- Always weave in the exact price, offer, and shop trust signals given — never invent numbers or claims.`;
+- Weave in the offer and shop trust signals given — never invent numbers or claims. Whether the exact price itself belongs in the public ad copy is governed by the PRICE VISIBILITY rule elsewhere in this prompt — don't assume it always belongs there.`;
+
+// Shared by both generators — governs whether the exact selling price may
+// appear in the public-facing ad copy (hook/headline/body/description) or
+// must stay hidden to drive curiosity/inquiries. The hook NEVER gets price
+// regardless of this setting (that's an older, unconditional rule) — this
+// only changes headline/body/description, which previously always included
+// price. Verified promo mechanics (Buy 1 Take 1, bundle, free gift, etc.)
+// stay mentionable either way, since they aren't the exact price.
+function buildPriceVisibilityGuidance(hidePriceInAdCopy: boolean, promoText: string): string {
+  if (!hidePriceInAdCopy) {
+    return 'PRICE VISIBILITY: Hide Price in Ad Copy is OFF for this ad — you may state the real price/offer naturally in the headline and body copy as usual (the hook itself still never carries price, per the hook rules above).';
+  }
+  const promoLine = promoText.trim()
+    ? `Verified promo mechanics may still be mentioned naturally since they were actually given ("${promoText.trim()}") — e.g. "BUY 1 TAKE 1 AVAILABLE 🎁🔥", "MAY BUNDLE PROMO PA. ✨" — but never combine a promo mechanic with the exact peso amount ("BUY 1 TAKE 1 FOR ₱999" is NOT allowed; "BUY 1 TAKE 1 AVAILABLE 🎁🔥" is).`
+    : 'No promo mechanic was given, so do not invent or imply one (no "may promo pa" if none was confirmed) — build curiosity from the product/benefit itself instead.';
+  return `PRICE VISIBILITY — HIDE PRICE IN AD COPY IS ON: the goal of this ad is to create curiosity and drive inquiries, not to close the sale on price alone. Do NOT state the exact price anywhere in the headline, primaryText/body, or description — no "₱599", "PHP 599", "599 pesos", "only ₱999", a monthly price, or an exact installment amount. ${promoLine} Build natural curiosity instead: describe the benefit/promo teaser, then let the CTA invite a message to learn the price. The exact price may (and should) still appear in mainFlowReply and any messaging/chat template, since those only reach someone who already engaged — that's the intended funnel: Ad (curiosity) → Message (price revealed).`;
+}
 
 // Shared hook-writing style — the single rule set both the Image/Photo and
 // Video generators use for every hook they produce (3 Main Hook Options,
@@ -452,12 +509,17 @@ const TEXT_COPY_LENGTH_GUIDANCE: Record<typeof COPY_LENGTHS[number], string> = {
   Long: 'primaryText should run about 150-250 words — every sentence must still earn its place, never pad with filler.',
 };
 
-const TEXT_CTA_GUIDANCE = `CTA must match the Ad Objective given below:
+function buildTextCtaGuidance(hidePriceInAdCopy: boolean): string {
+  const inquiryNote = hidePriceInAdCopy
+    ? `\nPrice is hidden from this ad's copy, so for "Messages"/"Comment Automation" objectives prefer an inquiry-driving CTA instead of an order-driving one — e.g. "Message us para malaman ang promo price. 💬", "PM us for today's promo details. 🔥", "Message us para ma-send namin ang details.", "Type 'PROMO' para malaman ang current offer." Avoid a bare "Message us to order" here — there's nothing to order on yet, only something to ask about. Keep it natural, never fake urgency.`
+    : '';
+  return `CTA must match the Ad Objective given below:
 - "Messages": "Message us to order", "Send us a message for ordering details."
 - "Comment Automation": a comment-keyword CTA, e.g. 'Comment "LUCKY" and we'll send you the details.'
 - "Website Sales": "Tap Shop Now to order."
 - "Engagement": an engagement-appropriate CTA suited to the product, not a hard sell.
-Do not default to "Comment ___" for every objective — only use it when the objective is Comment Automation.`;
+Do not default to "Comment ___" for every objective — only use it when the objective is Comment Automation.${inquiryNote}`;
+}
 
 function buildAdContentPrompt(
   input: AdCopyInput,
@@ -512,7 +574,9 @@ SYMBOLIC / SUPERSTITION CLAIMS: for lucky charms, feng shui items, evil-eye prod
 
 VERIFIED CLAIMS ONLY — critical: the ONLY trust/offer claims you may state are: ${describeVerifiedClaims(verifiedClaims)}. Never state a claim not on this list (no "100% original", "legit", "registered business", "with permit", "money-back guarantee", "warranty", "FDA approved", "doctor recommended") even if it seems like a safe assumption for this kind of product. This applies to EVERY field you return, including quickReplies and mainFlowReply — not just primaryText/headline. If COD was not confirmed above, do not write a quickReply like "Paano mag-COD?" — use a payment-neutral phrasing like "Paano umorder?" instead.
 
-${TEXT_CTA_GUIDANCE}
+${buildPriceVisibilityGuidance(input.hidePriceInAdCopy, input.promoOffer)}
+
+${buildTextCtaGuidance(input.hidePriceInAdCopy)}
 
 ${input.targetAudience ? '' : 'Target Audience was left blank — infer a likely audience internally from the product (e.g. "Home décor and gift buyers, likely women 25-55") and write for that audience, but do not state a fabricated demographic as if the seller confirmed it.'}
 
@@ -692,7 +756,7 @@ export function parseAdCopyInputBody(body: any): AdCopyInput {
   const {
     product_name, description, key_features, target_audience,
     language, tone, creativity, variants, follow_up_count,
-    ad_objective, copy_length,
+    ad_objective, copy_length, hide_price_in_ad_copy,
     shop_name, price, promo_offer, delivery_time, payment_method, legitimacy_info,
     additional_instructions, product_image_base64, product_image_media_type,
   } = body;
@@ -712,6 +776,7 @@ export function parseAdCopyInputBody(body: any): AdCopyInput {
     followUpCount: (followUpAllowed.includes(Number(follow_up_count)) ? Number(follow_up_count) : 0) as 0 | 5 | 10,
     adObjective: (TEXT_AD_OBJECTIVES as readonly string[]).includes(ad_objective) ? ad_objective : 'Messages',
     copyLength: (COPY_LENGTHS as readonly string[]).includes(copy_length) ? copy_length : 'Standard',
+    hidePriceInAdCopy: hide_price_in_ad_copy === false ? false : true,
     shopName: shop_name?.trim() || '',
     price: price?.trim() || '',
     promoOffer: promo_offer?.trim() || '',
@@ -751,8 +816,8 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
         return {
           hook: finalizeHook(v?.hook, angle, 'adCreatives', verifiedClaims),
           angle,
-          headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
-          primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
+          headline: applyPriceVisibility(stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short'),
+          primaryText: applyPriceVisibility(stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long'),
           messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
           quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
         };
@@ -836,8 +901,8 @@ export async function regenerateAdCreativeHook(
   const adCreative: AdCreativeVariant = {
     hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateAdCreativeHook', verifiedClaims),
     angle: regenAngle,
-    headline: stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims),
-    primaryText: stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims),
+    headline: applyPriceVisibility(stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short'),
+    primaryText: applyPriceVisibility(stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long'),
     messagingTemplate: stripUnverifiedClaims(String(first?.messagingTemplate ?? ''), verifiedClaims),
     quickReplies: Array.isArray(first?.quickReplies) ? first.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
   };
@@ -886,6 +951,7 @@ export interface VideoAdCopyInput {
   adObjective?: string;
   adAngle: 'AUTO' | typeof AD_ANGLES[number];
   copyLength: typeof COPY_LENGTHS[number];
+  hidePriceInAdCopy: boolean; // hides exact price from Hook/Headline/Caption/Description to drive inquiries
   offer: VideoOfferInput;
 }
 
@@ -1034,8 +1100,14 @@ function stripVideoOverclaimsAndFinancing(text: string, financingInfo: string): 
     .replace(/[ \t]{2,}/g, ' ');
 }
 
-function finalizeVideoBodyText(text: string, claims: TextVerifiedClaims, financingInfo: string): string {
-  return stripVideoOverclaimsAndFinancing(stripUnverifiedClaims(text, claims), financingInfo);
+function finalizeVideoBodyText(
+  text: string,
+  claims: TextVerifiedClaims,
+  financingInfo: string,
+  hidePriceInAdCopy: boolean,
+  tier: 'short' | 'long',
+): string {
+  return applyPriceVisibility(stripVideoOverclaimsAndFinancing(stripUnverifiedClaims(text, claims), financingInfo), hidePriceInAdCopy, tier);
 }
 
 // Analyzes the video ONCE (this is the expensive, image-heavy call) and
@@ -1171,7 +1243,7 @@ function buildVideoAdContentPrompt(
       : `Each version must be built around exactly ONE big advertising idea, and the three ideas must be genuinely different from each other — not the same ad paraphrased three times. Pick whichever three angles are actually strongest for THIS content — don't force a template if a different combination fits better.`;
 
   const ctaGuidance = `CTA must match the Ad Objective given below, not default to "comment":
-- "Sales / Conversion": a direct buying CTA — "Message us to order", "Order Now", or "Shop Now" — pick whichever fits how this specific ad is meant to convert (most Filipino ecommerce Messenger ads convert through a message, so default to a message-based CTA unless the objective clearly implies a shop link).
+- "Sales / Conversion": a direct buying CTA — "Message us to order", "Order Now", or "Shop Now" — pick whichever fits how this specific ad is meant to convert (most Filipino ecommerce Messenger ads convert through a message, so default to a message-based CTA unless the objective clearly implies a shop link).${input.hidePriceInAdCopy ? ' Since price is hidden from this ad, prefer an inquiry-driving version instead — e.g. "Message us para malaman ang promo price. 💬", "PM us for today\'s promo details. 🔥" — there\'s nothing to order on yet, only something to ask about.' : ''}
 - "Engagement": a comment-based CTA, e.g. "Comment '[a short word]' and we'll send you the details" — used ONLY for this objective, not by default.
 - "Retargeting": a direct, assume-familiarity closing CTA — "Order Now", "Claim Yours Today" — this audience already knows the product.
 - "Product Awareness": a lower-commitment CTA — "Learn More", "See More", "Message us for details".
@@ -1230,6 +1302,8 @@ VERIFIED CLAIMS ONLY — this is critical: NEVER state a registered-business cla
 FINANCING: ${financingLine}
 
 SCARCITY: ${scarcityAllowed ? 'Limited-Time Sale and/or Limited Stock was confirmed below — you may use real urgency language tied to that fact.' : 'Neither Limited-Time Sale nor Limited Stock was confirmed — do NOT invent urgency ("unti na lang stock", "last chance", "hanggang today lang", "ubos na"). Sell on merit, not fake scarcity.'}
+
+${buildPriceVisibilityGuidance(input.hidePriceInAdCopy, describeOffer(input.offer) || '')}
 
 ${ctaGuidance}
 
@@ -1307,9 +1381,9 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
         return {
           angle,
           hook: finalizeHook(v?.hook, angle, 'video versions', claims),
-          primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo),
-          headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo),
-          description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo),
+          primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long'),
+          headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
+          description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
           cta: String(v?.cta ?? ''),
         };
       })
@@ -1359,9 +1433,9 @@ export async function regenerateVideoAdCreativeHook(
   const adVersion: VideoAdVersion = {
     angle: regenAngle,
     hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateVideoAdCreativeHook', claims),
-    primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo),
-    headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo),
-    description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo),
+    primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long'),
+    headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
+    description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
     cta: String(first?.cta ?? ''),
   };
 

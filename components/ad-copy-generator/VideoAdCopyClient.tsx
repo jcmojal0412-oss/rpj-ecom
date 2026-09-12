@@ -94,6 +94,7 @@ export default function VideoAdCopyClient() {
   const [offerLimitedTime, setOfferLimitedTime] = useState(false);
   const [discountPercent, setDiscountPercent] = useState('');
   const [customOffer, setCustomOffer] = useState('');
+  const [hidePriceInAdCopy, setHidePriceInAdCopy] = useState(true);
 
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingCopy, setGeneratingCopy] = useState(false);
@@ -165,6 +166,7 @@ export default function VideoAdCopyClient() {
           ad_objective: adObjective,
           ad_angle: adAngle,
           copy_length: copyLength,
+          hide_price_in_ad_copy: hidePriceInAdCopy,
           offer: offerPayload(),
           extra_instruction: extraInstruction,
         }),
@@ -212,6 +214,7 @@ export default function VideoAdCopyClient() {
       formData.append('offer_limited_time_sale', String(offerLimitedTime));
       if (discountPercent) formData.append('offer_discount_percent', discountPercent);
       if (customOffer) formData.append('offer_custom', customOffer);
+      formData.append('hide_price_in_ad_copy', String(hidePriceInAdCopy));
 
       const res = await fetch('/api/ad-copy-generator/analyze-video', { method: 'POST', body: formData });
       const data = await res.json();
@@ -255,6 +258,7 @@ export default function VideoAdCopyClient() {
           ad_objective: adObjective,
           ad_angle: adAngle,
           copy_length: copyLength,
+          hide_price_in_ad_copy: hidePriceInAdCopy,
           offer: offerPayload(),
           selected_hook: hook,
           selected_angle: angle,
@@ -402,6 +406,13 @@ export default function VideoAdCopyClient() {
                 <input type="text" className="form-input" value={customOffer} onChange={e => setCustomOffer(e.target.value)} placeholder="e.g. Buy 2 Take 1" />
               </div>
             </div>
+            <div>
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" className="mt-0.5" checked={hidePriceInAdCopy} onChange={e => setHidePriceInAdCopy(e.target.checked)} />
+                <span>Hide Price in Ad Copy</span>
+              </label>
+              <p className="text-[10px] text-gray-400 mt-1 ml-6">Hook, headline and caption won't show exact price. Promo mechanics like Buy 1 Take 1 can still be mentioned.</p>
+            </div>
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -534,7 +545,7 @@ export default function VideoAdCopyClient() {
                     {result.extraHooks.map((h, i) => (
                       <div key={i} className="flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 p-2.5">
                         <span className="text-[10px] font-semibold text-orange-500 uppercase mt-0.5 w-14 shrink-0">{h.category}</span>
-                        <p className="text-sm text-gray-700 flex-1">{h.hook}</p>
+                        <p className="text-sm font-bold text-gray-900 flex-1">{h.hook}</p>
                         <CopyButton text={h.hook} />
                       </div>
                     ))}

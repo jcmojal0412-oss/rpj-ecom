@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { analysis, product_name, selling_price, original_price, target_audience, language, tone, ad_objective, ad_angle, copy_length, offer, extra_instruction } = body;
+    const { analysis, product_name, selling_price, original_price, target_audience, language, tone, ad_objective, ad_angle, copy_length, hide_price_in_ad_copy, offer, extra_instruction } = body;
 
     if (!analysis || typeof analysis !== 'object' || !analysis.productName) {
       return NextResponse.json({ error: 'Missing product analysis — re-analyze the video first.' }, { status: 400 });
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       adObjective: ad_objective?.trim() || undefined,
       adAngle,
       copyLength,
+      hidePriceInAdCopy: hide_price_in_ad_copy === false ? false : true,
       offer: {
         cod: !!offer?.cod,
         freeShipping: !!offer?.freeShipping,

@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       adObjective: (formData.get('ad_objective') as string)?.trim() || undefined,
       adAngle,
       copyLength,
+      hidePriceInAdCopy: formData.get('hide_price_in_ad_copy') === 'false' ? false : true,
       offer: {
         cod: formData.get('offer_cod') === 'true',
         freeShipping: formData.get('offer_free_shipping') === 'true',
