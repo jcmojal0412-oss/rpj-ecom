@@ -130,9 +130,11 @@ function describeVerifiedClaims(c: TextVerifiedClaims): string {
 
 // Second line of defense on top of the prompt instruction — strips known
 // unverified-claim phrases out of generated text if their guard is false,
-// so a prompt-following slip doesn't reach the user.
+// so a prompt-following slip doesn't reach the user. Broadened to catch
+// standalone "legit"/"trusted seller" phrasing, not just "original and
+// legit" — a seller-audit found these slipping through unstripped.
 const CLAIM_STRIP_RULES: { active: (c: TextVerifiedClaims) => boolean; patterns: RegExp[] }[] = [
-  { active: c => !c.original, patterns: [/100%\s*original[^.\n]*\.?/gi, /\boriginal\s*(and|at)\s*legit\b[^.\n]*\.?/gi, /\bauthentic\s*product\b[^.\n]*\.?/gi] },
+  { active: c => !c.original, patterns: [/100%\s*original[^.\n]*\.?/gi, /\boriginal\s*(and|at)\s*legit\b[^.\n]*\.?/gi, /\bauthentic\s*product\b[^.\n]*\.?/gi, /\b100%\s*legit\b[^.\n]*\.?/gi, /\btrusted\s*seller\b[^.\n]*\.?/gi] },
   { active: c => !c.moneyBackGuarantee, patterns: [/money[\s-]?back guarantee[^.\n]*\.?/gi] },
   { active: c => !c.registeredBusiness, patterns: [/registered business[^.\n]*\.?/gi] },
   { active: c => !c.permit, patterns: [/\bwith permit\b[^.\n]*\.?/gi, /\bbusiness permit\b[^.\n]*\.?/gi] },
@@ -155,6 +157,41 @@ function stripUnverifiedClaims(text: string, claims: TextVerifiedClaims): string
     .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
     .join('\n')
     .replace(/[ \t]{2,}/g, ' ');
+}
+
+// Tight, phrase-only variant of CLAIM_STRIP_RULES for SHORT fields (hooks,
+// quick replies) — the sentence-consuming `[^.\n]*\.?` suffix above is
+// designed for multi-sentence body copy; on a short one-line field with no
+// trailing period it would greedily eat the rest of the line, potentially
+// wiping the entire hook/reply instead of just the unverified phrase.
+const SHORT_FIELD_CLAIM_PATTERNS: { active: (c: TextVerifiedClaims) => boolean; patterns: RegExp[] }[] = [
+  { active: c => !c.original, patterns: [/100%\s*original\b/gi, /\boriginal\s*(and|at)\s*legit\b/gi, /\bauthentic\b/gi, /\blegit\b/gi] },
+  { active: c => !c.moneyBackGuarantee, patterns: [/money[\s-]?back guarantee\b/gi] },
+  { active: c => !c.registeredBusiness, patterns: [/registered business\b/gi] },
+  { active: c => !c.permit, patterns: [/\bwith permit\b/gi, /\bbusiness permit\b/gi, /\bpermit\b/gi] },
+  { active: c => !c.fdaApproved, patterns: [/fda[\s-]?approved\b/gi] },
+  { active: c => !c.warranty, patterns: [/\bwarranty\b/gi] },
+  { active: c => !c.freeShipping, patterns: [/free shipping\b/gi] },
+  { active: c => !c.cod, patterns: [/\bcod\b/gi, /cash on delivery\b/gi] },
+];
+
+function scrubShortField(text: string, claims: TextVerifiedClaims): string {
+  if (!text) return text;
+  let result = text;
+  for (const { active, patterns } of SHORT_FIELD_CLAIM_PATTERNS) {
+    if (!active(claims)) continue;
+    for (const p of patterns) result = result.replace(p, '');
+  }
+  return result.replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
+}
+
+// If a quick reply mentioned an unverified claim (e.g. "Paano mag-COD?" when
+// COD was never confirmed), don't ship the scrubbed-but-broken fragment
+// ("Paano mag-?") — replace the whole reply with a safe, generic fallback.
+function finalizeQuickReply(raw: unknown, claims: TextVerifiedClaims): string {
+  const original = String(raw ?? '').trim();
+  const scrubbed = scrubShortField(original, claims);
+  return scrubbed === original ? original : 'Paano umorder?';
 }
 
 // A hook is one short line, so unlike stripUnverifiedClaims (which removes
@@ -235,6 +272,8 @@ HARD REQUIREMENT — REAL EMOTION: before finalizing any hook, silently ask "Ano
 - Feature/Product Demonstration angle → lead with surprise, curiosity, "wait for it," a visual reveal — not a spec-style statement of what the feature is.
 - Convenience angle → lead with relief, ease, "ready na," less hassle — not logistics-documentation phrasing ("may COD", "may payment options available").
 
+DESCRIPTIVE IS NOT THE SAME AS EMOTIONAL: a hook that describes what the product looks like or is made of (e.g. naming its materials/components as the whole sentence) is a spec description wearing a hook's clothing — it belongs in the body copy, not the opening line. Test: does the hook lead with a FEELING, or does it lead with a physical description that happens to end on a feeling word? If it's the latter, rewrite it to lead with the feeling itself, stated simply.
+
 HARD REQUIREMENT — EMOJIS: every hook must contain at least 1 emoji, ideally 1-2, chosen to match the actual emotion and product/angle — never random or unrelated ones (this is enforced in code as a backstop, but you must include the right emoji yourself, not rely on the backstop). Pick from whichever fits, e.g.: Romantic/Engagement/Gift 💍 ❤️ 🥹 ✨ 🎁 💛, Curiosity 👀 😱 ✨, Gadget 📱 🔥 ✨, Home 🏠 😍 ✨, Christmas 🎄 ✨ ❤️, Beauty ✨ 😍 💖, general delight/desire 😍 ✨ 🔥 ⭐, urgency 🔥 😱, convenience 🚚 ⭐. Do not overload with more than 2.
 
 SHORT AND PUNCHY: 4-12 words is the sweet spot, 15 words is the hard ceiling where practical. One strong thought only — no semicolons, no stacked clauses, no explaining. The hook is the emotional punch; the explanation belongs in the body copy, not the hook.
@@ -248,6 +287,22 @@ TONE MATCHES ENERGY: the TONE CONFIGURATION block elsewhere in this prompt is th
 INTERNAL HOOK SCORING (do not show this reasoning, only the final hooks): before choosing your final 3 (or 10, for extra hooks), internally brainstorm at least 9 candidate hooks across different angles, then silently score each 1-10 on: Emotional Impact, Scroll-Stop Potential, Natural Taglish, Product Relevance, Angle Fit, Simplicity, Emoji Fit, Curiosity/Desire, and Ad Objective Fit. Only keep candidates scoring at least 8/10 on Emotional Impact, Natural Taglish, AND Product Relevance — if your best candidate for an angle scores below 8 on any of those three, rewrite it before including it, don't ship it anyway.
 
 These style rules layer on top of (never override) the no-price-in-hook, no-financial-shaming, no-overclaim, verified-claims, and scarcity-gating rules elsewhere in this prompt.`;
+
+// Shared with both generators (like HOOK_STYLE_RULES above) — angle
+// discipline and anti-"poetic AI" guidance for the headline and body copy,
+// not just the hook. Written after seller feedback that generated ads were
+// mixing unrelated angles mid-ad and using brochure/greeting-card English
+// ("A Touch of Golden Fortune at Home", "brings positive energy into your
+// space") instead of sounding like a real Facebook seller.
+const NATURAL_COPY_RULES = `NATURAL, NON-POETIC COPY — applies to the headline and body copy (the hook has its own style rules above):
+
+ONE AD = ONE ANGLE, KEPT CONSISTENT THROUGHOUT: once an angle is chosen for an ad, every field (hook, headline, body) must stay inside that angle's lane end to end. Do not drift into a different angle mid-ad — e.g. a Gift/Emotional ad suddenly mentioning home décor positioning, scarcity, financing, premium/luxury framing, or trust/permit claims — unless that detail genuinely supports the chosen angle. Example for Gift/Emotional: hook = the gift feeling, headline = gift-positioned, body = why it's a meaningful gift + the relevant feature(s) + where/how the recipient enjoys it + the verified offer + one CTA. Nothing else gets mixed in.
+
+HEADLINES MUST SOUND LIKE ECOMMERCE, NOT POETRY: headlines are normally 3-8 words and should sound like something a real Shopee/Facebook seller would type, not a greeting card or brochure line. Avoid poetic/formal English like "A Touch of Golden Fortune at Home" — prefer plain, specific phrasing like "Lucky Vibes for Your Home" or "Meaningful Gift Idea." A more elevated/aspirational register is only earned when Tone is Premium / Yayamanin — never by default.
+
+NO POETIC AI FILLER ANYWHERE IN THE AD: avoid lines like "a touch of fortune," "brings positive energy into your space," or a Filipino equivalent like "parang tahimik na paalala na may magandang bagay na paparating" — these read as AI-written, not like a real seller talking to a customer. Write simple, specific, relatable, sales-focused language instead — every sentence should sound like it could appear in an actual FB Marketplace post.
+
+FINAL GUT CHECK before finalizing any ad: does this sound like a real Facebook seller wrote it, or like a brochure, greeting card, or AI-generated advertisement? If the latter, rewrite it — don't ship copy you wouldn't believe came from a real seller.`;
 
 // One shared Tone configuration for BOTH generators — Tone controls HOW the
 // copy is said (word choice, sentence length, emotional intensity, emoji
@@ -307,14 +362,16 @@ function pickFallbackEmoji(angleOrCategory: string): string {
 }
 
 // Single shared finish-line for every hook this file generates (Image/Photo
-// AND Video, main hook options, extra hooks, and regenerated hooks): applies
+// AND Video, main hook options, extra hooks, and regenerated hooks): scrubs
+// any unverified trust/offer claim that slipped into the hook itself
+// (hooks were previously excluded from claim stripping entirely), applies
 // the mandatory ALL CAPS formatting, warns (doesn't silently fix) if a price
 // slipped through, and deterministically appends a fallback emoji if the
 // model shipped a hook with none — so the "every hook has emoji" hard
 // requirement holds even when a prompt instruction is missed, without
 // paying for an extra regeneration round-trip.
-function finalizeHook(raw: unknown, angleOrCategory: string, context: string): string {
-  let hook = String(raw ?? '').trim();
+function finalizeHook(raw: unknown, angleOrCategory: string, context: string, claims: TextVerifiedClaims): string {
+  let hook = scrubShortField(String(raw ?? '').trim(), claims);
   warnIfHookHasPrice(hook, context);
   if (hook && !EMOJI_PATTERN.test(hook)) {
     hook = `${hook} ${pickFallbackEmoji(angleOrCategory)}`;
@@ -391,7 +448,7 @@ const HIGH_CONVERSION_TECHNIQUES = `High-conversion techniques (apply all of the
 
 const TEXT_COPY_LENGTH_GUIDANCE: Record<typeof COPY_LENGTHS[number], string> = {
   Short: 'primaryText should run about 40-80 words.',
-  Standard: 'primaryText should run about 80-150 words.',
+  Standard: 'primaryText should run about 70-130 words — hook, one short product/desire paragraph, 2-4 relevant benefits, the verified offer, and one CTA. Do not turn this into a long product essay.',
   Long: 'primaryText should run about 150-250 words — every sentence must still earn its place, never pad with filler.',
 };
 
@@ -449,9 +506,11 @@ Return exactly 3 hookOptions, one per chosen angle (genuinely different directio
 
 DO NOT TURN KEY FEATURES INTO THE AD VERBATIM. Key Features are input data, not the advertisement. For each relevant feature, ask "why should the customer care?" and convert it into a benefit, desire, use case, visual appeal, or emotional value — e.g. "Big Lucky Eye design" becomes "Instant statement piece kahit simple lang ang corner ng bahay," not "Big Lucky Eye design na eye-catching." Never invent a benefit not reasonably supported by the input. Avoid supplier-catalog/spec-sheet vocabulary ("ornate", "filigree", "meticulously crafted", "sophisticated", "exquisite") unless truly unavoidable.
 
-SYMBOLIC / SUPERSTITION CLAIMS: never present luck, protection, healing, or similar symbolic beliefs as proven fact. Instead of "Pang-swerte at proteksyon," prefer "Lucky Eye symbol traditionally associated with good luck & protection" or "Inspired by the traditional Lucky Eye symbol." Keep this conservative — never promise the product will actually bring luck, protection, or a health outcome.
+${NATURAL_COPY_RULES}
 
-VERIFIED CLAIMS ONLY — critical: the ONLY trust/offer claims you may state are: ${describeVerifiedClaims(verifiedClaims)}. Never state a claim not on this list (no "100% original", "registered business", "with permit", "money-back guarantee", "warranty", "FDA approved", "doctor recommended") even if it seems like a safe assumption for this kind of product.
+SYMBOLIC / SUPERSTITION CLAIMS: for lucky charms, feng shui items, evil-eye products, and similar symbolic products, never say or imply the product actually brings luck, fortune, protection, or wealth as a factual result. Instead of "Pang-swerte at proteksyon" or "brings positive energy into your space," prefer conservative, lightly-worded phrasing like "Lucky vibes," "Inspired by traditional lucky coin symbolism," "Traditionally associated with good fortune," or "Meaningful symbolic design." Keep it light and conservative — never promise the product will actually bring luck, protection, wealth, or a health outcome.
+
+VERIFIED CLAIMS ONLY — critical: the ONLY trust/offer claims you may state are: ${describeVerifiedClaims(verifiedClaims)}. Never state a claim not on this list (no "100% original", "legit", "registered business", "with permit", "money-back guarantee", "warranty", "FDA approved", "doctor recommended") even if it seems like a safe assumption for this kind of product. This applies to EVERY field you return, including quickReplies and mainFlowReply — not just primaryText/headline. If COD was not confirmed above, do not write a quickReply like "Paano mag-COD?" — use a payment-neutral phrasing like "Paano umorder?" instead.
 
 ${TEXT_CTA_GUIDANCE}
 
@@ -690,19 +749,19 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
     ? adParsed.adCreatives.map((v: any) => {
         const angle = String(v?.angle ?? '');
         return {
-          hook: finalizeHook(v?.hook, angle, 'adCreatives'),
+          hook: finalizeHook(v?.hook, angle, 'adCreatives', verifiedClaims),
           angle,
           headline: stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims),
           primaryText: stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims),
           messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
-          quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => String(q)) : [],
+          quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
         };
       })
     : [];
   const hookOptions: AdHookOption[] = Array.isArray(adParsed?.hookOptions)
     ? adParsed.hookOptions.slice(0, 3).map((h: any) => {
         const angle = String(h?.angle ?? '');
-        return { hook: finalizeHook(h?.hook, angle, 'hookOptions'), angle, isBestPick: !!h?.isBestPick };
+        return { hook: finalizeHook(h?.hook, angle, 'hookOptions', verifiedClaims), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
   const followUpMessages: string[] = Array.isArray(botParsed?.followUpMessages)
@@ -775,18 +834,18 @@ export async function regenerateAdCreativeHook(
 
   const regenAngle = String(first?.angle ?? forcedHook?.angle ?? '');
   const adCreative: AdCreativeVariant = {
-    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateAdCreativeHook'),
+    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateAdCreativeHook', verifiedClaims),
     angle: regenAngle,
     headline: stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims),
     primaryText: stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims),
     messagingTemplate: stripUnverifiedClaims(String(first?.messagingTemplate ?? ''), verifiedClaims),
-    quickReplies: Array.isArray(first?.quickReplies) ? first.quickReplies.map((q: any) => String(q)) : [],
+    quickReplies: Array.isArray(first?.quickReplies) ? first.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
   };
 
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
         const angle = String(h?.angle ?? '');
-        return { hook: finalizeHook(h?.hook, angle, 'regenerateAdCreativeHook.hookOptions'), angle, isBestPick: !!h?.isBestPick };
+        return { hook: finalizeHook(h?.hook, angle, 'regenerateAdCreativeHook.hookOptions', verifiedClaims), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
 
@@ -1131,6 +1190,8 @@ ${singleAdOnly ? '' : `ONE AD = ONE BIG IDEA:\n${angleInstruction}\nDo not cram 
 BENEFIT OVER FEATURE:
 Convert relevant features into what the customer actually gets, in plain conversational language — never a supplier-catalog or spec-sheet tone. Avoid words like "ornate", "filigree", "aesthetic centerpiece", "meticulously crafted", "intricate detailing", "sophisticated", "exquisite", "premium craftsmanship" unless truly unavoidable. Never invent a benefit not reasonably supported by the analysis below.
 
+${NATURAL_COPY_RULES}
+
 HUMAN, NATURAL VOICE:
 Write like a real Filipino ecommerce marketer, not a translated template. Use natural Taglish when Taglish is selected. Vary sentence structure; avoid robotic phrasing and excessive emojis.
 
@@ -1217,7 +1278,7 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
         const angle = String(v?.angle ?? '');
         return {
           angle,
-          hook: finalizeHook(v?.hook, angle, 'video versions'),
+          hook: finalizeHook(v?.hook, angle, 'video versions', claims),
           primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo),
           headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo),
           description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo),
@@ -1228,13 +1289,13 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
         const angle = String(h?.angle ?? '');
-        return { hook: finalizeHook(h?.hook, angle, 'video hookOptions'), angle, isBestPick: !!h?.isBestPick };
+        return { hook: finalizeHook(h?.hook, angle, 'video hookOptions', claims), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
   const extraHooks: VideoExtraHook[] = Array.isArray(parsed?.extraHooks)
     ? parsed.extraHooks.slice(0, 10).map((h: any) => {
         const category = (['Curiosity', 'Problem', 'Benefit', 'Desire', 'Sales', 'UGC'].includes(h?.category) ? h.category : 'Sales') as VideoExtraHook['category'];
-        return { category, hook: finalizeHook(h?.hook, category, 'video extraHooks') };
+        return { category, hook: finalizeHook(h?.hook, category, 'video extraHooks', claims) };
       })
     : [];
 
@@ -1269,7 +1330,7 @@ export async function regenerateVideoAdCreativeHook(
   const regenAngle = String(first?.angle ?? forcedHook?.angle ?? '');
   const adVersion: VideoAdVersion = {
     angle: regenAngle,
-    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateVideoAdCreativeHook'),
+    hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateVideoAdCreativeHook', claims),
     primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo),
     headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo),
     description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo),
@@ -1279,7 +1340,7 @@ export async function regenerateVideoAdCreativeHook(
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
     ? parsed.hookOptions.slice(0, 3).map((h: any) => {
         const angle = String(h?.angle ?? '');
-        return { hook: finalizeHook(h?.hook, angle, 'regenerateVideoAdCreativeHook.hookOptions'), angle, isBestPick: !!h?.isBestPick };
+        return { hook: finalizeHook(h?.hook, angle, 'regenerateVideoAdCreativeHook.hookOptions', claims), angle, isBestPick: !!h?.isBestPick };
       })
     : [];
 

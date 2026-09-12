@@ -110,7 +110,12 @@ export default function AdCopyGeneratorClient() {
   const [price, setPrice] = useState('');
   const [promoOffer, setPromoOffer] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('COD');
+  // Was defaulting to 'COD' — since this field's value directly drives the
+  // backend's COD-verified-claim check, a pre-filled default silently
+  // "verified" COD for every product even when the seller never confirmed
+  // it, letting a COD quick reply/mention ship unearned. Starts empty; the
+  // placeholder still shows "COD" as an example, not a real value.
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [legitimacyInfo, setLegitimacyInfo] = useState('');
   const [additionalInstructions, setAdditionalInstructions] = useState('');
 
