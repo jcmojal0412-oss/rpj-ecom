@@ -419,7 +419,7 @@ ${previousHooks?.length ? `\nAlready-used hooks this session (generate genuinely
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
   "mainFlowReply": "string — the FIRST auto-reply BotCake sends the instant someone comments or messages the ad. Greets them, restates the offer/price/promo, lists key features as short bullet lines, ends with a clear CTA to reply/order. Chat tone, not ad tone.",
-  ${singleAdOnly ? '' : `"hookOptions": [
+  ${forcedHook ? '' : `"hookOptions": [
     {"hook": "string — normal case, will be uppercased by the app", "angle": "string — the angle name", "isBestPick": true},
     {"hook": "string", "angle": "string", "isBestPick": false},
     {"hook": "string", "angle": "string", "isBestPick": false}
@@ -1089,7 +1089,7 @@ ${extraInstruction ? `\nRewrite instruction for this specific request: ${extraIn
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
-  ${singleAdOnly ? '' : `"hookOptions": [
+  ${forcedHook ? '' : `"hookOptions": [
     {"hook": "string — normal case, will be uppercased by the app", "angle": "string — the angle name", "isBestPick": true},
     {"hook": "string", "angle": "string", "isBestPick": false},
     {"hook": "string", "angle": "string", "isBestPick": false}
