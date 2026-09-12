@@ -1112,9 +1112,35 @@ const CONTENT_TYPE_STRATEGY: Record<typeof CONTENT_TYPES[number], string> = {
   'MULTIPLE PRODUCTS': 'Sell the RANGE/VARIETY shown, not one item as if it were the whole video. Lead with what ties the products together (e.g. a category, a use case, a price range) rather than picking one item and ignoring the rest.',
   'STORE PROMOTION': 'Sell the STORE/SHOP itself — trust, selection, convenience of buying from this specific seller. Use the "Store Advantage" angle (wide selection, one-stop shop, trusted seller) as a first-class option alongside the usual angles. Do not invent a single "product" that was never named.',
   'SALE / CAMPAIGN': 'Sell the SALE EVENT — what makes this specific sale worth acting on now (real discount, real limited timeframe, real selection). Scarcity/urgency language is only allowed per the SCARCITY rule below — a sale name alone does not license fake urgency.',
-  SERVICE: 'Sell the OUTCOME of the service (what changes for the customer), not physical product features — build trust/expertise/reliability since services are bought on confidence.',
+  SERVICE: 'Sell trust and problem-solving, not physical product features — services are bought on confidence, not specs. Do NOT use the physical-product caption structure for this ad; follow the SERVICE AD FRAMEWORK below instead.',
   EVENT: 'Sell the EXPERIENCE of attending/participating — what happens there and why it is worth showing up, anchored to the actual date/details given.',
 };
+
+// Only spliced in when Content Type = SERVICE — services (repair centers,
+// consultations, etc.) need a different caption shape and a much more
+// conservative claims posture than a physical-product ad: never promise a
+// repair/outcome will succeed, never invent scarcity ("limited slots") or
+// credentials, and the CTA has to remove friction by telling the customer
+// exactly what to send instead of a bare "message us."
+const SERVICE_AD_RULES = `THIS IS A SERVICE AD (Content Type = SERVICE) — do not force the physical-product caption structure onto this ad. Services are sold on trust and problem-solving, not product features. Follow this framework instead:
+
+SERVICE CAPTION FRAMEWORK: Hook → the customer's actual concern/problem → reassurance or what happens when they reach out → what services/concerns are actually supported → verified advantage/offer (only if confirmed) → location (only if factually given) → a clear next action → CTA. Do not force the generic (Hook → Desire → Product → Benefit → Offer → CTA) shape onto this ad.
+
+DO NOT OVERPROMISE THE SERVICE: never say "Kaya namin ayusin/gawin kahit ano," "kahit anong sira/problema kaya namin," "Guaranteed maayos/resolved," or "Sure repair/fix" unless explicitly verified in the input. Prefer scoped, honest phrasing instead — e.g. "We accept selected [the specific units/concerns actually shown or given] repair/service concerns," or naturally in Taglish "Pwede mong ipa-check sa amin ang [units/concerns] mo." Never guarantee every case can be resolved.
+
+NO INVENTED SCARCITY: never generate "LIMITED SLOTS," "LAST SLOT," "BOOK NOW BEFORE SLOTS RUN OUT," or similar unless Limited Stock or Limited-Time Sale was explicitly confirmed in the offer below. If not confirmed, omit scarcity/urgency language entirely — sell on trust and clarity instead.
+
+SERVICE TRUST COPY: address what customers actually worry about, when relevant to what's shown — what might be wrong with their unit/situation, whether they can trust the provider, roughly what to expect cost-wise, what happens before service starts, and where the service is located. Never invent certifications, years of experience, "authorized" status, warranty, a guaranteed outcome, or original parts unless verified in the input.
+
+BETTER SERVICE CTA: never end on a bare "Message us now" with no direction. Tell the customer exactly what to send or do next — e.g. "I-message mo sa amin ang [unit/situation] + issue para ma-check namin," or "Send us your [item] model and problem para ma-assess muna namin." The CTA should remove friction by naming the exact next step, not just inviting contact.
+
+SERVICE CAPTION READABILITY: if Copy Length is Short, target about 60-100 words specifically for this service ad (enough room for the concern + process + supported services + CTA) rather than the tighter general Short range. Never write one large paragraph — use 1-2 sentence paragraphs, optionally with 2-4 short bullet points listing supported services/benefits. Use about 2-5 relevant emojis spread across the whole caption, never overloaded.
+
+SERVICE HOOK STYLE: the hook still needs real emotion (per the hook style rules above) but grounded in the customer's actual situation/concern, not a generic product hook. Prefer emojis that fit a service/repair context (📱 💻 🔧 🛠️ 📍 ✨) over unrelated emotional emojis — avoid 😅 unless the specific hook genuinely calls for it.
+
+LOCATION HONESTY: never say "MALAPIT LANG" or otherwise imply proximity to the specific viewer — that isn't knowable. If a real location is given, state it factually instead, e.g. "MAY GADGET SERVICE CENTER SA MANDALUYONG. 📍🔧".
+
+NATURAL SERVICE TAGLISH: avoid stiff/awkward terms like "pag-pafix," "maayos namin lahat," or "serbisyong maaasahan" when more natural language exists — prefer "magpa-repair," "ipa-check," "unit," "issue," "service center," "repair," "technician."`;
 
 // Cheap, text-only step — reuses the saved VideoAnalysis instead of the
 // video frames, so "Regenerate"/rewrite actions never re-pay for vision.
@@ -1184,6 +1210,8 @@ ${FB_ADS_COMPLIANCE_RULES}
 
 CONTENT TYPE: ${analysis.contentType}. ${CONTENT_TYPE_STRATEGY[analysis.contentType]}
 
+${analysis.contentType === 'SERVICE' ? SERVICE_AD_RULES : ''}
+
 ${hookEngine}
 
 ${singleAdOnly ? '' : `ONE AD = ONE BIG IDEA:\n${angleInstruction}\nDo not cram every feature, benefit, and selling point into one ad — pick the single strongest idea for each version and build around it.\n`}
@@ -1205,7 +1233,7 @@ SCARCITY: ${scarcityAllowed ? 'Limited-Time Sale and/or Limited Stock was confir
 
 ${ctaGuidance}
 
-FLEXIBLE STRUCTURE — pick whichever fits the angle best, don't force one template every time. Examples: (Hook → Desire → Product → Benefit → Offer → CTA), (Hook → Product Demonstration → Why It Matters → Offer → CTA), (Hook → Problem → Product → Solution → CTA).
+FLEXIBLE STRUCTURE — pick whichever fits the angle best, don't force one template every time. Examples: (Hook → Desire → Product → Benefit → Offer → CTA), (Hook → Product Demonstration → Why It Matters → Offer → CTA), (Hook → Problem → Product → Solution → CTA). Exception: if Content Type is SERVICE, use the SERVICE CAPTION FRAMEWORK above instead of these product-oriented examples.
 
 LENGTH: ${COPY_LENGTH_GUIDANCE[input.copyLength]}
 
