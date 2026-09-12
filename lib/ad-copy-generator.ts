@@ -139,6 +139,19 @@ const FB_ADS_COMPLIANCE_RULES = `Facebook/Meta Ads Policy compliance (this copy 
 - Avoid engagement-bait phrasing ("double tap", "tag a friend to win", "share this post") — a single "Comment [keyword]" CTA is fine.
 - No ALL CAPS words (short acronyms like COD are fine) and no more than one exclamation point per line.`;
 
+// Proven direct-response techniques that increase conversion WITHOUT
+// tripping the compliance rules above — the two sections work together:
+// compliance sets the hard boundaries, this is how to persuade hard within
+// them (real specificity/social proof/friction-removal instead of fake
+// urgency or reader-attribute claims).
+const HIGH_CONVERSION_TECHNIQUES = `High-conversion techniques (apply all of these within the compliance rules above):
+- Open with a pattern-interrupt hook about the PRODUCT or a common situation — a bold specific claim, a relatable scenario, or a genuine question — never an assertion about the reader's own body/health/condition.
+- Lead with the single sharpest, most specific benefit using the REAL numbers given (exact price, exact feature) — one sharp specific claim converts better than several vague ones.
+- Weave in the real social proof from Trust/Legitimacy Info if given (exact review count, years in business, certifications) — specific proof beats generic "trusted by many."
+- Actively remove buying friction: mention COD/no-advance-payment, how simple ordering is, and any return/warranty info given — an unspoken objection killed early closes more sales than one left unaddressed.
+- End every piece with exactly ONE unmistakable next action — tell them precisely what to type or click, never stack multiple competing CTAs.
+- If a real promo/offer was given, state its actual terms with confidence — let urgency come from truth (e.g. "sa ngayon lang available ang promo price na ito") rather than invented countdowns or fabricated stock numbers.`;
+
 function buildAdContentPrompt(input: AdCopyInput): { system: string; user: string } {
   const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
 
@@ -146,6 +159,8 @@ ${VOICE_RULES}
 ${input.productImageBase64 ? `- A photo of the actual product is attached — ground the copy in what it really looks like (color, form factor, material, size cues) instead of generic claims.` : ''}
 
 ${FB_ADS_COMPLIANCE_RULES}
+
+${HIGH_CONVERSION_TECHNIQUES}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
@@ -172,7 +187,7 @@ ${VOICE_RULES}
 
 Respond with ONLY a single JSON object (no markdown fences, no commentary) in exactly this shape:
 {
-  "salesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) that instructs the sales chatbot how to behave: role/identity for this specific shop and product, a Personality section (bullet traits like Friendly, Professional, Natural, Never sound robotic), a Key Features section, a Price section, a Responsibilities section (qualify interest, answer questions, handle objections, close the sale, ask for order details), written in simple Taglish guidance the way a real prompt-engineered assistant persona reads.",
+  "salesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) that instructs the sales chatbot how to behave: role/identity for this specific shop and product, a Personality section (bullet traits like Friendly, Professional, Natural, Never sound robotic), a Key Features section, a Price section, and a Responsibilities section written as a real closing playbook, not generic advice — instruct it to: (1) build desire by walking through the strongest benefits BEFORE stating price, (2) proactively pre-empt the top 2-3 objections a buyer would have about this specific product (price, trust/legitimacy, delivery) using the real info given, (3) use an assumptive-close style once interest is confirmed (ask for order details as the natural next step, not 'do you want to order?'), (4) if the customer hesitates, offer the real promo/guarantee/COD terms as reassurance rather than inventing a new discount, (5) ask for full name, address, and contact number to close. All written in simple Taglish guidance the way a real prompt-engineered sales persona reads — this is an internal chatbot instruction, not public ad copy, so it can be direct and assertive about closing the sale as long as it never invents facts not given in the input.",
   "afterSalesPrompt": "string — a complete BotCake AI system prompt (markdown with ## headers) for the AFTER-SALES assistant: role/identity, Personality section, Key Features recap, Price, and a Responsibilities section focused on post-purchase support only (order status, delivery updates, concerns, returns) — instruct it to understand the customer's concern before replying.",
   "followUpMessages": ["string", "string"] // a Messenger broadcast nurture sequence sent to someone who inquired but hasn't ordered yet. Each message must escalate urgency or add a new angle (limited stock, social proof, curiosity hook, reminder, last call) — never just repeat the same pitch. Use the literal placeholders {{first_name}} and {{PRICING}} inside these messages wherever a name or price would appear, so BotCake fills them in per-recipient at send time — do NOT write the actual price or a real name in these messages.
 }
