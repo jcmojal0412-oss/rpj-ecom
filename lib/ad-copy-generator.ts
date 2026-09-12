@@ -165,24 +165,42 @@ function stripUnverifiedClaims(text: string, claims: TextVerifiedClaims): string
 // designed for multi-sentence body copy; on a short one-line field with no
 // trailing period it would greedily eat the rest of the line, potentially
 // wiping the entire hook/reply instead of just the unverified phrase.
+// Bare-word patterns (legit/authentic/permit/warranty with no surrounding
+// phrase) risk false-positiving on benign Taglish usage that isn't a trust
+// claim at all (e.g. "legit" as slang for "for real", "walang permit
+// kailangan dito" denying a permit is needed) — narrowed to the actual
+// claim-shaped phrasing instead of the bare word, except "warranty" which
+// has no common non-claim usage in this context.
 const SHORT_FIELD_CLAIM_PATTERNS: { active: (c: TextVerifiedClaims) => boolean; patterns: RegExp[] }[] = [
-  { active: c => !c.original, patterns: [/100%\s*original\b/gi, /\boriginal\s*(and|at)\s*legit\b/gi, /\bauthentic\b/gi, /\blegit\b/gi] },
+  { active: c => !c.original, patterns: [/100%\s*original\b/gi, /\boriginal\s*(and|at)\s*legit\b/gi, /\bauthentic\b/gi, /100%\s*legit\b/gi, /\blegit\s*(na)?\s*(seller|tindahan|shop|store|business)\b/gi, /\btrusted\s*seller\b/gi] },
   { active: c => !c.moneyBackGuarantee, patterns: [/money[\s-]?back guarantee\b/gi] },
   { active: c => !c.registeredBusiness, patterns: [/registered business\b/gi] },
-  { active: c => !c.permit, patterns: [/\bwith permit\b/gi, /\bbusiness permit\b/gi, /\bpermit\b/gi] },
+  { active: c => !c.permit, patterns: [/\bwith permit\b/gi, /\bbusiness permit\b/gi] },
   { active: c => !c.fdaApproved, patterns: [/fda[\s-]?approved\b/gi] },
   { active: c => !c.warranty, patterns: [/\bwarranty\b/gi] },
   { active: c => !c.freeShipping, patterns: [/free shipping\b/gi] },
   { active: c => !c.cod, patterns: [/\bcod\b/gi, /cash on delivery\b/gi] },
 ];
 
+// Only applies the whitespace/punctuation cleanup pass when a pattern
+// actually matched — returning the untouched original otherwise. Without
+// this, the cleanup (trimming a trailing period/comma) ran unconditionally,
+// so finalizeQuickReply()'s `scrubbed === original` check misfired on any
+// reply ending in ordinary punctuation even when no claim was stripped,
+// discarding a perfectly valid reply for the generic fallback.
 function scrubShortField(text: string, claims: TextVerifiedClaims): string {
   if (!text) return text;
   let result = text;
+  let changed = false;
   for (const { active, patterns } of SHORT_FIELD_CLAIM_PATTERNS) {
     if (!active(claims)) continue;
-    for (const p of patterns) result = result.replace(p, '');
+    for (const p of patterns) {
+      const next = result.replace(p, '');
+      if (next !== result) changed = true;
+      result = next;
+    }
   }
+  if (!changed) return text;
   return result.replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
 }
 
@@ -202,20 +220,62 @@ function finalizeQuickReply(raw: unknown, claims: TextVerifiedClaims): string {
 // fields (headline, description, CTA) get a tight phrase-only removal;
 // primaryText (multi-sentence body copy) gets the sentence-consuming
 // version since a price mention is usually embedded in a full sentence and
-// leaving a half-sentence behind would look broken.
+// leaving a half-sentence behind would look broken. Compiled once at module
+// scope rather than per call (this runs per field per ad variant per
+// request).
 const EXACT_PRICE_PATTERN_SOURCE = String.raw`(₱\s*[\d,]+(?:\.\d+)?|\bphp\s*[\d,]+(?:\.\d+)?\b|\b[\d,]+(?:\.\d+)?\s*pesos?\b|\b[\d,]+(?:\.\d+)?\s*(?:\/|per)\s*month\b)`;
+const EXACT_PRICE_PATTERN_SHORT = new RegExp(EXACT_PRICE_PATTERN_SOURCE, 'gi');
+const EXACT_PRICE_PATTERN_LONG = new RegExp(`[^.\\n]*${EXACT_PRICE_PATTERN_SOURCE}[^.\\n]*\\.?`, 'gi');
 
 function stripExactPriceShort(text: string): string {
   if (!text) return text;
-  const pattern = new RegExp(EXACT_PRICE_PATTERN_SOURCE, 'gi');
-  return text.replace(pattern, '').replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
+  return text.replace(EXACT_PRICE_PATTERN_SHORT, '').replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
 }
 
 function stripExactPriceLong(text: string): string {
   if (!text) return text;
-  const pattern = new RegExp(`[^.\\n]*${EXACT_PRICE_PATTERN_SOURCE}[^.\\n]*\\.?`, 'gi');
   return text
-    .replace(pattern, '')
+    .replace(EXACT_PRICE_PATTERN_LONG, '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
+    .join('\n')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// EXACT_PRICE_PATTERN_SOURCE only matches a CURRENCY-marked amount (₱/PHP/
+// pesos), deliberately never a bare number — a generic bare-number strip
+// would corrupt promo mechanics like "Buy 1 Take 1" or "2 pcs". But the
+// app's own Price/Selling Price field is stored as a bare number (e.g.
+// "499"), so if the model echoes that literal value with no currency
+// marker ("499 na lang"), the currency-only patterns above miss it. This
+// closes that gap safely: it only strips the SPECIFIC price value the
+// seller actually entered (word-boundary exact match), never an arbitrary
+// number, so unrelated digits (quantities, promo counts) are untouched.
+function stripLiteralPriceShort(text: string, priceValues: (string | undefined)[]): string {
+  let result = text;
+  for (const v of priceValues) {
+    const trimmed = v?.trim();
+    if (!trimmed || !/\d/.test(trimmed)) continue;
+    result = result.replace(new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'g'), '');
+  }
+  if (result === text) return text;
+  return result.replace(/\s{2,}/g, ' ').replace(/^[\s,.\-–—]+|[\s,.\-–—]+$/g, '').trim();
+}
+
+function stripLiteralPriceLong(text: string, priceValues: (string | undefined)[]): string {
+  let result = text;
+  for (const v of priceValues) {
+    const trimmed = v?.trim();
+    if (!trimmed || !/\d/.test(trimmed)) continue;
+    result = result.replace(new RegExp(`[^.\\n]*\\b${escapeRegExp(trimmed)}\\b[^.\\n]*\\.?`, 'g'), '');
+  }
+  if (result === text) return text;
+  return result
     .split('\n')
     .map(line => line.trim())
     .filter(line => line && !/^[✅•\-•]\s*$/.test(line))
@@ -225,10 +285,22 @@ function stripExactPriceLong(text: string): string {
 
 // Applies the "Hide Price in Ad Copy" backstop when enabled — a no-op
 // otherwise. 'short' = headline/description/CTA (tight phrase removal),
-// 'long' = primaryText/body (sentence-level removal).
-function applyPriceVisibility(text: string, hidePriceInAdCopy: boolean, tier: 'short' | 'long'): string {
+// 'long' = primaryText/body (sentence-level removal). literalPriceValues
+// (the seller's actual price/sellingPrice/originalPrice input) additionally
+// catches the model echoing that exact number with no currency marker,
+// which the currency-only patterns above can't see.
+function applyPriceVisibility(
+  text: string,
+  hidePriceInAdCopy: boolean,
+  tier: 'short' | 'long',
+  literalPriceValues: (string | undefined)[] = [],
+): string {
   if (!hidePriceInAdCopy || !text) return text;
-  return tier === 'short' ? stripExactPriceShort(text) : stripExactPriceLong(text);
+  const currencyStripped = tier === 'short' ? stripExactPriceShort(text) : stripExactPriceLong(text);
+  if (!literalPriceValues.length) return currencyStripped;
+  return tier === 'short'
+    ? stripLiteralPriceShort(currencyStripped, literalPriceValues)
+    : stripLiteralPriceLong(currencyStripped, literalPriceValues);
 }
 
 // A hook is one short line, so unlike stripUnverifiedClaims (which removes
@@ -311,7 +383,7 @@ function buildPriceVisibilityGuidance(hidePriceInAdCopy: boolean, promoText: str
   const promoLine = promoText.trim()
     ? `Verified promo mechanics may still be mentioned naturally since they were actually given ("${promoText.trim()}") — e.g. "BUY 1 TAKE 1 AVAILABLE 🎁🔥", "MAY BUNDLE PROMO PA. ✨" — but never combine a promo mechanic with the exact peso amount ("BUY 1 TAKE 1 FOR ₱999" is NOT allowed; "BUY 1 TAKE 1 AVAILABLE 🎁🔥" is).`
     : 'No promo mechanic was given, so do not invent or imply one (no "may promo pa" if none was confirmed) — build curiosity from the product/benefit itself instead.';
-  return `PRICE VISIBILITY — HIDE PRICE IN AD COPY IS ON: the goal of this ad is to create curiosity and drive inquiries, not to close the sale on price alone. Do NOT state the exact price anywhere in the headline, primaryText/body, or description — no "₱599", "PHP 599", "599 pesos", "only ₱999", a monthly price, or an exact installment amount. ${promoLine} Build natural curiosity instead: describe the benefit/promo teaser, then let the CTA invite a message to learn the price. The exact price may (and should) still appear in mainFlowReply and any messaging/chat template, since those only reach someone who already engaged — that's the intended funnel: Ad (curiosity) → Message (price revealed).`;
+  return `PRICE VISIBILITY — HIDE PRICE IN AD COPY IS ON: the goal of this ad is to create curiosity and drive inquiries, not to close the sale on price alone. Do NOT state the exact price anywhere in the headline, primaryText/body, description, or CTA — no "₱599", "PHP 599", "599 pesos", "only ₱999", a monthly price, or an exact installment amount. This includes the CTA itself — never write "Order now for ₱599," an inquiry CTA should never contain a number. ${promoLine} Build natural curiosity instead: describe the benefit/promo teaser, then let the CTA invite a message to learn the price. The exact price may (and should) still appear in mainFlowReply and any messaging/chat template, since those only reach someone who already engaged — that's the intended funnel: Ad (curiosity) → Message (price revealed).`;
 }
 
 // Shared hook-writing style — the single rule set both the Image/Photo and
@@ -562,7 +634,7 @@ Identify the likely buyer and the strongest customer desire/problem/buying motiv
 ${HOOK_STYLE_RULES}
 
 For the 3 chosen angles, draft candidate hooks per the style rules above and silently score them on scroll-stop potential, product relevance, clarity, specificity, customer desire, curiosity, naturalness, originality, emotional impact, natural Taglish/Filipino feel, Facebook feed fit, emoji fit, simplicity, and compliance risk. Reject any candidate that is too formal, too deep/literary in Filipino, too long, or emotionally flat — even if it is technically correct. Do not show this reasoning — only the final selected hooks.
-HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline/the Offer section — never in the hook itself.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the exact selling price, a discount amount, a peso/₱ amount, a shipping fee, or a percentage discount. A verified promo mechanic (e.g. "Buy 1 Take 1 available") MAY appear in the hook per the PRICE VISIBILITY rule elsewhere in this prompt — it is the exact price/amount that's always excluded from the hook, not the promo mechanic itself. The exact price always belongs later, in primaryText/headline/the Offer section — never in the hook itself.
 Avoid defaulting to question hooks ("Looking for...?", "Have you ever...?", "Pagod ka na ba...?", "Gusto mo ba...?", "Ilang beses mo na ba naisip...?") — use them only when genuinely the strongest option. Avoid generic hooks ("Introducing our amazing...", "The perfect product for you...", "Something cute pero useful...", "Order yours today...") as openers.
 Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases — e.g. NOT "ganda nito sa balcony" / "ganda nito sa bahay" / "ganda nito pang-regalo", which are the same angle three times). Mark exactly one as isBestPick based on product fit, target audience, and scroll-stop/conversion potential, using the AI Best Pick criteria above — do NOT default to whichever angle happens to be Offer/Value/hard-sell just because it mentions the deal loudest. adCreatives[0] must be built around the isBestPick hook/angle, with the price/offer introduced afterward in primaryText/headline as normal.`}
 
@@ -816,8 +888,8 @@ export async function generateAdCopy(input: AdCopyInput): Promise<AdCopyResult> 
         return {
           hook: finalizeHook(v?.hook, angle, 'adCreatives', verifiedClaims),
           angle,
-          headline: applyPriceVisibility(stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short'),
-          primaryText: applyPriceVisibility(stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long'),
+          headline: applyPriceVisibility(stripUnverifiedClaims(String(v?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short', [input.price]),
+          primaryText: applyPriceVisibility(stripUnverifiedClaims(String(v?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long', [input.price]),
           messagingTemplate: stripUnverifiedClaims(String(v?.messagingTemplate ?? ''), verifiedClaims),
           quickReplies: Array.isArray(v?.quickReplies) ? v.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
         };
@@ -901,8 +973,8 @@ export async function regenerateAdCreativeHook(
   const adCreative: AdCreativeVariant = {
     hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateAdCreativeHook', verifiedClaims),
     angle: regenAngle,
-    headline: applyPriceVisibility(stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short'),
-    primaryText: applyPriceVisibility(stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long'),
+    headline: applyPriceVisibility(stripUnverifiedClaims(String(first?.headline ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'short', [input.price]),
+    primaryText: applyPriceVisibility(stripUnverifiedClaims(String(first?.primaryText ?? ''), verifiedClaims), input.hidePriceInAdCopy, 'long', [input.price]),
     messagingTemplate: stripUnverifiedClaims(String(first?.messagingTemplate ?? ''), verifiedClaims),
     quickReplies: Array.isArray(first?.quickReplies) ? first.quickReplies.map((q: any) => finalizeQuickReply(q, verifiedClaims)) : [],
   };
@@ -1106,8 +1178,9 @@ function finalizeVideoBodyText(
   financingInfo: string,
   hidePriceInAdCopy: boolean,
   tier: 'short' | 'long',
+  literalPriceValues: (string | undefined)[] = [],
 ): string {
-  return applyPriceVisibility(stripVideoOverclaimsAndFinancing(stripUnverifiedClaims(text, claims), financingInfo), hidePriceInAdCopy, tier);
+  return applyPriceVisibility(stripVideoOverclaimsAndFinancing(stripUnverifiedClaims(text, claims), financingInfo), hidePriceInAdCopy, tier, literalPriceValues);
 }
 
 // Analyzes the video ONCE (this is the expensive, image-heavy call) and
@@ -1265,7 +1338,7 @@ Identify the likely buyer and the strongest motivation for THIS content type. Ch
 ${HOOK_STYLE_RULES}
 
 Silently score each candidate for how likely it is to stop a Filipino Facebook scroller for THIS specific content, weighing emotional impact, natural Taglish/Filipino feel, Facebook feed fit, emoji fit, and simplicity alongside the usual scroll-stop/relevance/clarity criteria — reject anything too formal, too deep/literary in Filipino, too long, or emotionally flat even if it's technically correct — then keep only the 3 strongest. Do not show your brainstorming, only the final selected hooks. Do NOT default to a generic question-opener ("Ilang beses mo na ba naisip...", "Looking for the perfect product?", "Are you tired of...?") unless it is genuinely the strongest option — that should be rare, not the default.
-HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the selling price, a discount amount, a peso/₱ amount, a shipping fee, a percentage discount, or "Buy 1 Take 1"-style offer language. The offer and price always belong later, in primaryText/headline — never in the hook itself.
+HOOK CONTENT RULES: the hook is for ATTENTION and MOTIVATION only — it must NEVER contain the exact selling price, a discount amount, a peso/₱ amount, a shipping fee, or a percentage discount. A verified promo mechanic (e.g. "Buy 1 Take 1 available") MAY appear in the hook per the PRICE VISIBILITY rule elsewhere in this prompt — it is the exact price/amount that's always excluded from the hook, not the promo mechanic itself. The exact price always belongs later, in primaryText/headline — never in the hook itself.
 NEVER write a hook (or any copy) that assumes or questions the buyer's financial situation — banned style: "Kulang sa cash ka ba?", "Wala ka pang budget?", "Hirap ka na bang mag-ipon?". This is financial shaming and is never acceptable, financing angle or not.
 Return exactly 3 hookOptions, one per chosen angle (genuinely different directions, not paraphrases). Mark exactly one as isBestPick based on genuine fit and scroll-stop/conversion potential, using the criteria above — do NOT default to whichever angle happens to be financing, price, or hard-sell just because it's the loudest. versions[0] must be built around the isBestPick hook/angle.`;
 
@@ -1381,10 +1454,10 @@ export async function generateVideoAdCopy(analysis: VideoAnalysis, input: VideoA
         return {
           angle,
           hook: finalizeHook(v?.hook, angle, 'video versions', claims),
-          primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long'),
-          headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
-          description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
-          cta: String(v?.cta ?? ''),
+          primaryText: finalizeVideoBodyText(String(v?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long', [input.sellingPrice, input.originalPrice]),
+          headline: finalizeVideoBodyText(String(v?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
+          description: finalizeVideoBodyText(String(v?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
+          cta: finalizeVideoBodyText(String(v?.cta ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
         };
       })
     : [];
@@ -1433,10 +1506,10 @@ export async function regenerateVideoAdCreativeHook(
   const adVersion: VideoAdVersion = {
     angle: regenAngle,
     hook: finalizeHook(first?.hook ?? forcedHook?.hook, regenAngle, 'regenerateVideoAdCreativeHook', claims),
-    primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long'),
-    headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
-    description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short'),
-    cta: String(first?.cta ?? ''),
+    primaryText: finalizeVideoBodyText(String(first?.primaryText ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'long', [input.sellingPrice, input.originalPrice]),
+    headline: finalizeVideoBodyText(String(first?.headline ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
+    description: finalizeVideoBodyText(String(first?.description ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
+    cta: finalizeVideoBodyText(String(first?.cta ?? ''), claims, analysis.financingInfo, input.hidePriceInAdCopy, 'short', [input.sellingPrice, input.originalPrice]),
   };
 
   const hookOptions: AdHookOption[] = Array.isArray(parsed?.hookOptions)
