@@ -127,13 +127,17 @@ function buildInputLines(input: AdCopyInput): string {
 // latency (both run concurrently) and gives each call a comfortably sized
 // max_tokens budget instead of one shared, easily-exhausted ceiling.
 
-const FB_ADS_COMPLIANCE_RULES = `Facebook Ads Policy compliance (this copy goes straight into Ads Manager — violations risk ad rejection or account restriction):
-- No superlative/absolute claims without substantiation: avoid "best", "#1", "guaranteed", "miracle", "instant results", "cure".
-- No definitive before/after or medical/curative claims, especially for health, beauty, or supplement products — phrase benefits as "helps improve", "supports", or "designed to" rather than stating a guaranteed outcome or specific timeframe (e.g. don't promise skin will look a certain way "in 2 weeks").
-- Never call out or imply a negative personal attribute, health condition, or flaw about the reader (no "Struggling with...?", "Bakit ang taba mo?", "Tired of your dark spots?" style negative framing) — lead with the product/benefit instead.
-- No fake urgency or fabricated scarcity — don't invent countdown timers, fake low-stock numbers, or claims not present in the actual Promo/Offer given.
-- Avoid engagement-bait phrasing Meta restricts, like "double tap", "tag a friend to win", "share this post" — a "Comment [keyword]" CTA is fine, used once, not stacked with other engagement asks.
-- No ALL CAPS words (short acronyms like COD are fine) and no more than one exclamation point per line — over-punctuation reads as spammy to both readers and Meta's automated review.`;
+// Sourced from Meta's official Advertising Standards
+// (transparency.meta.com/policies/ad-standards) — quoted/paraphrased
+// directly from policy text, not general assumptions, so this stays
+// accurate to what actually gets ads rejected/restricted.
+const FB_ADS_COMPLIANCE_RULES = `Facebook/Meta Ads Policy compliance (this copy goes straight into Ads Manager — violations risk ad rejection or account restriction):
+- Never assert or imply a personal attribute about the reader — Meta's Advertising Standards explicitly prohibit ads that assert or imply someone's physical or mental health (including medical conditions), age, disability, or similar traits. Don't phrase copy as if it's stating a fact about the reader (no "you have dark spots", "struggling with acne", "bakit ang taba mo") — talk about the PRODUCT's benefit, never the reader's condition.
+- Never imply negative self-perception to sell a diet, weight-loss, beauty, or health-related product — Meta specifically bans "content implying or attempting to generate negative self-perception in order to promote diet, weight loss or other health related products."
+- No exaggerated, curative, or guaranteed-outcome claims for health/beauty/supplement products — avoid "cure", "guaranteed", "miracle", or a definitive result within a specific timeframe (e.g. don't promise skin will look a certain way "in 2 weeks"); use "helps support" / "may help improve" instead.
+- No deceptive or unrealistic claims — Meta prohibits "deceptive tactics to mislead people... for commercial or financial gain" and unrealistic reward claims. Only state the exact price/offer/stock info actually given in the input — never invent numbers, countdowns, or claims not provided.
+- Avoid engagement-bait phrasing ("double tap", "tag a friend to win", "share this post") — a single "Comment [keyword]" CTA is fine.
+- No ALL CAPS words (short acronyms like COD are fine) and no more than one exclamation point per line.`;
 
 function buildAdContentPrompt(input: AdCopyInput): { system: string; user: string } {
   const system = `You are an expert Facebook Ads + Messenger chatbot copywriter for Filipino online sellers, writing content that will be pasted directly into Facebook Ads Manager and a BotCake AI Messenger automation setup.
