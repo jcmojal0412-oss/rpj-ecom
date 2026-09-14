@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, LayoutGrid, Table, Settings } from 'lucide-react';
+import { Plus, LayoutGrid, Table, Settings, AlertTriangle } from 'lucide-react';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import KanbanBoard from './KanbanBoard';
@@ -76,6 +76,15 @@ export default function ProductResearchClient() {
 
   const firstStatus = statuses[0]?.name ?? 'For Research';
 
+  // Renaming a status (StatusManager) never used to update the cards
+  // already assigned to it — they kept the old status string, which then
+  // matched no column and silently vanished from the Kanban board (still in
+  // the DB, just invisible; findable via Table view since that lists every
+  // item unfiltered). The rename path now cascades going forward, but any
+  // card orphaned by a PAST rename needs a manual one-time nudge back onto
+  // a real column, since there's no way to know which one it used to be in.
+  const orphanedItems = items.filter(i => !statuses.some(s => s.name === i.status));
+
   return (
     <div className="p-6 space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
@@ -117,6 +126,33 @@ export default function ProductResearchClient() {
           </button>
         </div>
       </div>
+
+      {orphanedItems.length > 0 && (
+        <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle size={16} className="shrink-0" />
+            <p className="text-sm font-semibold">
+              {orphanedItems.length} card{orphanedItems.length === 1 ? '' : 's'} lost their column (a status was renamed) — pick where each one belongs:
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {orphanedItems.map(item => (
+              <div key={item.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <span className="text-sm font-medium text-gray-900 flex-1 min-w-0 truncate">{item.product_name}</span>
+                <span className="text-xs text-gray-400 shrink-0">was &quot;{item.status}&quot;</span>
+                <select
+                  className="form-input w-auto text-xs py-1"
+                  defaultValue=""
+                  onChange={e => { if (e.target.value) handleStatusChange(item.id, e.target.value); }}
+                >
+                  <option value="" disabled>Move to...</option>
+                  {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {view === 'kanban' ? (
         <KanbanBoard
