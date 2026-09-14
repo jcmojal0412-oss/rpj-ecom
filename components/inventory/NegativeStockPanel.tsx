@@ -64,7 +64,7 @@ export default function NegativeStockPanel({ refreshKey }: { refreshKey?: number
 
           <p className="text-xs text-gray-400 mb-3">
             Products physically impossible to be below zero, but recorded as such — usually from a sale processed
-            while &quot;Allow selling at 0 stock&quot; was on in POS. These need a real physical count, then a fix via
+            while &quot;Allow selling at 0 stock&quot; was on in Sales Terminal. These need a real physical count, then a fix via
             <span className="font-medium text-gray-600"> Edit Stock</span> below (not Stock In — that only adds to
             whatever is on file, which can undershoot if the starting point was already negative).
           </p>

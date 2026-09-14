@@ -90,7 +90,7 @@ export default function ProductsClient() {
     });
     if (!res.ok) {
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, pos_featured: product.pos_featured } : p));
-      showToast('Failed to update POS pin', 'error');
+      showToast('Failed to update Sales pin', 'error');
     }
   };
 
@@ -243,7 +243,7 @@ export default function ProductsClient() {
                       className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
                     />
                   </th>
-                  {['SKU','Barcode','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','POS Pin','Actions'].map(h => (
+                  {['SKU','Barcode','Product Name','Category','COGS','SRP','Margin','Reorder Pt.','Created','Sales Pin','Actions'].map(h => (
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
@@ -293,7 +293,7 @@ export default function ProductsClient() {
                       <td className="table-cell">
                         <button
                           onClick={() => togglePosFeatured(p)}
-                          title={p.pos_featured ? 'Pinned to front of POS grid — click to unpin' : 'Pin to front of POS grid'}
+                          title={p.pos_featured ? 'Pinned to front of Sales Terminal grid — click to unpin' : 'Pin to front of Sales Terminal grid'}
                           className={`p-1.5 rounded-lg transition-colors ${
                             p.pos_featured ? 'text-orange-500 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-400'
                           }`}

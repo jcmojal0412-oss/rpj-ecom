@@ -57,7 +57,7 @@ export default function ProfitLossClient() {
         <Link href="/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Profit &amp; Loss Report</h1>
-          <p className="text-sm text-gray-500">POS revenue, cost of goods, and operating expenses</p>
+          <p className="text-sm text-gray-500">Sales revenue, cost of goods, and operating expenses</p>
         </div>
       </div>
 
@@ -95,7 +95,7 @@ export default function ProfitLossClient() {
           <div className="card">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Statement</h2>
             <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between"><span className="text-gray-600">Revenue (POS Sales)</span><span className="tabular-nums">{formatCurrency(data.revenue)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">Revenue (Sales)</span><span className="tabular-nums">{formatCurrency(data.revenue)}</span></div>
               <div className="flex justify-between pl-4"><span className="text-gray-500">Less: Refunds</span><span className="tabular-nums text-red-500">-{formatCurrency(data.refunds)}</span></div>
               <div className="flex justify-between font-semibold pt-1.5 border-t border-gray-100"><span>Net Revenue</span><span className="tabular-nums">{formatCurrency(data.netRevenue)}</span></div>
 

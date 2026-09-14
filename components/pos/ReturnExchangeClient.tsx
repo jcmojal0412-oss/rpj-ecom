@@ -652,7 +652,7 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
       <div>
         <h2 className="text-sm font-bold text-gray-800">Enter a Sale Not in the System</h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          For a purchase made before this POS was in use, or missed by the historical import. This creates the record
+          For a purchase made before this system was in use, or missed by the historical import. This creates the record
           needed to process a Refund/Exchange against it — it does not touch today&apos;s stock or cash, since the sale itself already happened.
         </p>
       </div>
@@ -746,7 +746,7 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
 
       <div>
         <label className="form-label">Note (Required)</label>
-        <input className="form-input text-sm" placeholder='e.g. "Customer showed handwritten receipt dated Aug 3, before we had this POS"'
+        <input className="form-input text-sm" placeholder='e.g. "Customer showed handwritten receipt dated Aug 3, before we had this system"'
           value={note} onChange={e => setNote(e.target.value)} />
       </div>
 
