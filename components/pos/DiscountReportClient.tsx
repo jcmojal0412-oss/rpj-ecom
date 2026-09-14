@@ -131,7 +131,7 @@ export default function DiscountReportClient() {
 
       <div className="flex items-center gap-3 print:hidden">
         <Link href="/pos/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
-        <h1 className="text-xl font-bold text-gray-900">POS Discount Report</h1>
+        <h1 className="text-xl font-bold text-gray-900">Discount Report</h1>
       </div>
 
       <div className="card space-y-3 print:hidden">

@@ -69,7 +69,7 @@ export default function PosReportsClient() {
       <div className="flex items-center gap-3">
         <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">POS Reports</h1>
+          <h1 className="text-xl font-bold text-gray-900">Sales Reports</h1>
           <p className="text-sm text-gray-500">Sales summary, cashier performance, and top products</p>
         </div>
       </div>
