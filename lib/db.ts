@@ -168,6 +168,23 @@ function migrateSchema() {
   if (!cols.includes('done_botcake'))        db.exec('ALTER TABLE product_research ADD COLUMN done_botcake INTEGER DEFAULT 0');
   if (!cols.includes('done_webcake'))        db.exec('ALTER TABLE product_research ADD COLUMN done_webcake INTEGER DEFAULT 0');
   if (!cols.includes('bundle_price'))        db.exec('ALTER TABLE product_research ADD COLUMN bundle_price REAL');
+  // Position within its Kanban column — added for drag-to-reorder (see
+  // KanbanBoard.tsx). Backfilled once, only on the migration that adds the
+  // column, so this doesn't reset anyone's manual reordering on every
+  // later restart: assigns values that reproduce the previous display
+  // order (created_at DESC within each status) so existing cards don't
+  // visually jump around the moment this ships.
+  if (!cols.includes('sort_order')) {
+    db.exec('ALTER TABLE product_research ADD COLUMN sort_order INTEGER DEFAULT 0');
+    db.exec(`
+      UPDATE product_research SET sort_order = (
+        SELECT COUNT(*) FROM product_research p2
+        WHERE p2.status = product_research.status
+          AND (p2.created_at > product_research.created_at
+               OR (p2.created_at = product_research.created_at AND p2.id > product_research.id))
+      )
+    `);
+  }
 
   // Partner Sales table
   db.exec(`

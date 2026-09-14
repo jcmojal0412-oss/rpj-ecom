@@ -2,69 +2,134 @@
 
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
-  DndContext, DragEndEvent, DragStartEvent,
+  DndContext, DragEndEvent, DragOverEvent, DragStartEvent,
   DragOverlay, PointerSensor, useSensor, useSensors, closestCorners,
-  useDraggable, useDroppable,
+  useDroppable,
 } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle, XCircle, ExternalLink, Pencil, Trash2, X, GripVertical } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { getStatusColor } from '@/lib/statusColors';
 import type { ResearchItem, ResearchStatus } from './ProductResearchClient';
 import type { ResearchStatusRecord } from './StatusManager';
 
+interface ReorderUpdate { id: number; status: ResearchStatus; sort_order: number; }
+
 interface Props {
   items: ResearchItem[];
   statuses: ResearchStatusRecord[];
-  onStatusChange: (id: number, status: ResearchStatus) => void;
+  onReorder: (updates: ReorderUpdate[]) => void;
   onEdit: (item: ResearchItem) => void;
   onDelete: (id: number) => void;
   onAddToColumn: (status: ResearchStatus) => void;
   onRefresh: () => void;
 }
 
-export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, onDelete, onAddToColumn, onRefresh }: Props) {
+export default function KanbanBoard({ items, statuses, onReorder, onEdit, onDelete, onAddToColumn, onRefresh }: Props) {
   const [activeItem, setActiveItem] = useState<ResearchItem | null>(null);
   const [addingTo, setAddingTo] = useState<ResearchStatus | null>(null);
   const COLUMNS = useMemo(() => statuses.map(s => s.name), [statuses]);
+
+  // A single flat list, ordered (server sends sort_order ASC already) —
+  // each column's visible order is just this list filtered to that status.
+  // Mutated live during a drag for immediate visual feedback (moving an
+  // item between columns, or repositioning it within one), then handed to
+  // onReorder as the final result on drop. Re-synced from props whenever
+  // they change EXCEPT mid-drag, so an in-flight drag isn't yanked out
+  // from under the pointer by a background refetch.
+  const [localItems, setLocalItems] = useState(items);
+  const draggingRef = useRef(false);
+  useEffect(() => { if (!draggingRef.current) setLocalItems(items); }, [items]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    draggingRef.current = true;
     const id = Number(event.active.id);
-    setActiveItem(items.find(i => i.id === id) ?? null);
-  }, [items]);
+    setActiveItem(localItems.find(i => i.id === id) ?? null);
+  }, [localItems]);
 
-  // Cards are plain draggables (useDraggable), not sortables — columns are
-  // the only droppable targets, so `over.id` is always a column name here.
-  // An earlier version used @dnd-kit/sortable (useSortable + a separate
-  // SortableContext per column) to also support reordering within a
-  // column, which this board never actually exposed any UI for — nothing
-  // sets or reads a per-item order. Splitting the sortable machinery across
-  // independent per-column contexts with no onDragOver handler to move
-  // items between them is a known-fragile combination (dnd-kit's
-  // cross-container sortable support expects onDragOver to keep each
-  // container's list in sync as the pointer crosses between them), and is
-  // what made dragging unreliable/inert in practice. Plain draggable-onto-
-  // droppable-column is simpler and has no such cross-container coupling.
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setActiveItem(null);
+  // Moves the dragged card between columns live, as the pointer crosses
+  // container boundaries — required for multi-container drag with
+  // @dnd-kit/sortable (a single SortableContext spanning every column's
+  // items only reorders correctly within one container on its own; cross-
+  // container moves need the item's container reassigned here so both the
+  // visuals and dnd-kit's internal index bookkeeping stay correct).
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
     const activeId = Number(active.id);
-    const overId   = String(over.id);
-    if (!COLUMNS.includes(overId as ResearchStatus)) return;
+    const overIdRaw = over.id;
 
-    const cur = items.find(i => i.id === activeId)?.status;
-    if (cur !== overId) onStatusChange(activeId, overId as ResearchStatus);
-  }, [items, onStatusChange, COLUMNS]);
+    setLocalItems(prev => {
+      const activeIdx = prev.findIndex(i => i.id === activeId);
+      if (activeIdx === -1) return prev;
+      const activeCol = prev[activeIdx].status;
+      const overCol = (typeof overIdRaw === 'string' && COLUMNS.includes(overIdRaw))
+        ? overIdRaw
+        : prev.find(i => i.id === Number(overIdRaw))?.status;
+      if (!overCol || activeCol === overCol) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(activeIdx, 1);
+      const overIdx = next.findIndex(i => i.id === Number(overIdRaw));
+      const movedWithNewStatus = { ...moved, status: overCol };
+      if (overIdx === -1) next.push(movedWithNewStatus);
+      else next.splice(overIdx, 0, movedWithNewStatus);
+      return next;
+    });
+  }, [COLUMNS]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    draggingRef.current = false;
+    setActiveItem(null);
+    const { active, over } = event;
+    if (!over) { setLocalItems(items); return; }
+
+    const activeId = Number(active.id);
+    const overIdRaw = over.id;
+
+    setLocalItems(prev => {
+      const activeIdx = prev.findIndex(i => i.id === activeId);
+      if (activeIdx === -1) return prev;
+
+      // Same-column reordering: relocate within the flat list to just
+      // before/after whatever card is currently under the pointer.
+      let next = prev;
+      if (typeof overIdRaw !== 'string' || !COLUMNS.includes(overIdRaw)) {
+        const overIdx = prev.findIndex(i => i.id === Number(overIdRaw));
+        if (overIdx !== -1 && overIdx !== activeIdx && prev[activeIdx].status === prev[overIdx].status) {
+          next = arrayMove(prev, activeIdx, overIdx);
+        }
+      }
+
+      // Renumber sort_order sequentially per column and report every card
+      // whose status or position actually changed from what the server
+      // last had (items prop, i.e. pre-drag state).
+      const updates: ReorderUpdate[] = [];
+      const seen = new Map<ResearchStatus, number>();
+      for (const it of next) {
+        const idx = seen.get(it.status) ?? 0;
+        seen.set(it.status, idx + 1);
+        const original = items.find(i => i.id === it.id);
+        if (!original || original.status !== it.status || original.sort_order !== idx) {
+          updates.push({ id: it.id, status: it.status, sort_order: idx });
+        }
+      }
+      if (updates.length > 0) onReorder(updates);
+      return next;
+    });
+  }, [items, onReorder, COLUMNS]);
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -73,7 +138,7 @@ export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, o
             key={s.name}
             col={s.name}
             color={s.color}
-            items={items.filter(i => i.status === s.name)}
+            items={localItems.filter(i => i.status === s.name)}
             onEdit={onEdit}
             onDelete={onDelete}
             onAddModal={() => onAddToColumn(s.name)}
@@ -148,19 +213,21 @@ function DroppableColumn({ col, color, items, onEdit, onDelete, onAddModal, isAd
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col gap-2 flex-1">
-        {items.map(item => (
-          <DraggableCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} />
-        ))}
+      <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex flex-col gap-2 flex-1">
+          {items.map(item => (
+            <DraggableCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} />
+          ))}
 
-        {items.length === 0 && !isAdding && (
-          <div className={`flex items-center justify-center rounded-lg border-2 border-dashed min-h-[60px] transition-colors ${
-            isOver ? 'border-orange-400' : 'border-gray-300/50'
-          }`}>
-            <p className="text-xs text-gray-400">Drop here</p>
-          </div>
-        )}
-      </div>
+          {items.length === 0 && !isAdding && (
+            <div className={`flex items-center justify-center rounded-lg border-2 border-dashed min-h-[60px] transition-colors ${
+              isOver ? 'border-orange-400' : 'border-gray-300/50'
+            }`}>
+              <p className="text-xs text-gray-400">Drop here</p>
+            </div>
+          )}
+        </div>
+      </SortableContext>
 
       {/* Inline quick-add form */}
       {isAdding ? (
@@ -266,13 +333,12 @@ function DraggableCard({ item, onEdit, onDelete }: {
   onEdit: (item: ResearchItem) => void;
   onDelete: (id: number) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    transition: { duration: 150, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
+  });
 
-  // Follows the pointer while actively dragging; once dropped the card just
-  // re-renders into its new column (no settle transition needed here — the
-  // DragOverlay already carries the drag visual, and this element itself
-  // stays hidden via opacity while isDragging is true).
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
     <div

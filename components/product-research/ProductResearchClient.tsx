@@ -24,6 +24,7 @@ export interface ResearchItem {
   shipping_fee: number | null; ads_cost: number | null; rts_percent: number | null;
   bundle_price: number | null;
   status: ResearchStatus; created_at: string;
+  sort_order: number;
 }
 
 export default function ProductResearchClient() {
@@ -72,6 +73,25 @@ export default function ProductResearchClient() {
     }).catch(() => {
       setItems(prev => prev.map(i => i.id === id ? { ...i, status: item.status } : i));
     });
+  };
+
+  // Drag-and-drop reorder within/across columns — KanbanBoard computes the
+  // full renumbered order for whichever column(s) a move touched (moving a
+  // card out of column A and into column B changes both columns' orders)
+  // and hands back that flat list. Applied optimistically, then persisted
+  // in one batched request; a failure reverts to the last known-good state
+  // via a refetch rather than trying to hand-unwind a multi-card change.
+  const handleReorder = (updates: { id: number; status: ResearchStatus; sort_order: number }[]) => {
+    const byId = new Map(updates.map(u => [u.id, u]));
+    setItems(prev => prev.map(i => {
+      const u = byId.get(i.id);
+      return u ? { ...i, status: u.status, sort_order: u.sort_order } : i;
+    }));
+    fetch('/api/product-research/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updates }),
+    }).catch(() => fetchItems());
   };
 
   const firstStatus = statuses[0]?.name ?? 'For Research';
@@ -158,7 +178,7 @@ export default function ProductResearchClient() {
         <KanbanBoard
           items={items}
           statuses={statuses}
-          onStatusChange={handleStatusChange}
+          onReorder={handleReorder}
           onEdit={setEditing}
           onDelete={handleDelete}
           onAddToColumn={(status) => { setDefaultStatus(status); setShowAdd(true); }}
