@@ -10,7 +10,7 @@ import {
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, Wrench, CalendarClock, Landmark, Megaphone,
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
-  MoreVertical, ScanBarcode, History, PenTool,
+  MoreVertical, History, PenTool,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
@@ -61,13 +61,13 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'POS',
-    groupIcon: ScanBarcode,
+    label: 'SALES',
+    groupIcon: ShoppingCart,
     pinned: true,
     items: [
-      { label: 'Point of Sale', href: '/pos',         icon: ScanBarcode, module: 'pos', exact: true },
-      { label: 'Sales History', href: '/pos/sales',   icon: History,     module: 'pos' },
-      { label: 'Reports',       href: '/pos/reports',  icon: BarChart3,   module: 'pos_reports' },
+      { label: 'Sales Terminal', href: '/pos',         icon: ShoppingCart, module: 'pos', exact: true },
+      { label: 'Sales History',  href: '/pos/sales',   icon: History,      module: 'pos' },
+      { label: 'Sales Reports',  href: '/pos/reports',  icon: BarChart3,   module: 'pos_reports' },
     ],
   },
   {
