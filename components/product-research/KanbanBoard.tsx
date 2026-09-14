@@ -1,15 +1,11 @@
 'use client';
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
-  DndContext, DragEndEvent, DragOverEvent, DragStartEvent,
+  DndContext, DragEndEvent, DragStartEvent,
   DragOverlay, PointerSensor, useSensor, useSensors, closestCorners,
+  useDraggable, useDroppable,
 } from '@dnd-kit/core';
-import {
-  SortableContext, verticalListSortingStrategy, useSortable,
-} from '@dnd-kit/sortable';
-import { useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { CheckCircle, XCircle, ExternalLink, Pencil, Trash2, X, GripVertical } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { getStatusColor } from '@/lib/statusColors';
@@ -29,7 +25,7 @@ interface Props {
 export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, onDelete, onAddToColumn, onRefresh }: Props) {
   const [activeItem, setActiveItem] = useState<ResearchItem | null>(null);
   const [addingTo, setAddingTo] = useState<ResearchStatus | null>(null);
-  const COLUMNS = statuses.map(s => s.name);
+  const COLUMNS = useMemo(() => statuses.map(s => s.name), [statuses]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -40,33 +36,35 @@ export default function KanbanBoard({ items, statuses, onStatusChange, onEdit, o
     setActiveItem(items.find(i => i.id === id) ?? null);
   }, [items]);
 
+  // Cards are plain draggables (useDraggable), not sortables — columns are
+  // the only droppable targets, so `over.id` is always a column name here.
+  // An earlier version used @dnd-kit/sortable (useSortable + a separate
+  // SortableContext per column) to also support reordering within a
+  // column, which this board never actually exposed any UI for — nothing
+  // sets or reads a per-item order. Splitting the sortable machinery across
+  // independent per-column contexts with no onDragOver handler to move
+  // items between them is a known-fragile combination (dnd-kit's
+  // cross-container sortable support expects onDragOver to keep each
+  // container's list in sync as the pointer crosses between them), and is
+  // what made dragging unreliable/inert in practice. Plain draggable-onto-
+  // droppable-column is simpler and has no such cross-container coupling.
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveItem(null);
     const { active, over } = event;
     if (!over) return;
     const activeId = Number(active.id);
     const overId   = String(over.id);
+    if (!COLUMNS.includes(overId as ResearchStatus)) return;
 
-    if (COLUMNS.includes(overId as ResearchStatus)) {
-      const cur = items.find(i => i.id === activeId)?.status;
-      if (cur !== overId) onStatusChange(activeId, overId as ResearchStatus);
-      return;
-    }
-    const overItem   = items.find(i => i.id === Number(overId));
-    const activeCard = items.find(i => i.id === activeId);
-    if (overItem && activeCard && overItem.status !== activeCard.status) {
-      onStatusChange(activeId, overItem.status);
-    }
-  }, [items, onStatusChange]);
-
-  const handleDragOver = useCallback((_: DragOverEvent) => {}, []);
+    const cur = items.find(i => i.id === activeId)?.status;
+    if (cur !== overId) onStatusChange(activeId, overId as ResearchStatus);
+  }, [items, onStatusChange, COLUMNS]);
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -150,21 +148,19 @@ function DroppableColumn({ col, color, items, onEdit, onDelete, onAddModal, isAd
       </div>
 
       {/* Cards */}
-      <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-2 flex-1">
-          {items.map(item => (
-            <DraggableCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} />
-          ))}
+      <div className="flex flex-col gap-2 flex-1">
+        {items.map(item => (
+          <DraggableCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} />
+        ))}
 
-          {items.length === 0 && !isAdding && (
-            <div className={`flex items-center justify-center rounded-lg border-2 border-dashed min-h-[60px] transition-colors ${
-              isOver ? 'border-orange-400' : 'border-gray-300/50'
-            }`}>
-              <p className="text-xs text-gray-400">Drop here</p>
-            </div>
-          )}
-        </div>
-      </SortableContext>
+        {items.length === 0 && !isAdding && (
+          <div className={`flex items-center justify-center rounded-lg border-2 border-dashed min-h-[60px] transition-colors ${
+            isOver ? 'border-orange-400' : 'border-gray-300/50'
+          }`}>
+            <p className="text-xs text-gray-400">Drop here</p>
+          </div>
+        )}
+      </div>
 
       {/* Inline quick-add form */}
       {isAdding ? (
@@ -270,12 +266,13 @@ function DraggableCard({ item, onEdit, onDelete }: {
   onEdit: (item: ResearchItem) => void;
   onDelete: (id: number) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id,
-    transition: { duration: 150, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
-  });
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id });
 
-  const style = { transform: CSS.Transform.toString(transform), transition };
+  // Follows the pointer while actively dragging; once dropped the card just
+  // re-renders into its new column (no settle transition needed here — the
+  // DragOverlay already carries the drag visual, and this element itself
+  // stays hidden via opacity while isDragging is true).
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
   return (
     <div
