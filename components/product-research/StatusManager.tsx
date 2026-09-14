@@ -135,22 +135,35 @@ export default function StatusManager({ onChanged }: Props) {
               <div className={`w-3 h-3 rounded-full shrink-0 ${colors.dot}`} />
 
               {editingId === s.id ? (
-                /* Edit mode */
-                <div className="flex-1 flex items-center gap-2 flex-wrap">
-                  <input
-                    autoFocus
-                    className="flex-1 min-w-0 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
-                  />
+                /* Edit mode — input+actions and color swatches stacked on
+                   their own rows; sharing one flex-wrap row let 11 fixed-
+                   width color dots crowd out the name input down to almost
+                   no typing room (min-w-0 let it shrink that far). */
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      className="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                    />
+                    <button onClick={saveEdit} disabled={saving}
+                      className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 shrink-0">
+                      <Check size={13} />
+                    </button>
+                    <button onClick={() => setEditingId(null)}
+                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 shrink-0">
+                      <X size={13} />
+                    </button>
+                  </div>
                   {/* Color picker */}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {COLOR_KEYS.map(key => (
                       <button
                         key={key}
                         onClick={() => setEditColor(key)}
-                        className={`w-6 h-6 rounded-full shadow-sm transition-all ${
+                        className={`w-6 h-6 rounded-full shadow-sm transition-all shrink-0 ${
                           editColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                         }`}
                         style={{ backgroundColor: STATUS_COLORS[key].hex }}
@@ -158,14 +171,6 @@ export default function StatusManager({ onChanged }: Props) {
                       />
                     ))}
                   </div>
-                  <button onClick={saveEdit} disabled={saving}
-                    className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">
-                    <Check size={13} />
-                  </button>
-                  <button onClick={() => setEditingId(null)}
-                    className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">
-                    <X size={13} />
-                  </button>
                 </div>
               ) : (
                 /* View mode */
