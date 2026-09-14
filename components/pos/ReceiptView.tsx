@@ -20,12 +20,23 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
   // at all) is exactly what cash_amount/online_amount already describe.
   const multiPayment = (payments ?? []).length > 1;
   const totalRefunded = (refunds ?? []).reduce((s, r) => s + r.total_refund, 0);
-  // Cashback Redeemed, Downpayment Applied, and Exchange Credit Applied are
-  // deductions against what's owed, not discounts — Total stays the true
-  // Net Sale value, Amount Due is what was actually collected today.
+  // Cashback Redeemed and Downpayment Applied are deductions against what's
+  // owed, not discounts — sale.total for a normal sale stays the true gross
+  // Net Sale value (the downpayment was genuinely collected earlier, in a
+  // separate transaction, so it isn't netted out anywhere upstream), and
+  // Amount Due below is what was actually collected today.
+  //
+  // Exchange Credit Applied works differently: the exchange route already
+  // stores sale.total net of it (amountToPay, not the replacement item's
+  // full price) — the credited value is the returned item's price, which
+  // is already being subtracted out via that item's own linked Refund
+  // record (total_refund), so leaving total at the gross replacement price
+  // would double-count it in every report that sums sale totals. Not
+  // subtracting exchangeCredit again here keeps this receipt's own math
+  // consistent with what's actually stored.
   const exchangeCredit = sale.exchange_credit_applied ?? 0;
   const hasAdjustments = sale.cashback_amount > 0 || sale.downpayment_applied > 0 || exchangeCredit > 0;
-  const amountDue = Math.max(0, sale.total - sale.cashback_amount - sale.downpayment_applied - exchangeCredit);
+  const amountDue = Math.max(0, sale.total - sale.cashback_amount - sale.downpayment_applied);
   const freebieCount = items.filter(it => it.is_freebie).length;
 
   const transactionType =

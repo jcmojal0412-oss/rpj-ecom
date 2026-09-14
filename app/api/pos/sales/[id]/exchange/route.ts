@@ -74,6 +74,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const newUnitPrice = newProduct.srp ?? 0;
 
     const exchangeCreditApplied = Math.min(returnValue, newUnitPrice);
+    // What this exchange sale is actually WORTH as new revenue — the
+    // returned item's value is already accounted for by the refund record
+    // above (total_refund = returnValue), so counting the replacement
+    // item's full sticker price here too would double it. On an upgrade
+    // this is the top-up the customer pays today; on a downgrade it's 0
+    // (they owe nothing new — the difference comes back as `excess` via
+    // the refund's own cash_out_amount, not through this sale at all).
     const amountToPay = Math.max(0, newUnitPrice - returnValue);
     const excess = Math.max(0, returnValue - newUnitPrice);
 
@@ -160,7 +167,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const saleInfo = insertSale.run(
-        originalSale.business_id, todayISO(), newUnitPrice, newUnitPrice, cashNum, onlineNum, changeDue,
+        originalSale.business_id, todayISO(), newUnitPrice, amountToPay, cashNum, onlineNum, changeDue,
         paymentMethod, reference_no?.trim() || null,
         session.id, `Exchange for ${displayReceiptNo(originalSale)}`, openShift?.id ?? null,
         originalSaleId, exchangeCreditApplied, nextReceiptNo(db),
