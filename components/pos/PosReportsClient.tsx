@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, Wrench, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
+import { Toast, useToast } from '@/components/ui/Toast';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import type { Business } from './constants';
 
@@ -30,6 +31,10 @@ export default function PosReportsClient() {
   const [slowMovers, setSlowMovers] = useState<MoverRow[]>([]);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+  const [exchangeBugCount, setExchangeBugCount] = useState(0);
+  const [fixingExchangeBug, setFixingExchangeBug] = useState(false);
+  const { toast, showToast, clearToast } = useToast();
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
@@ -52,6 +57,16 @@ export default function PosReportsClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId]);
 
+  // Owner-only: one-time correction banner for exchange sales recorded
+  // before the total-double-counting fix (see
+  // app/api/pos/sales/fix-exchange-total) — not date/business scoped, since
+  // this fixes the underlying record regardless of what range happens to be
+  // on screen right now.
+  const fetchExchangeBugStatus = useCallback(async () => {
+    const d = await fetch('/api/pos/sales/fix-exchange-total').then(r => r.ok ? r.json() : null);
+    setExchangeBugCount(Array.isArray(d?.affected) ? d.affected.length : 0);
+  }, []);
+
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
     fetch('/api/businesses').then(r => r.json()).then(d => setBusinesses(d.rows ?? []));
@@ -59,13 +74,34 @@ export default function PosReportsClient() {
     fetch('/api/inventory/summary').then(r => r.json()).then((rows: { inventory_value: number }[]) => {
       setInventoryValue((rows ?? []).reduce((sum, r) => sum + (r.inventory_value || 0), 0));
     });
-  }, []);
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+      const owner = u?.role === 'owner';
+      setIsOwner(owner);
+      if (owner) fetchExchangeBugStatus();
+    });
+  }, [fetchExchangeBugStatus]);
+
+  const runFixExchangeBug = async () => {
+    setFixingExchangeBug(true);
+    try {
+      const res = await fetch('/api/pos/sales/fix-exchange-total', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Failed to correct exchange totals', 'error'); return; }
+      showToast(`Corrected ${d.corrected} exchange sale${d.corrected === 1 ? '' : 's'}!`);
+      await fetchAll();
+      await fetchExchangeBugStatus();
+    } finally {
+      setFixingExchangeBug(false);
+    }
+  };
 
   const chartData = (summary?.byDay ?? []).map(d => ({ ...d, label: formatDate(d.date) }));
   const dateRangeLabel = range ? `${formatDate(range.from)} - ${formatDate(range.to)}` : 'All Dates';
 
   return (
     <div className="p-6 space-y-6">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
+
       <div className="flex items-center gap-3">
         <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
@@ -73,6 +109,23 @@ export default function PosReportsClient() {
           <p className="text-sm text-gray-500">Sales summary, cashier performance, and top products</p>
         </div>
       </div>
+
+      {isOwner && exchangeBugCount > 0 && (
+        <div className="card flex items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
+          <div className="flex items-center gap-2.5">
+            <Wrench className="text-red-600 shrink-0" size={18} />
+            <p className="text-sm text-red-800">
+              <strong>{exchangeBugCount} exchange sale{exchangeBugCount === 1 ? '' : 's'}</strong> {exchangeBugCount === 1 ? 'has' : 'have'} an inflated total from a checkout bug —
+              the replacement item&apos;s full price was recorded instead of what the customer actually still owed after their returned item&apos;s value was credited.
+              This corrects the total to match — it does not touch stock, cash amounts, or the linked refund.
+            </p>
+          </div>
+          <button onClick={runFixExchangeBug} disabled={fixingExchangeBug} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
+            {fixingExchangeBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+            {fixingExchangeBug ? 'Correcting...' : 'Correct Totals Now'}
+          </button>
+        </div>
+      )}
 
       <div className="card space-y-3">
         <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
