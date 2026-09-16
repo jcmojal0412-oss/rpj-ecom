@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Package, Wrench, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -38,7 +38,17 @@ export default function PosReportsClient() {
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
+  // Guards against a race between rapid filter changes — e.g. clicking
+  // "Today" then "Yesterday" before the first request finishes. Without
+  // this, whichever response happened to arrive last (not necessarily the
+  // one that was requested last) would win and could display the wrong
+  // range's numbers under the now-selected button. Each call gets a ticket;
+  // a response only gets applied if its ticket is still the most recent one
+  // issued by the time it resolves.
+  const fetchTicket = useRef(0);
+
   const fetchAll = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const params = new URLSearchParams();
     if (range) { params.set('from', range.from); params.set('to', range.to); }
@@ -49,6 +59,7 @@ export default function PosReportsClient() {
       fetch(`/api/pos/reports/cashiers?${qs}`).then(r => r.json()),
       fetch(`/api/pos/reports/fast-slow-movers?${qs}`).then(r => r.json()),
     ]);
+    if (ticket !== fetchTicket.current) return; // a newer request has since been issued — discard this stale one
     setSummary(s);
     setCashiers(c.rows ?? []);
     setFastMovers(m.fast ?? []);
