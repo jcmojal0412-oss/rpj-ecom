@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Eye, Ban, Undo2, UploadCloud } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -41,13 +41,18 @@ export default function SalesHistoryClient() {
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
+  // Guards against a race between quick filter changes — see
+  // DiscountReportClient.tsx for the full explanation.
+  const fetchTicket = useRef(0);
   const fetchSales = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const params = new URLSearchParams();
     if (range) { params.set('from', range.from); params.set('to', range.to); }
     if (businessId) params.set('business_id', businessId);
     if (status) params.set('status', status);
     const data = await fetch(`/api/pos/sales?${params.toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     setSales(data.rows ?? []);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, Search, ArrowUpDown, ChevronLeft, ChevronRight, Eye, AlertTriangle, RotateCcw } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -84,9 +84,14 @@ export default function CashierShiftsReportClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId, username]);
 
+  // Guards against a race between quick filter changes — see
+  // DiscountReportClient.tsx for the full explanation.
+  const fetchTicket = useRef(0);
   const fetchRows = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const data = await fetch(`/api/pos/shifts?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     // total_sales (Net Sale value) now comes straight from the server —
     // reconstructing it from cash_sales+online_sales alone would understate
     // it whenever Financing/Cashback/Downpayment covered part of a sale.

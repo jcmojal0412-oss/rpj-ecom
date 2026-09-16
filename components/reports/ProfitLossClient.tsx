@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -28,12 +28,17 @@ export default function ProfitLossClient() {
 
   const range = preset ? resolvePresetRange(preset, customFrom, customTo) : null;
 
+  // Guards against a race between quick filter changes — see
+  // components/pos/DiscountReportClient.tsx for the full explanation.
+  const fetchTicket = useRef(0);
   const fetchData = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const params = new URLSearchParams();
     if (range) { params.set('from', range.from); params.set('to', range.to); }
     if (businessId) params.set('business_id', businessId);
     const d = await fetch(`/api/reports/profit-loss?${params.toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     setData(d);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

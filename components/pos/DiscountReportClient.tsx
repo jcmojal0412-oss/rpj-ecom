@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -56,9 +56,16 @@ export default function DiscountReportClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId, cashierId]);
 
+  // Guards against a race between quick filter changes — e.g. clicking
+  // Today then Yesterday before the first request finishes could otherwise
+  // let whichever response arrives last win, regardless of which was
+  // actually requested last.
+  const fetchTicket = useRef(0);
   const fetchData = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const d = await fetch(`/api/pos/reports/discounts?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     setData(d);
     setPage(1);
     setLoading(false);

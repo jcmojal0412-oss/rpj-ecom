@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, ArrowUpDown, ChevronLeft, ChevronRight, Wrench, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -60,9 +60,18 @@ export default function PaymentMethodReportClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId, cashierId]);
 
+  // Guards both fetches below against a race between quick filter changes —
+  // clicking Today then Yesterday before the first request finishes could
+  // otherwise let whichever response arrives last win, regardless of which
+  // was actually requested last (same fix as PosReportsClient.tsx).
+  const dataTicket = useRef(0);
+  const mismatchTicket = useRef(0);
+
   const fetchData = useCallback(async () => {
+    const ticket = ++dataTicket.current;
     setLoading(true);
     const d = await fetch(`/api/pos/reports/payment-methods?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== dataTicket.current) return;
     setData(d);
     setPage(1);
     setLoading(false);
@@ -75,7 +84,9 @@ export default function PaymentMethodReportClient() {
   // whatever range is currently on screen may still need a one-time correction.
   const fetchMismatchCount = useCallback(async () => {
     if (!isOwner) return;
+    const ticket = ++mismatchTicket.current;
     const d = await fetch(`/api/pos/reports/payment-methods/fix-financing?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== mismatchTicket.current) return;
     setMismatchCount(Array.isArray(d.mismatched) ? d.mismatched.length : 0);
   }, [buildQuery, isOwner]);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, Search, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -62,13 +62,18 @@ export default function ProductSalesReportClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId, productId, category, cashierId]);
 
+  // Guards against a race between quick filter changes — see
+  // DiscountReportClient.tsx for the full explanation.
+  const fetchTicket = useRef(0);
   const fetchRows = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     // grossSales rides along on the same request/query as the product rows
     // (date + business scope only, same as Gross Sales elsewhere) — no
     // second round-trip, no duplicating the pos_sale_items scan the detail
     // query already does.
     const data = await fetch(`/api/pos/reports/products/detail?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     setRows(data.rows ?? []);
     setGrossSales(typeof data.grossSales === 'number' ? data.grossSales : null);
     setPage(1);
@@ -77,6 +82,7 @@ export default function ProductSalesReportClient() {
     // unreadable date x product grid.
     if (category || productId) {
       const daily = await fetch(`/api/pos/reports/products/daily?${buildQuery().toString()}`).then(r => r.json());
+      if (ticket !== fetchTicket.current) return;
       setDailyRows(daily.rows ?? []);
     } else {
       setDailyRows([]);

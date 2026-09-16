@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   Package, TrendingUp, TrendingDown, BadgeDollarSign, Landmark,
@@ -117,7 +117,13 @@ export default function DashboardClient() {
     fetch('/api/dashboard/inventory-value-trend').then(r => r.json()).then(d => setInvTrend(d.trend ?? []));
   }, []);
 
+  // Guards against a race between quick period changes — e.g. switching
+  // the period dropdown twice before the first request finishes could
+  // otherwise let whichever response arrives last win, regardless of which
+  // was actually requested last.
+  const kpiTicket = useRef(0);
   const fetchPeriodKpis = useCallback(async (from: string, to: string, prevFrom: string, prevTo: string) => {
+    const ticket = ++kpiTicket.current;
     setKpiLoading(true);
     const params = new URLSearchParams({ from, to, prevFrom, prevTo });
     // Each fetch has its own fallback so a network failure on either call
@@ -129,6 +135,7 @@ export default function DashboardClient() {
       fetch(`/api/dashboard/financing-summary?${params}`).then(r => r.json())
         .catch(() => ({ available: false, total: 0, prevTotal: null })),
     ]);
+    if (ticket !== kpiTicket.current) return;
     setKpis(k);
     setFinancing(fin);
     setKpiLoading(false);
@@ -138,8 +145,11 @@ export default function DashboardClient() {
     fetchPeriodKpis(range.from, range.to, range.prevFrom, range.prevTo);
   }, [range, fetchPeriodKpis]);
 
+  const dailyTopTicket = useRef(0);
   const fetchDailyTop = useCallback(async (period: DailyPeriod) => {
+    const ticket = ++dailyTopTicket.current;
     const dt = await fetch(`/api/dashboard/daily-top?period=${period}`).then(r => r.json());
+    if (ticket !== dailyTopTicket.current) return;
     setDailyTop(dt.rows ?? []);
     setDailyLabel(dt.label ?? '');
   }, []);

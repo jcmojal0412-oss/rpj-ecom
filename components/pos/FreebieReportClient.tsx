@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Printer, Copy, FileSpreadsheet, Download, ArrowUpDown, ChevronLeft, ChevronRight, Gift } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -62,9 +62,14 @@ export default function FreebieReportClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId, cashierId]);
 
+  // Guards against a race between quick filter changes — see
+  // DiscountReportClient.tsx for the full explanation.
+  const fetchTicket = useRef(0);
   const fetchData = useCallback(async () => {
+    const ticket = ++fetchTicket.current;
     setLoading(true);
     const d = await fetch(`/api/pos/reports/freebies?${buildQuery().toString()}`).then(r => r.json());
+    if (ticket !== fetchTicket.current) return;
     setData(d);
     setPage(1);
     setLoading(false);
