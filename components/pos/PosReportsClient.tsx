@@ -47,9 +47,13 @@ export default function PosReportsClient() {
   // issued by the time it resolves.
   const fetchTicket = useRef(0);
 
-  const fetchAll = useCallback(async () => {
+  // `silent` skips the loading spinner — used by the background auto-
+  // refresh below so new numbers just quietly appear instead of blanking
+  // the whole page every 30s. A normal (non-silent) call still shows it,
+  // same as before, for the initial load and any filter change.
+  const fetchAll = useCallback(async (opts?: { silent?: boolean }) => {
     const ticket = ++fetchTicket.current;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     const params = new URLSearchParams();
     if (range) { params.set('from', range.from); params.set('to', range.to); }
     if (businessId) params.set('business_id', businessId);
@@ -64,9 +68,20 @@ export default function PosReportsClient() {
     setCashiers(c.rows ?? []);
     setFastMovers(m.fast ?? []);
     setSlowMovers(m.slow ?? []);
-    setLoading(false);
+    if (!opts?.silent) setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customFrom, customTo, businessId]);
+
+  // Auto-refresh — the numbers on screen used to only ever update on load
+  // or a filter change, so a sale rung up elsewhere while this page stayed
+  // open never showed up without a manual reload. Re-fetches quietly (no
+  // spinner) every 30s using whatever filters are currently selected;
+  // re-armed whenever fetchAll's identity changes (i.e. the filters
+  // change) so it always polls the range actually on screen.
+  useEffect(() => {
+    const interval = setInterval(() => fetchAll({ silent: true }), 30_000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
 
   // Owner-only: one-time correction banner for exchange sales recorded
   // before the total-double-counting fix (see
