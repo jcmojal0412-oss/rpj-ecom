@@ -15,16 +15,26 @@ export async function GET(req: NextRequest) {
     const days = Math.max(1, parseInt(searchParams.get('days') ?? '60', 10) || 60);
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') ?? '20', 10) || 20));
 
+    // Sold quantity is pre-aggregated within the lookback window in its own
+    // subquery, then joined to products — not a CASE inside the SUM, which
+    // would join every product to the FULL history of its pos_sale_items
+    // before filtering back down to the window at aggregation time (the
+    // same fix already applied to the Dashboard's and POS Reports' own
+    // slow-moving queries).
     const rows = db.prepare(`
+      WITH sold AS (
+        SELECT si.product_id, SUM(si.quantity) as qty_sold
+        FROM pos_sale_items si
+        JOIN pos_sales s ON s.id = si.sale_id
+        WHERE s.status != 'Voided' AND s.sale_date >= date('now', '-' || ? || ' days')
+        GROUP BY si.product_id
+      )
       SELECT p.id, p.sku, p.name, p.category, COALESCE(inv.quantity, 0) as quantity,
-             COALESCE(SUM(CASE WHEN s.status != 'Voided' AND s.sale_date >= date('now', '-' || ? || ' days')
-                                THEN si.quantity ELSE 0 END), 0) as qty_sold
+             COALESCE(sold.qty_sold, 0) as qty_sold
       FROM products p
       LEFT JOIN inventory inv ON inv.product_id = p.id
-      LEFT JOIN pos_sale_items si ON si.product_id = p.id
-      LEFT JOIN pos_sales s ON s.id = si.sale_id
+      LEFT JOIN sold ON sold.product_id = p.id
       WHERE COALESCE(inv.quantity, 0) > 0
-      GROUP BY p.id, p.sku, p.name, p.category, inv.quantity
       ORDER BY qty_sold ASC, quantity DESC
       LIMIT ?
     `).all(days, limit);

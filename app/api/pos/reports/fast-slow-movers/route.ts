@@ -49,15 +49,30 @@ export async function GET(req: NextRequest) {
 
     // Among equally slow items, the one tying up the most stock floats to
     // the top — that's the real priority order for what to push or promote.
+    //
+    // The date filter used to live inside the SUM's CASE WHEN, applied
+    // AFTER joining every product to every one of its pos_sale_items rows
+    // across all of history — so a product with years of sales accumulated
+    // a growing pile of joined rows just to be filtered back down at
+    // aggregation time, the exact per-product cost that got this query
+    // rewritten once already (see below). Pre-aggregating sold quantity
+    // within the date range in its own subquery first, then joining that
+    // (already small) result to products, means the join only ever touches
+    // rows that actually matter for this range.
     const slow = db.prepare(`
+      WITH sold AS (
+        SELECT i.product_id, SUM(i.quantity) as qty_sold
+        FROM pos_sale_items i
+        JOIN pos_sales s ON s.id = i.sale_id
+        WHERE ${soldMatch}
+        GROUP BY i.product_id
+      )
       SELECT p.id as product_id, p.name as product_name, p.sku, COALESCE(inv.quantity, 0) as quantity,
-             COALESCE(SUM(CASE WHEN ${soldMatch} THEN i.quantity ELSE 0 END), 0) as qty_sold
+             COALESCE(sold.qty_sold, 0) as qty_sold
       FROM products p
       LEFT JOIN inventory inv ON inv.product_id = p.id
-      LEFT JOIN pos_sale_items i ON i.product_id = p.id
-      LEFT JOIN pos_sales s ON s.id = i.sale_id
+      LEFT JOIN sold ON sold.product_id = p.id
       WHERE COALESCE(inv.quantity, 0) > 0
-      GROUP BY p.id, p.name, p.sku, inv.quantity
       ORDER BY qty_sold ASC, quantity DESC
       LIMIT 20
     `).all(...soldParams);
