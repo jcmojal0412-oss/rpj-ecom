@@ -12,8 +12,8 @@ export async function PUT(_: NextRequest, { params }: { params: { id: string } }
 
     const db = getDb();
 
-    const sale = db.prepare('SELECT id, status FROM pos_sales WHERE id = ?').get(params.id) as
-      { id: number; status: string } | undefined;
+    const sale = db.prepare('SELECT id, status, fulfillment_status FROM pos_sales WHERE id = ?').get(params.id) as
+      { id: number; status: string; fulfillment_status: string } | undefined;
     if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (sale.status === 'Voided') return NextResponse.json({ error: 'Already voided' }, { status: 400 });
 
@@ -42,12 +42,19 @@ export async function PUT(_: NextRequest, { params }: { params: { id: string } }
 
     runTransaction(() => {
       updateSale.run(params.id);
-      for (const item of items) {
-        const alreadyRefunded = (getRefundedQty.get(item.id) as { q: number }).q;
-        const restockQty = item.quantity - alreadyRefunded;
-        if (restockQty <= 0) continue;
-        insertMovement.run(item.product_id, restockQty, `Void of Sale #${params.id}`);
-        adjustInventory.run(item.product_id, restockQty);
+      // A still-FOR_PICKUP sale never had its stock deducted (see
+      // app/api/pos/sales/route.ts) — voiding it must not restock, since
+      // nothing was ever taken out. Only clear the shift's queue of a
+      // pickup order that's now void; still setting status='Voided' above,
+      // which already removes it from every status != 'Voided' view.
+      if (sale.fulfillment_status === 'RELEASED') {
+        for (const item of items) {
+          const alreadyRefunded = (getRefundedQty.get(item.id) as { q: number }).q;
+          const restockQty = item.quantity - alreadyRefunded;
+          if (restockQty <= 0) continue;
+          insertMovement.run(item.product_id, restockQty, `Void of Sale #${params.id}`);
+          adjustInventory.run(item.product_id, restockQty);
+        }
       }
     });
 

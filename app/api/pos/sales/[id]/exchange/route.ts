@@ -23,10 +23,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const db = getDb();
     const originalSaleId = Number(params.id);
 
-    const originalSale = db.prepare('SELECT id, status, business_id, receipt_no FROM pos_sales WHERE id = ?').get(originalSaleId) as
-      { id: number; status: string; business_id: number | null; receipt_no: string | null } | undefined;
+    const originalSale = db.prepare('SELECT id, status, business_id, receipt_no, fulfillment_status FROM pos_sales WHERE id = ?').get(originalSaleId) as
+      { id: number; status: string; business_id: number | null; receipt_no: string | null; fulfillment_status: string } | undefined;
     if (!originalSale) return NextResponse.json({ error: 'Original sale not found' }, { status: 404 });
     if (originalSale.status !== 'Completed') return NextResponse.json({ error: 'Original sale must be a completed sale' }, { status: 400 });
+    // Exchanging assumes the customer physically has the item to trade in —
+    // an unreleased FOR PICKUP sale never handed one over, so there's
+    // nothing to exchange yet. Cancel/refund it via the normal flow instead.
+    if (originalSale.fulfillment_status === 'FOR_PICKUP') {
+      return NextResponse.json({ error: 'This item has not been released yet — it cannot be exchanged. Use Refund to cancel it instead.' }, { status: 400 });
+    }
 
     const {
       return_item, new_product_id, cash_amount, online_amount, reference_no,

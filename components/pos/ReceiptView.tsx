@@ -1,7 +1,7 @@
 'use client';
 
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { displayReceiptNo, type Sale, type SaleItem, type Refund } from './constants';
+import { displayReceiptNo, derivePaymentStatus, type Sale, type SaleItem, type Refund } from './constants';
 import Row from './ReceiptRow';
 
 interface PaymentLeg { method: string; amount: number; reference_no: string | null; }
@@ -56,6 +56,14 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
 
   const downpaymentCollected = sale.cash_amount + sale.online_amount;
 
+  // customer_name is only ever set on a FOR PICKUP sale (see
+  // app/api/pos/sales/route.ts) — still present after release, so this
+  // correctly identifies "was/is a pickup order" in both states, unlike
+  // fulfillment_status alone (which reads 'RELEASED' for a completed
+  // pickup exactly the same as it does for an ordinary immediate sale).
+  const isPickupOrder = !!sale.customer_name;
+  const paymentStatus = derivePaymentStatus(sale);
+
   return (
     <div className="max-w-sm mx-auto">
       <div id="pos-receipt" className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
@@ -73,6 +81,34 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
           )}
         </div>
 
+        {isPickupOrder && (
+          <div className={`border-2 rounded-lg px-3 py-2 text-center ${sale.fulfillment_status === 'FOR_PICKUP' ? 'border-blue-400 bg-blue-50' : 'border-green-300 bg-green-50'}`}>
+            {sale.fulfillment_status === 'FOR_PICKUP' ? (
+              <>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-800">For Pickup</p>
+                <p className="text-[11px] font-semibold text-blue-700">Item Not Yet Released</p>
+              </>
+            ) : (
+              <p className="text-xs font-bold uppercase tracking-wide text-green-700">Item Released</p>
+            )}
+          </div>
+        )}
+
+        {isPickupOrder && (
+          <div className="border-t border-dashed border-gray-200 pt-3 space-y-1">
+            <Row label="Customer Name" value={sale.customer_name || '—'} small />
+            <Row label="Mobile Number" value={sale.customer_mobile || '—'} small />
+            {sale.expected_pickup_date && <Row label="Expected Pickup" value={sale.expected_pickup_date} small muted />}
+            <Row label="Payment Status" value={paymentStatus} small />
+            <Row label="Fulfillment Status" value={sale.fulfillment_status === 'FOR_PICKUP' ? 'FOR PICKUP' : 'RELEASED'} small />
+            <Row label="Item Released" value={sale.fulfillment_status === 'RELEASED' ? 'YES' : 'NO'} small />
+            {sale.pickup_notes && <Row label="Notes" value={sale.pickup_notes} small muted />}
+            {sale.fulfillment_status === 'RELEASED' && sale.released_at && (
+              <Row label="Released" value={`${sale.released_by_name || '—'} · ${formatDate(sale.released_at)}`} small muted />
+            )}
+          </div>
+        )}
+
         <div className="border-t border-dashed border-gray-200 pt-3 space-y-2">
           {items.map(it => {
             const unitPrice = it.is_freebie ? (it.original_price ?? 0) : it.unit_price;
@@ -88,6 +124,9 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
                   small muted={!it.is_freebie}
                   colorClass={it.is_freebie ? 'text-orange-600' : undefined}
                 />
+                {it.serial_number && <Row label="Serial No." value={it.serial_number} small muted />}
+                {it.imei_1 && <Row label="IMEI 1" value={it.imei_1} small muted />}
+                {it.imei_2 && <Row label="IMEI 2" value={it.imei_2} small muted />}
               </div>
             );
           })}

@@ -20,8 +20,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const db = getDb();
     const saleId = Number(params.id);
 
-    const sale = db.prepare('SELECT id, status, business_id FROM pos_sales WHERE id = ?').get(saleId) as
-      { id: number; status: string; business_id: number | null } | undefined;
+    const sale = db.prepare('SELECT id, status, business_id, fulfillment_status FROM pos_sales WHERE id = ?').get(saleId) as
+      { id: number; status: string; business_id: number | null; fulfillment_status: string } | undefined;
     if (!sale) return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     if (sale.status === 'Voided') return NextResponse.json({ error: 'Cannot refund a voided sale' }, { status: 400 });
 
@@ -117,8 +117,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Defective/For Inspection items are kept out of sellable stock —
         // everything else (including legacy refunds with no condition set,
         // which always restocked before this column existed) restocks
-        // normally.
-        if (l.product_id && l.condition !== 'Defective') {
+        // normally. A still-FOR_PICKUP sale never had its stock deducted in
+        // the first place (see app/api/pos/sales/route.ts), so refunding it
+        // must NOT restock — there's nothing to give back, and doing so
+        // would create phantom stock that was never actually on the shelf.
+        if (l.product_id && l.condition !== 'Defective' && sale.fulfillment_status === 'RELEASED') {
           insertMovement.run(l.product_id, l.quantity, `Refund of Sale #${saleId}`);
           adjustInventory.run(l.product_id, l.quantity);
         }

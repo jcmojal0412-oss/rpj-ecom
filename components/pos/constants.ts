@@ -50,6 +50,11 @@ export interface SaleItem {
   is_freebie: number | boolean;
   original_price: number | null;
   freebie_reason: string | null;
+  // FOR PICKUP release — captured per line at the moment the item is
+  // actually handed over, never at checkout. Most products aren't serialized.
+  serial_number: string | null;
+  imei_1: string | null;
+  imei_2: string | null;
 }
 
 export interface Sale {
@@ -93,6 +98,35 @@ export interface Sale {
   // Comma-separated names of any service/fee lines (Labor Fee, Reservation
   // Fee) in this sale — computed by the list query, null if none.
   service_items: string | null;
+  // FOR PICKUP flow — defaults to RELEASED for every normal, immediate-
+  // handover sale (stock already left at checkout); only FOR_PICKUP sales
+  // carry the customer/pickup fields below, and the only transition is the
+  // one-way FOR_PICKUP -> RELEASED made by releasing the item.
+  fulfillment_status: 'FOR_PICKUP' | 'RELEASED';
+  customer_name: string | null;
+  customer_mobile: string | null;
+  expected_pickup_date: string | null;
+  pickup_notes: string | null;
+  released_by: number | null;
+  released_by_name: string | null;
+  released_at: string | null;
+  // Separate from financing_status above (that one is reserved for a future
+  // Settled/Cancelled remittance flow) — this is whether the LOAN itself was
+  // approved, which gates releasing the item. Remittance is separate again:
+  // a customer can be approved long before the provider actually pays the store.
+  financing_approval_status: 'Pending' | 'Approved' | 'Declined' | null;
+  financing_remittance_status: 'Pending' | 'Received' | null;
+}
+
+// Payment Status is derived, never stored — mirrors the app's existing
+// convention (transactionType/onlineLabel in ReceiptView.tsx are computed
+// the same way). UNPAID/PARTIALLY PAID aren't reachable states: checkout
+// already requires full payment upfront for non-financing sales.
+export function derivePaymentStatus(sale: Pick<Sale, 'financing_provider' | 'financing_approval_status'>): string {
+  if (sale.financing_provider) {
+    return sale.financing_approval_status === 'Approved' ? 'FINANCING APPROVED' : 'FINANCING PENDING';
+  }
+  return 'PAID';
 }
 
 export const displayReceiptNo = (sale: Pick<Sale, 'id' | 'receipt_no'>) =>

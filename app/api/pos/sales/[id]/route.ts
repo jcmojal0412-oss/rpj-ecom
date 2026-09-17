@@ -18,17 +18,18 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
     const db = getDb();
     const sale = db.prepare(`
-      SELECT s.*, b.name as business_name, u.name as cashier_name
+      SELECT s.*, b.name as business_name, u.name as cashier_name, ru.name as released_by_name
       FROM pos_sales s
       LEFT JOIN businesses b ON b.id = s.business_id
       LEFT JOIN users u ON u.id = s.cashier_id
+      LEFT JOIN users ru ON ru.id = s.released_by
       WHERE s.id = ?
     `).get(params.id);
     if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const items = db.prepare(`
       SELECT id, product_id, product_name, sku, unit_price, quantity, line_total,
-             is_freebie, original_price, freebie_reason
+             is_freebie, original_price, freebie_reason, serial_number, imei_1, imei_2
       FROM pos_sale_items WHERE sale_id = ? ORDER BY id
     `).all(params.id);
 

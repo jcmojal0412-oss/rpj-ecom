@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Eye, Ban, Undo2, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Eye, Ban, Undo2, UploadCloud, Search, PackageCheck } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import Spinner from '@/components/ui/Spinner';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -10,7 +10,8 @@ import Modal from '@/components/ui/Modal';
 import { DATE_PRESETS, resolvePresetRange, type DatePreset } from '@/components/expenses/dateRanges';
 import ReceiptView from './ReceiptView';
 import RefundModal from './RefundModal';
-import { displayReceiptNo, type Business, type Sale, type SaleItem, type Refund } from './constants';
+import ReleaseItemModal from './ReleaseItemModal';
+import { displayReceiptNo, derivePaymentStatus, type Business, type Sale, type SaleItem, type Refund } from './constants';
 
 type SaleDetail = { sale: Sale; items: SaleItem[]; refunds: Refund[]; payments?: { method: string; amount: number; reference_no: string | null }[] };
 
@@ -26,11 +27,14 @@ export default function SalesHistoryClient() {
   const [customTo, setCustomTo] = useState('');
   const [businessId, setBusinessId] = useState('');
   const [status, setStatus] = useState('');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState('');
+  const [q, setQ] = useState('');
 
   const [viewing, setViewing] = useState<SaleDetail | null>(null);
   const [voiding, setVoiding] = useState<Sale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
   const [refunding, setRefunding] = useState<SaleDetail | null>(null);
+  const [releasing, setReleasing] = useState<SaleDetail | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [cashierName, setCashierName] = useState('—');
   const { toast, showToast, clearToast } = useToast();
@@ -51,12 +55,14 @@ export default function SalesHistoryClient() {
     if (range) { params.set('from', range.from); params.set('to', range.to); }
     if (businessId) params.set('business_id', businessId);
     if (status) params.set('status', status);
+    if (fulfillmentFilter) params.set('fulfillment_status', fulfillmentFilter);
+    if (q.trim()) params.set('q', q.trim());
     const data = await fetch(`/api/pos/sales?${params.toString()}`).then(r => r.json());
     if (ticket !== fetchTicket.current) return;
     setSales(data.rows ?? []);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, customFrom, customTo, businessId, status]);
+  }, [preset, customFrom, customTo, businessId, status, fulfillmentFilter, q]);
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
   useEffect(() => {
@@ -67,6 +73,25 @@ export default function SalesHistoryClient() {
 
   const openSale = async (s: Sale) => setViewing(await fetchDetail(s.id));
   const openRefund = async (s: Sale) => setRefunding(await fetchDetail(s.id));
+  const openRelease = async (s: Sale) => setReleasing(await fetchDetail(s.id));
+
+  const [approvingFinancing, setApprovingFinancing] = useState(false);
+  const approveFinancing = async () => {
+    if (!viewing) return;
+    setApprovingFinancing(true);
+    try {
+      const res = await fetch(`/api/pos/sales/${viewing.sale.id}/financing-status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approval_status: 'Approved' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to approve financing', 'error'); return; }
+      showToast('Financing approved');
+      setViewing(await fetchDetail(viewing.sale.id));
+    } finally {
+      setApprovingFinancing(false);
+    }
+  };
 
   const confirmVoid = async () => {
     if (!voiding) return;
@@ -141,8 +166,27 @@ export default function SalesHistoryClient() {
             <option value="Completed">Completed</option>
             <option value="Voided">Voided</option>
           </select>
+          <select className="form-input py-1.5 text-sm w-auto" value={fulfillmentFilter} onChange={e => setFulfillmentFilter(e.target.value)}>
+            <option value="">All Fulfillment</option>
+            <option value="FOR_PICKUP">For Pickup</option>
+            <option value="RELEASED">Released</option>
+          </select>
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+            <input className="form-input py-1.5 text-sm pl-8 w-56" placeholder="Search receipt #, customer, mobile"
+              value={q} onChange={e => setQ(e.target.value)} />
+          </div>
         </div>
       </div>
+
+      {fulfillmentFilter === 'FOR_PICKUP' && !loading && (
+        <div className="card border-2 border-blue-200 bg-blue-50 flex items-center gap-2.5">
+          <PackageCheck className="text-blue-600 shrink-0" size={18} />
+          <p className="text-sm text-blue-800">
+            <strong>{sales.length} order{sales.length === 1 ? '' : 's'}</strong> for pickup — <strong>{formatCurrency(sales.reduce((s, sale) => s + sale.total, 0))}</strong> total transaction value
+          </p>
+        </div>
+      )}
 
       <div className="card">
         {loading ? (
@@ -154,7 +198,10 @@ export default function SalesHistoryClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash Applied', 'Online / Card', 'Financing', 'Service/Fee', 'Status', 'Actions'].map(h => (
+                  {(fulfillmentFilter === 'FOR_PICKUP'
+                    ? ['Sale #', 'Date', 'Customer', 'Mobile', 'Total', 'Payment Status', 'Fulfillment', 'Status', 'Actions']
+                    : ['Sale #', 'Date', 'Business', 'Cashier', 'Total', 'Cash Applied', 'Online / Card', 'Financing', 'Service/Fee', 'Status', 'Actions']
+                  ).map(h => (
                     <th key={h} className="table-header whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -164,27 +211,46 @@ export default function SalesHistoryClient() {
                   <tr key={s.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="table-cell font-medium tabular-nums">{displayReceiptNo(s)}</td>
                     <td className="table-cell text-gray-500 whitespace-nowrap">{formatDate(s.created_at)}</td>
-                    <td className="table-cell">{s.business_name || '—'}</td>
-                    <td className="table-cell">{s.cashier_name || '—'}</td>
-                    <td className="table-cell font-semibold whitespace-nowrap tabular-nums">{formatCurrency(s.total)}</td>
-                    <td className="table-cell text-gray-600 tabular-nums">{cashApplied(s) > 0 ? formatCurrency(cashApplied(s)) : '—'}</td>
-                    <td className="table-cell text-gray-600 tabular-nums">{onlineApplied(s) > 0 ? formatCurrency(onlineApplied(s)) : '—'}</td>
-                    <td className="table-cell text-gray-600 tabular-nums whitespace-nowrap">
-                      {s.financing_provider ? `${s.financing_provider} ${formatCurrency(s.financing_amount)}` : '—'}
-                    </td>
-                    <td className="table-cell whitespace-nowrap">
-                      {s.service_items ? (
-                        <span className="text-[11px] font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded" title={s.service_items}>
-                          {s.service_items}
-                        </span>
-                      ) : '—'}
-                    </td>
+                    {fulfillmentFilter === 'FOR_PICKUP' ? (
+                      <>
+                        <td className="table-cell">{s.customer_name || '—'}</td>
+                        <td className="table-cell">{s.customer_mobile || '—'}</td>
+                        <td className="table-cell font-semibold whitespace-nowrap tabular-nums">{formatCurrency(s.total)}</td>
+                        <td className="table-cell whitespace-nowrap">{derivePaymentStatus(s)}</td>
+                        <td className="table-cell">
+                          <span className={s.fulfillment_status === 'FOR_PICKUP' ? 'badge-amber' : 'badge-green'}>
+                            {s.fulfillment_status === 'FOR_PICKUP' ? 'For Pickup' : 'Released'}
+                          </span>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="table-cell">{s.business_name || '—'}</td>
+                        <td className="table-cell">{s.cashier_name || '—'}</td>
+                        <td className="table-cell font-semibold whitespace-nowrap tabular-nums">{formatCurrency(s.total)}</td>
+                        <td className="table-cell text-gray-600 tabular-nums">{cashApplied(s) > 0 ? formatCurrency(cashApplied(s)) : '—'}</td>
+                        <td className="table-cell text-gray-600 tabular-nums">{onlineApplied(s) > 0 ? formatCurrency(onlineApplied(s)) : '—'}</td>
+                        <td className="table-cell text-gray-600 tabular-nums whitespace-nowrap">
+                          {s.financing_provider ? `${s.financing_provider} ${formatCurrency(s.financing_amount)}` : '—'}
+                        </td>
+                        <td className="table-cell whitespace-nowrap">
+                          {s.service_items ? (
+                            <span className="text-[11px] font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded" title={s.service_items}>
+                              {s.service_items}
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </>
+                    )}
                     <td className="table-cell">
                       <span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span>
                     </td>
                     <td className="table-cell">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openSale(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="View Receipt"><Eye size={14} /></button>
+                        {s.status !== 'Voided' && s.fulfillment_status === 'FOR_PICKUP' && (
+                          <button onClick={() => openRelease(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-600" title="Release Item"><PackageCheck size={14} /></button>
+                        )}
                         {s.status !== 'Voided' && (
                           <>
                             <button onClick={() => openRefund(s)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-300 hover:text-amber-600" title="Refund Item(s)"><Undo2 size={14} /></button>
@@ -211,6 +277,14 @@ export default function SalesHistoryClient() {
         <Modal open onClose={() => setViewing(null)} title={displayReceiptNo(viewing.sale)} size="sm">
           <ReceiptView sale={viewing.sale} items={viewing.items} refunds={viewing.refunds} payments={viewing.payments}>
             <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
+            {viewing.sale.status !== 'Voided' && isOwner && viewing.sale.financing_provider && viewing.sale.financing_approval_status === 'Pending' && (
+              <button onClick={approveFinancing} disabled={approvingFinancing} className="btn-secondary disabled:opacity-50">
+                {approvingFinancing ? 'Approving...' : 'Approve Financing'}
+              </button>
+            )}
+            {viewing.sale.status !== 'Voided' && viewing.sale.fulfillment_status === 'FOR_PICKUP' && (
+              <button onClick={() => { setReleasing(viewing); setViewing(null); }} className="btn-primary">Release Item</button>
+            )}
             {viewing.sale.status !== 'Voided' && (
               <>
                 <button onClick={() => { setRefunding(viewing); setViewing(null); }} className="btn-secondary">Refund Item(s)</button>
@@ -218,6 +292,16 @@ export default function SalesHistoryClient() {
               </>
             )}
           </ReceiptView>
+        </Modal>
+      )}
+
+      {releasing && (
+        <Modal open onClose={() => setReleasing(null)} title={`Release Item — ${displayReceiptNo(releasing.sale)}`} size="md">
+          <ReleaseItemModal
+            sale={releasing.sale} items={releasing.items} refunds={releasing.refunds}
+            onCancel={() => setReleasing(null)}
+            onReleased={() => { setReleasing(null); setViewing(null); showToast('Item released — stock updated'); fetchSales(); }}
+          />
         </Modal>
       )}
 
@@ -235,7 +319,9 @@ export default function SalesHistoryClient() {
       {voiding && (
         <Modal open onClose={() => !voidBusy && setVoiding(null)} title="Void Sale?" size="sm">
           <p className="text-sm text-gray-600">
-            This will void {displayReceiptNo(voiding)} and restore {formatCurrency(voiding.total)} worth of stock back to inventory. This cannot be undone.
+            {voiding.fulfillment_status === 'FOR_PICKUP'
+              ? <>This will void {displayReceiptNo(voiding)}. The item was never released, so there&apos;s no stock to restore. This cannot be undone.</>
+              : <>This will void {displayReceiptNo(voiding)} and restore {formatCurrency(voiding.total)} worth of stock back to inventory. This cannot be undone.</>}
           </p>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setVoiding(null)} disabled={voidBusy} className="btn-secondary">Cancel</button>

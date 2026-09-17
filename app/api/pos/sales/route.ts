@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction, nextReceiptNo } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/utils';
+import { logSaleAudit } from '@/lib/pos-audit';
 
 export const dynamic = 'force-dynamic';
 
 const LIST_SQL_BASE = `
-  SELECT s.*, b.name as business_name, u.name as cashier_name,
+  SELECT s.*, b.name as business_name, u.name as cashier_name, ru.name as released_by_name,
          (SELECT GROUP_CONCAT(DISTINCT product_name) FROM pos_sale_items
           WHERE sale_id = s.id AND product_id IS NULL) as service_items
   FROM pos_sales s
   LEFT JOIN businesses b ON b.id = s.business_id
   LEFT JOIN users u ON u.id = s.cashier_id
+  LEFT JOIN users ru ON ru.id = s.released_by
   WHERE 1=1
 `;
 
@@ -27,6 +29,8 @@ export async function GET(req: NextRequest) {
     const businessId = searchParams.get('business_id');
     const status = searchParams.get('status');
     const receiptNo = searchParams.get('receipt_no');
+    const fulfillmentStatus = searchParams.get('fulfillment_status');
+    const q = searchParams.get('q');
 
     const clauses: string[] = [];
     const params: (string | number)[] = [];
@@ -34,15 +38,30 @@ export async function GET(req: NextRequest) {
     if (to) { clauses.push('s.sale_date <= ?'); params.push(to); }
     if (businessId) { clauses.push('s.business_id = ?'); params.push(Number(businessId)); }
     if (status) { clauses.push('s.status = ?'); params.push(status); }
+    if (fulfillmentStatus) { clauses.push('s.fulfillment_status = ?'); params.push(fulfillmentStatus); }
+    if (q) {
+      // Finds a pickup order by receipt #, customer name, or mobile number —
+      // used when claiming an item, same reasoning as receiptNo below: the
+      // customer may be dealing with a different cashier than the one who
+      // rang the sale up originally.
+      clauses.push('(s.receipt_no LIKE ? OR s.customer_name LIKE ? OR s.customer_mobile LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like);
+    }
+    const exemptFromCashierScope = !!receiptNo || !!fulfillmentStatus || !!q;
     if (receiptNo) {
       // Return/Exchange's "find a sale by Sale # / Receipt #" — deliberately
       // exempt from the cashier restriction below. A customer can return an
       // item to a different cashier than the one who originally rang it up,
       // and that cashier needs to be able to look the sale up to process it.
       clauses.push('s.receipt_no = ?'); params.push(receiptNo);
-    } else if (session.role !== 'owner') {
+    }
+    if (!exemptFromCashierScope && session.role !== 'owner') {
       // The general browse/list view (Sales History) — a staff account only
-      // ever sees its own sales here; the owner sees everything.
+      // ever sees its own sales here; the owner sees everything. Exempted
+      // above for receipt#/fulfillment-status/customer-search lookups —
+      // releasing a pickup order is exactly the same "different cashier,
+      // same store" case as a return.
       clauses.push('s.cashier_id = ?'); params.push(session.id);
     }
 
@@ -74,11 +93,29 @@ export async function POST(req: NextRequest) {
       business_id, items, discount, additional_fee, cash_amount, online_amount, notes,
       tax_percent, service_charge, delivery_fee, payment_method, reference_no, payments,
       financing_provider, cashback_amount, downpayment_applied,
+      for_pickup, customer_name, customer_mobile, expected_pickup_date, pickup_notes,
     } = await req.json();
 
     if (!business_id) return NextResponse.json({ error: 'Business is required' }, { status: 400 });
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
+    }
+
+    // FOR PICKUP — customer pays today, physical item is handed over later.
+    // Whole-sale toggle, not per line: a cart mixing "some released now, one
+    // for pickup" would need two separate transactions. Requires a way to
+    // find the customer again, and needs at least one real product line
+    // (a service/fee-only cart has nothing to ever release).
+    const forPickup = !!for_pickup;
+    const customerNameTrim = String(customer_name ?? '').trim();
+    const customerMobileTrim = String(customer_mobile ?? '').trim();
+    if (forPickup) {
+      if (!customerNameTrim || !customerMobileTrim) {
+        return NextResponse.json({ error: 'Customer Name and Mobile Number are required for a FOR PICKUP sale' }, { status: 400 });
+      }
+      if (!(items as CartItem[]).some(it => !it?.service_name && it?.product_id)) {
+        return NextResponse.json({ error: 'A FOR PICKUP sale needs at least one product line' }, { status: 400 });
+      }
     }
 
     // `payments` — an unlimited-length {method, amount, reference_no} list —
@@ -162,7 +199,12 @@ export async function POST(req: NextRequest) {
       if (!product) {
         return NextResponse.json({ error: `Product #${raw.product_id} no longer exists` }, { status: 400 });
       }
-      if (!allowZeroStock && qty > product.quantity) {
+      // FOR PICKUP is explicitly allowed to sell against zero/short physical
+      // stock (that's the whole point — the item isn't here yet) —
+      // independent of the global "Allow selling at 0 stock" setting, and
+      // scoped to only this transaction rather than opening that hole for
+      // every checkout.
+      if (!forPickup && !allowZeroStock && qty > product.quantity) {
         return NextResponse.json({
           error: `Not enough stock for "${product.name}" — only ${product.quantity} left, tried to sell ${qty}.`,
         }, { status: 400 });
@@ -212,6 +254,12 @@ export async function POST(req: NextRequest) {
     let financingAmountVal = 0;
     let financingReferenceVal: string | null = null;
     let financingStatusVal: string | null = null;
+    // Separate from financingStatusVal above (that column is reserved for a
+    // future Settled/Cancelled remittance-settlement flow) — this is
+    // whether the LOAN was approved, which is what gates releasing a FOR
+    // PICKUP item. Starts Pending for every financed sale, same as today's
+    // financing_status always starting Pending.
+    let financingApprovalStatusVal: string | null = null;
     if (financing_provider) {
       if (!FINANCING_PROVIDERS.includes(financing_provider)) {
         return NextResponse.json({ error: 'Invalid financing provider' }, { status: 400 });
@@ -226,6 +274,7 @@ export async function POST(req: NextRequest) {
       financingAmountVal = Math.max(0, amountDue - totalPayment);
       financingReferenceVal = String(reference_no).trim();
       financingStatusVal = 'Pending';
+      financingApprovalStatusVal = 'Pending';
     } else if (totalPayment + 0.005 < amountDue) {
       return NextResponse.json({ error: 'Payment is less than the amount due' }, { status: 400 });
     }
@@ -264,8 +313,9 @@ export async function POST(req: NextRequest) {
          service_charge, delivery_fee, total, cash_amount, online_amount, change_due,
          payment_method, reference_no, status, cashier_id, notes, shift_id,
          financing_provider, financing_amount, financing_reference, financing_status, cashback_amount,
-         downpayment_applied, receipt_no)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?,?)
+         downpayment_applied, receipt_no, fulfillment_status, customer_name, customer_mobile,
+         expected_pickup_date, pickup_notes, financing_approval_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'Completed', ?, ?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?)
     `);
     const insertItem = db.prepare(`
       INSERT INTO pos_sale_items (sale_id, product_id, product_name, sku, unit_price, cogs, quantity, line_total, is_freebie, original_price, freebie_reason)
@@ -309,19 +359,30 @@ export async function POST(req: NextRequest) {
         session.id, notes?.trim() || null, openShift?.id ?? null,
         financingProviderVal, financingAmountVal, financingReferenceVal, financingStatusVal, cashbackNum,
         downpaymentAppliedNum, nextReceiptNo(db),
+        forPickup ? 'FOR_PICKUP' : 'RELEASED',
+        forPickup ? customerNameTrim : null, forPickup ? customerMobileTrim : null,
+        forPickup ? (String(expected_pickup_date ?? '').trim() || null) : null,
+        forPickup ? (String(pickup_notes ?? '').trim() || null) : null,
+        financingApprovalStatusVal,
       );
       const id = Number(info.lastInsertRowid);
       for (const l of lineData) {
         insertItem.run(id, l.product_id, l.name, l.sku, l.unit_price, l.cogs, l.quantity, l.line_total, l.is_freebie ? 1 : 0, l.original_price, l.freebie_reason);
-        // Freebies still deduct inventory — they're given away, not sold,
-        // but the store still physically hands over real stock.
-        if (l.product_id != null) {
+        // FOR PICKUP: physical stock hasn't left the shelf, so no movement/
+        // deduction happens now — see app/api/pos/sales/[id]/release for
+        // where this pair runs later instead. Freebies still deduct
+        // inventory when NOT for pickup — they're given away, not sold, but
+        // the store still physically hands over real stock immediately.
+        if (l.product_id != null && !forPickup) {
           insertMovement.run(l.product_id, l.quantity, l.is_freebie ? `POS Sale #${id} (Freebie)` : `POS Sale #${id}`);
           adjustInventory.run(l.product_id, -l.quantity, -l.quantity);
         }
       }
       for (const leg of paymentLegs) {
         insertPayment.run(id, leg.method, leg.amount, leg.reference_no);
+      }
+      if (forPickup) {
+        logSaleAudit(db, id, session.id, 'FOR_PICKUP_CREATED', `${customerNameTrim} / ${customerMobileTrim}`);
       }
       return id;
     });

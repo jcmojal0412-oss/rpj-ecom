@@ -1443,6 +1443,13 @@ function migrateSchema() {
   if (!saleItemCols.includes('original_price')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN original_price REAL');
   if (!saleItemCols.includes('freebie_reason')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN freebie_reason TEXT');
 
+  // FOR PICKUP release — serial/IMEI captured per line at the moment the
+  // item is actually handed over (see app/api/pos/sales/[id]/release),
+  // never at checkout. Optional: most products aren't serialized.
+  if (!saleItemCols.includes('serial_number')) db.exec('ALTER TABLE pos_sale_items ADD COLUMN serial_number TEXT');
+  if (!saleItemCols.includes('imei_1'))        db.exec('ALTER TABLE pos_sale_items ADD COLUMN imei_1 TEXT');
+  if (!saleItemCols.includes('imei_2'))        db.exec('ALTER TABLE pos_sale_items ADD COLUMN imei_2 TEXT');
+
   // Cashier shifts — optional clock-in/out with cash-drawer reconciliation.
   // Starting a shift is never required to use the POS: a sale made with no
   // open shift just gets shift_id = NULL, exactly like before this feature
@@ -1551,6 +1558,47 @@ function migrateSchema() {
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_sales_receipt_no ON pos_sales(receipt_no) WHERE receipt_no IS NOT NULL');
   }
   db.prepare(`INSERT OR IGNORE INTO app_settings (key, value) VALUES ('pos_receipt_seq_next', '108')`).run();
+
+  // FOR PICKUP flow — customer pays today, item is handed over later.
+  // fulfillment_status defaults every existing row (and every normal,
+  // immediate-handover sale going forward) to 'RELEASED', since their stock
+  // was already deducted at checkout — only a sale explicitly marked
+  // for_pickup at creation gets 'FOR_PICKUP', and the only transition from
+  // there is the one-way FOR_PICKUP -> RELEASED made by
+  // app/api/pos/sales/[id]/release. financing_approval_status is
+  // deliberately its OWN column, not a reuse of financing_status above —
+  // that one is reserved for a future Settled/Cancelled remittance-
+  // settlement flow (per the comment on it) and conflating "loan approved"
+  // with "money settled" would collide two different real-world events.
+  // financing_remittance_status is the remittance side, tracked
+  // separately again: a customer can be approved long before the provider
+  // actually pays the store, and updating one must never imply the other.
+  if (!posSaleCols3.includes('fulfillment_status'))          db.exec(`ALTER TABLE pos_sales ADD COLUMN fulfillment_status TEXT DEFAULT 'RELEASED'`);
+  if (!posSaleCols3.includes('customer_name'))                db.exec('ALTER TABLE pos_sales ADD COLUMN customer_name TEXT');
+  if (!posSaleCols3.includes('customer_mobile'))              db.exec('ALTER TABLE pos_sales ADD COLUMN customer_mobile TEXT');
+  if (!posSaleCols3.includes('expected_pickup_date'))         db.exec('ALTER TABLE pos_sales ADD COLUMN expected_pickup_date TEXT');
+  if (!posSaleCols3.includes('pickup_notes'))                 db.exec('ALTER TABLE pos_sales ADD COLUMN pickup_notes TEXT');
+  if (!posSaleCols3.includes('released_by'))                  db.exec('ALTER TABLE pos_sales ADD COLUMN released_by INTEGER REFERENCES users(id)');
+  if (!posSaleCols3.includes('released_at'))                  db.exec('ALTER TABLE pos_sales ADD COLUMN released_at TEXT');
+  if (!posSaleCols3.includes('financing_approval_status'))    db.exec('ALTER TABLE pos_sales ADD COLUMN financing_approval_status TEXT');
+  if (!posSaleCols3.includes('financing_remittance_status'))  db.exec('ALTER TABLE pos_sales ADD COLUMN financing_remittance_status TEXT');
+
+  // Generic actor+action audit trail for sensitive POS-sale actions
+  // (pickup creation, financing approval/decline, remittance received,
+  // item release, void/refund of an unreleased pickup) — mirrors the
+  // existing payroll_audit_log pattern; no equivalent table existed for
+  // POS sales before this.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pos_sales_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER REFERENCES pos_sales(id),
+      actor_user_id INTEGER REFERENCES users(id),
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_pos_sales_audit_sale ON pos_sales_audit_log(sale_id);
+  `);
 
   // Owner-controlled escape hatch for stores mid-migration into this POS
   // (inventory quantities not yet counted, so most products sit at 0):

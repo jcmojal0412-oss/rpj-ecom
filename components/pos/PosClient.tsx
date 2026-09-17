@@ -532,6 +532,17 @@ export default function PosClient() {
   // the POS lets a sale go through regardless of recorded stock instead of
   // blocking checkout on numbers that aren't trustworthy yet.
   const [allowZeroStock, setAllowZeroStock] = useState(false);
+  // FOR PICKUP — customer pays today, physical item is handed over later
+  // (see app/api/pos/sales/route.ts). Whole-sale toggle: it unlocks adding
+  // out-of-stock items to the cart the same way allowZeroStock does, and
+  // requires the customer's name/mobile so a cashier can find this same
+  // transaction again when they return to claim the item.
+  const [forPickup, setForPickup] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [expectedPickupDate, setExpectedPickupDate] = useState('');
+  const [pickupNotes, setPickupNotes] = useState('');
+  const bypassStock = allowZeroStock || forPickup;
   const { toast, showToast, clearToast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   const isOwner = cashier?.role === 'owner';
@@ -594,18 +605,19 @@ export default function PosClient() {
         if (p.quantity <= 0) return false;
       } else {
         if (category !== 'All' && p.category !== category) return false;
-        // Zero-stock items are always visible while the bypass is on — the
-        // whole point is that these numbers aren't trustworthy right now,
-        // so hiding them behind a separate checkbox would defeat it.
-        if (p.quantity <= 0 && !showOutOfStock && !allowZeroStock) return false;
+        // Zero-stock items are always visible while the bypass is on
+        // (allowZeroStock, or forPickup — the whole point of FOR PICKUP is
+        // selling something that isn't here yet), so hiding them behind a
+        // separate checkbox would defeat it.
+        if (p.quantity <= 0 && !showOutOfStock && !bypassStock) return false;
       }
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !(p.barcode ?? '').toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [products, search, category, showOutOfStock, allowZeroStock]);
+  }, [products, search, category, showOutOfStock, bypassStock]);
 
   const addToCart = (p: Product) => {
-    if (p.quantity <= 0 && !allowZeroStock) { showToast(`${p.name} is out of stock`, 'error'); return; }
+    if (p.quantity <= 0 && !bypassStock) { showToast(`${p.name} is out of stock`, 'error'); return; }
     setCart(prev => {
       // A freebie line never absorbs a later "Add to Cart" click for the
       // same product — e.g. customer gets 1 free unit via a promo, then
@@ -614,7 +626,7 @@ export default function PosClient() {
       // against the combined quantity across every line of this product,
       // unless the zero-stock bypass is on.
       const totalInCart = prev.filter(l => l.kind === 'product' && l.product_id === p.id).reduce((s, l) => s + l.quantity, 0);
-      if (!allowZeroStock && totalInCart >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
+      if (!bypassStock && totalInCart >= p.quantity) { showToast(`Only ${p.quantity} in stock`, 'error'); return prev; }
       const existing = prev.find(l => l.kind === 'product' && l.product_id === p.id && !l.is_freebie);
       if (existing) {
         return prev.map(l => l === existing ? { ...l, quantity: l.quantity + 1 } : l);
@@ -639,7 +651,7 @@ export default function PosClient() {
       // the stock cap has to account for every line sharing that product,
       // not just this one — otherwise two lines could each independently
       // "fit" under the total stock while together overselling it.
-      if (!allowZeroStock && delta > 0 && target.kind === 'product' && target.stock != null) {
+      if (!bypassStock && delta > 0 && target.kind === 'product' && target.stock != null) {
         const others = prev.filter(l => l.kind === 'product' && l.product_id === target.product_id && l.key !== key)
           .reduce((s, l) => s + l.quantity, 0);
         if (next + others > target.stock) { showToast(`Only ${target.stock} in stock`, 'error'); return prev; }
@@ -673,6 +685,7 @@ export default function PosClient() {
     setFinancingProvider(null); setDpRows([newLegRow('Cash')]); setSplitRows([newLegRow('Cash'), newLegRow('GCash')]);
     setCashbackAmount(''); setDownpaymentApplied('');
     setFreebieTarget(null); setFreebieReasonInput('');
+    setForPickup(false); setCustomerName(''); setCustomerMobile(''); setExpectedPickupDate(''); setPickupNotes('');
   };
 
   const updateSplitRow = (key: string, patch: Partial<PaymentLegRow>) => setSplitRows(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r));
@@ -727,7 +740,12 @@ export default function PosClient() {
   const financedAmount = Math.max(0, amountDue - dpDeclared);
   const financingValid = !!financingProvider && dpDeclared >= 0 && dpDeclared <= amountDue + 0.005 && referenceNo.trim().length > 0;
 
-  const canCheckout = cart.length > 0 && !!businessId && !!activeShift && !submitting && !adjustmentsExceedTotal &&
+  const forPickupValid = !forPickup || (
+    customerName.trim().length > 0 && customerMobile.trim().length > 0 &&
+    cart.some(l => l.kind === 'product')
+  );
+
+  const canCheckout = cart.length > 0 && !!businessId && !!activeShift && !submitting && !adjustmentsExceedTotal && forPickupValid &&
     (paymentMode === 'Financing' ? financingValid : totalPayment + 0.005 >= amountDue);
 
   const applyExactCash = () => setCashAmount(Math.max(0, amountDue - onlineNum).toFixed(2));
@@ -808,6 +826,11 @@ export default function PosClient() {
             undefined,
           financing_provider: paymentMode === 'Financing' ? financingProvider : null,
           cashback_amount: cashbackNum, downpayment_applied: downpaymentAppliedNum,
+          for_pickup: forPickup,
+          customer_name: forPickup ? customerName.trim() : undefined,
+          customer_mobile: forPickup ? customerMobile.trim() : undefined,
+          expected_pickup_date: forPickup ? (expectedPickupDate || undefined) : undefined,
+          pickup_notes: forPickup ? (pickupNotes.trim() || undefined) : undefined,
         }),
       });
       const data = await res.json();
@@ -925,6 +948,16 @@ export default function PosClient() {
             ) : allowZeroStock && (
               <span className="text-xs text-amber-700 font-semibold">Zero-stock sales allowed (owner setting)</span>
             )}
+            {/* FOR PICKUP — customer pays today, item isn't here yet. Unlocks
+                out-of-stock items the same way "Allow selling at 0 stock"
+                does, but scoped to just this one transaction. Available to
+                any cashier, not owner-gated, since it's a normal day-to-day
+                sale scenario, not an inventory-count workaround. */}
+            <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${forPickup ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+              <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                checked={forPickup} onChange={e => setForPickup(e.target.checked)} />
+              FOR PICKUP (item not in stock yet)
+            </label>
           </div>
           <div className="flex-1 overflow-auto">
             {category === SERVICES_TAB ? (
@@ -943,14 +976,14 @@ export default function PosClient() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map(p => (
-                  <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0 && !allowZeroStock}
+                  <button key={p.id} onClick={() => addToCart(p)} disabled={p.quantity <= 0 && !bypassStock}
                     className="bg-white border border-gray-200 rounded-lg p-2.5 text-left hover:border-orange-300 hover:shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                     <p className="text-xs font-semibold text-gray-800 leading-snug line-clamp-2 min-h-[2rem]">{p.name}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{p.sku}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-xs font-bold text-orange-600 tabular-nums">{formatCurrency(p.srp ?? 0)}</span>
                       <span className={`text-[9px] font-semibold ${p.quantity <= 0 ? 'text-red-500' : p.quantity <= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
-                        {p.quantity <= 0 ? (allowZeroStock ? 'Not counted' : 'Out') : `${p.quantity} left`}
+                        {p.quantity <= 0 ? (forPickup ? 'For pickup' : allowZeroStock ? 'Not counted' : 'Out') : `${p.quantity} left`}
                       </span>
                     </div>
                   </button>
@@ -1085,6 +1118,35 @@ export default function PosClient() {
               <div className="flex justify-between items-center text-xs"><span className="text-white/90">Delivery Fee</span><InlineField value={deliveryFee} onChange={setDeliveryFee} /></div>
               <div className="flex justify-between items-center text-lg font-bold pt-1.5 border-t border-white/25"><span>AMOUNT DUE</span><span className="tabular-nums">{formatCurrency(amountDue)}</span></div>
             </div>
+
+            {forPickup && (
+              <div className="border-t border-gray-100 pt-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-700">FOR PICKUP — customer claims this item later</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Customer Name *</label>
+                    <input className="form-input py-1.5 text-xs" placeholder="Full name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Mobile Number *</label>
+                    <input className="form-input py-1.5 text-xs" placeholder="09XX XXX XXXX" value={customerMobile} onChange={e => setCustomerMobile(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Expected Pickup Date</label>
+                    <input type="date" className="form-input py-1.5 text-xs" value={expectedPickupDate} onChange={e => setExpectedPickupDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-500 font-medium">Notes</label>
+                    <input className="form-input py-1.5 text-xs" placeholder="Optional" value={pickupNotes} onChange={e => setPickupNotes(e.target.value)} />
+                  </div>
+                </div>
+                {!forPickupValid && (
+                  <p className="text-[11px] text-red-500 font-medium">
+                    {cart.some(l => l.kind === 'product') ? 'Customer Name and Mobile Number are required for pickup.' : 'Add at least one product to the cart for pickup.'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Customer Payment — redesigned for a single at-a-glance flow:
                 pick a mode, fill only the fields that mode needs, see the
