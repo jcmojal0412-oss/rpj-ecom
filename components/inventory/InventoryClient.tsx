@@ -38,6 +38,8 @@ export default function InventoryClient() {
   const [bugAffectedCount, setBugAffectedCount] = useState(0);
   const [bugMissedUnits, setBugMissedUnits] = useState(0);
   const [fixingBug, setFixingBug] = useState(false);
+  const [checkingBug, setCheckingBug] = useState(false);
+  const [bugChecked, setBugChecked] = useState(false);
   const { toast, showToast, clearToast } = useToast();
 
   const fetchInventory = useCallback(async () => {
@@ -57,21 +59,32 @@ export default function InventoryClient() {
   // to run any number of times since it always lands on the same correct
   // absolute number, not a relative adjustment.
   const fetchBugStatus = useCallback(async () => {
-    const d = await fetch('/api/inventory/fix-pos-deduction-bug').then(r => r.ok ? r.json() : null);
-    if (!d) return;
-    const affected = Array.isArray(d.affected) ? d.affected : [];
-    setBugAffectedCount(affected.length);
-    setBugMissedUnits(affected.reduce((s: number, r: { current_stock: number; true_quantity: number }) => s + Math.abs(r.true_quantity - r.current_stock), 0));
+    setCheckingBug(true);
+    try {
+      const d = await fetch('/api/inventory/fix-pos-deduction-bug').then(r => r.ok ? r.json() : null);
+      if (!d) return;
+      const affected = Array.isArray(d.affected) ? d.affected : [];
+      setBugAffectedCount(affected.length);
+      setBugMissedUnits(affected.reduce((s: number, r: { current_stock: number; true_quantity: number }) => s + Math.abs(r.true_quantity - r.current_stock), 0));
+      setBugChecked(true);
+    } finally {
+      setCheckingBug(false);
+    }
   }, []);
 
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
-      const owner = u?.role === 'owner';
-      setIsOwner(owner);
-      if (owner) fetchBugStatus();
-    });
-  }, [fetchBugStatus]);
+    // Deliberately NOT auto-running fetchBugStatus here — it recomputes
+    // every product's true quantity from its FULL stock_movements history
+    // (no date bound is possible without losing correctness), which got
+    // noticeably heavier as more sales history piled up. It was worth
+    // paying that cost on every page load while the underlying checkout
+    // bug was still fresh and drift could reappear; now that it's fixed,
+    // ongoing drift shouldn't happen, so this is a manual "Check for stock
+    // drift" action instead (see the button below) rather than a standing
+    // tax on every single Inventory page visit.
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setIsOwner(u?.role === 'owner'));
+  }, []);
 
   const runFixBug = async () => {
     setFixingBug(true);
@@ -143,6 +156,12 @@ export default function InventoryClient() {
           <p className="text-sm text-gray-500 mt-1">Manage stock levels and movements</p>
         </div>
         <div className="flex items-center gap-2">
+          {isOwner && !bugChecked && (
+            <button onClick={fetchBugStatus} disabled={checkingBug} className="btn-secondary text-xs disabled:opacity-50">
+              {checkingBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+              {checkingBug ? 'Checking...' : 'Check for stock drift'}
+            </button>
+          )}
           <button onClick={() => setShowBulkCount(true)} className="btn-secondary">
             <ClipboardList size={16} /> Bulk Stock Count
           </button>
@@ -151,6 +170,10 @@ export default function InventoryClient() {
           </button>
         </div>
       </div>
+
+      {isOwner && bugChecked && bugAffectedCount === 0 && (
+        <p className="text-xs text-gray-400">✓ No stock drift found — every product matches its movement history.</p>
+      )}
 
       {isOwner && bugAffectedCount > 0 && (
         <div className="card flex items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
