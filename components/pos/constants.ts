@@ -37,6 +37,7 @@ export interface ServiceFeeItem { name: string; sku: string; }
 export const SERVICE_FEE_ITEMS: ServiceFeeItem[] = [
   { name: 'Labor / Service Fee', sku: 'SVC-LABOR' },
   { name: 'Reservation Fee', sku: 'SVC-RSVP' },
+  { name: 'Item for Reservation Fee', sku: 'SVC-RSVP-ITEM' },
 ];
 
 export interface SaleItem {
