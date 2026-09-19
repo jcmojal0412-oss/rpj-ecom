@@ -1385,6 +1385,27 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(product_id, moved_at);
   `);
 
+  // One row per physical stock count (single-item or bulk sheet) — what the
+  // system expected, what was actually counted, and who/why. A count that
+  // matches (variance 0) is logged too, since accuracy % needs both sides.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS inventory_counts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      expected_qty INTEGER NOT NULL,
+      counted_qty INTEGER NOT NULL,
+      variance INTEGER NOT NULL,
+      unit_cost REAL NOT NULL DEFAULT 0,
+      reason TEXT,
+      note TEXT,
+      source TEXT NOT NULL DEFAULT 'single',
+      counted_by INTEGER REFERENCES users(id),
+      counted_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_inventory_counts_at ON inventory_counts(counted_at);
+    CREATE INDEX IF NOT EXISTS idx_inventory_counts_product ON inventory_counts(product_id, counted_at);
+  `);
+
   // Extra sale-level fields to match the branch POS UI: tax/service/delivery
   // as additional adjustable line items, a payment method tag (label only —
   // no real payment-gateway integration behind it), and an optional external

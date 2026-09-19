@@ -5,3 +5,10 @@
 // versa).
 export const IN_REASONS = ['New Purchase / Restock', 'Customer Return', 'RTS (Return to Sender)', 'Transfer In', 'Inventory Adjustment', 'Other'];
 export const OUT_REASONS = ['Damaged / Defective', 'Supplier Return', 'Transfer Out', 'Online Order', 'Inventory Adjustment', 'Internal Use', 'Other'];
+
+// Why a physical count disagreed with the system — required whenever the
+// counted quantity differs from what the system expected.
+export const COUNT_REASONS = [
+  'Miscount / Recount', 'Damaged / Defective', 'Lost / Missing', 'Theft Suspected',
+  'Sale Not Recorded in POS', 'Restock Not Recorded', 'Data Entry Error', 'Other',
+];

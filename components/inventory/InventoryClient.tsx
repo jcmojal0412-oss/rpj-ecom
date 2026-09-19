@@ -11,6 +11,8 @@ import StockForm from './StockForm';
 import MovementLog from './MovementLog';
 import NegativeStockPanel from './NegativeStockPanel';
 import SlowMovingPanel from './SlowMovingPanel';
+import PhysicalCountModal from './PhysicalCountModal';
+import CountHistoryPanel from './CountHistoryPanel';
 import Spinner from '@/components/ui/Spinner';
 
 interface InventoryItem {
@@ -29,8 +31,7 @@ export default function InventoryClient() {
   const [loading, setLoading] = useState(true);
   const [editingReorder, setEditingReorder] = useState<number | null>(null);
   const [reorderVal, setReorderVal] = useState('');
-  const [editingStock, setEditingStock] = useState<number | null>(null);
-  const [stockVal, setStockVal] = useState('');
+  const [countingItem, setCountingItem] = useState<InventoryItem | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [showBulkCount, setShowBulkCount] = useState(false);
   const [movementRefreshKey, setMovementRefreshKey] = useState(0);
@@ -47,7 +48,7 @@ export default function InventoryClient() {
     const data = await fetch('/api/inventory').then(r => r.json());
     setItems(data);
     setLoading(false);
-    // Every action that refetches inventory (Stock IN/OUT, quick Edit Stock,
+    // Every action that refetches inventory (Stock IN/OUT, Count Stock,
     // Bulk Import) can also have just written a stock_movements row — bump
     // this so the Movement Log below picks it up without a manual reload.
     setMovementRefreshKey(k => k + 1);
@@ -124,19 +125,6 @@ export default function InventoryClient() {
     fetchInventory();
   };
 
-  const saveStock = async (id: number) => {
-    const quantity = parseInt(stockVal);
-    if (isNaN(quantity) || quantity < 0) return;
-    await fetch('/api/inventory', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product_id: id, quantity }),
-    });
-    setEditingStock(null);
-    showToast('Stock updated');
-    fetchInventory();
-  };
-
   const statusBadge = (qty: number, reorder: number) => {
     // Physically impossible — flagged distinctly from a plain "Out of
     // Stock" 0 so it doesn't get mistaken for a normal restock-needed item.
@@ -146,24 +134,9 @@ export default function InventoryClient() {
     return <span className="badge-green">OK</span>;
   };
 
-  // Shared by the desktop table row and the phone card so both always offer
-  // exactly the same inline editing; `big` only enlarges the tap targets.
-  const stockCell = (item: InventoryItem, align: 'start' | 'end') => (
-    editingStock === item.id ? (
-      <div className={`flex items-center gap-1 ${align === 'end' ? 'justify-end' : ''}`}>
-        <input
-          type="number"
-          min={0}
-          className="w-20 form-input py-1 text-xs"
-          value={stockVal}
-          onChange={e => setStockVal(e.target.value)}
-          autoFocus
-        />
-        <button onClick={() => saveStock(item.id)} className="px-1.5 py-2 md:p-0 text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
-        <button onClick={() => setEditingStock(null)} className="px-1.5 py-2 md:p-0 text-gray-400 hover:text-gray-600 text-xs">✕</button>
-      </div>
-    ) : <span className="font-semibold">{item.quantity}</span>
-  );
+  // Stock is changed only through the Count Stock dialog (expected vs counted,
+  // reason, who) — never edited inline — so every correction leaves a record.
+  const stockCell = (item: InventoryItem) => <span className="font-semibold">{item.quantity}</span>;
 
   const reorderCell = (item: InventoryItem, align: 'start' | 'end') => (
     editingReorder === item.id ? (
@@ -186,10 +159,10 @@ export default function InventoryClient() {
     return (
       <div className="flex items-center gap-2">
         <button
-          onClick={() => { setEditingStock(item.id); setStockVal(String(item.quantity)); }}
+          onClick={() => setCountingItem(item)}
           className={`${pad} text-xs text-orange-600 hover:text-orange-800 font-medium`}
         >
-          Edit Stock
+          Count Stock
         </button>
         <button
           onClick={() => { setEditingReorder(item.id); setReorderVal(String(item.reorder_point)); }}
@@ -298,7 +271,7 @@ export default function InventoryClient() {
                       <td className="table-cell text-gray-500">{item.category}</td>
                       <td className="table-cell">{formatCurrency(item.cogs)}</td>
                       <td className="table-cell">{formatCurrency(item.srp)}</td>
-                      <td className="table-cell text-right">{stockCell(item, 'end')}</td>
+                      <td className="table-cell text-right">{stockCell(item)}</td>
                       <td className="table-cell text-right">{reorderCell(item, 'start')}</td>
                       <td className="table-cell">{statusBadge(item.quantity, item.reorder_point)}</td>
                       <td className="table-cell">{rowActions(item, false)}</td>
@@ -309,7 +282,7 @@ export default function InventoryClient() {
             </div>
 
             {/* Phone: the 9-column table can't fit, so each product becomes a
-                card with the same inline Edit Stock / Edit Reorder controls. */}
+                card with the same Count Stock / Edit Reorder controls. */}
             <div className="md:hidden space-y-2.5">
               {paged.length === 0 ? (
                 <p className="text-center py-10 text-gray-400 text-sm">No products found.</p>
@@ -330,7 +303,7 @@ export default function InventoryClient() {
                   <div className="mt-2 grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-[11px] uppercase tracking-wide text-gray-400">Stock</p>
-                      <div className="text-sm">{stockCell(item, 'start')}</div>
+                      <div className="text-sm">{stockCell(item)}</div>
                     </div>
                     <div>
                       <p className="text-[11px] uppercase tracking-wide text-gray-400">Reorder Pt.</p>
@@ -364,8 +337,26 @@ export default function InventoryClient() {
         )}
       </div>
 
+      {/* Count history — expected vs counted, accuracy, repeat offenders */}
+      <CountHistoryPanel refreshKey={movementRefreshKey} />
+
       {/* Movement Log */}
       <MovementLog refreshKey={movementRefreshKey} onVoided={() => { showToast('Entry voided — stock updated'); fetchInventory(); }} />
+
+      {/* Count Stock Modal */}
+      {countingItem && (
+        <Modal open onClose={() => setCountingItem(null)} title="Count Stock" size="sm">
+          <PhysicalCountModal
+            item={countingItem}
+            onCancel={() => setCountingItem(null)}
+            onSaved={({ variance }) => {
+              setCountingItem(null);
+              showToast(variance === 0 ? 'Count recorded — matches the system' : `Count recorded — stock adjusted by ${variance > 0 ? '+' : '−'}${Math.abs(variance)}`);
+              fetchInventory();
+            }}
+          />
+        </Modal>
+      )}
 
       {/* Bulk Import Modal */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Products via Excel" size="md">

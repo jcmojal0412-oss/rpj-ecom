@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { logInventoryCount } from '@/lib/inventory-count';
+import { COUNT_REASONS } from '@/components/inventory/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,9 +33,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Manual stock correction — sets the quantity to an exact value (e.g. after
-// a physical count) instead of a relative in/out. Logs a stock_movement so
-// the adjustment still shows up in the movement history/audit trail.
+// Physical count — sets the quantity to the exact number counted. Every
+// count is recorded in inventory_counts (expected vs counted, who, why) and,
+// when it differs, also as a stock_movements row so the movement history
+// still reconciles. `expected_quantity` is what the counter was shown; if
+// stock moved since (a sale rang up mid-count), the count is rejected so
+// nobody adjusts against a number that's no longer true.
 export async function PUT(req: NextRequest) {
   try {
     const session = await getSession();
@@ -41,30 +46,59 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const db = getDb();
-    const { product_id, quantity } = await req.json();
+    const { product_id, quantity, expected_quantity, reason, note } = await req.json();
 
-    if (!product_id || quantity == null || quantity < 0) {
-      return NextResponse.json({ error: 'product_id and a non-negative quantity are required' }, { status: 400 });
+    const counted = Number(quantity);
+    if (!product_id || quantity == null || !Number.isInteger(counted) || counted < 0) {
+      return NextResponse.json({ error: 'product_id and a non-negative whole-number quantity are required' }, { status: 400 });
+    }
+
+    const product = db.prepare('SELECT id, cogs FROM products WHERE id = ?').get(product_id) as { id: number; cogs: number | null } | undefined;
+    if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+
+    // Read and write with no await in between, so a concurrent sale can't
+    // slip in after the stale-check but before the write.
+    const current = (db.prepare('SELECT COALESCE(quantity,0) as q FROM inventory WHERE product_id=?').get(product_id) as { q: number } | undefined)?.q ?? 0;
+    if (expected_quantity != null && Number(expected_quantity) !== current) {
+      return NextResponse.json({
+        error: `Stock changed while you were counting — the system now shows ${current}. Please recount.`,
+        current,
+      }, { status: 409 });
+    }
+
+    const delta = counted - current;
+    const reasonStr = String(reason ?? '').trim();
+    const noteStr = String(note ?? '').trim();
+    if (delta !== 0) {
+      if (!COUNT_REASONS.includes(reasonStr)) {
+        return NextResponse.json({ error: 'A reason is required when the count differs from the system.' }, { status: 400 });
+      }
+      if (reasonStr === 'Other' && !noteStr) {
+        return NextResponse.json({ error: 'A note is required when the reason is Other.' }, { status: 400 });
+      }
     }
 
     runTransaction(() => {
-      const current = (db.prepare('SELECT COALESCE(quantity,0) as q FROM inventory WHERE product_id=?').get(product_id) as { q: number } | undefined)?.q ?? 0;
-      const delta = quantity - current;
-
       db.prepare(`
         INSERT INTO inventory (product_id, quantity, last_updated)
         VALUES (?, ?, datetime('now'))
         ON CONFLICT(product_id) DO UPDATE SET quantity = ?, last_updated = datetime('now')
-      `).run(product_id, quantity, quantity);
+      `).run(product_id, counted, counted);
 
       if (delta !== 0) {
+        const movementNote = `Physical Count: ${reasonStr}${noteStr ? `: ${noteStr}` : ''}`;
         db.prepare(
-          'INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?,?,?,?,datetime(\'now\'))'
-        ).run(product_id, delta > 0 ? 'IN' : 'OUT', Math.abs(delta), 'Manual stock correction');
+          "INSERT INTO stock_movements (product_id, type, quantity, note, moved_at) VALUES (?,?,?,?,datetime('now'))"
+        ).run(product_id, delta > 0 ? 'IN' : 'OUT', Math.abs(delta), movementNote);
       }
+
+      logInventoryCount(db, {
+        productId: product.id, expected: current, counted, unitCost: product.cogs ?? 0,
+        reason: delta !== 0 ? reasonStr : null, note: noteStr || null, source: 'single', countedBy: session.id,
+      });
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, expected: current, counted, variance: delta });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

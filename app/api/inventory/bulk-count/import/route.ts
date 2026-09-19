@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { logInventoryCount } from '@/lib/inventory-count';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +13,13 @@ interface CountRow {
 }
 
 interface RowPlan {
-  rowNum: number; sku: string; productId: number; name: string; oldQty: number; newQty: number;
+  rowNum: number; sku: string; productId: number; name: string; oldQty: number; newQty: number; cost: number;
 }
+
+// A counted row that already matched the system — nothing to adjust, but it
+// is still a real count, so it goes in the variance log (accuracy % needs
+// the matches as well as the misses).
+interface MatchedRow { productId: number; qty: number; cost: number; }
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,12 +55,13 @@ export async function POST(req: NextRequest) {
 
     const db = getDb();
     const findSku = db.prepare(`
-      SELECT p.id, p.name, COALESCE(i.quantity, 0) as quantity
+      SELECT p.id, p.name, COALESCE(p.cogs, 0) as cogs, COALESCE(i.quantity, 0) as quantity
       FROM products p LEFT JOIN inventory i ON i.product_id = p.id
       WHERE p.sku = ?
     `);
 
     const plans: RowPlan[] = [];
+    const matched: MatchedRow[] = [];
     const errors: string[] = [];
     let blankSkipped = 0;
 
@@ -73,14 +80,14 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const product = findSku.get(sku) as { id: number; name: string; quantity: number } | undefined;
+      const product = findSku.get(sku) as { id: number; name: string; cogs: number; quantity: number } | undefined;
       if (!product) {
         errors.push(`Row ${rowNum}: SKU "${sku}" not found — skipped`);
         continue;
       }
 
-      if (counted === product.quantity) continue; // no actual change, nothing to plan
-      plans.push({ rowNum, sku, productId: product.id, name: product.name, oldQty: product.quantity, newQty: counted });
+      if (counted === product.quantity) { matched.push({ productId: product.id, qty: counted, cost: product.cogs }); continue; } // no change to apply
+      plans.push({ rowNum, sku, productId: product.id, name: product.name, oldQty: product.quantity, newQty: counted, cost: product.cogs });
     }
 
     if (mode === 'preview') {
@@ -109,7 +116,11 @@ export async function POST(req: NextRequest) {
         setInv.run(p.productId, p.newQty, p.newQty);
         const delta = p.newQty - p.oldQty;
         insertMovement.run(p.productId, delta > 0 ? 'IN' : 'OUT', Math.abs(delta));
+        logInventoryCount(db, { productId: p.productId, expected: p.oldQty, counted: p.newQty, unitCost: p.cost, source: 'bulk', countedBy: session.id });
         updated++;
+      }
+      for (const m of matched) {
+        logInventoryCount(db, { productId: m.productId, expected: m.qty, counted: m.qty, unitCost: m.cost, source: 'bulk', countedBy: session.id });
       }
     });
 
