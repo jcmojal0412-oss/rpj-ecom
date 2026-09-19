@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const args: (string | number)[] = [];
 
     if (productId) { sql += ' AND sm.product_id=?'; args.push(productId); }
-    if (date)      { sql += ' AND date(sm.moved_at)=?'; args.push(date); }
+    if (date)      { sql += " AND sm.moved_at >= ? AND sm.moved_at < date(?, '+1 day')"; args.push(date, date); }
     sql += ' ORDER BY sm.moved_at DESC LIMIT 500';
 
     const rows = db.prepare(sql).all(...args);

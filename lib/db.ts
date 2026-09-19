@@ -1378,6 +1378,11 @@ function migrateSchema() {
     CREATE INDEX IF NOT EXISTS idx_pos_sales_business ON pos_sales(business_id);
     CREATE INDEX IF NOT EXISTS idx_pos_sale_items_sale ON pos_sale_items(sale_id);
     CREATE INDEX IF NOT EXISTS idx_pos_sale_items_product ON pos_sale_items(product_id);
+    -- stock_movements had no indexes at all: every date-ranged report/dashboard
+    -- query (Inventory Movement, Dashboard KPIs, Stock Out, Movement Log) did a
+    -- full table scan, growing with every sale line and stock entry ever made.
+    CREATE INDEX IF NOT EXISTS idx_stock_movements_moved_at ON stock_movements(moved_at);
+    CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(product_id, moved_at);
   `);
 
   // Extra sale-level fields to match the branch POS UI: tax/service/delivery
@@ -1417,6 +1422,7 @@ function migrateSchema() {
       line_total REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_pos_refunds_sale ON pos_refunds(sale_id);
+    CREATE INDEX IF NOT EXISTS idx_pos_refunds_date ON pos_refunds(refund_date);
     CREATE INDEX IF NOT EXISTS idx_pos_refund_items_refund ON pos_refund_items(refund_id);
   `);
 

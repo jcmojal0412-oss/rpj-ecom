@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const sumMovement = (type: 'IN' | 'OUT', f: string, t: string) => (db.prepare(`
       SELECT COALESCE(SUM(quantity), 0) as total FROM stock_movements
-      WHERE type=? AND date(moved_at) BETWEEN ? AND ?
+      WHERE type=? AND moved_at >= ? AND moved_at < date(?, '+1 day')
     `).get(type, f, t) as { total: number }).total;
 
     const stockIn = sumMovement('IN', from, to);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       FROM stock_movements sm
       LEFT JOIN pos_sales s ON sm.note LIKE 'POS Sale #%' AND s.id = CAST(REPLACE(sm.note, 'POS Sale #', '') AS INTEGER)
       LEFT JOIN businesses b ON b.id = s.business_id
-      WHERE sm.type = 'OUT' AND date(sm.moved_at) BETWEEN ? AND ?
+      WHERE sm.type = 'OUT' AND sm.moved_at >= ? AND sm.moved_at < date(?, '+1 day')
       GROUP BY business_name
       ORDER BY total DESC
     `).all(from, to) as { business_name: string; total: number }[];

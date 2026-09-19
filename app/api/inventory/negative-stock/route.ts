@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
           COALESCE(SUM(CASE WHEN type='IN' THEN quantity ELSE 0 END),0) as in_after,
           COALESCE(SUM(CASE WHEN type='OUT' THEN quantity ELSE 0 END),0) as out_after
         FROM stock_movements
-        WHERE date(moved_at) > ?
+        WHERE moved_at >= date(?, '+1 day')
         GROUP BY product_id
       )
       SELECT p.id, p.sku, p.name, p.category,

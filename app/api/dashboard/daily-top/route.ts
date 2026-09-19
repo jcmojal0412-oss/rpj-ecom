@@ -17,13 +17,13 @@ export async function GET(req: NextRequest) {
       const y = new Date(today + 'T00:00:00Z');
       y.setUTCDate(y.getUTCDate() - 1);
       const yStr = y.toISOString().slice(0, 10);
-      dateFilter = `date(sm.moved_at) = '${yStr}'`;
+      dateFilter = `sm.moved_at >= '${yStr}' AND sm.moved_at < date('${yStr}', '+1 day')`;
       label = y.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     } else if (period === '7days') {
       dateFilter = `sm.moved_at >= datetime('now', '-7 days')`;
       label = 'Last 7 Days';
     } else {
-      dateFilter = `date(sm.moved_at) = '${today}'`;
+      dateFilter = `sm.moved_at >= '${today}' AND sm.moved_at < date('${today}', '+1 day')`;
       label = new Date(today + 'T00:00:00Z').toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     }
 

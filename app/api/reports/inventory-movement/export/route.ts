@@ -17,13 +17,13 @@ export async function GET(req: NextRequest) {
         SELECT product_id,
           COALESCE(SUM(CASE WHEN type='IN' THEN quantity ELSE 0 END),0) as in_after,
           COALESCE(SUM(CASE WHEN type='OUT' THEN quantity ELSE 0 END),0) as out_after
-        FROM stock_movements WHERE date(moved_at) > ? GROUP BY product_id
+        FROM stock_movements WHERE moved_at >= date(?, '+1 day') GROUP BY product_id
       ),
       during_range AS (
         SELECT product_id,
           COALESCE(SUM(CASE WHEN type='IN' THEN quantity ELSE 0 END),0) as in_during,
           COALESCE(SUM(CASE WHEN type='OUT' THEN quantity ELSE 0 END),0) as out_during
-        FROM stock_movements WHERE date(moved_at) BETWEEN ? AND ? GROUP BY product_id
+        FROM stock_movements WHERE moved_at >= ? AND moved_at < date(?, '+1 day') GROUP BY product_id
       )
       SELECT p.sku, p.name, p.category, p.cogs,
         (COALESCE(i.quantity,0) - COALESCE(ar.in_after,0) + COALESCE(ar.out_after,0)) as ending_qty,

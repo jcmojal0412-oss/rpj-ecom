@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const value = (db.prepare(`
       SELECT COALESCE(SUM(sm.quantity * p.cogs), 0) as value
       FROM stock_movements sm JOIN products p ON p.id = sm.product_id
-      WHERE sm.type='OUT' AND date(sm.moved_at) BETWEEN ? AND ?
+      WHERE sm.type='OUT' AND sm.moved_at >= ? AND sm.moved_at < date(?, '+1 day')
     `).get(from, to) as { value: number }).value;
 
     return NextResponse.json({ value, from, to, label });
