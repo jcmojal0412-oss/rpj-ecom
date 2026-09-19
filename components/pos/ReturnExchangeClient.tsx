@@ -118,7 +118,7 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
   const hasFreebies = found?.items.some(it => !!it.is_freebie) ?? false;
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="max-w-3xl mx-auto p-3 sm:p-6">
       <div className="flex items-center gap-2 mb-5">
         <button onClick={onDone} className="p-1.5 rounded-lg hover:bg-white text-gray-500" title="Back to Sale"><ArrowLeft size={18} /></button>
         <h1 className="text-base font-bold text-gray-800">Return / Exchange</h1>

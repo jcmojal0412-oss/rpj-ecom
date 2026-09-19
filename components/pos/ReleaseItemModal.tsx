@@ -104,7 +104,7 @@ export default function ReleaseItemModal({ sale, items, refunds, onCancel, onRel
         {releaseLines.map(it => (
           <div key={it.id} className="border border-gray-100 rounded-lg p-3">
             <p className="text-sm font-medium text-gray-800">{it.product_name} <span className="text-xs text-gray-400 font-normal">× {it.remaining}</span></p>
-            <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
               <input className="form-input py-1.5 text-xs" placeholder="Serial No." value={lineInputs[it.id]?.serial_number ?? ''} onChange={e => setInput(it.id, { serial_number: e.target.value })} />
               <input className="form-input py-1.5 text-xs" placeholder="IMEI 1" value={lineInputs[it.id]?.imei_1 ?? ''} onChange={e => setInput(it.id, { imei_1: e.target.value })} />
               <input className="form-input py-1.5 text-xs" placeholder="IMEI 2" value={lineInputs[it.id]?.imei_2 ?? ''} onChange={e => setInput(it.id, { imei_2: e.target.value })} />

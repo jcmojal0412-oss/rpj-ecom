@@ -120,13 +120,36 @@ export default function SalesHistoryClient() {
   const cashApplied = (s: Sale) => Math.max(0, s.cash_amount - s.change_due);
   const onlineApplied = (s: Sale) => Math.max(0, s.online_amount - Math.max(0, s.change_due - s.cash_amount));
 
+  // Shared by the desktop table row and the phone card so both always offer
+  // exactly the same actions; `big` only enlarges the tap targets.
+  const rowActions = (s: Sale, big: boolean) => {
+    const pad = big ? 'p-2.5' : 'p-1.5';
+    const iconSize = big ? 18 : 14;
+    return (
+      <div className="flex items-center gap-1">
+        <button onClick={() => openSale(s)} className={`${pad} rounded-lg hover:bg-blue-50 text-blue-600`} title="View Receipt"><Eye size={iconSize} /></button>
+        {s.status !== 'Voided' && s.fulfillment_status === 'FOR_PICKUP' && (
+          <button onClick={() => openRelease(s)} className={`${pad} rounded-lg hover:bg-blue-50 ${big ? 'text-blue-600' : 'text-gray-300 hover:text-blue-600'}`} title="Release Item"><PackageCheck size={iconSize} /></button>
+        )}
+        {s.status !== 'Voided' && (
+          <>
+            <button onClick={() => openRefund(s)} className={`${pad} rounded-lg hover:bg-amber-50 ${big ? 'text-amber-600' : 'text-gray-300 hover:text-amber-600'}`} title="Refund Item(s)"><Undo2 size={iconSize} /></button>
+            {isOwner && (
+              <button onClick={() => setVoiding(s)} className={`${pad} rounded-lg hover:bg-red-50 ${big ? 'text-red-500' : 'text-gray-300 hover:text-red-500'}`} title="Void Sale (Owner only)"><Ban size={iconSize} /></button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+          <Link href="/pos" className="p-2 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
           <h1 className="text-xl font-bold text-gray-900">Sales History</h1>
         </div>
         {isOwner && (
@@ -135,14 +158,14 @@ export default function SalesHistoryClient() {
       </div>
 
       <div className="card space-y-3">
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
@@ -171,9 +194,9 @@ export default function SalesHistoryClient() {
             <option value="FOR_PICKUP">For Pickup</option>
             <option value="RELEASED">Released</option>
           </select>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input className="form-input py-1.5 text-sm pl-8 w-56" placeholder="Search receipt #, customer, mobile"
+            <input className="form-input py-2 sm:py-1.5 text-sm pl-8 w-full sm:w-56" placeholder="Search receipt #, customer, mobile"
               value={q} onChange={e => setQ(e.target.value)} />
           </div>
         </div>
@@ -194,7 +217,8 @@ export default function SalesHistoryClient() {
         ) : sales.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-12">No sales match these filters.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -245,31 +269,47 @@ export default function SalesHistoryClient() {
                     <td className="table-cell">
                       <span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span>
                     </td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openSale(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="View Receipt"><Eye size={14} /></button>
-                        {s.status !== 'Voided' && s.fulfillment_status === 'FOR_PICKUP' && (
-                          <button onClick={() => openRelease(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-300 hover:text-blue-600" title="Release Item"><PackageCheck size={14} /></button>
-                        )}
-                        {s.status !== 'Voided' && (
-                          <>
-                            <button onClick={() => openRefund(s)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-300 hover:text-amber-600" title="Refund Item(s)"><Undo2 size={14} /></button>
-                            {isOwner && (
-                              <button onClick={() => setVoiding(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Void Sale (Owner only)"><Ban size={14} /></button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
+                    <td className="table-cell">{rowActions(s, false)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
+
+            {/* Phone: the 9-11 column table can't fit, so each sale becomes
+                a card showing the fields that matter at a glance. */}
+            <div className="md:hidden space-y-2.5">
+              {sales.map(s => (
+                <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 tabular-nums">{displayReceiptNo(s)}</p>
+                      <p className="text-xs text-gray-500">{formatDate(s.created_at)}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(s.total)}</p>
+                      <span className={s.status === 'Voided' ? 'badge-red' : 'badge-green'}>{s.status}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                    {s.customer_name && <span className="font-medium text-gray-800">{s.customer_name}{s.customer_mobile ? ` · ${s.customer_mobile}` : ''}</span>}
+                    {s.business_name && <span>{s.business_name}</span>}
+                    {s.cashier_name && <span>Cashier: {s.cashier_name}</span>}
+                    {s.fulfillment_status === 'FOR_PICKUP' && <span className="badge-amber">For Pickup</span>}
+                    {s.financing_provider && <span>{s.financing_provider} {formatCurrency(s.financing_amount)}</span>}
+                    {cashApplied(s) > 0 && <span>Cash {formatCurrency(cashApplied(s))}</span>}
+                    {onlineApplied(s) > 0 && <span>Online/Card {formatCurrency(onlineApplied(s))}</span>}
+                    {s.service_items && <span className="text-[11px] font-semibold bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">{s.service_items}</span>}
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">{rowActions(s, true)}</div>
+                </div>
+              ))}
+            </div>
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
               <span>{sales.length} sale{sales.length === 1 ? '' : 's'}</span>
               <span className="font-semibold text-gray-800">Total (excl. voided): {formatCurrency(totalSales)}</span>
             </div>
-          </div>
+          </>
         )}
       </div>
 

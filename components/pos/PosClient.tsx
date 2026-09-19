@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Minus, Trash2, ArrowLeft, History, Printer, ScanBarcode, RotateCw, X,
   Banknote, Smartphone, Landmark, CreditCard, Wallet, Layers, Ticket, Zap, CalendarClock, Gift,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, ShoppingCart,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -538,6 +538,9 @@ export default function PosClient() {
   // requires the customer's name/mobile so a cashier can find this same
   // transaction again when they return to claim the item.
   const [forPickup, setForPickup] = useState(false);
+  // Phone-only: below `lg` the product grid and the order panel can't sit
+  // side-by-side, so only one shows at a time. Ignored on desktop.
+  const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [expectedPickupDate, setExpectedPickupDate] = useState('');
@@ -686,6 +689,7 @@ export default function PosClient() {
     setCashbackAmount(''); setDownpaymentApplied('');
     setFreebieTarget(null); setFreebieReasonInput('');
     setForPickup(false); setCustomerName(''); setCustomerMobile(''); setExpectedPickupDate(''); setPickupNotes('');
+    setMobileView('products');
   };
 
   const updateSplitRow = (key: string, patch: Partial<PaymentLegRow>) => setSplitRows(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r));
@@ -845,7 +849,7 @@ export default function PosClient() {
     }
   };
 
-  const newSale = () => setReceipt(null);
+  const newSale = () => { setReceipt(null); setMobileView('products'); };
 
   if (loading) {
     return <div className="h-screen flex items-center justify-center bg-gray-50"><Spinner /></div>;
@@ -864,11 +868,11 @@ export default function PosClient() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen h-dvh flex flex-col bg-gray-50">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white border-b border-gray-200 shrink-0 flex-wrap">
+      <div className="flex items-center justify-between gap-x-3 gap-y-2 px-3 lg:px-4 py-2 lg:py-2.5 bg-white border-b border-gray-200 shrink-0 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <Link href="/" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0" title="Back to Dashboard"><ArrowLeft size={18} /></Link>
           <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
@@ -880,7 +884,7 @@ export default function PosClient() {
           {/* Transaction mode — a state selector, not a utility action, so it
               gets segmented-tab treatment and a clear divider away from the
               shift tools rather than sitting inline with them. */}
-          <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
+          <div className="flex items-center gap-2 lg:pl-3 lg:border-l border-gray-200">
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               <button onClick={() => setPosMode('sale')}
                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${posMode === 'sale' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -910,20 +914,20 @@ export default function PosClient() {
       ) : (
       <div className="flex-1 flex overflow-hidden">
         {/* Product grid */}
-        <div className="w-[60%] flex flex-col overflow-hidden p-4">
+        <div className={`${mobileView === 'products' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[60%] flex-col overflow-hidden p-3 lg:p-4`}>
           <div className="relative mb-3 shrink-0">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
             <input ref={searchRef} className="form-input pl-9" placeholder="Search product or scan barcode..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 mb-2 lg:flex-wrap overflow-x-auto lg:overflow-visible pb-1 lg:pb-0 shrink-0">
             {categoryCounts.map(c => (
               <button key={c.name} onClick={() => setCategory(c.name)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === c.name ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+                className={`shrink-0 whitespace-nowrap px-3 py-2 lg:py-1.5 rounded-lg text-xs font-semibold transition-all ${category === c.name ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
                 {c.name === IN_STOCK_TAB ? 'In Stock' : c.name} <span className="opacity-70">({c.count})</span>
               </button>
             ))}
             <button onClick={() => setCategory(SERVICES_TAB)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${category === SERVICES_TAB ? 'bg-orange-500 text-white' : 'bg-white border border-orange-200 text-orange-600 hover:bg-orange-50'}`}>
+              className={`shrink-0 whitespace-nowrap px-3 py-2 lg:py-1.5 rounded-lg text-xs font-semibold transition-all ${category === SERVICES_TAB ? 'bg-orange-500 text-white' : 'bg-white border border-orange-200 text-orange-600 hover:bg-orange-50'}`}>
               Services
             </button>
           </div>
@@ -991,12 +995,33 @@ export default function PosClient() {
               </div>
             )}
           </div>
+
+          {/* Phone-only: one-tap route to the order panel, always visible
+              while there's something in the cart. */}
+          {cart.length > 0 && (
+            <button type="button" onClick={() => setMobileView('cart')}
+              className="lg:hidden shrink-0 mt-2 flex items-center justify-between gap-3 w-full rounded-xl bg-orange-500 active:bg-orange-600 text-white px-4 py-3 shadow-md">
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <ShoppingCart size={18} />
+                {cart.reduce((n, l) => n + l.quantity, 0)} item{cart.reduce((n, l) => n + l.quantity, 0) === 1 ? '' : 's'}
+              </span>
+              <span className="flex items-center gap-2 text-sm font-bold tabular-nums">
+                {formatCurrency(amountDue)} <span className="font-semibold opacity-90">View Order →</span>
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Cart / payment */}
-        <div className="w-[40%] bg-white border-l border-gray-200 flex flex-col overflow-hidden shrink-0">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0 flex-wrap gap-2">
-            <p className="text-sm font-semibold text-gray-800">Current Order</p>
+        <div className={`${mobileView === 'cart' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[40%] bg-white lg:border-l border-gray-200 flex-col overflow-hidden shrink-0`}>
+          <div className="flex items-center justify-between px-3 lg:px-4 py-3 border-b border-gray-100 shrink-0 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setMobileView('products')}
+                className="lg:hidden flex items-center gap-1 px-2.5 py-2 -ml-1 rounded-lg bg-gray-100 active:bg-gray-200 text-xs font-semibold text-gray-700">
+                <ArrowLeft size={14} /> Products
+              </button>
+              <p className="text-sm font-semibold text-gray-800">Current Order</p>
+            </div>
             <div className="flex items-center gap-1.5">
               <button onClick={() => searchRef.current?.focus()}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
@@ -1036,14 +1061,14 @@ export default function PosClient() {
                     {l.kind === 'product' && (
                       <>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => changeQty(l.key, -1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
+                          <button onClick={() => changeQty(l.key, -1)} className="p-2.5 lg:p-1 rounded bg-gray-100 lg:bg-transparent hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
                           <span className="text-xs font-semibold w-5 text-center tabular-nums">{l.quantity}</span>
-                          <button onClick={() => changeQty(l.key, 1)} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
+                          <button onClick={() => changeQty(l.key, 1)} className="p-2.5 lg:p-1 rounded bg-gray-100 lg:bg-transparent hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
                         </div>
                         <button
                           onClick={() => l.is_freebie ? unmarkFreebie(l.key) : setFreebieTarget(l)}
                           title={l.is_freebie ? 'Remove Freebie status' : 'Mark as Freebie'}
-                          className={`p-1 rounded shrink-0 ${l.is_freebie ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}>
+                          className={`p-2 lg:p-1 rounded shrink-0 ${l.is_freebie ? 'text-orange-600 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}>
                           <Gift size={13} />
                         </button>
                       </>
@@ -1051,7 +1076,7 @@ export default function PosClient() {
                     <span className={`text-xs font-bold w-16 text-right tabular-nums shrink-0 ${l.is_freebie ? 'text-orange-600' : 'text-gray-900'}`}>
                       {l.is_freebie ? 'FREE' : formatCurrency(l.unit_price * l.quantity)}
                     </span>
-                    <button onClick={() => removeLine(l.key)} className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+                    <button onClick={() => removeLine(l.key)} className="p-2 lg:p-1 rounded hover:bg-red-50 text-red-400 lg:text-gray-300 lg:hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
                   </div>
                 ))}
               </div>
@@ -1157,10 +1182,10 @@ export default function PosClient() {
                 <span className="text-sm font-bold text-gray-900 tabular-nums">Amount Due: {formatCurrency(amountDue)}</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-1.5 mb-3">
+              <div className="grid grid-cols-3 lg:grid-cols-5 gap-1.5 mb-3">
                 {(['Cash', 'Online', 'Card', 'Split', 'Financing'] as PaymentMode[]).map(m => (
                   <button key={m} onClick={() => selectPaymentMode(m)}
-                    className={`py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    className={`py-2.5 lg:py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all ${paymentMode === m ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     {m === 'Online' ? 'ONLINE / QR' : m.toUpperCase()}
                   </button>
                 ))}
@@ -1173,10 +1198,10 @@ export default function PosClient() {
                     <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
-                    <button onClick={applyExactCash} className="px-2 py-1.5 rounded-md text-xs font-semibold border border-orange-300 text-orange-700 hover:bg-orange-50">Exact</button>
+                    <button onClick={applyExactCash} className="px-2 py-2.5 lg:py-1.5 rounded-md text-xs font-semibold border border-orange-300 text-orange-700 hover:bg-orange-50">Exact</button>
                     {cashQuickOptions.map(amt => (
                       <button key={amt} onClick={() => setCashAmount(String(amt))}
-                        className="px-2 py-1.5 rounded-md text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50 tabular-nums">
+                        className="px-2 py-2.5 lg:py-1.5 rounded-md text-xs font-semibold border border-blue-200 text-blue-700 hover:bg-blue-50 tabular-nums">
                         {formatCurrency(amt)}
                       </button>
                     ))}
@@ -1228,15 +1253,15 @@ export default function PosClient() {
                 <div className="space-y-2">
                   {splitRows.map(row => (
                     <div key={row.key} className="grid grid-cols-12 gap-1.5 items-center">
-                      <select className="form-input text-xs col-span-4 py-1.5" value={row.method} onChange={e => updateSplitRow(row.key, { method: e.target.value })}>
+                      <select className="form-input text-xs col-span-5 lg:col-span-4 py-2 lg:py-1.5" value={row.method} onChange={e => updateSplitRow(row.key, { method: e.target.value })}>
                         {SPLIT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
-                      <input type="number" min="0" step="0.01" className="form-input text-xs col-span-3 py-1.5" placeholder="0.00"
+                      <input type="number" min="0" step="0.01" className="form-input text-xs col-span-6 lg:col-span-3 py-2 lg:py-1.5" placeholder="0.00"
                         value={row.amount} onChange={e => updateSplitRow(row.key, { amount: e.target.value })} />
-                      <input className="form-input text-xs col-span-4 py-1.5" placeholder="Ref # (optional)"
+                      <input className="form-input text-xs col-span-12 order-last lg:order-none lg:col-span-4 py-2 lg:py-1.5" placeholder="Ref # (optional)"
                         value={row.referenceNo} onChange={e => updateSplitRow(row.key, { referenceNo: e.target.value })} />
                       <button type="button" onClick={() => removeSplitRow(row.key)} disabled={splitRows.length === 1}
-                        className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center">
+                        className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center p-1 lg:p-0">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -1277,15 +1302,15 @@ export default function PosClient() {
                         <div className="space-y-1.5 mt-1">
                           {dpRows.map(row => (
                             <div key={row.key} className="grid grid-cols-12 gap-1.5 items-center">
-                              <select className="form-input text-xs col-span-4 py-1.5" value={row.method} onChange={e => updateDpRow(row.key, { method: e.target.value })}>
+                              <select className="form-input text-xs col-span-5 lg:col-span-4 py-2 lg:py-1.5" value={row.method} onChange={e => updateDpRow(row.key, { method: e.target.value })}>
                                 {SPLIT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                               </select>
-                              <input type="number" min="0" step="0.01" className="form-input text-xs col-span-3 py-1.5" placeholder="0.00"
+                              <input type="number" min="0" step="0.01" className="form-input text-xs col-span-6 lg:col-span-3 py-2 lg:py-1.5" placeholder="0.00"
                                 value={row.amount} onChange={e => updateDpRow(row.key, { amount: e.target.value })} />
-                              <input className="form-input text-xs col-span-4 py-1.5" placeholder="Ref # (optional)"
+                              <input className="form-input text-xs col-span-12 order-last lg:order-none lg:col-span-4 py-2 lg:py-1.5" placeholder="Ref # (optional)"
                                 value={row.referenceNo} onChange={e => updateDpRow(row.key, { referenceNo: e.target.value })} />
                               <button type="button" onClick={() => removeDpRow(row.key)} disabled={dpRows.length === 1}
-                                className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center">
+                                className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 flex justify-center p-1 lg:p-0">
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -1343,7 +1368,7 @@ export default function PosClient() {
                 Open Cashier first — a sale can't be completed without an open shift.
               </p>
             )}
-            <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3 text-sm disabled:opacity-40">
+            <button onClick={completeSale} disabled={!canCheckout} className="btn-primary w-full justify-center py-3.5 lg:py-3 text-sm disabled:opacity-40">
               {submitting ? 'Processing...' : 'Complete Sale'}
             </button>
           </div>
