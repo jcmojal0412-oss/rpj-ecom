@@ -16,7 +16,7 @@ import { todayISO } from '@/lib/utils';
 // label/amount type scale, so the row reads as a single unified card system
 // instead of five ad-hoc cards.
 const ICON_BOX = 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0';
-const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-3.5';
+const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-3.5';
 
 const DATE_PRESETS = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'] as const;
 type DatePreset = typeof DATE_PRESETS[number];
@@ -205,16 +205,31 @@ export default function ServiceCenterClient() {
 
   const HEADERS = ['Date', 'Repair Details', 'Unit / Model', 'Repair Amount', 'COGS', 'Labor', 'BNS', 'Technician', 'DP', 'Status', 'Tech Paid', 'Actions'];
 
+  // Shared by the desktop table row and the phone card so both use the same
+  // handlers; `touch` only enlarges the hit area for the phone card.
+  const repairActions = (r: Repair, touch: boolean) => (
+    <div className="flex items-center gap-1">
+      <button onClick={() => { setEditing(r); setShowForm(true); }}
+        className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-blue-50 text-blue-600 transition-colors`} title="Edit">
+        <Pencil size={15} />
+      </button>
+      <button onClick={() => handleDelete(r)}
+        className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors`} title="Delete">
+        <Trash2 size={15} />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service Center Monitoring</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Service Center Monitoring</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track repair jobs, customer balances, labor split, and technician payouts</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="btn-primary">
+        <button onClick={() => { setEditing(null); setShowForm(true); }} className="btn-primary w-full sm:w-auto justify-center py-3 sm:py-2">
           <Plus size={16} /> Add Repair
         </button>
       </div>
@@ -231,7 +246,7 @@ export default function ServiceCenterClient() {
               <button
                 key={p}
                 onClick={() => { setSummaryPeriod(p); setSummaryAnchor(todayISO()); }}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${
                   summaryPeriod === p
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -247,11 +262,11 @@ export default function ServiceCenterClient() {
             jump-to-date picker stays visually secondary. */}
         <div className="flex flex-col items-center gap-1 pt-1">
           <div className="flex items-center gap-3">
-            <button onClick={() => shiftSummaryPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+            <button onClick={() => shiftSummaryPeriod(-1)} className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
               <ChevronLeft size={18} />
             </button>
-            <span className="text-lg font-bold text-gray-900 text-center tabular-nums">{summaryLabel}</span>
-            <button onClick={() => shiftSummaryPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+            <span className="text-base sm:text-lg font-bold text-gray-900 text-center tabular-nums">{summaryLabel}</span>
+            <button onClick={() => shiftSummaryPeriod(1)} className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
               <ChevronRight size={18} />
             </button>
           </div>
@@ -286,7 +301,7 @@ export default function ServiceCenterClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className={STAT_CARD}>
           <div className={`${ICON_BOX} bg-blue-50`}><Banknote className="text-blue-500" size={20} /></div>
           <div className="min-w-0">
@@ -315,7 +330,7 @@ export default function ServiceCenterClient() {
             <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totals.total_gerald)}</p>
           </div>
         </div>
-        <div className={STAT_CARD}>
+        <div className={`${STAT_CARD} col-span-2 md:col-span-1`}>
           <div className={`${ICON_BOX} bg-red-50`}><Wallet className="text-red-500" size={20} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">For Tech Payout</p>
@@ -358,12 +373,12 @@ export default function ServiceCenterClient() {
       {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-gray-500 font-medium">Filter by date:</span>
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto">
           {DATE_PRESETS.map(p => (
             <button
               key={p}
               onClick={() => applyPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
                 activePreset === p
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
@@ -373,14 +388,17 @@ export default function ServiceCenterClient() {
             </button>
           ))}
         </div>
-        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateFrom}
-          onChange={e => { setDateFrom(e.target.value); setActivePreset(null); }} />
-        <span className="text-gray-400 text-sm">—</span>
-        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateTo}
-          onChange={e => { setDateTo(e.target.value); setActivePreset(null); }} />
+        {/* display:contents from sm up so the desktop row layout is unchanged */}
+        <div className="flex items-center gap-3 w-full sm:contents">
+          <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto flex-1 min-w-0 sm:flex-none" value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setActivePreset(null); }} />
+          <span className="text-gray-400 text-sm">—</span>
+          <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto flex-1 min-w-0 sm:flex-none" value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setActivePreset(null); }} />
+        </div>
         {(dateFrom || dateTo) && (
           <button onClick={() => { setDateFrom(''); setDateTo(''); setActivePreset(null); }}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium py-2 sm:py-0">
             Clear
           </button>
         )}
@@ -390,7 +408,7 @@ export default function ServiceCenterClient() {
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-sm text-gray-500 font-medium">Per page:</span>
           <select
-            className="form-input py-1.5 text-sm w-auto"
+            className="form-input py-2 sm:py-1.5 text-sm w-auto"
             value={pageSize}
             onChange={e => setPageSize(Number(e.target.value))}
           >
@@ -399,7 +417,7 @@ export default function ServiceCenterClient() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card p-3 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : filtered.length === 0 ? (
@@ -410,7 +428,8 @@ export default function ServiceCenterClient() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -435,22 +454,45 @@ export default function ServiceCenterClient() {
                       {r.paid_to_tech ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}
                     </td>
                     <td className={`table-cell sticky right-0 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => { setEditing(r); setShowForm(true); }}
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(r)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
+                      {repairActions(r, false)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 12-column table can't fit, so each repair becomes a card. */}
+          <div className="md:hidden space-y-2.5">
+            {paged.map(r => (
+              <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 break-words">{r.repair_details || '—'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 break-words">
+                      {r.repair_date ? formatDate(r.repair_date) : '—'}{r.unit_model ? ` · ${r.unit_model}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(r.cs_payment)}</p>
+                    <div className="mt-1 flex flex-wrap justify-end gap-1">
+                      {statusBadge(r.status)}
+                      {r.paid_to_tech ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}
+                    </div>
+                  </div>
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">COGS</dt><dd className="text-gray-600 tabular-nums">{formatCurrency(r.cogs)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Labor</dt><dd className="text-gray-800 tabular-nums">{formatCurrency(r.labor_amount)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">BNS</dt><dd className="text-blue-700 tabular-nums">{formatCurrency(r.bns_share)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">DP</dt><dd className="text-gray-600 tabular-nums">{r.dp ? formatCurrency(r.dp) : '—'}</dd></div>
+                  <div className="col-span-2 flex justify-between gap-2"><dt className="text-gray-400">Technician</dt><dd className="text-gray-700 text-right">{r.technician_name || '—'}</dd></div>
+                </dl>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">{repairActions(r, true)}</div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
 
         {!loading && filtered.length > 0 && totalPages > 1 && (
@@ -460,12 +502,12 @@ export default function ServiceCenterClient() {
             </span>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
                 <ChevronLeft size={16} />
               </button>
               <span className="text-sm px-2">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
                 <ChevronRight size={16} />
               </button>
             </div>

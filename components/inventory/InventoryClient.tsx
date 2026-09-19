@@ -146,8 +146,63 @@ export default function InventoryClient() {
     return <span className="badge-green">OK</span>;
   };
 
+  // Shared by the desktop table row and the phone card so both always offer
+  // exactly the same inline editing; `big` only enlarges the tap targets.
+  const stockCell = (item: InventoryItem, align: 'start' | 'end') => (
+    editingStock === item.id ? (
+      <div className={`flex items-center gap-1 ${align === 'end' ? 'justify-end' : ''}`}>
+        <input
+          type="number"
+          min={0}
+          className="w-20 form-input py-1 text-xs"
+          value={stockVal}
+          onChange={e => setStockVal(e.target.value)}
+          autoFocus
+        />
+        <button onClick={() => saveStock(item.id)} className="px-1.5 py-2 md:p-0 text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
+        <button onClick={() => setEditingStock(null)} className="px-1.5 py-2 md:p-0 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+      </div>
+    ) : <span className="font-semibold">{item.quantity}</span>
+  );
+
+  const reorderCell = (item: InventoryItem, align: 'start' | 'end') => (
+    editingReorder === item.id ? (
+      <div className={`flex items-center gap-1 ${align === 'end' ? 'justify-end' : ''}`}>
+        <input
+          type="number"
+          className="w-16 form-input py-1 text-xs"
+          value={reorderVal}
+          onChange={e => setReorderVal(e.target.value)}
+          autoFocus
+        />
+        <button onClick={() => saveReorder(item.id)} className="px-1.5 py-2 md:p-0 text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
+        <button onClick={() => setEditingReorder(null)} className="px-1.5 py-2 md:p-0 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+      </div>
+    ) : <>{item.reorder_point}</>
+  );
+
+  const rowActions = (item: InventoryItem, big: boolean) => {
+    const pad = big ? 'py-2.5 pr-2' : '';
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => { setEditingStock(item.id); setStockVal(String(item.quantity)); }}
+          className={`${pad} text-xs text-orange-600 hover:text-orange-800 font-medium`}
+        >
+          Edit Stock
+        </button>
+        <button
+          onClick={() => { setEditingReorder(item.id); setReorderVal(String(item.reorder_point)); }}
+          className={`${pad} text-xs text-blue-600 hover:text-blue-800 font-medium`}
+        >
+          Edit Reorder
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -155,17 +210,17 @@ export default function InventoryClient() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-sm text-gray-500 mt-1">Manage stock levels and movements</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isOwner && !bugChecked && (
-            <button onClick={fetchBugStatus} disabled={checkingBug} className="btn-secondary text-xs disabled:opacity-50">
+            <button onClick={fetchBugStatus} disabled={checkingBug} className="btn-secondary text-xs min-h-[44px] sm:min-h-0 disabled:opacity-50">
               {checkingBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
               {checkingBug ? 'Checking...' : 'Check for stock drift'}
             </button>
           )}
-          <button onClick={() => setShowBulkCount(true)} className="btn-secondary">
+          <button onClick={() => setShowBulkCount(true)} className="btn-secondary min-h-[44px] sm:min-h-0">
             <ClipboardList size={16} /> Bulk Stock Count
           </button>
-          <button onClick={() => setShowImport(true)} className="btn-secondary">
+          <button onClick={() => setShowImport(true)} className="btn-secondary min-h-[44px] sm:min-h-0">
             <FileSpreadsheet size={16} /> Bulk Import (Excel)
           </button>
         </div>
@@ -176,7 +231,7 @@ export default function InventoryClient() {
       )}
 
       {isOwner && bugAffectedCount > 0 && (
-        <div className="card flex items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
+        <div className="card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-2 border-red-200 bg-red-50">
           <div className="flex items-center gap-2.5">
             <Wrench className="text-red-600 shrink-0" size={18} />
             <p className="text-sm text-red-800">
@@ -185,7 +240,7 @@ export default function InventoryClient() {
               This resets each one to exactly what its movement log says — safe to run again if needed, and doesn&apos;t touch any sale record.
             </p>
           </div>
-          <button onClick={runFixBug} disabled={fixingBug} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
+          <button onClick={runFixBug} disabled={fixingBug} className="btn-primary text-xs py-2.5 sm:py-1.5 justify-center shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
             {fixingBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
             {fixingBug ? 'Correcting...' : 'Correct Stock Now'}
           </button>
@@ -202,7 +257,7 @@ export default function InventoryClient() {
       <StockForm products={items} onSuccess={fetchInventory} />
 
       {/* Inventory Table */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
           <h2 className="text-base font-semibold text-gray-900 shrink-0">Inventory Table</h2>
           <div className="relative flex-1 w-full sm:max-w-xs">
@@ -220,7 +275,7 @@ export default function InventoryClient() {
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -243,58 +298,48 @@ export default function InventoryClient() {
                       <td className="table-cell text-gray-500">{item.category}</td>
                       <td className="table-cell">{formatCurrency(item.cogs)}</td>
                       <td className="table-cell">{formatCurrency(item.srp)}</td>
-                      <td className="table-cell text-right">
-                        {editingStock === item.id ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              className="w-20 form-input py-1 text-xs"
-                              value={stockVal}
-                              onChange={e => setStockVal(e.target.value)}
-                              autoFocus
-                            />
-                            <button onClick={() => saveStock(item.id)} className="text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
-                            <button onClick={() => setEditingStock(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
-                          </div>
-                        ) : <span className="font-semibold">{item.quantity}</span>}
-                      </td>
-                      <td className="table-cell text-right">
-                        {editingReorder === item.id ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              className="w-16 form-input py-1 text-xs"
-                              value={reorderVal}
-                              onChange={e => setReorderVal(e.target.value)}
-                              autoFocus
-                            />
-                            <button onClick={() => saveReorder(item.id)} className="text-orange-500 hover:text-orange-700 text-xs font-medium">Save</button>
-                            <button onClick={() => setEditingReorder(null)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
-                          </div>
-                        ) : item.reorder_point}
-                      </td>
+                      <td className="table-cell text-right">{stockCell(item, 'end')}</td>
+                      <td className="table-cell text-right">{reorderCell(item, 'start')}</td>
                       <td className="table-cell">{statusBadge(item.quantity, item.reorder_point)}</td>
-                      <td className="table-cell">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => { setEditingStock(item.id); setStockVal(String(item.quantity)); }}
-                            className="text-xs text-orange-600 hover:text-orange-800 font-medium"
-                          >
-                            Edit Stock
-                          </button>
-                          <button
-                            onClick={() => { setEditingReorder(item.id); setReorderVal(String(item.reorder_point)); }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            Edit Reorder
-                          </button>
-                        </div>
-                      </td>
+                      <td className="table-cell">{rowActions(item, false)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Phone: the 9-column table can't fit, so each product becomes a
+                card with the same inline Edit Stock / Edit Reorder controls. */}
+            <div className="md:hidden space-y-2.5">
+              {paged.length === 0 ? (
+                <p className="text-center py-10 text-gray-400 text-sm">No products found.</p>
+              ) : paged.map(item => (
+                <div key={item.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-semibold text-gray-500">{item.sku}</p>
+                      <p className="text-sm font-semibold text-gray-900 break-words">{item.name}</p>
+                      {item.category && <p className="text-xs text-gray-500">{item.category}</p>}
+                    </div>
+                    <div className="shrink-0">{statusBadge(item.quantity, item.reorder_point)}</div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                    <span>COGS <span className="font-medium text-gray-800">{formatCurrency(item.cogs)}</span></span>
+                    <span>SRP <span className="font-medium text-gray-800">{formatCurrency(item.srp)}</span></span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-gray-400">Stock</p>
+                      <div className="text-sm">{stockCell(item, 'start')}</div>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-gray-400">Reorder Pt.</p>
+                      <div className="text-sm">{reorderCell(item, 'start')}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100">{rowActions(item, true)}</div>
+                </div>
+              ))}
             </div>
 
             {totalPages > 1 && (
@@ -304,12 +349,12 @@ export default function InventoryClient() {
                 </span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                    className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
                     <ChevronLeft size={16} />
                   </button>
                   <span className="text-sm px-2">{page} / {totalPages}</span>
                   <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
+                    className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
                     <ChevronRight size={16} />
                   </button>
                 </div>

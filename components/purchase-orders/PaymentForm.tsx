@@ -107,18 +107,18 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
       )}
 
       {/* PO Summary */}
-      <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
+      <div className="bg-gray-50 rounded-xl p-3 sm:p-4 grid grid-cols-3 gap-2 sm:gap-3 text-center">
         <div>
           <p className="text-xs text-gray-500">Total Amount</p>
-          <p className="text-base font-bold text-gray-900">{formatCurrency(totalAmount)}</p>
+          <p className="text-sm sm:text-base font-bold text-gray-900">{formatCurrency(totalAmount)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-500">Amount Paid</p>
-          <p className="text-base font-bold text-green-700">{formatCurrency(parseFloat(paidAmount) || 0)}</p>
+          <p className="text-sm sm:text-base font-bold text-green-700">{formatCurrency(parseFloat(paidAmount) || 0)}</p>
         </div>
         <div>
           <p className="text-xs text-gray-500">Outstanding</p>
-          <p className={`text-base font-bold ${outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
+          <p className={`text-sm sm:text-base font-bold ${outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {formatCurrency(Math.max(0, outstanding))}
           </p>
         </div>
@@ -137,7 +137,7 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
         {!previewUrl ? (
           <div
             onClick={() => fileRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-xl px-4 py-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-colors"
+            className="border-2 border-dashed border-gray-300 rounded-xl px-4 py-6 sm:py-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/30 transition-colors"
           >
             <FileImage className="mx-auto text-gray-400 mb-2" size={28} />
             <p className="text-sm font-semibold text-gray-700">Upload Payment Screenshot</p>
@@ -155,7 +155,7 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
               <button
                 type="button"
                 onClick={() => { setPreviewUrl(null); setReceiptPath(''); setScanDone(false); setScanError(''); }}
-                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow text-gray-400 hover:text-red-500"
+                className="absolute top-2 right-2 bg-white rounded-full p-2 sm:p-1 shadow text-gray-400 hover:text-red-500"
               >
                 <X size={14} />
               </button>
@@ -204,7 +204,7 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
           onChange={e => setPaidAmount(e.target.value)}
         />
         <button type="button" onClick={() => setPaidAmount(String(totalAmount))}
-          className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1.5">
+          className="py-2 sm:py-0 text-xs text-blue-600 hover:text-blue-800 font-medium mt-1.5">
           Mark as Fully Paid ({formatCurrency(totalAmount)})
         </button>
       </div>
@@ -223,9 +223,9 @@ export default function PaymentForm({ poId, poNumber, totalAmount, currentPaid, 
           value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} />
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting || scanning || uploading} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={submitting || scanning || uploading} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {submitting ? 'Saving...' : 'Save Payment'}
         </button>
       </div>

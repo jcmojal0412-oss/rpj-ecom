@@ -22,8 +22,8 @@ const CONTENT_TYPE_LABELS: Record<string, { name: string; category: string }> = 
 
 function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle?: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <Icon size={14} className="text-orange-500" />
+    <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
+      <Icon size={14} className="text-orange-500 shrink-0" />
       <p className="text-xs font-semibold text-gray-700">{title}</p>
       {subtitle && <span className="text-[10px] text-gray-400 font-normal">— {subtitle}</span>}
     </div>
@@ -55,7 +55,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 shrink-0"
+      className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 flex items-center gap-1.5 shrink-0"
     >
       {copied ? <Check size={13} /> : <Copy size={13} />}
       {copied ? 'Copied' : label}
@@ -281,17 +281,17 @@ export default function VideoAdCopyClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Video size={22} className="text-orange-500" /> AI Ad Copy Generator</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2"><Video size={22} className="text-orange-500 shrink-0" /> AI Ad Copy Generator</h1>
         <p className="text-sm text-gray-500 mt-1">Turn your product videos into high-converting Facebook ad copy.</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
+      <div className="grid lg:grid-cols-2 gap-4 lg:gap-6 items-start">
         {/* LEFT: Inputs */}
-        <div className="card space-y-5">
+        <div className="card p-4 sm:p-6 space-y-5">
           <p className="text-sm font-semibold text-gray-700">Product Video</p>
 
           <div>
@@ -299,12 +299,12 @@ export default function VideoAdCopyClient() {
             {videoPreviewUrl ? (
               <div className="space-y-2">
                 <video src={videoPreviewUrl} controls className="w-full max-h-56 rounded-lg border border-gray-200 bg-black" onLoadedMetadata={e => setVideoDuration(e.currentTarget.duration)} />
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
                   <span className="truncate">{videoFile?.name}</span>
                   <div className="flex items-center gap-3 shrink-0">
                     {videoDuration != null && <span className="flex items-center gap-1"><Clock size={12} /> {formatDuration(videoDuration)}</span>}
                     <span>{videoFile ? formatBytes(videoFile.size) : ''}</span>
-                    <button onClick={removeVideo} className="text-orange-600 font-medium">Remove</button>
+                    <button onClick={removeVideo} className="text-orange-600 font-medium py-2 sm:py-0">Remove</button>
                   </div>
                 </div>
               </div>
@@ -314,7 +314,7 @@ export default function VideoAdCopyClient() {
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={e => { e.preventDefault(); setDragOver(false); onVideoSelected(e.dataTransfer.files?.[0] || null); }}
-                className={`w-full h-36 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${dragOver ? 'border-orange-400 bg-orange-50 text-orange-500' : 'border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-500'}`}
+                className={`w-full h-36 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 px-3 text-center cursor-pointer transition-colors ${dragOver ? 'border-orange-400 bg-orange-50 text-orange-500' : 'border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-500'}`}
               >
                 <Video size={22} />
                 <span className="text-xs font-medium">Drag & drop your product video, or click to browse</span>
@@ -325,7 +325,7 @@ export default function VideoAdCopyClient() {
 
           <div className="border-t border-gray-100 pt-4 space-y-4">
             <p className="text-sm font-semibold text-gray-700">Optional Product Information</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Product Name</label>
                 <input type="text" className="form-input" value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g. Best Car Sunshade" />
@@ -335,7 +335,7 @@ export default function VideoAdCopyClient() {
                 <input type="text" className="form-input" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} placeholder="e.g. 499" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Original Price <span className="text-gray-400 font-normal">— optional</span></label>
                 <input type="text" className="form-input" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} placeholder="e.g. 999" />
@@ -356,7 +356,7 @@ export default function VideoAdCopyClient() {
                 <input type="text" className="form-input mt-1.5" value={customTargetAudience} onChange={e => setCustomTargetAudience(e.target.value)} placeholder="Describe your target audience" />
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Ad Objective</label>
                 <select className="form-input" value={adObjective} onChange={e => setAdObjective(e.target.value as typeof AD_OBJECTIVES[number])}>
@@ -386,14 +386,14 @@ export default function VideoAdCopyClient() {
 
           <div className="border-t border-gray-100 pt-4 space-y-3">
             <p className="text-sm font-semibold text-gray-700">Offer Information <span className="text-gray-400 font-normal text-xs">— only checked/filled items are used, AI will never invent an offer</span></p>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={offerCod} onChange={e => setOfferCod(e.target.checked)} /> Cash on Delivery</label>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={offerFreeShipping} onChange={e => setOfferFreeShipping(e.target.checked)} /> Free Shipping</label>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={offerNationwide} onChange={e => setOfferNationwide(e.target.checked)} /> Nationwide Delivery</label>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={offerLimitedStock} onChange={e => setOfferLimitedStock(e.target.checked)} /> Limited Stock</label>
-              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={offerLimitedTime} onChange={e => setOfferLimitedTime(e.target.checked)} /> Limited-Time Sale</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 py-1.5 sm:py-0"><input type="checkbox" checked={offerCod} onChange={e => setOfferCod(e.target.checked)} /> Cash on Delivery</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 py-1.5 sm:py-0"><input type="checkbox" checked={offerFreeShipping} onChange={e => setOfferFreeShipping(e.target.checked)} /> Free Shipping</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 py-1.5 sm:py-0"><input type="checkbox" checked={offerNationwide} onChange={e => setOfferNationwide(e.target.checked)} /> Nationwide Delivery</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 py-1.5 sm:py-0"><input type="checkbox" checked={offerLimitedStock} onChange={e => setOfferLimitedStock(e.target.checked)} /> Limited Stock</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 py-1.5 sm:py-0"><input type="checkbox" checked={offerLimitedTime} onChange={e => setOfferLimitedTime(e.target.checked)} /> Limited-Time Sale</label>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Discount <span className="text-gray-400 font-normal">— optional</span></label>
                 <div className="relative">
@@ -424,7 +424,7 @@ export default function VideoAdCopyClient() {
         </div>
 
         {/* RIGHT: Output */}
-        <div className="card space-y-6 lg:sticky lg:top-6">
+        <div className="card p-4 sm:p-6 space-y-6 lg:sticky lg:top-6">
           <p className="text-sm font-semibold text-gray-700">Generated Content</p>
 
           {busy ? (
@@ -452,9 +452,9 @@ export default function VideoAdCopyClient() {
               {/* Choose Your Hook — only affects versions[0] */}
               {result.hookOptions.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <SectionHeader icon={Sparkles} title="Choose Your Hook" subtitle="for the best ad copy" />
-                    <button onClick={() => regenerateHook()} disabled={regeneratingHook || busy} className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50">
+                    <button onClick={() => regenerateHook()} disabled={regeneratingHook || busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50 shrink-0">
                       {regeneratingHook ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                       Generate 3 New Hooks
                     </button>
@@ -470,7 +470,7 @@ export default function VideoAdCopyClient() {
                             {active && <span className="text-[10px] font-semibold text-orange-600">● Active</span>}
                           </div>
                           <p className="text-sm font-bold text-gray-900">{h.hook}</p>
-                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || busy || active} className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
+                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || busy || active} className="btn-secondary text-xs py-2.5 sm:py-1 px-2.5 disabled:opacity-50">
                             {active ? 'In Use' : 'Use This Hook'}
                           </button>
                         </div>
@@ -482,7 +482,7 @@ export default function VideoAdCopyClient() {
 
               {/* Best Ad Copy — Version 1 */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-orange-600">BEST AD COPY — {result.versions[0].angle}</p>
                   <CopyButton text={versionText(result.versions[0])} />
                 </div>
@@ -497,16 +497,16 @@ export default function VideoAdCopyClient() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <button onClick={() => rewrite('')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><RefreshCw size={12} /> Regenerate</button>
-                  <button onClick={() => rewrite('Make the copy much stronger and more assertive — a punchier hook, more persuasive throughout, while staying within the compliance and conversion rules.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><Flame size={12} /> Make Stronger</button>
-                  <button onClick={() => rewrite('Make the primaryText significantly shorter and punchier — cut to the essential hook, one key benefit, and the CTA.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><Scissors size={12} /> Make Shorter</button>
-                  <button onClick={() => rewrite('Re-select the strongest angle for this product given the current Ad Angle setting and regenerate all 3 versions around it.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><Wand2 size={12} /> Change Angle</button>
+                  <button onClick={() => rewrite('')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><RefreshCw size={12} /> Regenerate</button>
+                  <button onClick={() => rewrite('Make the copy much stronger and more assertive — a punchier hook, more persuasive throughout, while staying within the compliance and conversion rules.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><Flame size={12} /> Make Stronger</button>
+                  <button onClick={() => rewrite('Make the primaryText significantly shorter and punchier — cut to the essential hook, one key benefit, and the CTA.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><Scissors size={12} /> Make Shorter</button>
+                  <button onClick={() => rewrite('Re-select the strongest angle for this product given the current Ad Angle setting and regenerate all 3 versions around it.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><Wand2 size={12} /> Change Angle</button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => rewrite('Emphasize the offer and a clear sales-driven CTA more heavily; prioritize a Sales/Conversion objective.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><DollarSign size={12} /> More Sales Focused</button>
-                  <button onClick={() => rewrite('Rewrite in a Premium tone — elegant, aspirational language, less hard-sell.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><Gem size={12} /> Make Premium</button>
-                  <button onClick={() => rewrite('Rewrite using a Mommy/Family angle, speaking directly to parents.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1"><Users size={12} /> Mommy Angle</button>
-                  <button onClick={() => rewrite('Increase the natural Taglish mix — make it sound even more like a real Filipino seller texting casually, less formal.')} disabled={busy} className="btn-secondary text-xs py-1.5 px-2.5 flex items-center gap-1">🇵🇭 More Taglish</button>
+                  <button onClick={() => rewrite('Emphasize the offer and a clear sales-driven CTA more heavily; prioritize a Sales/Conversion objective.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><DollarSign size={12} /> More Sales Focused</button>
+                  <button onClick={() => rewrite('Rewrite in a Premium tone — elegant, aspirational language, less hard-sell.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><Gem size={12} /> Make Premium</button>
+                  <button onClick={() => rewrite('Rewrite using a Mommy/Family angle, speaking directly to parents.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1"><Users size={12} /> Mommy Angle</button>
+                  <button onClick={() => rewrite('Increase the natural Taglish mix — make it sound even more like a real Filipino seller texting casually, less formal.')} disabled={busy} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-2.5 flex items-center gap-1">🇵🇭 More Taglish</button>
                 </div>
               </div>
 
@@ -523,7 +523,7 @@ export default function VideoAdCopyClient() {
                     </button>
                     {open && (
                       <div className="px-3 pb-3 space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-bold text-gray-900">{v.hook}</p>
                           <CopyButton text={versionText(v)} />
                         </div>
@@ -545,7 +545,7 @@ export default function VideoAdCopyClient() {
                     {result.extraHooks.map((h, i) => (
                       <div key={i} className="flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 p-2.5">
                         <span className="text-[10px] font-semibold text-orange-500 uppercase mt-0.5 w-14 shrink-0">{h.category}</span>
-                        <p className="text-sm font-bold text-gray-900 flex-1">{h.hook}</p>
+                        <p className="text-sm font-bold text-gray-900 flex-1 min-w-0">{h.hook}</p>
                         <CopyButton text={h.hook} />
                       </div>
                     ))}

@@ -26,6 +26,55 @@ const DECISION_BADGE: Record<string, string> = {
   REJECT: 'badge-red',
 };
 
+function parseResearch(p: VaultProduct): any {
+  let parsed: any = null;
+  try { parsed = p.ai_research_json ? JSON.parse(p.ai_research_json) : null; } catch {}
+  return parsed;
+}
+
+// Expanded-row content, shared by the desktop table row and the phone card.
+function renderDetails(p: VaultProduct, parsed: any) {
+  return (
+    <>
+      <p className="whitespace-pre-line">{p.research_notes}</p>
+      {parsed && (
+        <>
+          {parsed.product_image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={parsed.product_image_url}
+              alt={p.name}
+              className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
+          {(parsed.shopee_link || parsed.tiktok_link) && (
+            <p className="text-gray-400 italic pt-2">⚠ AI-found links — please verify before use, some may be delisted or region-restricted.</p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-2">
+            <p><b>Target Market:</b> {parsed.target_market}</p>
+            <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>
+            <p><b>RTS Risk:</b> {parsed.rts_risk}</p>
+            <p><b>Perceived Value Score:</b> {p.perceived_value_score}</p>
+            <p>
+              <b>Shopee Link:</b>{' '}
+              {parsed.shopee_link
+                ? <a href={parsed.shopee_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                : 'Not found'}
+            </p>
+            <p>
+              <b>TikTok Link:</b>{' '}
+              {parsed.tiktok_link
+                ? <a href={parsed.tiktok_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                : 'Not found'}
+            </p>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function ProductVaultClient() {
   const [products, setProducts] = useState<VaultProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,13 +88,13 @@ export default function ProductVaultClient() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-orange-100 rounded-xl">
+        <div className="p-2 bg-orange-100 rounded-xl shrink-0">
           <Vault className="text-orange-500" size={22} />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Vault</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Product Vault</h1>
           <p className="text-sm text-gray-500 mt-0.5">AI-researched products saved from Product Hunter</p>
         </div>
       </div>
@@ -55,99 +104,103 @@ export default function ProductVaultClient() {
       )}
 
       {!loading && products.length === 0 && (
-        <div className="card text-center py-16 text-sm text-gray-500">
+        <div className="card p-4 sm:p-6 text-center py-16 text-sm text-gray-500">
           No saved products yet. Go to Product Hunter and click "Save to Product Vault" on a recommendation.
         </div>
       )}
 
       {!loading && products.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="table-header">Product</th>
-                <th className="table-header">Category</th>
-                <th className="table-header">Season</th>
-                <th className="table-header text-right">COGS</th>
-                <th className="table-header text-right">SRP</th>
-                <th className="table-header text-right">AI Score</th>
-                <th className="table-header">Decision</th>
-                <th className="table-header"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p, i) => {
-                let parsed: any = null;
-                try { parsed = p.ai_research_json ? JSON.parse(p.ai_research_json) : null; } catch {}
-                const isExpanded = expandedId === p.id;
-                return (
-                  <Fragment key={p.id}>
-                    <tr className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="table-cell font-semibold text-gray-900">{p.name}</td>
-                      <td className="table-cell text-gray-600">{p.category ?? '-'}</td>
-                      <td className="table-cell text-gray-600">{p.season ?? '-'}</td>
-                      <td className="table-cell text-right text-gray-600">₱{p.cogs ?? '-'}</td>
-                      <td className="table-cell text-right text-gray-600">₱{p.srp ?? '-'}</td>
-                      <td className="table-cell text-right font-bold text-gray-800">{p.ai_score ?? '-'}</td>
-                      <td className="table-cell">
-                        {p.decision && <span className={DECISION_BADGE[p.decision] ?? 'badge-gray'}>{p.decision}</span>}
-                      </td>
-                      <td className="table-cell">
-                        <button
-                          onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr className="bg-blue-50/40">
-                        <td colSpan={8} className="px-4 py-4 text-xs text-gray-700 space-y-2">
-                          <p className="whitespace-pre-line">{p.research_notes}</p>
-                          {parsed && (
-                            <>
-                              {parsed.product_image_url && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={parsed.product_image_url}
-                                  alt={p.name}
-                                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
-                              )}
-                              {(parsed.shopee_link || parsed.tiktok_link) && (
-                                <p className="text-gray-400 italic pt-2">⚠ AI-found links — please verify before use, some may be delisted or region-restricted.</p>
-                              )}
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2">
-                                <p><b>Target Market:</b> {parsed.target_market}</p>
-                                <p><b>Compliance Risk:</b> {parsed.compliance_risk}</p>
-                                <p><b>RTS Risk:</b> {parsed.rts_risk}</p>
-                                <p><b>Perceived Value Score:</b> {p.perceived_value_score}</p>
-                                <p>
-                                  <b>Shopee Link:</b>{' '}
-                                  {parsed.shopee_link
-                                    ? <a href={parsed.shopee_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
-                                    : 'Not found'}
-                                </p>
-                                <p>
-                                  <b>TikTok Link:</b>{' '}
-                                  {parsed.tiktok_link
-                                    ? <a href={parsed.tiktok_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
-                                    : 'Not found'}
-                                </p>
-                              </div>
-                            </>
-                          )}
+        <>
+          <div className="card overflow-x-auto hidden md:block">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="table-header">Product</th>
+                  <th className="table-header">Category</th>
+                  <th className="table-header">Season</th>
+                  <th className="table-header text-right">COGS</th>
+                  <th className="table-header text-right">SRP</th>
+                  <th className="table-header text-right">AI Score</th>
+                  <th className="table-header">Decision</th>
+                  <th className="table-header"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p, i) => {
+                  const parsed = parseResearch(p);
+                  const isExpanded = expandedId === p.id;
+                  return (
+                    <Fragment key={p.id}>
+                      <tr className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="table-cell font-semibold text-gray-900">{p.name}</td>
+                        <td className="table-cell text-gray-600">{p.category ?? '-'}</td>
+                        <td className="table-cell text-gray-600">{p.season ?? '-'}</td>
+                        <td className="table-cell text-right text-gray-600">₱{p.cogs ?? '-'}</td>
+                        <td className="table-cell text-right text-gray-600">₱{p.srp ?? '-'}</td>
+                        <td className="table-cell text-right font-bold text-gray-800">{p.ai_score ?? '-'}</td>
+                        <td className="table-cell">
+                          {p.decision && <span className={DECISION_BADGE[p.decision] ?? 'badge-gray'}>{p.decision}</span>}
+                        </td>
+                        <td className="table-cell">
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {isExpanded && (
+                        <tr className="bg-blue-50/40">
+                          <td colSpan={8} className="px-4 py-4 text-xs text-gray-700 space-y-2">
+                            {renderDetails(p, parsed)}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Phone: the 8-column table can't fit, so each product becomes a card. */}
+          <div className="md:hidden space-y-2.5">
+            {products.map(p => {
+              const parsed = parseResearch(p);
+              const isExpanded = expandedId === p.id;
+              return (
+                <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 break-words">{p.name}</p>
+                      <p className="text-xs text-gray-500">{[p.category, p.season].filter(Boolean).join(' · ') || '-'}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {p.decision && <span className={DECISION_BADGE[p.decision] ?? 'badge-gray'}>{p.decision}</span>}
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                        className="p-2.5 -mr-1 text-blue-600 hover:text-blue-800"
+                      >
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                    <span>COGS: <span className="font-medium">₱{p.cogs ?? '-'}</span></span>
+                    <span>SRP: <span className="font-medium">₱{p.srp ?? '-'}</span></span>
+                    <span>AI Score: <span className="font-bold text-gray-800">{p.ai_score ?? '-'}</span></span>
+                  </div>
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-700 space-y-2">
+                      {renderDetails(p, parsed)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

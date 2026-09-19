@@ -385,6 +385,7 @@ export default function CommandCenterClient() {
           position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)',
           background: 'var(--cc-navy)', color: 'var(--cc-navy-text)', padding: '11px 20px', borderRadius: 10,
           fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,.25)', zIndex: 50,
+          width: 'max-content', maxWidth: 'calc(100vw - 24px)', textAlign: 'center',
         }}>{toast}</div>
       )}
     </div>
@@ -1128,7 +1129,7 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
         <div className="cc-legend-row"><span className="cc-pdot normal" />Normal</div>
         <div className="cc-legend-row"><span className="cc-pdot low" />Low</div>
       </div>
-      <div className="cc-table-wrap">
+      <div className="cc-table-wrap hidden md:block">
         <div className="cc-table-scroll">
           <table className="cc-task-table">
             <thead><tr><th>Task</th><th>Business / Project</th><th>Due</th><th>Status</th><th></th></tr></thead>
@@ -1160,6 +1161,37 @@ function TasksTab({ showToast }: { showToast: (m: string) => void }) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Phone: the 5-column table becomes one card per task (same data + handlers). */}
+      <div className="md:hidden flex flex-col gap-2.5">
+        {!loading && rows.length === 0 && (
+          <div className="cc-card" style={{ padding: 20, textAlign: 'center', color: 'var(--cc-text-faint)' }}>Walang task dito.</div>
+        )}
+        {rows.map((r) => (
+          <div key={r.id} className="cc-card" style={{ padding: '12px 14px' }}>
+            <div className="cc-task-title-cell" style={{ alignItems: 'flex-start' }}>
+              <span className={`cc-pdot ${PRIORITY_DOT[r.priority] || 'normal'}`} style={{ marginTop: 6 }} />
+              <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+                <strong>{r.title}</strong>
+                {r.description && <div style={{ fontSize: 11.5, color: 'var(--cc-text-faint)', marginTop: 2 }}>{r.description}</div>}
+              </div>
+              <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {r.status !== 'Completed' && (
+                  <button className="cc-row-dismiss" onClick={() => markTaskDone(r.id)} title="Mark as done"><Check size={15} /></button>
+                )}
+                <button className="cc-row-dismiss" onClick={() => setEditing({ kind: 'task', row: r })} title="Edit task"><Pencil size={15} /></button>
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 8, paddingLeft: 18 }}>
+              <span className={`cc-status-badge ${STATUS_CLASS[r.status] || 'cc-status-todo'}`}>{r.status}</span>
+              {r.category && <span className="cc-tag">{r.category}</span>}
+              {(r.due_date || r.due_time) && (
+                <span className="cc-num" style={{ fontSize: 12.5, color: 'var(--cc-text-muted)' }}>{r.due_date || ''}{r.due_time ? `, ${r.due_time}` : ''}</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {showNew && <NewTaskModal onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); loadReminders(); }} showToast={showToast} />}
@@ -1811,6 +1843,7 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
                 }}
               >
                 <button
+                  className="cc-voice-play"
                   onClick={() => speakWithVoice("Hi boss, this is what I sound like right now.", v.name)}
                   title="Pakinggan"
                   style={{
@@ -1819,6 +1852,7 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
                   }}
                 >▶</button>
                 <button
+                  className="cc-voice-pick"
                   onClick={() => chooseVoice(v.name)}
                   style={{
                     flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer',
@@ -1840,7 +1874,7 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
           {categories.map(c => (
             <span key={c.id} className="cc-tag" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px' }}>
               {c.name}
-              <button onClick={() => deleteCategory(c.id)} style={{ display: 'flex', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cc-text-faint)' }}><X size={12} /></button>
+              <button className="cc-tag-x" onClick={() => deleteCategory(c.id)} style={{ display: 'flex', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cc-text-faint)' }}><X size={12} /></button>
             </span>
           ))}
         </div>
@@ -1849,6 +1883,7 @@ function SettingsTab({ showToast }: { showToast: (m: string) => void }) {
             type="text" value={newName} onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addCategory(); }}
             placeholder="Bagong tag..."
+            className="cc-settings-input"
             style={{ flex: 1, border: '1px solid var(--cc-border)', borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
           />
           <button className="cc-btn cc-btn-gold cc-btn-sm" onClick={addCategory}><Plus size={14} /> Add</button>

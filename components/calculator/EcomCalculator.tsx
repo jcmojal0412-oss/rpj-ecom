@@ -18,7 +18,7 @@ const InputCard = ({ label, value, onChange, icon: Icon, color, suffix }: {
   label: string; value: string; onChange: (v: string) => void;
   icon: any; color: string; suffix?: string;
 }) => (
-  <div className="card">
+  <div className="card p-3 sm:p-6">
     <div className="flex items-center gap-2 mb-2">
       <Icon size={16} className={color} />
       <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{label}</label>
@@ -86,7 +86,7 @@ export default function EcomCalculator() {
   const customProfit = customSrp ? calc.profitAt(parseFloat(customSrp)) : null;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-orange-100 rounded-xl">
           <Calculator className="text-orange-500" size={22} />
@@ -98,11 +98,11 @@ export default function EcomCalculator() {
       </div>
 
       {/* Inputs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <InputCard label="COGS"     value={cogs}     onChange={setCogs}     icon={Package}    color="text-blue-500"   />
         <InputCard label="Shipping" value={shipping} onChange={setShipping} icon={Truck}      color="text-purple-500" />
         <InputCard label="Ads Cost" value={ads}      onChange={setAds}      icon={Megaphone}  color="text-orange-500" />
-        <div className="card">
+        <div className="card p-3 sm:p-6">
           <div className="flex items-center gap-2 mb-2">
             <RotateCcw size={16} className="text-red-500" />
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">RTS Rate</label>
@@ -113,7 +113,7 @@ export default function EcomCalculator() {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
           </div>
         </div>
-        <div className="card">
+        <div className="card p-3 sm:p-6">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp size={16} className="text-green-500" />
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Platform Fee</label>
@@ -127,27 +127,27 @@ export default function EcomCalculator() {
       </div>
 
       {/* Summary Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card bg-blue-50 border border-blue-200">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="card p-3 sm:p-6 bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-600 font-semibold mb-1">Total Cost / Order</p>
-          <p className="text-2xl font-black text-blue-700">₱{fmt(calc.totalCost)}</p>
+          <p className="text-xl sm:text-2xl font-black text-blue-700">₱{fmt(calc.totalCost)}</p>
           <p className="text-xs text-blue-500 mt-1">COGS + Shipping + Ads</p>
         </div>
-        <div className="card bg-red-50 border border-red-200">
+        <div className="card p-3 sm:p-6 bg-red-50 border border-red-200">
           <p className="text-xs text-red-600 font-semibold mb-1">Break-even Price</p>
-          <p className="text-2xl font-black text-red-700">₱{fmt(calc.breakEven)}</p>
+          <p className="text-xl sm:text-2xl font-black text-red-700">₱{fmt(calc.breakEven)}</p>
           <p className="text-xs text-red-500 mt-1">Min SRP to not lose money</p>
         </div>
-        <div className="card bg-green-50 border border-green-200">
+        <div className="card p-3 sm:p-6 bg-green-50 border border-green-200">
           <p className="text-xs text-green-600 font-semibold mb-1">✅ Sweet Spot (recommended)</p>
-          <p className="text-2xl font-black text-green-700">₱{fmt(calc.sweetSpot)}</p>
+          <p className="text-xl sm:text-2xl font-black text-green-700">₱{fmt(calc.sweetSpot)}</p>
           <p className="text-xs text-green-500 mt-1">
             Profit: ₱{fmt(calc.profitAt(calc.sweetSpot))} / order
           </p>
         </div>
-        <div className="card bg-orange-50 border border-orange-200">
+        <div className="card p-3 sm:p-6 bg-orange-50 border border-orange-200">
           <p className="text-xs text-orange-600 font-semibold mb-1">🔥 Scale Price</p>
-          <p className="text-2xl font-black text-orange-700">₱{fmt(calc.scalePrice)}</p>
+          <p className="text-xl sm:text-2xl font-black text-orange-700">₱{fmt(calc.scalePrice)}</p>
           <p className="text-xs text-orange-500 mt-1">
             Profit: ₱{fmt(calc.profitAt(calc.scalePrice))} / order
           </p>
@@ -155,7 +155,7 @@ export default function EcomCalculator() {
       </div>
 
       {/* Recommended Pricing */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">🎯 Recommended Pricing</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
@@ -187,7 +187,7 @@ export default function EcomCalculator() {
       </div>
 
       {/* Bundle Pricing */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">📦 Bundle Pricing (based on Sweet Spot)</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
@@ -218,9 +218,9 @@ export default function EcomCalculator() {
       </div>
 
       {/* Profit Table */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">📊 Profit at Different Prices</h2>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -259,13 +259,43 @@ export default function EcomCalculator() {
             </tbody>
           </table>
         </div>
+
+        {/* Phone: the 6-column table cannot fit, so each price point becomes a
+            card with the same figures (the sweet-spot band keeps its highlight). */}
+        <div className="md:hidden space-y-2.5">
+          {srpPoints.map(srp => {
+            const successRate = 1 - (parseFloat(rts) / 100 || 0);
+            const revenue     = srp * successRate;
+            const profit      = calc.profitAt(srp);
+            const margin      = srp > 0 ? (profit / srp * 100) : 0;
+            const isSweet     = srp === calc.sweetSpot || (srp >= calc.sweetSpot - 50 && srp <= calc.sweetSpot + 50);
+            return (
+              <div key={srp} className={`rounded-xl border border-gray-200 bg-white p-3 ${isSweet ? 'ring-2 ring-orange-400' : ''}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-base font-bold text-gray-900">₱{fmt(srp)}</p>
+                  <ProfitBadge profit={profit} breakEven={calc.breakEven} />
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500">
+                  <span>Revenue (after RTS)</span>
+                  <span className="text-right text-gray-600">₱{fmt(revenue)}</span>
+                  <span>Total Cost</span>
+                  <span className="text-right text-gray-600">₱{fmt(calc.totalCost)}</span>
+                  <span>Profit / Order</span>
+                  <span className={`text-right font-bold ${profit > 0 ? 'text-green-700' : 'text-red-600'}`}>₱{fmt(profit)}</span>
+                  <span>Margin</span>
+                  <span className={`text-right font-semibold ${margin > 20 ? 'text-green-700' : margin > 0 ? 'text-amber-600' : 'text-red-600'}`}>{margin.toFixed(1)}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Custom Price Check */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-3">🔍 Check Custom SRP</h2>
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="relative w-full sm:w-auto sm:flex-1 max-w-xs">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₱</span>
             <input
               type="number"
@@ -276,7 +306,7 @@ export default function EcomCalculator() {
             />
           </div>
           {customProfit !== null && (
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <div>
                 <p className="text-xs text-gray-500">Profit / order</p>
                 <p className={`text-xl font-black ${customProfit > 0 ? 'text-green-700' : 'text-red-600'}`}>

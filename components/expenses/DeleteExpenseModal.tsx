@@ -32,9 +32,9 @@ export default function DeleteExpenseModal({ expense, onCancel, onDeleted }: Pro
           <div className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-bold text-gray-900">{formatCurrency(expense.amount)}</span></div>
           <div className="flex justify-between"><span className="text-gray-500">Paid To</span><span className="font-medium text-gray-900">{expense.paid_to || '—'}</span></div>
         </div>
-        <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onCancel} className="btn-secondary">Cancel</button>
-          <button onClick={handleDelete} disabled={deleting} className="btn-danger disabled:opacity-50">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-1">
+          <button onClick={onCancel} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+          <button onClick={handleDelete} disabled={deleting} className="btn-danger justify-center py-2.5 sm:py-2 disabled:opacity-50">
             {deleting ? 'Deleting...' : 'Delete Expense'}
           </button>
         </div>

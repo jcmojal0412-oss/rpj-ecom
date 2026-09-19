@@ -106,26 +106,26 @@ export default function ProductResearchClient() {
   const orphanedItems = items.filter(i => !statuses.some(s => s.name === i.status));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Research</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Product Research</h1>
           <p className="text-sm text-gray-500 mt-1">Track products from research to launch</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* View toggle */}
           <div className="flex items-center bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setView('kanban')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'kanban' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex items-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'kanban' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <LayoutGrid size={14} /> Kanban
             </button>
             <button
               onClick={() => setView('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'table' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex items-center gap-1.5 px-3 py-2.5 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'table' ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <Table size={14} /> Table
             </button>
@@ -134,14 +134,14 @@ export default function ProductResearchClient() {
           {/* Manage Statuses */}
           <button
             onClick={() => setShowManage(true)}
-            className="btn-secondary text-xs"
+            className="btn-secondary text-xs min-h-[44px] sm:min-h-0"
             title="Manage statuses"
           >
             <Settings size={15} /> Statuses
           </button>
 
           {/* Add Product */}
-          <button onClick={() => { setDefaultStatus(firstStatus); setShowAdd(true); }} className="btn-primary">
+          <button onClick={() => { setDefaultStatus(firstStatus); setShowAdd(true); }} className="btn-primary min-h-[44px] sm:min-h-0">
             <Plus size={16} /> Add Product
           </button>
         </div>
@@ -157,11 +157,11 @@ export default function ProductResearchClient() {
           </div>
           <div className="space-y-1.5">
             {orphanedItems.map(item => (
-              <div key={item.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
+              <div key={item.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
                 <span className="text-sm font-medium text-gray-900 flex-1 min-w-0 truncate">{item.product_name}</span>
                 <span className="text-xs text-gray-400 shrink-0">was &quot;{item.status}&quot;</span>
                 <select
-                  className="form-input w-auto text-xs py-1"
+                  className="form-input w-full sm:w-auto text-xs py-2 sm:py-1"
                   defaultValue=""
                   onChange={e => { if (e.target.value) handleStatusChange(item.id, e.target.value); }}
                 >

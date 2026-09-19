@@ -108,16 +108,16 @@ export default function HrDashboardClient() {
   const multiDay = range.from !== range.to;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-start justify-between flex-wrap gap-4">
+      <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">HR Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">{periodLabel} at a glance</p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
           <select
             value={period}
             onChange={e => setPeriod(e.target.value as PeriodKey)}
@@ -126,13 +126,13 @@ export default function HrDashboardClient() {
             {PERIOD_OPTIONS.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
           </select>
           {period === 'custom' && (
-            <div className="flex items-center flex-wrap gap-2">
-              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+            <div className="flex items-center flex-wrap gap-2 sm:justify-end">
+              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-sm sm:text-xs border border-gray-200 rounded-md px-2 py-2 sm:py-1.5" />
               <span className="text-gray-300 text-xs">to</span>
-              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-sm sm:text-xs border border-gray-200 rounded-md px-2 py-2 sm:py-1.5" />
               <button
                 onClick={() => setAppliedCustom({ from: customFrom, to: customTo })}
-                className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-md px-3 py-1.5"
+                className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-md px-4 sm:px-3 py-2.5 sm:py-1.5"
               >
                 Apply
               </button>
@@ -141,7 +141,7 @@ export default function HrDashboardClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {cards.map(c => {
           const disabled = c.value === null;
           const isExpanded = expandedCard === c.key;
@@ -150,12 +150,12 @@ export default function HrDashboardClient() {
               key={c.key}
               disabled={disabled}
               onClick={() => setExpandedCard(k => (k === c.key ? null : c.key))}
-              className={`card flex items-center gap-4 text-left transition-colors ${
+              className={`card p-3 sm:p-6 flex items-center gap-2.5 sm:gap-4 text-left transition-colors ${
                 disabled ? 'cursor-default' : 'cursor-pointer hover:bg-gray-50'
               } ${isExpanded ? 'ring-2 ring-orange-300' : ''}`}
             >
-              <div className={`p-3 rounded-xl ${c.color}`}><c.icon size={22} /></div>
-              <div className="flex-1">
+              <div className={`p-2 sm:p-3 rounded-xl shrink-0 ${c.color}`}><c.icon size={22} /></div>
+              <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500 font-medium">{c.label}</p>
                 <p className="text-xl font-bold text-gray-900 mt-0.5">{c.value === null ? '—' : c.value}</p>
                 {c.value === null && <p className="text-[10px] text-gray-400 mt-0.5">Only shown for &quot;Today&quot;</p>}
@@ -168,9 +168,9 @@ export default function HrDashboardClient() {
 
       {expanded && (
         <div className="card space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-gray-900">{expanded.label} — {expanded.list.length} employee{expanded.list.length === 1 ? '' : 's'}</p>
-            <button onClick={() => setExpandedCard(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            <button onClick={() => setExpandedCard(null)} className="text-gray-400 hover:text-gray-600 p-2 -m-2 sm:p-0 sm:m-0 shrink-0"><X size={16} /></button>
           </div>
           {expanded.list.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">No employees in this list.</p>
@@ -227,7 +227,7 @@ export default function HrDashboardClient() {
       )}
 
       <div className="card space-y-4 border-2 border-orange-100">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-base font-semibold text-gray-900">Needs Your Attention</p>
           {totalAttention > 0 && <span className="badge-amber">{totalAttention}</span>}
         </div>
@@ -237,43 +237,43 @@ export default function HrDashboardClient() {
         ) : (
           <div className="space-y-1.5">
             {attention.pendingOt.map((r: any) => (
-              <button key={`ot-${r.id}`} onClick={() => setReviewingOt(r)} className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors">
-                <span className="flex items-center gap-2 text-sm text-gray-700">
+              <button key={`ot-${r.id}`} onClick={() => setReviewingOt(r)} className="w-full flex items-center justify-between gap-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-3 sm:py-2.5 transition-colors">
+                <span className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
                   <Clock3 size={14} className="text-orange-500 shrink-0" />
                   OT for Approval — {r.employee_name} ({formatDate(r.event_date)})
                 </span>
-                <span className="text-xs text-orange-600 font-medium">Review →</span>
+                <span className="text-xs text-orange-600 font-medium shrink-0 whitespace-nowrap">Review →</span>
               </button>
             ))}
             {attention.pendingCorrections.map((r: any) => (
-              <button key={`corr-${r.id}`} onClick={() => setReviewingCorrection(r)} className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors">
-                <span className="flex items-center gap-2 text-sm text-gray-700">
+              <button key={`corr-${r.id}`} onClick={() => setReviewingCorrection(r)} className="w-full flex items-center justify-between gap-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-3 sm:py-2.5 transition-colors">
+                <span className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
                   <FileEdit size={14} className="text-blue-500 shrink-0" />
                   Attendance Correction — {r.employee_name} ({formatDate(r.event_date)})
                 </span>
-                <span className="text-xs text-orange-600 font-medium">Review →</span>
+                <span className="text-xs text-orange-600 font-medium shrink-0 whitespace-nowrap">Review →</span>
               </button>
             ))}
             {attention.pendingLeave.map((r: any) => (
-              <button key={`leave-${r.id}`} onClick={() => setReviewingLeave(r)} className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors">
-                <span className="flex items-center gap-2 text-sm text-gray-700">
+              <button key={`leave-${r.id}`} onClick={() => setReviewingLeave(r)} className="w-full flex items-center justify-between gap-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-3 sm:py-2.5 transition-colors">
+                <span className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
                   <Palmtree size={14} className="text-green-500 shrink-0" />
                   Leave Request — {r.employee_name} ({r.leave_type_name})
                 </span>
-                <span className="text-xs text-orange-600 font-medium">Review →</span>
+                <span className="text-xs text-orange-600 font-medium shrink-0 whitespace-nowrap">Review →</span>
               </button>
             ))}
             {attention.missingTimeOut.map((r: any) => (
               <button
                 key={`missing-${r.employee_id}`}
                 onClick={() => setViewingDay({ employeeId: r.employee_id, employeeName: r.employee_name, date: todayISO() })}
-                className="w-full flex items-center justify-between text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-2.5 transition-colors"
+                className="w-full flex items-center justify-between gap-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg px-3.5 py-3 sm:py-2.5 transition-colors"
               >
-                <span className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
                   <AlertCircle size={14} className="text-red-500 shrink-0" />
                   Missing Time Out — {r.employee_name} (today)
                 </span>
-                <span className="text-xs text-orange-600 font-medium">View →</span>
+                <span className="text-xs text-orange-600 font-medium shrink-0 whitespace-nowrap">View →</span>
               </button>
             ))}
           </div>
@@ -361,7 +361,7 @@ function DayEventsModal({ employeeId, employeeName, date, onClose }: {
       )}
 
       {zoomedPhoto && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/80" onClick={() => setZoomedPhoto(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 bg-black/80" onClick={() => setZoomedPhoto(null)}>
           <img src={zoomedPhoto} alt="Selfie" className="max-w-full max-h-full rounded-lg" />
         </div>
       )}

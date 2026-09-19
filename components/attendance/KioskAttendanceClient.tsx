@@ -188,7 +188,7 @@ export default function KioskAttendanceClient() {
   const selfieAction = selfieFor ? ACTIONS.find(a => a.type === selfieFor) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#EEF3F8] via-[#E9F0F6] to-[#EEF3F8] flex flex-col items-center justify-center p-4 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-[#EEF3F8] via-[#E9F0F6] to-[#EEF3F8] flex flex-col items-center justify-center p-4 py-16 sm:py-10">
       <div className="w-full max-w-lg relative">
         {/* Logo, hovering above the card with clear breathing room */}
         <div className="absolute left-1/2 -translate-x-1/2 -top-14 z-10 bg-white rounded-2xl shadow-md ring-1 ring-black/5 px-6 py-4">

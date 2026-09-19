@@ -141,7 +141,7 @@ export default function ImportLegacySalesClient() {
 
   if (!isOwner) {
     return (
-      <div className="p-6 max-w-md mx-auto text-center space-y-3">
+      <div className="p-4 sm:p-6 max-w-md mx-auto text-center space-y-3">
         <AlertTriangle className="mx-auto text-amber-500" size={28} />
         <p className="text-sm text-gray-600">Only the owner can import historical sales.</p>
         <Link href="/pos/sales" className="btn-secondary inline-flex"><ArrowLeft size={14} /> Back to Sales History</Link>
@@ -150,16 +150,16 @@ export default function ImportLegacySalesClient() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-4">
+    <div className="p-3 sm:p-4 lg:p-6 max-w-2xl mx-auto space-y-4">
       <div className="flex items-center gap-2">
-        <Link href="/pos/sales" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/pos/sales" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Import Historical Sales</h1>
           <p className="text-sm text-gray-500">Upload a "POS Sales Report" export from the old system.</p>
         </div>
       </div>
 
-      <div className="card space-y-4">
+      <div className="card p-4 sm:p-6 space-y-4">
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
           <p className="font-semibold">Before you import, know what this does — and doesn't — bring over:</p>
           <ul className="list-disc list-inside space-y-0.5">
@@ -182,9 +182,9 @@ export default function ImportLegacySalesClient() {
               <div className="flex justify-between text-gray-500"><span>Imported</span><span className="font-semibold text-gray-800 tabular-nums">{result.imported}</span></div>
               <div className="flex justify-between text-gray-500"><span>Skipped (already imported)</span><span className="font-semibold text-gray-800 tabular-nums">{result.skipped_duplicates}</span></div>
             </div>
-            <div className="flex justify-center gap-3">
-              <button onClick={reset} className="btn-secondary">Import Another File</button>
-              <Link href="/pos/sales" className="btn-primary">View Sales History</Link>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <button onClick={reset} className="btn-secondary justify-center py-2.5 sm:py-2">Import Another File</button>
+              <Link href="/pos/sales" className="btn-primary justify-center py-2.5 sm:py-2">View Sales History</Link>
             </div>
           </div>
         ) : (
@@ -231,15 +231,15 @@ export default function ImportLegacySalesClient() {
               </div>
             )}
 
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
               {!preview ? (
-                <button onClick={runPreview} disabled={!file || previewing} className="btn-secondary disabled:opacity-50">
+                <button onClick={runPreview} disabled={!file || previewing} className="btn-secondary justify-center py-2.5 sm:py-2 disabled:opacity-50">
                   <UploadCloud size={15} /> {previewing ? 'Reading...' : 'Preview'}
                 </button>
               ) : (
                 <>
-                  <button onClick={() => setPreview(null)} className="btn-secondary">Back</button>
-                  <button onClick={runImport} disabled={importing || preview.new_count === 0} className="btn-primary disabled:opacity-50">
+                  <button onClick={() => setPreview(null)} className="btn-secondary justify-center py-2.5 sm:py-2">Back</button>
+                  <button onClick={runImport} disabled={importing || preview.new_count === 0} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-50">
                     {importing ? 'Importing...' : `Confirm Import (${preview.new_count})`}
                   </button>
                 </>
@@ -249,7 +249,7 @@ export default function ImportLegacySalesClient() {
         )}
       </div>
 
-      <div className="card space-y-4 border-2 border-red-200">
+      <div className="card p-4 sm:p-6 space-y-4 border-2 border-red-200">
         <div>
           <h2 className="text-base font-bold text-red-700 flex items-center gap-2"><Trash2 size={16} /> Reset Test Data</h2>
           <p className="text-sm text-gray-500">Permanently removes every sale made while building/testing this POS (identified as anything with no original-transaction-ID from the old system), plus all shifts and cash movements. Migrated historical sales are never touched. This cannot be undone.</p>
@@ -272,7 +272,7 @@ export default function ImportLegacySalesClient() {
             <p className="text-xs text-gray-400">Receipt numbering is reset — the next sale starts at BNS108.</p>
           </div>
         ) : !resetPreview ? (
-          <button onClick={runResetPreview} disabled={resetPreviewing} className="btn-secondary disabled:opacity-50">
+          <button onClick={runResetPreview} disabled={resetPreviewing} className="btn-secondary justify-center py-2.5 sm:py-2 disabled:opacity-50">
             {resetPreviewing ? 'Checking...' : 'Preview What Will Be Removed'}
           </button>
         ) : (
@@ -310,10 +310,10 @@ export default function ImportLegacySalesClient() {
               </div>
             )}
 
-            <div className="flex justify-end gap-3">
-              <button onClick={() => { setResetPreview(null); setConfirmPhrase(''); }} className="btn-secondary">Cancel</button>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
+              <button onClick={() => { setResetPreview(null); setConfirmPhrase(''); }} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
               {resetPreview.suspect_count === 0 && (resetPreview.test_sales > 0 || resetPreview.shifts_to_delete > 0) && (
-                <button onClick={runReset} disabled={resetting || confirmPhrase !== 'RESET'} className="btn-danger disabled:opacity-40">
+                <button onClick={runReset} disabled={resetting || confirmPhrase !== 'RESET'} className="btn-danger justify-center py-2.5 sm:py-2 disabled:opacity-40">
                   {resetting ? 'Deleting...' : 'Permanently Delete'}
                 </button>
               )}

@@ -59,7 +59,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
 
   if (pending.length === 0) {
     return (
-      <div className="card">
+      <div className="card p-3 sm:p-6">
         <div className="flex items-center gap-2 mb-1">
           <Wallet className="text-amber-500" size={20} />
           <h2 className="text-base font-semibold text-gray-900">Pending Payout to Tech</h2>
@@ -70,7 +70,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
   }
 
   return (
-    <div className="card space-y-5">
+    <div className="card p-3 sm:p-6 space-y-5">
       <div className="flex items-center gap-2">
         <Wallet className="text-amber-500" size={20} />
         <div>
@@ -89,7 +89,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
           const current = isCurrentWeek(monday);
           const payDate = payoutDate(monday);
           return (
-            <div key={key} className={`border rounded-xl p-4 ${current ? 'border-amber-100 bg-amber-50/40' : 'border-red-200 bg-red-50/40'}`}>
+            <div key={key} className={`border rounded-xl p-3 sm:p-4 ${current ? 'border-amber-100 bg-amber-50/40' : 'border-red-200 bg-red-50/40'}`}>
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-800">{weekLabel(monday)}</p>
@@ -102,7 +102,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
                 <button
                   onClick={() => payWeek(key, items)}
                   disabled={payingWeek === key}
-                  className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                  className="btn-primary text-xs py-2.5 sm:py-1.5 justify-center w-full sm:w-auto disabled:opacity-50"
                 >
                   {payingWeek === key ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                   {payingWeek === key ? 'Marking Paid...' : 'Mark Week as Paid'}
@@ -110,7 +110,7 @@ export default function PendingPayout({ repairs, onPaid }: Props) {
               </div>
               <div className="space-y-1.5">
                 {items.map(r => (
-                  <div key={r.id} className="flex items-center justify-between text-xs bg-white rounded-lg px-3 py-2">
+                  <div key={r.id} className="flex items-center justify-between gap-2 text-xs bg-white rounded-lg px-3 py-2">
                     <div className="min-w-0">
                       <span className="text-gray-400">{formatDate(r.repair_date)}</span>{' '}
                       <span className="font-medium text-gray-700">{r.repair_details || r.unit_model || '—'}</span>

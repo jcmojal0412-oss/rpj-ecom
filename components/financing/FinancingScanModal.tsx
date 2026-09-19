@@ -154,7 +154,7 @@ export default function FinancingScanModal({
       {/* Drop zone */}
       <div
         onClick={() => fileRef.current?.click()}
-        className="border-2 border-dashed border-orange-300 rounded-xl p-6 text-center cursor-pointer hover:bg-orange-50/40 transition-colors"
+        className="border-2 border-dashed border-orange-300 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:bg-orange-50/40 transition-colors"
       >
         <Camera className="mx-auto text-orange-400 mb-2" size={28} />
         <p className="text-sm font-semibold text-gray-700">Upload Sale Screenshots</p>
@@ -208,7 +208,7 @@ export default function FinancingScanModal({
 
                   <button
                     onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                    className="text-gray-300 hover:text-red-400 shrink-0"
+                    className="text-gray-300 hover:text-red-400 shrink-0 p-2 -m-2 sm:p-0 sm:m-0"
                   >
                     <X size={14} />
                   </button>
@@ -222,11 +222,11 @@ export default function FinancingScanModal({
                       {row.provider} sale saved — {formatCurrency(parseFloat(row.amount || '0'))}
                     </div>
                   ) : (
-                    <div key={r} className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                      <div className="col-span-2">
+                    <div key={r} className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                      <div className="sm:col-span-2">
                         <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Financing Provider</label>
                         <select
-                          className="form-input text-sm py-1.5"
+                          className="form-input text-sm py-2 sm:py-1.5"
                           value={row.provider}
                           onChange={e => updateRow(i, r, { provider: e.target.value })}
                         >
@@ -237,7 +237,7 @@ export default function FinancingScanModal({
                         <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Amount (₱)</label>
                         <input
                           type="number"
-                          className="form-input text-sm py-1.5"
+                          className="form-input text-sm py-2 sm:py-1.5"
                           value={row.amount}
                           onChange={e => updateRow(i, r, { amount: e.target.value })}
                         />
@@ -246,7 +246,7 @@ export default function FinancingScanModal({
                         <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Date</label>
                         <input
                           type="date"
-                          className="form-input text-sm py-1.5"
+                          className="form-input text-sm py-2 sm:py-1.5"
                           value={row.date}
                           onChange={e => updateRow(i, r, { date: e.target.value })}
                         />
@@ -255,7 +255,7 @@ export default function FinancingScanModal({
                         <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Customer Name</label>
                         <input
                           type="text"
-                          className="form-input text-sm py-1.5"
+                          className="form-input text-sm py-2 sm:py-1.5"
                           value={row.customerName}
                           onChange={e => updateRow(i, r, { customerName: e.target.value })}
                         />
@@ -264,16 +264,16 @@ export default function FinancingScanModal({
                         <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Reference No.</label>
                         <input
                           type="text"
-                          className="form-input text-sm py-1.5"
+                          className="form-input text-sm py-2 sm:py-1.5"
                           value={row.referenceNo}
                           onChange={e => updateRow(i, r, { referenceNo: e.target.value })}
                         />
                       </div>
-                      <div className="col-span-2 flex justify-end">
+                      <div className="sm:col-span-2 flex justify-end">
                         <button
                           onClick={() => saveRow(i, r)}
                           disabled={saving === `${i}-${r}` || !row.amount}
-                          className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                          className="btn-primary text-xs py-2.5 sm:py-1.5 w-full sm:w-auto justify-center disabled:opacity-50"
                         >
                           {saving === `${i}-${r}` ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
                           {saving === `${i}-${r}` ? 'Saving...' : 'Save Sale'}
@@ -289,13 +289,13 @@ export default function FinancingScanModal({
       )}
 
       {pendingCount > 1 && (
-        <button onClick={saveAll} className="btn-primary w-full justify-center">
+        <button onClick={saveAll} className="btn-primary w-full justify-center py-2.5 sm:py-2">
           Save All {pendingCount} Sales
         </button>
       )}
 
       <div className="flex justify-end">
-        <button onClick={onClose} className="btn-secondary">Close</button>
+        <button onClick={onClose} className="btn-secondary w-full sm:w-auto justify-center py-2.5 sm:py-2">Close</button>
       </div>
     </div>
   );

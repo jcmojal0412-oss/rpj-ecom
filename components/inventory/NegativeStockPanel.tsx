@@ -33,7 +33,7 @@ export default function NegativeStockPanel({ refreshKey }: { refreshKey?: number
   };
 
   return (
-    <div className="card !border-red-200">
+    <div className="card p-4 sm:p-6 !border-red-200">
       <button
         type="button"
         onClick={toggleCollapsed}
@@ -53,12 +53,12 @@ export default function NegativeStockPanel({ refreshKey }: { refreshKey?: number
 
       {!collapsed && (
         <div className="mt-4">
-          <div className="flex items-center justify-end gap-2 text-xs mb-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 text-xs mb-3">
             <label className="text-gray-500">As of</label>
-            <input type="date" className="form-input w-auto text-xs py-1" value={asOf}
+            <input type="date" className="form-input w-auto text-sm sm:text-xs py-2 sm:py-1" value={asOf}
               onClick={e => e.stopPropagation()} onChange={e => setAsOf(e.target.value)} />
             {asOf !== todayISO() && (
-              <button onClick={() => setAsOf(todayISO())} className="text-orange-600 hover:text-orange-800 font-medium">Today</button>
+              <button onClick={() => setAsOf(todayISO())} className="px-2 py-2 sm:p-0 text-orange-600 hover:text-orange-800 font-medium">Today</button>
             )}
           </div>
 

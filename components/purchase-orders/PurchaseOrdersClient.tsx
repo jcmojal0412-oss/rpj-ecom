@@ -104,27 +104,80 @@ export default function PurchaseOrdersClient() {
     return <span className="badge-amber">Pending</span>;
   };
 
+  // Shared by the desktop table row and the phone card.
+  const payInfo = (po: PurchaseOrder) => {
+    const paid = po.paid_amount ?? 0;
+    const payStatus = paid >= po.total_amount ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
+    return {
+      color: payStatus === 'Paid' ? 'text-green-600' : payStatus === 'Partial' ? 'text-amber-600' : 'text-red-500',
+      label: payStatus === 'Paid' ? '✓ Fully Paid'
+        : payStatus === 'Partial' ? `Paid ${formatCurrency(paid)}`
+        : 'Unpaid',
+    };
+  };
+
+  // `big` only enlarges the tap targets for the phone card.
+  const rowActions = (po: PurchaseOrder, big: boolean) => {
+    const pad = big ? 'p-2.5' : 'p-1.5';
+    const iconSize = big ? 18 : 15;
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <button onClick={() => setViewingId(po.id)}
+          className={`${pad} rounded-lg hover:bg-blue-50 text-blue-600 transition-colors`} title="View">
+          <Eye size={iconSize} />
+        </button>
+        <button
+          onClick={() => window.open(`/purchase-orders/${po.id}/print`, '_blank')}
+          className={`${pad} rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors`}
+          title="Print PO"
+        >
+          <Printer size={iconSize} />
+        </button>
+        <button onClick={() => setPayingPO(po)}
+          className={`${pad} rounded-lg hover:bg-green-50 text-green-600 transition-colors`} title="Record Payment">
+          <CreditCard size={iconSize} />
+        </button>
+        {po.status === 'pending' && (
+          <>
+            <button onClick={() => updateStatus(po.id, 'received')}
+              className={`${pad} rounded-lg hover:bg-green-50 text-green-600 transition-colors`} title="Mark Received">
+              <CheckCircle size={iconSize} />
+            </button>
+            <button onClick={() => updateStatus(po.id, 'cancelled')}
+              className={`${pad} rounded-lg hover:bg-red-50 text-red-600 transition-colors`} title="Cancel">
+              <XCircle size={iconSize} />
+            </button>
+          </>
+        )}
+        <button onClick={() => deletePO(po)}
+          className={`${pad} rounded-lg hover:bg-red-50 ${big ? 'text-red-400' : 'text-gray-300'} hover:text-red-500 transition-colors`} title="Delete PO">
+          <Trash2 size={iconSize} />
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
           <p className="text-sm text-gray-500 mt-1">Track and manage supplier orders</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={async () => { await fetchOrders(); setShowBulkScan(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100 text-sm font-semibold transition-colors">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={async () => { await fetchOrders(); setShowBulkScan(true); }} className="flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-0 rounded-xl border border-orange-300 text-orange-600 bg-orange-50 hover:bg-orange-100 text-sm font-semibold transition-colors">
             <Camera size={16} /> Scan Receipts
           </button>
-          <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <button onClick={() => setShowCreate(true)} className="btn-primary min-h-[44px] sm:min-h-0">
             <Plus size={16} /> New PO
           </button>
         </div>
       </div>
 
       {/* PO totals summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <PoTotalCard label="Today" value={poTotals.today} />
         <PoTotalCard label="Yesterday" value={poTotals.yesterday} />
         <PoTotalCard label="This Week" value={poTotals.week} />
@@ -134,14 +187,14 @@ export default function PurchaseOrdersClient() {
       {/* Date filter */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-gray-500 font-medium">Filter by date:</span>
-        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateFrom}
+        <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto min-w-0 flex-1 sm:flex-none" value={dateFrom}
           onChange={e => setDateFrom(e.target.value)} />
         <span className="text-gray-400 text-sm">—</span>
-        <input type="date" className="form-input py-1.5 text-sm w-auto" value={dateTo}
+        <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto min-w-0 flex-1 sm:flex-none" value={dateTo}
           onChange={e => setDateTo(e.target.value)} />
         {(dateFrom || dateTo) && (
           <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            className="px-2 py-2.5 sm:p-0 text-xs text-blue-600 hover:text-blue-800 font-medium">
             Clear
           </button>
         )}
@@ -150,18 +203,19 @@ export default function PurchaseOrdersClient() {
         )}
       </div>
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : orders.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-400 text-sm">No purchase orders yet.</p>
-            <button onClick={() => setShowCreate(true)} className="btn-primary mt-4">
+            <button onClick={() => setShowCreate(true)} className="btn-primary mt-4 min-h-[44px] sm:min-h-0">
               <Plus size={16} /> Create First PO
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -172,9 +226,7 @@ export default function PurchaseOrdersClient() {
               </thead>
               <tbody>
                 {filtered.map((po, i) => {
-                  const paid = po.paid_amount ?? 0;
-                  const outstanding = po.total_amount - paid;
-                  const payStatus = paid >= po.total_amount ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
+                  const pay = payInfo(po);
                   return (
                   <tr key={po.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="table-cell font-mono text-xs font-semibold text-blue-700">{po.po_number}</td>
@@ -183,56 +235,46 @@ export default function PurchaseOrdersClient() {
                     <td className="table-cell">
                       <div>
                         <p className="font-semibold">{formatCurrency(po.total_amount)}</p>
-                        <p className={`text-xs font-medium ${payStatus === 'Paid' ? 'text-green-600' : payStatus === 'Partial' ? 'text-amber-600' : 'text-red-500'}`}>
-                          {payStatus === 'Paid' ? '✓ Fully Paid'
-                            : payStatus === 'Partial' ? `Paid ${formatCurrency(paid)}`
-                            : 'Unpaid'}
-                        </p>
+                        <p className={`text-xs font-medium ${pay.color}`}>{pay.label}</p>
                       </div>
                     </td>
                     <td className="table-cell">{statusBadge(po.status)}</td>
                     <td className="table-cell text-gray-500">{po.ordered_at ? formatDate(po.ordered_at) : '—'}</td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setViewingId(po.id)}
-                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="View">
-                          <Eye size={15} />
-                        </button>
-                        <button
-                          onClick={() => window.open(`/purchase-orders/${po.id}/print`, '_blank')}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
-                          title="Print PO"
-                        >
-                          <Printer size={15} />
-                        </button>
-                        <button onClick={() => setPayingPO(po)}
-                          className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Record Payment">
-                          <CreditCard size={15} />
-                        </button>
-                        {po.status === 'pending' && (
-                          <>
-                            <button onClick={() => updateStatus(po.id, 'received')}
-                              className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Mark Received">
-                              <CheckCircle size={15} />
-                            </button>
-                            <button onClick={() => updateStatus(po.id, 'cancelled')}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors" title="Cancel">
-                              <XCircle size={15} />
-                            </button>
-                          </>
-                        )}
-                        <button onClick={() => deletePO(po)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete PO">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
+                    <td className="table-cell">{rowActions(po, false)}</td>
                   </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 7-column table cannot fit, so each PO becomes a card
+              showing the fields that matter with the same action buttons. */}
+          <div className="md:hidden space-y-2.5">
+            {filtered.map(po => {
+              const pay = payInfo(po);
+              return (
+                <div key={po.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-semibold text-blue-700">{po.po_number}</p>
+                      <p className="text-sm font-semibold text-gray-900 break-words">{po.supplier}</p>
+                      <p className="text-xs text-gray-500">
+                        {po.ordered_at ? formatDate(po.ordered_at) : '—'} · {po.item_count} item{po.item_count === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(po.total_amount)}</p>
+                      <p className={`text-xs font-medium ${pay.color}`}>{pay.label}</p>
+                      <div className="mt-1">{statusBadge(po.status)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100">{rowActions(po, true)}</div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
 
@@ -280,13 +322,13 @@ export default function PurchaseOrdersClient() {
 
 function PoTotalCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="card flex items-center gap-4">
-      <div className="p-3 rounded-xl bg-orange-50">
+    <div className="card p-3 sm:p-6 flex items-center gap-2.5 sm:gap-4">
+      <div className="hidden sm:block p-3 rounded-xl bg-orange-50">
         <CalendarDays className="text-orange-500" size={22} />
       </div>
       <div>
         <p className="text-xs text-gray-500 font-medium">{label}</p>
-        <p className="text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(value)}</p>
+        <p className="text-lg sm:text-xl font-bold text-gray-900 mt-0.5">{formatCurrency(value)}</p>
       </div>
     </div>
   );

@@ -132,8 +132,45 @@ export default function ProductsClient() {
     count: products.filter(p => p.category === cat).length,
   }));
 
+  // Shared by the desktop table row and the phone card so both always offer
+  // exactly the same actions; `big` only enlarges the tap targets.
+  const createdLabel = (p: Product) => p.created_at
+    ? new Date(p.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+
+  const pinButton = (p: Product, big: boolean) => (
+    <button
+      onClick={() => togglePosFeatured(p)}
+      title={p.pos_featured ? 'Pinned to front of Sales Terminal grid — click to unpin' : 'Pin to front of Sales Terminal grid'}
+      className={`${big ? 'p-2.5' : 'p-1.5'} rounded-lg transition-colors ${
+        p.pos_featured ? 'text-orange-500 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-400'
+      }`}
+    >
+      <Star size={big ? 18 : 16} fill={p.pos_featured ? 'currentColor' : 'none'} />
+    </button>
+  );
+
+  const editDeleteButtons = (p: Product, big: boolean) => (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => setEditing(p)}
+        className={`${big ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors`}
+        title="Edit"
+      >
+        <Pencil size={big ? 18 : 14} />
+      </button>
+      <button
+        onClick={() => setDeleting(p)}
+        className={`${big ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors`}
+        title="Delete"
+      >
+        <Trash2 size={big ? 18 : 14} />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -141,11 +178,11 @@ export default function ProductsClient() {
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-sm text-gray-500 mt-1">Manage your product catalog</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowImport(true)} className="btn-secondary">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setShowImport(true)} className="btn-secondary min-h-[44px] sm:min-h-0">
             <FileSpreadsheet size={16} /> Import Excel
           </button>
-          <button onClick={() => setShowAdd(true)} className="btn-primary">
+          <button onClick={() => setShowAdd(true)} className="btn-primary min-h-[44px] sm:min-h-0">
             <Plus size={16} /> Add Product
           </button>
         </div>
@@ -156,7 +193,7 @@ export default function ProductsClient() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSearch('')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium transition-colors ${
               !search ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -166,7 +203,7 @@ export default function ProductsClient() {
             <button
               key={cat}
               onClick={() => setSearch(cat)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium transition-colors ${
                 search === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -176,11 +213,11 @@ export default function ProductsClient() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            <div className="relative flex-1 sm:flex-none">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input
                 className="form-input pl-9 w-full sm:w-64"
@@ -202,13 +239,13 @@ export default function ProductsClient() {
               </span>
               <button
                 onClick={() => setBulkConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2.5 sm:py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
               >
                 <Trash2 size={13} /> Delete Selected
               </button>
               <button
                 onClick={() => setSelected(new Set())}
-                className="text-xs text-red-500 hover:text-red-700"
+                className="px-2 py-2.5 sm:p-0 text-xs text-red-500 hover:text-red-700"
               >
                 Clear
               </button>
@@ -224,13 +261,14 @@ export default function ProductsClient() {
               {search ? `No products matching "${search}"` : 'No products yet.'}
             </p>
             {!search && (
-              <button onClick={() => setShowAdd(true)} className="btn-primary mt-4">
+              <button onClick={() => setShowAdd(true)} className="btn-primary mt-4 min-h-[44px] sm:min-h-0">
                 <Plus size={16} /> Add First Product
               </button>
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -285,46 +323,69 @@ export default function ProductsClient() {
                         ) : '—'}
                       </td>
                       <td className="table-cell text-right">{p.reorder_point}</td>
-                      <td className="table-cell text-gray-500 text-xs">
-                        {p.created_at
-                          ? new Date(p.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : '—'}
-                      </td>
-                      <td className="table-cell">
-                        <button
-                          onClick={() => togglePosFeatured(p)}
-                          title={p.pos_featured ? 'Pinned to front of Sales Terminal grid — click to unpin' : 'Pin to front of Sales Terminal grid'}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            p.pos_featured ? 'text-orange-500 hover:bg-orange-50' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-400'
-                          }`}
-                        >
-                          <Star size={16} fill={p.pos_featured ? 'currentColor' : 'none'} />
-                        </button>
-                      </td>
-                      <td className="table-cell">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setEditing(p)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            onClick={() => setDeleting(p)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
+                      <td className="table-cell text-gray-500 text-xs">{createdLabel(p)}</td>
+                      <td className="table-cell">{pinButton(p, false)}</td>
+                      <td className="table-cell">{editDeleteButtons(p, false)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 12-column table cannot fit, so each product becomes a
+              card with the same select / pin / edit / delete controls. */}
+          <div className="md:hidden space-y-2.5">
+            <label className="flex items-center gap-2.5 px-1 py-1 text-xs font-medium text-gray-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                className="w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
+              />
+              Select all
+            </label>
+            {filtered.map(p => {
+              const isSelected = selected.has(p.id);
+              const margin = p.srp > 0 ? ((p.srp - p.cogs) / p.srp * 100).toFixed(1) : null;
+              return (
+                <div key={p.id} className={`rounded-xl border p-3 ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleOne(p.id)}
+                      className="mt-0.5 w-5 h-5 shrink-0 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs font-semibold text-gray-500">{p.sku}</p>
+                      <p className="text-sm font-semibold text-gray-900 break-words">{p.name}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="badge-gray">{p.category ?? '—'}</span>
+                        {p.barcode && <span className="font-mono text-[11px] text-gray-500">{p.barcode}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                    <span>COGS <span className="font-medium text-gray-800">{formatCurrency(p.cogs)}</span></span>
+                    <span>SRP <span className="font-medium text-gray-800">{formatCurrency(p.srp)}</span></span>
+                    <span>Margin{' '}
+                      {margin !== null ? (
+                        <span className={`font-semibold ${parseFloat(margin) >= 30 ? 'text-blue-700' : 'text-amber-600'}`}>{margin}%</span>
+                      ) : '—'}
+                    </span>
+                    <span>Reorder Pt. <span className="font-medium text-gray-800">{p.reorder_point}</span></span>
+                    <span className="col-span-2 text-gray-500">Created {createdLabel(p)}</span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                    {pinButton(p, true)}
+                    {editDeleteButtons(p, true)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
 
@@ -371,9 +432,9 @@ export default function ProductsClient() {
                 Matatanggal rin ang inventory record nito.
               </span>
             </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={() => handleDelete(deleting)} className="btn-danger">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center">Cancel</button>
+              <button onClick={() => handleDelete(deleting)} className="btn-danger justify-center">
                 <Trash2 size={14} /> Delete
               </button>
             </div>
@@ -393,9 +454,9 @@ export default function ProductsClient() {
                 Hindi na mabbalik ang mga ito. Inventory records din matatanggal.
               </span>
             </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setBulkConfirm(false)} className="btn-secondary">Cancel</button>
-              <button onClick={handleBulkDelete} className="btn-danger">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button onClick={() => setBulkConfirm(false)} className="btn-secondary justify-center">Cancel</button>
+              <button onClick={handleBulkDelete} className="btn-danger justify-center">
                 <Trash2 size={14} /> Delete {selected.size} Products
               </button>
             </div>

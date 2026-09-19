@@ -191,17 +191,17 @@ export default function AiFbAdsClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Sparkles size={22} className="text-orange-500" /> AI FB Ads Generator</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2"><Sparkles size={22} className="text-orange-500 shrink-0" /> AI FB Ads Generator</h1>
         <p className="text-sm text-gray-500 mt-1">Generate ready-to-use Facebook ad creatives from your product images.</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
+      <div className="grid lg:grid-cols-2 gap-4 lg:gap-6 items-start">
         {/* LEFT: Creative Settings */}
-        <div className="card space-y-5">
+        <div className="card p-4 sm:p-6 space-y-5">
           <p className="text-sm font-semibold text-gray-700">Creative Settings</p>
 
           <div>
@@ -217,7 +217,7 @@ export default function AiFbAdsClient() {
             {imagePreviewUrl ? (
               <div className="relative">
                 <img src={imagePreviewUrl} alt="Product" className="w-full h-40 object-contain bg-gray-50 rounded-lg border border-gray-200" />
-                <button onClick={() => onFileChange(null)} className="absolute top-2 right-2 btn-secondary text-xs py-1 px-2 bg-white">Remove</button>
+                <button onClick={() => onFileChange(null)} className="absolute top-2 right-2 btn-secondary text-xs py-2 sm:py-1 px-2 bg-white">Remove</button>
               </div>
             ) : (
               <button onClick={() => fileInputRef.current?.click()} className="w-full h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors">
@@ -233,7 +233,7 @@ export default function AiFbAdsClient() {
             <input type="text" className="form-input" value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g. Blackout Curtain Panel" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Selling Price (₱) <span className="text-gray-400 font-normal">— optional</span></label>
               <input type="number" className="form-input" value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} placeholder="499" />
@@ -296,7 +296,7 @@ export default function AiFbAdsClient() {
               direction; Custom keeps Creative Style AND appends free text. */}
           <div className="border-t border-gray-100 pt-4">
             <label className="form-label">Prompt Mode</label>
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
               {PROMPT_MODES.map(m => (
                 <button
                   key={m.key}
@@ -340,7 +340,7 @@ export default function AiFbAdsClient() {
 
           <div>
             <label className="form-label">Output Format</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button onClick={() => setFormat('4:5')} className={`flex-1 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${format === '4:5' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
                 Feed 4:5 <span className="text-xs text-gray-400">(1080x1350)</span>
               </button>
@@ -359,7 +359,7 @@ export default function AiFbAdsClient() {
         </div>
 
         {/* RIGHT: Preview */}
-        <div className="card space-y-4 lg:sticky lg:top-6">
+        <div className="card p-4 sm:p-6 space-y-4 lg:sticky lg:top-6">
           <p className="text-sm font-semibold text-gray-700">Generated Creative Preview</p>
 
           <div className={`bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden ${format === '1:1' ? 'aspect-square' : 'aspect-[4/5]'}`}>
@@ -380,9 +380,9 @@ export default function AiFbAdsClient() {
 
           {generatedImageUrl && !generating && (
             <div className="flex flex-wrap gap-2">
-              <button onClick={generate} className="btn-secondary text-sm py-2 px-4 flex items-center gap-1.5"><RefreshCw size={14} /> Regenerate</button>
-              <a href={generatedImageUrl} download={`${productName || 'ad-creative'}.png`} className="btn-secondary text-sm py-2 px-4 flex items-center gap-1.5"><Download size={14} /> Save Image</a>
-              <button onClick={generateAnother} className="btn-secondary text-sm py-2 px-4">Generate Another</button>
+              <button onClick={generate} className="btn-secondary text-sm py-2.5 sm:py-2 px-4 flex items-center gap-1.5"><RefreshCw size={14} /> Regenerate</button>
+              <a href={generatedImageUrl} download={`${productName || 'ad-creative'}.png`} className="btn-secondary text-sm py-2.5 sm:py-2 px-4 flex items-center gap-1.5"><Download size={14} /> Save Image</a>
+              <button onClick={generateAnother} className="btn-secondary text-sm py-2.5 sm:py-2 px-4">Generate Another</button>
             </div>
           )}
 

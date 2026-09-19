@@ -109,41 +109,58 @@ export default function FinancingSalesClient() {
     }
   };
 
+  // Shared by the desktop table row and the phone card so both always offer
+  // exactly the same actions; `big` only enlarges the tap targets.
+  const rowActions = (s: Sale, big: boolean) => {
+    const pad = big ? 'p-2.5' : 'p-1.5';
+    const iconSize = big ? 18 : 14;
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <button onClick={() => setEditing(s)} className={`${pad} rounded-lg hover:bg-[#F0F3F8] text-[#94A2B4] hover:text-[#16233B]`}>
+          <Pencil size={iconSize} />
+        </button>
+        <button onClick={() => setDeleting(s)} className={`${pad} rounded-lg hover:bg-red-50 text-[#94A2B4] hover:text-red-500`}>
+          <Trash2 size={iconSize} />
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-[#F6F8FC] p-6 space-y-6">
+    <div className="min-h-screen bg-[#F6F8FC] p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[#16233B]">Financing Sales</h1>
+          <h1 className="text-2xl sm:text-[28px] font-bold text-[#16233B]">Financing Sales</h1>
           <p className="text-sm text-[#66758A] mt-1">Monitor financing transactions and sales performance across all providers.</p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-2 flex-wrap">
             <select
               value={period}
               onChange={e => setPeriod(e.target.value as PeriodKey)}
-              className="text-sm border border-[#E5EAF0] rounded-lg px-3 py-2.5 bg-white text-[#16233B] focus:outline-none focus:ring-1 focus:ring-[#B68B3C]"
+              className="text-sm border border-[#E5EAF0] rounded-lg px-3 py-2.5 bg-white text-[#16233B] focus:outline-none focus:ring-1 focus:ring-[#B68B3C] flex-1 min-w-0 sm:flex-none"
             >
               {PERIOD_OPTIONS.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
             </select>
             <button
               onClick={() => setShowScan(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#233653] hover:bg-[#1b2941] text-white text-sm font-medium rounded-lg transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#233653] hover:bg-[#1b2941] text-white text-sm font-medium rounded-lg transition-colors"
             >
               <Camera size={16} className="text-[#B68B3C]" /> Upload Screenshot
             </button>
           </div>
           {period === 'custom' && (
             <div className="flex items-center flex-wrap gap-2">
-              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-[#E5EAF0] rounded-md px-2 py-1.5" />
+              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-sm sm:text-xs border border-[#E5EAF0] rounded-md px-2 py-2 sm:py-1.5" />
               <span className="text-[#B7C0CC] text-xs">to</span>
-              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-[#E5EAF0] rounded-md px-2 py-1.5" />
+              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-sm sm:text-xs border border-[#E5EAF0] rounded-md px-2 py-2 sm:py-1.5" />
               <button
                 onClick={() => setAppliedCustom({ from: customFrom, to: customTo })}
-                className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-3 py-1.5"
+                className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-3 py-2.5 sm:py-1.5"
               >
                 Apply
               </button>
@@ -153,13 +170,13 @@ export default function FinancingSalesClient() {
       </div>
 
       {/* Primary KPI — Total Financing Sales */}
-      <div className="bg-white border border-[#E5EAF0] rounded-xl p-6 flex items-center gap-4">
+      <div className="bg-white border border-[#E5EAF0] rounded-xl p-4 sm:p-6 flex items-center gap-4">
         <div className="p-3 rounded-xl bg-[#FBF3E2] shrink-0">
           <Landmark className="text-[#B68B3C]" size={22} />
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#66758A]">Total Financing Sales</p>
-          <p className="text-3xl font-bold text-[#16233B] mt-1 whitespace-nowrap">{formatCurrency(grandTotal)}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-[#16233B] mt-1 whitespace-nowrap">{formatCurrency(grandTotal)}</p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-xs text-[#66758A]">Across all financing channels</span>
             {totalChange != null && (
@@ -179,7 +196,7 @@ export default function FinancingSalesClient() {
           const amount = totals[p] ?? 0;
           const pct = pctOf(amount, grandTotal);
           return (
-            <div key={p} className="bg-white border border-[#E5EAF0] rounded-xl p-5">
+            <div key={p} className="bg-white border border-[#E5EAF0] rounded-xl p-4 sm:p-5">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-[#F0F3F8] shrink-0">
                   <Icon size={18} className="text-[#66758A]" />
@@ -194,7 +211,7 @@ export default function FinancingSalesClient() {
       </div>
 
       {/* Financing Mix — subtle horizontal breakdown, navy/gray only */}
-      <div className="bg-white border border-[#E5EAF0] rounded-xl p-6">
+      <div className="bg-white border border-[#E5EAF0] rounded-xl p-4 sm:p-6">
         <p className="text-sm font-semibold text-[#16233B] mb-4">Financing Mix</p>
         <div className="space-y-3">
           {PROVIDERS.map(p => {
@@ -221,7 +238,7 @@ export default function FinancingSalesClient() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               filter === f ? 'bg-[#233653] text-white' : 'bg-[#F0F3F8] text-[#66758A] hover:bg-[#E5EAF0]'
             }`}
           >
@@ -237,7 +254,32 @@ export default function FinancingSalesClient() {
         ) : visible.length === 0 ? (
           <p className="text-sm text-[#94A2B4] text-center py-12">No financing sales in this period. Upload a screenshot to get started.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phone: each financing sale becomes a card instead of a 6-column table. */}
+          <div className="md:hidden p-3 space-y-2.5">
+            {visible.map(s => (
+              <div key={s.id} className="rounded-xl border border-[#E5EAF0] bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className={`inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-full ${PROVIDER_BADGE[s.provider] ?? 'bg-gray-100 text-gray-700'}`}>
+                      {s.provider}
+                    </span>
+                    <p className="text-xs text-[#66758A] mt-1">{s.sale_date ? formatDate(s.sale_date) : '—'}</p>
+                  </div>
+                  <p className="text-base font-bold text-[#16233B] whitespace-nowrap shrink-0">{formatCurrency(s.amount)}</p>
+                </div>
+                {(s.customer_name || s.reference_no) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#66758A]">
+                    {s.customer_name && <span className="font-medium text-[#16233B]">{s.customer_name}</span>}
+                    {s.reference_no && <span className="text-[#94A2B4]">Ref: {s.reference_no}</span>}
+                  </div>
+                )}
+                <div className="mt-2 pt-2 border-t border-[#F0F3F8]">{rowActions(s, true)}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E5EAF0] text-left text-xs text-[#66758A]">
@@ -261,21 +303,13 @@ export default function FinancingSalesClient() {
                     <td className="px-4 py-3 font-semibold text-[#16233B] whitespace-nowrap">{formatCurrency(s.amount)}</td>
                     <td className="px-4 py-3 text-[#66758A]">{s.customer_name || '—'}</td>
                     <td className="px-4 py-3 text-[#94A2B4] text-xs">{s.reference_no || '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditing(s)} className="p-1.5 rounded-lg hover:bg-[#F0F3F8] text-[#94A2B4] hover:text-[#16233B]">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleting(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-[#94A2B4] hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3">{rowActions(s, false)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -302,9 +336,9 @@ export default function FinancingSalesClient() {
             <p className="text-sm text-gray-600">
               Delete this {deleting.provider} sale of {formatCurrency(deleting.amount)}? This cannot be undone.
             </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+              <button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2.5 sm:py-2 rounded-lg transition-colors">
                 Delete
               </button>
             </div>
@@ -365,9 +399,9 @@ function EditSaleForm({ sale, onCancel, onSaved }: { sale: Sale; onCancel: () =>
         <label className="block text-xs font-medium text-gray-500 mb-1">Reference No.</label>
         <input type="text" className="form-input" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
       </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving || !amount} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+        <button onClick={handleSave} disabled={saving || !amount} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           {saving ? 'Saving...' : 'Save'}
         </button>

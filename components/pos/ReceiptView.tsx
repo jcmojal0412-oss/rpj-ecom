@@ -66,7 +66,7 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
 
   return (
     <div className="max-w-sm mx-auto">
-      <div id="pos-receipt" className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div id="pos-receipt" className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 print:p-6 space-y-4">
         <div className="text-center">
           <p className="font-bold text-gray-900">{sale.business_name || 'RPJ ECOM'}</p>
           <p className="text-xs font-semibold text-gray-600 mt-1">Receipt No: {displayReceiptNo(sale).replace(/^Sale #/, '')}</p>
@@ -217,7 +217,7 @@ export default function ReceiptView({ sale, items, refunds, payments, children }
         </div>
       </div>
 
-      {children && <div className="mt-4 flex justify-center gap-3 print:hidden">{children}</div>}
+      {children && <div className="mt-4 flex flex-wrap justify-center gap-2 sm:gap-3 print:hidden max-sm:[&>*]:flex-1 max-sm:[&>*]:basis-[45%] max-sm:[&>*]:justify-center max-sm:[&>*]:py-2.5">{children}</div>}
     </div>
   );
 }

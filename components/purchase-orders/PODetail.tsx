@@ -24,17 +24,18 @@ export default function PODetail({ id }: { id: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
         <div><span className="text-gray-500">PO Number:</span> <span className="font-semibold font-mono ml-2">{po.po_number}</span></div>
         <div><span className="text-gray-500">Supplier:</span> <span className="font-medium ml-2">{po.supplier}</span></div>
         <div><span className="text-gray-500">Status:</span> <span className={`ml-2 ${statusColor}`}>{po.status}</span></div>
         <div><span className="text-gray-500">Ordered:</span> <span className="ml-2">{po.ordered_at ? formatDate(po.ordered_at) : '—'}</span></div>
         {po.received_at && <div><span className="text-gray-500">Received:</span> <span className="ml-2">{formatDate(po.received_at)}</span></div>}
-        {po.notes && <div className="col-span-2"><span className="text-gray-500">Notes:</span> <span className="ml-2">{po.notes}</span></div>}
+        {po.notes && <div className="sm:col-span-2"><span className="text-gray-500">Notes:</span> <span className="ml-2">{po.notes}</span></div>}
       </div>
 
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-2">Items</h3>
+        <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100">
@@ -63,6 +64,26 @@ export default function PODetail({ id }: { id: number }) {
             </tr>
           </tfoot>
         </table>
+        </div>
+
+        {/* Phone: the 5-column items table cannot fit the modal, so each line
+            becomes a small card followed by the same total. */}
+        <div className="sm:hidden space-y-2">
+          {po.items.map(item => (
+            <div key={item.id} className="rounded-lg border border-gray-200 p-2.5">
+              <p className="font-mono text-xs text-gray-500">{item.sku}</p>
+              <p className="text-sm text-gray-800 break-words">{item.name}</p>
+              <div className="mt-1 flex items-center justify-between gap-2 text-xs text-gray-500">
+                <span>{item.quantity} × {formatCurrency(item.unit_cost)}</span>
+                <span className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(item.quantity * item.unit_cost)}</span>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t-2 border-gray-200 px-1 pt-2 text-sm font-semibold">
+            <span>Total</span>
+            <span className="text-green-700 tabular-nums">{formatCurrency(po.total_amount)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

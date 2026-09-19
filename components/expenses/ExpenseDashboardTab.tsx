@@ -95,25 +95,25 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
   if (loading) return <div className="flex justify-center py-16"><Spinner /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Filters */}
-      <div className="card space-y-3">
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+      <div className="card p-4 sm:p-6 space-y-3">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
         </div>
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
-        <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+        <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
           <option value="">All Businesses</option>
           {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
@@ -121,21 +121,21 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4 sm:col-span-1">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 flex items-center gap-4 sm:col-span-1">
           <div className="w-14 h-14 rounded-xl bg-gray-900 flex items-center justify-center shrink-0"><Wallet className="text-white" size={24} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">Total Expenses</p>
             <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totalAll)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-3.5">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0"><Store className="text-blue-500" size={20} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">Bodega ni Suki</p>
             <p className="text-xl font-bold text-gray-900 mt-1 tabular-nums">{formatCurrency(totalBodega)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-3.5">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center shrink-0"><ShoppingBag className="text-orange-500" size={20} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">RPJ ECOM</p>
@@ -169,7 +169,7 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
 
       {/* Trend + breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 card">
+        <div className="lg:col-span-2 card p-4 sm:p-6">
           <p className="text-sm font-semibold text-gray-800 mb-1">Expense Trend</p>
           <p className="text-xs text-gray-400 mb-4">{new Date().getFullYear()}{businessId ? ` — ${businesses.find(b => String(b.id) === businessId)?.name}` : ' — All Businesses'}</p>
           <ResponsiveContainer width="100%" height={240}>
@@ -183,7 +183,7 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
           </ResponsiveContainer>
         </div>
 
-        <div className="card">
+        <div className="card p-4 sm:p-6">
           <p className="text-sm font-semibold text-gray-800 mb-1">Where Your Money Went</p>
           <p className="text-xs text-gray-400 mb-2">Selected period</p>
           {breakdown.length === 0 ? (
@@ -215,15 +215,34 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
       </div>
 
       {/* Recent expenses */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
+      <div className="card p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <p className="text-sm font-semibold text-gray-800">Recent Expenses</p>
-          <button onClick={onViewAll} className="text-xs font-semibold text-orange-600 hover:text-orange-800">View All Transactions</button>
+          <button onClick={onViewAll} className="text-xs font-semibold text-orange-600 hover:text-orange-800 py-2 sm:py-0 shrink-0">View All Transactions</button>
         </div>
         {recent.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No expenses in this period yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phone: 6 columns don't fit, so each expense is a card. */}
+          <div className="md:hidden space-y-2.5">
+            {recent.map(e => (
+              <div key={e.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{e.paid_to || '—'}</p>
+                    <p className="text-xs text-gray-500">{formatDate(e.date)} · {e.category}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(e.amount)}</p>
+                    <span className={e.status === 'Verified' ? 'badge-green' : 'badge-amber'}>{e.status}</span>
+                  </div>
+                </div>
+                {e.business_name && <p className="mt-2 text-xs text-gray-600">{e.business_name}</p>}
+              </div>
+            ))}
+          </div>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -246,6 +265,7 @@ export default function ExpenseDashboardTab({ onViewAll }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

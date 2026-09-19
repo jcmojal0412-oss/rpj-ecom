@@ -78,26 +78,26 @@ export default function EmployeesClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Employees</h1>
           <p className="text-sm text-gray-500 mt-1">Employee Masterlist / 201 File</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">
+        <button onClick={() => setShowAdd(true)} className="btn-primary py-2.5 sm:py-2">
           <Plus size={16} /> Add Employee
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 max-w-full overflow-x-auto">
           {STATUS_FILTERS.map(f => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 statusFilter === f ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -105,19 +105,19 @@ export default function EmployeesClient() {
             </button>
           ))}
         </div>
-        <select className="form-input py-1.5 text-sm w-auto" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
+        <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
           <option value="">All Branches</option>
           {facets.branches.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
-        <select className="form-input py-1.5 text-sm w-auto" value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)}>
+        <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)}>
           <option value="">All Departments</option>
           {facets.departments.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
           <input
             type="text"
-            className="form-input pl-8 py-1.5 text-sm"
+            className="form-input pl-8 py-2 sm:py-1.5 text-sm"
             placeholder="Search name, position, department..."
             value={q}
             onChange={e => setQ(e.target.value)}
@@ -126,11 +126,11 @@ export default function EmployeesClient() {
       </div>
 
       {selected.length > 0 && (
-        <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-4 py-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-2 bg-orange-50 border border-orange-200 rounded-lg px-4 py-2.5">
           <p className="text-sm text-orange-700 font-medium">{selected.length} employee{selected.length > 1 ? 's' : ''} selected</p>
           <div className="flex gap-2">
-            <button onClick={() => setShowBulkAssign(true)} className="btn-secondary text-xs py-1.5">Assign Shift</button>
-            <button onClick={() => setSelected([])} className="text-xs text-gray-400 hover:text-gray-600 px-2">Clear</button>
+            <button onClick={() => setShowBulkAssign(true)} className="btn-secondary text-xs py-2 sm:py-1.5">Assign Shift</button>
+            <button onClick={() => setSelected([])} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-2 sm:py-0">Clear</button>
           </div>
         </div>
       )}
@@ -141,7 +141,8 @@ export default function EmployeesClient() {
         ) : employees.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No employees found.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -183,6 +184,42 @@ export default function EmployeesClient() {
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 10-column table can't fit, so each employee becomes a
+              tappable card (checkbox still selects, tapping the rest opens the profile). */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            <label className="flex items-center gap-2.5 px-1 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <input type="checkbox" className="h-5 w-5" checked={selected.length === employees.length} onChange={toggleSelectAll} />
+              Select all
+            </label>
+            {employees.map(e => (
+              <div key={e.id} className="rounded-xl border border-gray-200 bg-white flex items-stretch">
+                <label className="flex items-start justify-center px-3 pt-3.5 shrink-0 cursor-pointer">
+                  <input type="checkbox" className="h-5 w-5" checked={selected.includes(e.id)} onChange={() => toggleSelected(e.id)} />
+                </label>
+                <div className="flex-1 min-w-0 py-3 pr-3 cursor-pointer" onClick={() => router.push(`/employees/${e.id}`)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 break-words">{e.full_name}</p>
+                      <p className="font-mono text-xs text-gray-500">{e.employee_code}</p>
+                    </div>
+                    <span className={`${STATUS_BADGE[e.employment_status]} shrink-0`}>{e.employment_status}</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-600">
+                    {[e.position, e.department, e.branch].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {e.default_shift ? `${e.default_shift.name} (${fmtShiftTime(e.default_shift.start_time)}–${fmtShiftTime(e.default_shift.end_time)})` : <span className="text-gray-400">Shift not assigned</span>}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {e.attendance_enabled ? <span className="badge-blue">Attendance Enabled</span> : <span className="badge-gray">Attendance Disabled</span>}
+                    {e.payroll_schedule ? <span className="badge-blue">Schedule {e.payroll_schedule}</span> : <span className="badge-amber">Not set</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -254,7 +291,7 @@ function BulkAssignShiftForm({ employeeIds, onCancel, onSaved }: { employeeIds: 
         <p className="text-xs text-gray-400 mt-1">Becomes each selected employee's new Default Shift — past attendance is never recalculated.</p>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -304,7 +341,7 @@ function AddEmployeeForm({ onCancel, onCreated }: { onCancel: () => void; onCrea
       </div>
       <p className="text-xs text-gray-400">You can fill in the rest of the 201 file details after creating.</p>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}

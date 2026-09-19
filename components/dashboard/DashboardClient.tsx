@@ -219,13 +219,13 @@ export default function DashboardClient() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-[#16233B]">Operations Dashboard</h1>
+          <h1 className="text-2xl sm:text-[28px] font-bold text-[#16233B]">Operations Dashboard</h1>
           <p className="text-sm text-[#66758A] mt-1">
             {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
           <select
             value={period}
             onChange={e => setPeriod(e.target.value as PeriodKey)}
@@ -235,12 +235,12 @@ export default function DashboardClient() {
           </select>
           {period === 'custom' && (
             <div className="flex items-center flex-wrap gap-2">
-              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-[#E5EAF0] rounded-md px-2 py-1.5" />
+              <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-sm sm:text-xs border border-[#E5EAF0] rounded-md px-2 py-2 sm:py-1.5" />
               <span className="text-[#B7C0CC] text-xs">to</span>
-              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-[#E5EAF0] rounded-md px-2 py-1.5" />
+              <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-sm sm:text-xs border border-[#E5EAF0] rounded-md px-2 py-2 sm:py-1.5" />
               <button
                 onClick={() => setAppliedCustom({ from: customFrom, to: customTo })}
-                className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-3 py-1.5"
+                className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-3 py-2.5 sm:py-1.5"
               >
                 Apply
               </button>
@@ -325,7 +325,30 @@ export default function DashboardClient() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="overflow-x-auto mt-4">
+          {/* Phone: the date x business table gets too wide, so each day is a card. */}
+          <div className="md:hidden mt-4 space-y-2">
+            {invTrend.slice().reverse().map(d => {
+              const byBusiness = new Map(d.stockOutByBusiness.map(b => [b.business_name, b.value]));
+              return (
+                <div key={d.date} className="rounded-lg border border-[#E5EAF0] p-3 text-xs">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#16233B]">{new Date(d.date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+                    <span className="text-sm font-semibold text-[#16233B]">{formatCurrency(d.closing)}</span>
+                  </div>
+                  <div className="mt-1.5 space-y-1">
+                    <div className="flex justify-between gap-3"><span className="text-[#66758A]">Stock In (₱)</span><span className="text-green-700 font-medium">{d.stockInValue > 0 ? `+${formatCurrency(d.stockInValue)}` : '—'}</span></div>
+                    {stockOutBusinessNames.map(name => {
+                      const value = byBusiness.get(name) ?? 0;
+                      return (
+                        <div key={name} className="flex justify-between gap-3"><span className="text-[#66758A]">Stock Out — {name} (₱)</span><span className="text-red-600 font-medium">{value > 0 ? `-${formatCurrency(value)}` : '—'}</span></div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="overflow-x-auto mt-4 hidden md:block">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-[#E5EAF0]">
@@ -411,7 +434,7 @@ export default function DashboardClient() {
 
       {/* Low Stock Alerts */}
       <div className="bg-white border border-[#E5EAF0] rounded-xl p-5 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center flex-wrap gap-2 mb-4">
           <AlertTriangle className="text-red-600" size={20} />
           <h2 className="text-base font-semibold text-[#16233B]">
             Stock Alerts
@@ -474,16 +497,58 @@ export default function DashboardClient() {
 
       {/* Daily Summary */}
       <div className="bg-white border border-[#E5EAF0] rounded-xl p-5 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h2 className="text-base font-semibold text-[#16233B]">Daily Remaining Stock Summary</h2>
           <button
             onClick={exportCSV}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg hover:bg-[#F6F8FC] transition-colors"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 sm:py-2 bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg hover:bg-[#F6F8FC] transition-colors"
           >
             <Download size={14} className="text-[#66758A]" /> Export CSV
           </button>
         </div>
-        <div className="overflow-x-auto">
+        {/* Phone: the 8-column table can't fit, so each product is a card. */}
+        <div className="md:hidden">
+          <button
+            onClick={cycleInvValueSort}
+            className="mb-3 inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg"
+          >
+            Sort by Inv. Value {invValueSort === 'desc' ? '↓' : invValueSort === 'asc' ? '↑' : ''}
+          </button>
+          <div className="space-y-2.5">
+            {sortedSummary.map(row => (
+              <div key={row.sku} className="rounded-xl border border-[#E5EAF0] bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#16233B]">{row.name}</p>
+                    <p className="text-xs font-mono font-semibold text-[#66758A]">{row.sku}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-bold text-[#16233B]">{row.remaining}</p>
+                    <p className="text-[10px] text-[#94A2B4]">remaining</p>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-[#66758A]">
+                  <span>Opening <span className="font-medium text-[#16233B]">{row.opening_stock}</span></span>
+                  <span>COGS <span className="font-medium text-[#16233B]">{formatCurrency(row.cogs)}</span></span>
+                  <span>Stock in <span className="font-medium text-green-700">{row.stock_in > 0 ? `+${row.stock_in}` : 0}</span></span>
+                  <span>Stock out <span className="font-medium text-red-600">{row.stock_out > 0 ? `-${row.stock_out}` : 0}</span></span>
+                  <span className="col-span-2">Inv. value <span className="font-semibold text-[#16233B]">{formatCurrency(row.inventory_value)}</span></span>
+                </div>
+              </div>
+            ))}
+            <div className="rounded-xl border-2 border-[#E5EAF0] bg-[#F6F8FC] p-3 text-xs text-[#66758A]">
+              <p className="text-sm font-bold text-[#16233B] mb-1">TOTAL</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <span>Opening <span className="font-semibold text-[#16233B]">{summary.reduce((s, r) => s + r.opening_stock, 0)}</span></span>
+                <span>Remaining <span className="font-semibold text-[#16233B]">{summary.reduce((s, r) => s + r.remaining, 0)}</span></span>
+                <span>Stock in <span className="font-semibold text-green-700">+{summary.reduce((s, r) => s + r.stock_in, 0)}</span></span>
+                <span>Stock out <span className="font-semibold text-red-600">-{summary.reduce((s, r) => s + r.stock_out, 0)}</span></span>
+                <span className="col-span-2">Inv. value <span className="font-semibold text-[#16233B]">{formatCurrency(totalInvValue)}</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#E5EAF0]">
@@ -568,7 +633,7 @@ function DailyTopSection({ data, label, period, onPeriodChange }: {
             <button
               key={p}
               onClick={() => onPeriodChange(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              className={`px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${
                 period === p
                   ? 'bg-[#233653] text-white'
                   : 'text-[#66758A] hover:text-[#16233B]'

@@ -119,13 +119,13 @@ export default function ProductHunterClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-orange-100 rounded-xl">
+        <div className="p-2 bg-orange-100 rounded-xl shrink-0">
           <Sparkles className="text-orange-500" size={22} />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Product Researcher</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">AI Product Researcher</h1>
           <p className="text-sm text-gray-500 mt-0.5">Product Hunter — discover potential winning products using AI</p>
         </div>
       </div>
@@ -133,7 +133,7 @@ export default function ProductHunterClient() {
       <ProductHunterForm onSearch={handleSearch} loading={loading} />
 
       {error && (
-        <div className="card border-red-200 bg-red-50 flex items-start gap-3">
+        <div className="card p-4 sm:p-6 border-red-200 bg-red-50 flex items-start gap-3">
           <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
           <div>
             <p className="text-sm font-semibold text-red-700">Couldn't generate recommendations</p>
@@ -143,7 +143,7 @@ export default function ProductHunterClient() {
       )}
 
       {loading && (
-        <div className="card flex flex-col items-center justify-center py-16 gap-3">
+        <div className="card p-4 sm:p-6 flex flex-col items-center justify-center py-16 gap-3 text-center">
           <Spinner size={32} />
           <p className="text-sm text-gray-500">Analyzing market criteria and generating product recommendations...</p>
         </div>

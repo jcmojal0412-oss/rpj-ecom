@@ -216,7 +216,7 @@ export default function StockForm({ products, onSuccess }: Props) {
 
   if (bulkResult) {
     return (
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <div className="max-w-md mx-auto text-center space-y-3 py-2">
           <div className="flex items-center gap-2 justify-center text-green-600">
             <CheckCircle2 size={18} />
@@ -233,7 +233,7 @@ export default function StockForm({ products, onSuccess }: Props) {
             ))}
           </div>
           <p className="text-xs text-gray-400">Reason: {bulkResult.reason}</p>
-          <button onClick={() => setBulkResult(null)} className="btn-primary">Done</button>
+          <button onClick={() => setBulkResult(null)} className="btn-primary min-h-[44px] sm:min-h-0">Done</button>
         </div>
       </div>
     );
@@ -241,7 +241,7 @@ export default function StockForm({ products, onSuccess }: Props) {
 
   if (result) {
     return (
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <div className="max-w-xs mx-auto text-center space-y-3 py-2">
           <div className="flex items-center gap-2 justify-center text-green-600">
             <CheckCircle2 size={18} />
@@ -254,23 +254,23 @@ export default function StockForm({ products, onSuccess }: Props) {
             <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1.5"><span>New Stock</span><span className="tabular-nums">{result.new_stock}</span></div>
             <div className="flex justify-between text-gray-500 pt-1"><span>Reason</span><span className="font-medium text-gray-800 text-right">{result.reason}</span></div>
           </div>
-          <button onClick={() => setResult(null)} className="btn-primary">Done</button>
+          <button onClick={() => setResult(null)} className="btn-primary min-h-[44px] sm:min-h-0">Done</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="card">
+    <div className="card p-4 sm:p-6">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <h2 className="text-base font-semibold text-gray-900">Stock Entry</h2>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 max-w-full overflow-x-auto">
           {(['single', 'bulk'] as EntryMode[]).map(m => (
             <button
               key={m}
               type="button"
               onClick={() => switchEntryMode(m)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-medium transition-colors ${
                 entryMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -285,7 +285,7 @@ export default function StockForm({ products, onSuccess }: Props) {
           <button
             key={t}
             onClick={() => switchTab(t)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex flex-1 sm:flex-none justify-center items-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === t
                 ? t === 'IN' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -329,8 +329,8 @@ export default function StockForm({ products, onSuccess }: Props) {
               ).slice(0, 10);
               const isDup = row.productId && duplicateProductIds.has(row.productId);
               return (
-                <div key={row.key} className={`grid grid-cols-1 sm:grid-cols-12 gap-2 items-start p-2 rounded-lg ${isDup ? 'bg-red-50' : ''}`}>
-                  <div className="relative sm:col-span-5">
+                <div key={row.key} className={`grid grid-cols-2 sm:grid-cols-12 gap-2 items-start p-2 rounded-lg ${isDup ? 'bg-red-50' : ''}`}>
+                  <div className="relative col-span-2 sm:col-span-5">
                     {idx === 0 && <label className="form-label sm:hidden">Product</label>}
                     <input
                       className={`form-input ${isDup ? '!border-red-300' : ''}`}
@@ -360,21 +360,21 @@ export default function StockForm({ products, onSuccess }: Props) {
                     )}
                     {isDup && <p className="mt-1 text-[11px] text-red-600">Already added in another row</p>}
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     {idx === 0 && <label className="form-label sm:hidden">Qty</label>}
                     <input type="number" min="1" className="form-input" placeholder="Qty" value={row.qty}
                       onChange={e => updateRow(row.key, { qty: e.target.value })} />
                   </div>
                   {tab === 'IN' && (
-                    <div className="sm:col-span-3">
+                    <div className="col-span-1 sm:col-span-3">
                       {idx === 0 && <label className="form-label sm:hidden">Cost per Unit</label>}
                       <input type="number" min="0" step="0.01" className="form-input" placeholder="₱0.00 (optional)" value={row.unitCost}
                         onChange={e => updateRow(row.key, { unitCost: e.target.value })} />
                     </div>
                   )}
-                  <div className={`${tab === 'IN' ? 'sm:col-span-2' : 'sm:col-span-5'} flex sm:justify-end`}>
+                  <div className={`${tab === 'IN' ? 'col-span-2 sm:col-span-2' : 'col-span-1 sm:col-span-5'} flex justify-end`}>
                     <button type="button" onClick={() => removeBulkRow(row.key)} disabled={bulkRows.length === 1}
-                      className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-gray-400 p-2">
+                      className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-gray-400 p-2.5 sm:p-2">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -383,7 +383,7 @@ export default function StockForm({ products, onSuccess }: Props) {
             })}
           </div>
 
-          <button type="button" onClick={addBulkRow} className="inline-flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-800 font-medium">
+          <button type="button" onClick={addBulkRow} className="inline-flex items-center gap-1.5 py-2.5 sm:py-0 text-sm text-orange-600 hover:text-orange-800 font-medium">
             <Plus size={15} /> Add Row
           </button>
 
@@ -391,7 +391,7 @@ export default function StockForm({ products, onSuccess }: Props) {
             <button
               type="submit"
               disabled={submitting}
-              className={`btn-primary ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-green-600 hover:!bg-green-700'} disabled:opacity-50`}
+              className={`btn-primary w-full sm:w-auto justify-center min-h-[44px] sm:min-h-0 ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-green-600 hover:!bg-green-700'} disabled:opacity-50`}
             >
               {submitting ? 'Saving...' : `Save Stock ${tab} (${activeBulkRows.length || 0} item${activeBulkRows.length === 1 ? '' : 's'})`}
             </button>
@@ -472,7 +472,7 @@ export default function StockForm({ products, onSuccess }: Props) {
           <button
             type="submit"
             disabled={submitting || !productId}
-            className={`btn-primary ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-green-600 hover:!bg-green-700'} disabled:opacity-50`}
+            className={`btn-primary w-full sm:w-auto justify-center min-h-[44px] sm:min-h-0 ${tab === 'OUT' ? '!bg-red-600 hover:!bg-red-700' : '!bg-green-600 hover:!bg-green-700'} disabled:opacity-50`}
           >
             {submitting ? 'Saving...' : `Save Stock ${tab}`}
           </button>

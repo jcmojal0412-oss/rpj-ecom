@@ -63,9 +63,9 @@ export default function PerformanceDashboardClient() {
   }, [period, appliedCustom, reloadToken]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#233653]">Marketing Performance</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-[#233653]">Marketing Performance</h1>
         <p className="text-sm text-gray-500 mt-1">Track marketing spend, customer acquisition, sales and store conversion.</p>
       </div>
 
@@ -76,7 +76,7 @@ export default function PerformanceDashboardClient() {
             <button
               key={key}
               onClick={() => setPeriod(key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              className={`px-3 py-2 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
                 period === key ? 'bg-[#233653] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -86,12 +86,12 @@ export default function PerformanceDashboardClient() {
         </div>
         {period === 'custom' && (
           <div className="flex items-center flex-wrap gap-2">
-            <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+            <input type="date" value={customFrom} max={customTo} onChange={e => setCustomFrom(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-2 sm:py-1.5" />
             <span className="text-gray-300 text-xs">to</span>
-            <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-1.5" />
+            <input type="date" value={customTo} min={customFrom} max={todayISO()} onChange={e => setCustomTo(e.target.value)} className="text-xs border border-gray-200 rounded-md px-2 py-2 sm:py-1.5" />
             <button
               onClick={() => setAppliedCustom({ from: customFrom, to: customTo })}
-              className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-3 py-1.5"
+              className="text-xs font-semibold text-white bg-[#233653] hover:bg-[#1b2941] rounded-md px-4 sm:px-3 py-2 sm:py-1.5"
             >
               Apply
             </button>
@@ -135,9 +135,9 @@ function DashboardBody({ data }: { data: DashboardResponse }) {
       </div>
 
       {/* Funnel */}
-      <div className="card">
+      <div className="card p-3 sm:p-6">
         <p className="text-sm font-semibold text-gray-800 mb-4">Store Visits → Buyers Funnel</p>
-        <div className="flex items-center justify-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 sm:flex-wrap">
           <FunnelStep label="Store Visits" value={kpis.store_visits.toLocaleString()} tone="light" />
           <FunnelArrow />
           <FunnelStep label="Buyers" value={kpis.total_buyers.toLocaleString()} tone="light" />
@@ -155,7 +155,7 @@ function DashboardBody({ data }: { data: DashboardResponse }) {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="card">
+        <div className="card p-3 sm:p-6">
           <p className="text-sm font-semibold text-gray-800 mb-3">Marketing Spend vs Gross Sales</p>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -170,7 +170,7 @@ function DashboardBody({ data }: { data: DashboardResponse }) {
           </ResponsiveContainer>
         </div>
 
-        <div className="card">
+        <div className="card p-3 sm:p-6">
           <p className="text-sm font-semibold text-gray-800 mb-3">Store Visits vs Buyers</p>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -201,9 +201,9 @@ function KpiCard({ icon, bg, label, value, change, goodDirection }: {
   // rather than implying "spent more" is a win.
   const isGood = goodDirection === 'neutral' || change == null ? null : (goodDirection === 'up' ? change > 0 : change < 0);
   return (
-    <div className="card flex items-center gap-3">
+    <div className="card p-3 sm:p-6 flex flex-col items-start sm:flex-row sm:items-center gap-2 sm:gap-3">
       <div className={`p-2.5 rounded-xl ${bg} shrink-0`}>{icon}</div>
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <p className="text-[11px] text-gray-500 font-medium">{label}</p>
         <p className="text-lg font-bold text-gray-900 truncate">{value}</p>
         {change != null && (
@@ -219,7 +219,7 @@ function KpiCard({ icon, bg, label, value, change, goodDirection }: {
 
 function FunnelStep({ label, value, tone }: { label: string; value: string; tone: 'light' | 'gold' }) {
   return (
-    <div className={`rounded-xl px-6 py-4 text-center min-w-[140px] ${tone === 'gold' ? 'bg-[#FBF3E2] border border-[#E9DFC7]' : 'bg-[#F6F7F9] border border-gray-100'}`}>
+    <div className={`rounded-xl px-6 py-4 text-center w-full sm:w-auto sm:min-w-[140px] ${tone === 'gold' ? 'bg-[#FBF3E2] border border-[#E9DFC7]' : 'bg-[#F6F7F9] border border-gray-100'}`}>
       <p className={`text-xl font-bold ${tone === 'gold' ? 'text-[#B68B3C]' : 'text-[#233653]'}`}>{value}</p>
       <p className="text-[11px] text-gray-500 font-medium mt-0.5 uppercase tracking-wide">{label}</p>
     </div>
@@ -227,7 +227,7 @@ function FunnelStep({ label, value, tone }: { label: string; value: string; tone
 }
 
 function FunnelArrow() {
-  return <div className="text-gray-300 text-xl font-light">→</div>;
+  return <div className="text-gray-300 text-xl font-light rotate-90 sm:rotate-0">→</div>;
 }
 
 type SortKey = keyof DailyRow;
@@ -285,14 +285,15 @@ function DailyTable({ rows }: { rows: DailyRow[] }) {
     <div className="card p-0 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <p className="text-sm font-semibold text-gray-800">Daily Performance</p>
-        <button onClick={exportCSV} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800">
+        <button onClick={exportCSV} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 py-2 sm:py-0">
           <Download size={13} /> Export CSV
         </button>
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-12">No records in this period yet.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
@@ -325,6 +326,46 @@ function DailyTable({ rows }: { rows: DailyRow[] }) {
             </tbody>
           </table>
         </div>
+
+        {/* Phone: the 10-column table becomes cards; the same sort handler is
+            exposed as a scrollable chip row since the header row is hidden. */}
+        <div className="md:hidden">
+          <div className="flex items-center gap-1.5 overflow-x-auto px-3 pt-3">
+            {cols.map(c => (
+              <button
+                key={c.key}
+                onClick={() => toggleSort(c.key)}
+                className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold ${sortKey === c.key ? 'bg-[#233653] text-white' : 'bg-gray-100 text-gray-600'}`}
+              >
+                {c.label} <ArrowUpDown size={11} />
+              </button>
+            ))}
+          </div>
+          <div className="p-3 space-y-2.5">
+            {sorted.map(r => (
+              <div key={r.entry_date} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{formatDate(r.entry_date)}</p>
+                    <p className="text-xs text-gray-500">Sales</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(r.gross_sales)}</p>
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Spend</dt><dd className="text-gray-700 tabular-nums">{formatCurrency(r.marketing_spend)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">ROAS</dt><dd className="text-[#B68B3C] font-semibold tabular-nums">{timesStr(computeROAS(r.gross_sales, r.marketing_spend))}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Buyers</dt><dd className="text-gray-700 tabular-nums">{r.total_buyers.toLocaleString()}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">New Cust.</dt><dd className="text-gray-700 tabular-nums">{r.new_customers.toLocaleString()}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Visits</dt><dd className="text-gray-700 tabular-nums">{r.store_visits.toLocaleString()}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">CAC</dt><dd className="text-gray-700 tabular-nums">{money(computeCAC(r.marketing_spend, r.new_customers))}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Conversion</dt><dd className="text-gray-700 tabular-nums">{pctStr(computeConversionRate(r.total_buyers, r.store_visits))}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Avg/Buyer</dt><dd className="text-gray-700 tabular-nums">{money(computeAvgSpendPerBuyer(r.gross_sales, r.total_buyers))}</dd></div>
+                </dl>
+              </div>
+            ))}
+          </div>
+        </div>
+        </>
       )}
     </div>
   );

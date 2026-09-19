@@ -42,9 +42,9 @@ export default function DuplicateWarningModal({ existing, businesses, onCancel, 
           <div className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-bold text-gray-900">{formatCurrency(existing.amount)}</span></div>
         </div>
         <div className="flex flex-col gap-2 pt-1">
-          <button onClick={() => setViewingExisting(true)} className="btn-secondary w-full justify-center">View Existing Expense</button>
-          <button onClick={onContinue} className="btn-secondary w-full justify-center">Continue Anyway</button>
-          <button onClick={onCancel} className="btn-primary w-full justify-center">Cancel</button>
+          <button onClick={() => setViewingExisting(true)} className="btn-secondary w-full justify-center py-2.5 sm:py-2">View Existing Expense</button>
+          <button onClick={onContinue} className="btn-secondary w-full justify-center py-2.5 sm:py-2">Continue Anyway</button>
+          <button onClick={onCancel} className="btn-primary w-full justify-center py-2.5 sm:py-2">Cancel</button>
         </div>
       </div>
     </Modal>

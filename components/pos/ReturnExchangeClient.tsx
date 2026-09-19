@@ -120,12 +120,12 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
   return (
     <div className="max-w-3xl mx-auto p-3 sm:p-6">
       <div className="flex items-center gap-2 mb-5">
-        <button onClick={onDone} className="p-1.5 rounded-lg hover:bg-white text-gray-500" title="Back to Sale"><ArrowLeft size={18} /></button>
+        <button onClick={onDone} className="p-2.5 lg:p-1.5 rounded-lg hover:bg-white text-gray-500" title="Back to Sale"><ArrowLeft size={18} /></button>
         <h1 className="text-base font-bold text-gray-800">Return / Exchange</h1>
       </div>
 
       {step === 'find' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-md">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 max-w-md">
           <label className="form-label">Find Original Sale</label>
           <p className="text-xs text-gray-400 mb-2">Search by Sale # / Receipt #</p>
           <div className="flex gap-2">
@@ -134,21 +134,21 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
               onChange={e => setSaleNumberInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') findSale(); }}
             />
-            <button onClick={findSale} disabled={searching} className="btn-primary shrink-0 disabled:opacity-50">
+            <button onClick={findSale} disabled={searching} className="btn-primary shrink-0 py-2.5 sm:py-2 disabled:opacity-50">
               <Search size={14} /> {searching ? 'Searching...' : 'Find'}
             </button>
           </div>
           {searchError && <p className="text-xs text-red-600 mt-2">{searchError}</p>}
           <button
             onClick={() => { if (isOwner) { setStep('manual-entry'); } else { setPinInput(''); setPinError(''); setStep('pin-entry'); } }}
-            className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+            className="mt-4 flex items-center gap-1.5 py-2 sm:py-0 text-xs text-blue-600 hover:text-blue-800 font-medium text-left">
             <FilePlus2 size={13} /> Sale not in the system? Enter it manually
           </button>
         </div>
       )}
 
       {step === 'pin-entry' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-sm">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 max-w-sm">
           <div className="flex items-center gap-2 mb-1">
             <Lock size={16} className="text-gray-400" />
             <label className="form-label mb-0">Manager PIN Required</label>
@@ -164,8 +164,8 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
           />
           {pinError && <p className="text-xs text-red-600 mt-2">{pinError}</p>}
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={() => setStep('find')} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={verifyPin} disabled={verifyingPin} className="btn-primary text-sm disabled:opacity-50">
+            <button onClick={() => setStep('find')} className="btn-secondary text-sm py-2.5 sm:py-2">Cancel</button>
+            <button onClick={verifyPin} disabled={verifyingPin} className="btn-primary text-sm py-2.5 sm:py-2 disabled:opacity-50">
               {verifyingPin ? 'Checking...' : 'Confirm'}
             </button>
           </div>
@@ -186,17 +186,17 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
       {step !== 'find' && step !== 'pin-entry' && step !== 'manual-entry' && found && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <ReceiptText size={16} className="text-gray-400" />
                 <p className="text-sm font-bold text-gray-800">{displayReceiptNo(found.sale)}</p>
                 <span className="text-xs text-gray-400">{formatDate(found.sale.created_at)}</span>
               </div>
-              <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 underline">Search another sale</button>
+              <button onClick={reset} className="text-xs text-gray-500 hover:text-gray-700 underline py-2 sm:py-0">Search another sale</button>
             </div>
             <div className="mt-3 space-y-1">
               {found.items.map(it => (
-                <div key={it.id} className="flex justify-between text-xs text-gray-600">
+                <div key={it.id} className="flex justify-between gap-3 text-xs text-gray-600">
                   <span>{it.product_name} {it.is_freebie ? <span className="text-orange-600 font-semibold">(FREEBIE)</span> : null} × {it.quantity}</span>
                   <span className="tabular-nums">{formatCurrency(it.line_total)}</span>
                 </div>
@@ -208,15 +208,15 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
           </div>
 
           {step === 'action' && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={() => setStep('refund')}
-                className="bg-white border-2 border-red-200 hover:border-red-400 rounded-xl p-5 text-left transition-all">
+                className="bg-white border-2 border-red-200 hover:border-red-400 rounded-xl p-4 sm:p-5 text-left transition-all">
                 <RotateCcw size={20} className="text-red-500 mb-2" />
                 <p className="text-sm font-bold text-gray-800">Refund</p>
                 <p className="text-xs text-gray-400 mt-0.5">Return item(s) and pay back the customer</p>
               </button>
               <button onClick={() => setStep('exchange')}
-                className="bg-white border-2 border-blue-200 hover:border-blue-400 rounded-xl p-5 text-left transition-all">
+                className="bg-white border-2 border-blue-200 hover:border-blue-400 rounded-xl p-4 sm:p-5 text-left transition-all">
                 <Repeat size={20} className="text-blue-500 mb-2" />
                 <p className="text-sm font-bold text-gray-800">Exchange / Upgrade</p>
                 <p className="text-xs text-gray-400 mt-0.5">Trade an item for a different product</p>
@@ -225,7 +225,7 @@ export default function ReturnExchangeClient({ businessId, cashierName, isOwner,
           )}
 
           {step === 'refund' && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
               <RefundModal
                 sale={found.sale}
                 items={found.items}
@@ -369,7 +369,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
   if (completed) {
     const isUpgrade = completed.amountPaid > 0;
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-4">
         <div className="flex items-center gap-2 justify-center text-green-600">
           <CheckCircle2 size={18} />
           <p className="text-sm font-bold">{isUpgrade ? 'UPGRADE SUCCESSFUL' : 'EXCHANGE SUCCESSFUL'}</p>
@@ -394,15 +394,15 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
           excessRefundMethod={completed.excessRefundMethod}
         />
         <div className="flex justify-center gap-3 pt-2">
-          <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
-          <button onClick={onDone} className="btn-primary">New Sale</button>
+          <button onClick={() => window.print()} className="btn-secondary justify-center py-2.5 sm:py-2 flex-1 sm:flex-none"><Printer size={15} /> Print</button>
+          <button onClick={onDone} className="btn-primary justify-center py-2.5 sm:py-2 flex-1 sm:flex-none">New Sale</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-5">
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>}
 
       <div>
@@ -412,7 +412,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
         ) : (
           <div className="space-y-1.5">
             {sellable.map(it => (
-              <label key={it.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer ${selectedId === it.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+              <label key={it.id} className={`flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg border cursor-pointer ${selectedId === it.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
                 <input type="radio" checked={selectedId === it.id} onChange={() => { setSelectedId(it.id); setReturnQty(1); }} />
                 <span className="flex-1 text-sm text-gray-700">{it.product_name} <span className="text-gray-400">· {formatCurrency(it.unit_price)} each · {it.remaining} available</span></span>
               </label>
@@ -420,18 +420,18 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
           </div>
         )}
         {selected && (
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between flex-wrap gap-2 mt-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">Qty:</span>
-              <button type="button" onClick={() => setReturnQty(q => Math.max(1, q - 1))} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
+              <button type="button" onClick={() => setReturnQty(q => Math.max(1, q - 1))} className="p-2.5 lg:p-1 rounded hover:bg-gray-100 text-gray-500"><Minus size={12} /></button>
               <span className="text-sm font-semibold w-6 text-center tabular-nums">{returnQty}</span>
-              <button type="button" onClick={() => setReturnQty(q => Math.min(maxQty, q + 1))} className="p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
+              <button type="button" onClick={() => setReturnQty(q => Math.min(maxQty, q + 1))} className="p-2.5 lg:p-1 rounded hover:bg-gray-100 text-gray-500"><Plus size={12} /></button>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">Condition:</span>
               {(['Sellable', 'Defective'] as const).map(c => (
                 <button key={c} type="button" onClick={() => setCondition(c)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${condition === c ? (c === 'Sellable' ? 'bg-green-50 border-green-400 text-green-700' : 'bg-amber-50 border-amber-400 text-amber-700') : 'bg-white border-gray-200 text-gray-500'}`}>
+                  className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold border ${condition === c ? (c === 'Sellable' ? 'bg-green-50 border-green-400 text-green-700' : 'bg-amber-50 border-amber-400 text-amber-700') : 'bg-white border-gray-200 text-gray-500'}`}>
                   {c}
                 </button>
               ))}
@@ -446,7 +446,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
           <div className="flex gap-2 mt-2">
             {(['YES', 'NO'] as const).map(v => (
               <button key={v} type="button" onClick={() => setFreebiesReturned(v)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold border ${freebiesReturned === v ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-700'}`}>
+                className={`px-4 py-2 sm:px-3 sm:py-1 rounded-md text-xs font-semibold border ${freebiesReturned === v ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-700'}`}>
                 {v}
               </button>
             ))}
@@ -461,12 +461,12 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
           <input className="form-input pl-8 text-sm" placeholder="Search product..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
         </div>
         {newProduct ? (
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-300 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-300 rounded-lg px-3 py-2">
             <div>
               <p className="text-sm font-semibold text-gray-800">{newProduct.name}</p>
               <p className="text-xs text-gray-500">{newProduct.sku} · {formatCurrency(newProduct.srp ?? 0)}</p>
             </div>
-            <button onClick={() => setNewProduct(null)} className="text-xs text-blue-600 hover:underline">Change</button>
+            <button onClick={() => setNewProduct(null)} className="text-xs text-blue-600 hover:underline px-2 py-2 sm:p-0">Change</button>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-auto">
@@ -486,7 +486,7 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
         <div className="bg-gray-50 rounded-lg p-3 space-y-1">
           <div className="flex justify-between text-sm"><span className="text-gray-500">Return Value</span><span className="tabular-nums font-medium">{formatCurrency(returnValue)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-gray-500">New Item Price</span><span className="tabular-nums font-medium">{formatCurrency(newUnitPrice)}</span></div>
-          <div className="flex justify-between text-sm font-bold border-t border-gray-200 pt-1">
+          <div className="flex justify-between gap-3 text-sm font-bold border-t border-gray-200 pt-1">
             {excess > 0
               ? <><span className="text-green-700">Excess (Refund to Customer)</span><span className="tabular-nums text-green-700">{formatCurrency(excess)}</span></>
               : <><span className="text-gray-900">Amount to Pay</span><span className="tabular-nums text-gray-900">{formatCurrency(amountToPay)}</span></>}
@@ -497,10 +497,10 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
       {excess > 0 && (
         <div>
           <label className="form-label">Refund Excess Via</label>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {REFUND_METHODS.map(m => (
               <button key={m} type="button" onClick={() => setExcessRefundMethod(m)}
-                className={`px-2 py-1.5 rounded-md text-xs font-semibold border transition-all ${excessRefundMethod === m ? 'bg-green-50 border-green-400 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                className={`px-2 py-2.5 sm:py-1.5 rounded-md text-xs font-semibold border transition-all ${excessRefundMethod === m ? 'bg-green-50 border-green-400 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 {m}
               </button>
             ))}
@@ -511,39 +511,39 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
       {amountToPay > 0 && (
         <div>
           <label className="form-label">3. Payment for Amount to Pay</label>
-          <div className="grid grid-cols-4 gap-1.5 mb-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
             {(['Cash', 'Online', 'Card', 'Split'] as const).map(m => (
               <button key={m} type="button" onClick={() => setPaymentMode(m)}
-                className={`px-2 py-1.5 rounded-md text-xs font-semibold border transition-all ${paymentMode === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                className={`px-2 py-2.5 sm:py-1.5 rounded-md text-xs font-semibold border transition-all ${paymentMode === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 {m === 'Online' ? 'ONLINE/QR' : m.toUpperCase()}
               </button>
             ))}
           </div>
 
           {(paymentMode === 'Online' || paymentMode === 'Split') && (
-            <div className="flex gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {ONLINE_PROVIDERS.map(p => (
                 <button key={p} type="button" onClick={() => setOnlineProvider(p)}
-                  className={`px-2 py-1 rounded text-[10px] font-semibold border ${onlineProvider === p ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                  className={`px-3 py-2 sm:px-2 sm:py-1 rounded text-xs sm:text-[10px] font-semibold border ${onlineProvider === p ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
                   {p}
                 </button>
               ))}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(paymentMode === 'Cash' || paymentMode === 'Split') && (
               <div>
-                <label className="text-[10px] text-gray-400">Cash Received</label>
+                <label className="text-xs sm:text-[10px] text-gray-400">Cash Received</label>
                 <div className="flex gap-1">
                   <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
-                  {paymentMode === 'Cash' && <button type="button" onClick={setExactCash} className="btn-secondary text-[10px] px-2 shrink-0">Exact</button>}
+                  {paymentMode === 'Cash' && <button type="button" onClick={setExactCash} className="btn-secondary text-xs sm:text-[10px] px-3 sm:px-2 shrink-0">Exact</button>}
                 </div>
               </div>
             )}
             {(paymentMode === 'Online' || paymentMode === 'Card' || paymentMode === 'Split') && (
               <div>
-                <label className="text-[10px] text-gray-400">{paymentMode === 'Card' ? 'Card Amount' : 'Online Amount'}</label>
+                <label className="text-xs sm:text-[10px] text-gray-400">{paymentMode === 'Card' ? 'Card Amount' : 'Online Amount'}</label>
                 <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="0.00" value={onlineAmount} onChange={e => setOnlineAmount(e.target.value)} />
               </div>
             )}
@@ -568,9 +568,9 @@ function ExchangeFlow({ sale, refundableItems, hasFreebies, cashierName, onBack,
         <input className="form-input" placeholder="e.g. Size upgrade, changed mind" value={reason} onChange={e => setReason(e.target.value)} />
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button onClick={onBack} className="btn-secondary">Back</button>
-        <button onClick={submit} disabled={!canSubmit} className="btn-primary disabled:opacity-40">
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+        <button onClick={onBack} className="btn-secondary justify-center py-2.5 sm:py-2">Back</button>
+        <button onClick={submit} disabled={!canSubmit} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-40">
           {submitting ? 'Processing...' : 'Complete Exchange'}
         </button>
       </div>
@@ -648,7 +648,7 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-4">
       <div>
         <h2 className="text-sm font-bold text-gray-800">Enter a Sale Not in the System</h2>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -667,24 +667,24 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
 
       <div className="space-y-2">
         <label className="form-label">Item(s) / Service(s) Bought</label>
-        {rows.map((row, idx) => {
+        {rows.map(row => {
           const rowProduct = products.find(p => String(p.id) === row.productId);
           const rowFiltered = products.filter(p =>
             p.sku.toLowerCase().includes(row.search.toLowerCase()) ||
             p.name.toLowerCase().includes(row.search.toLowerCase())
           ).slice(0, 10);
           return (
-            <div key={row.key} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
-              <div className="sm:col-span-2">
-                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Type</label>}
+            <div key={row.key} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-start rounded-lg border border-gray-200 p-2 sm:border-0 sm:p-0 sm:rounded-none">
+              <div className="col-span-2 sm:col-span-2">
+                <label className="text-[11px] text-gray-400 sm:hidden">Type</label>
                 <select className="form-input text-xs" value={row.kind}
                   onChange={e => updateRow(row.key, { kind: e.target.value as 'product' | 'service', productId: '', search: '', serviceName: '' })}>
                   <option value="product">Product</option>
                   <option value="service">Service/Fee</option>
                 </select>
               </div>
-              <div className="relative sm:col-span-4">
-                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">{row.kind === 'service' ? 'Service/Fee Name' : 'Product'}</label>}
+              <div className="relative col-span-2 sm:col-span-4">
+                <label className="text-[11px] text-gray-400 sm:hidden">{row.kind === 'service' ? 'Service/Fee Name' : 'Product'}</label>
                 {row.kind === 'service' ? (
                   <input
                     className="form-input text-sm"
@@ -715,30 +715,30 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
                   </>
                 )}
               </div>
-              <div className="sm:col-span-2">
-                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Qty</label>}
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-[11px] text-gray-400 sm:hidden">Qty</label>
                 <input type="number" min="1" className="form-input text-sm" placeholder="Qty" value={row.qty} onChange={e => updateRow(row.key, { qty: e.target.value })} />
               </div>
-              <div className="sm:col-span-3">
-                {idx === 0 && <label className="text-[11px] text-gray-400 sm:hidden">Price Paid (each)</label>}
+              <div className="col-span-1 sm:col-span-3">
+                <label className="text-[11px] text-gray-400 sm:hidden">Price Paid (each)</label>
                 <input type="number" min="0" step="0.01" className="form-input text-sm" placeholder="Price paid" value={row.unitPrice} onChange={e => updateRow(row.key, { unitPrice: e.target.value })} />
               </div>
-              <div className="sm:col-span-1 flex sm:justify-end">
+              <div className="col-span-2 sm:col-span-1 flex justify-end">
                 <button type="button" onClick={() => removeRow(row.key)} disabled={rows.length === 1}
-                  className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-gray-400 p-2">
+                  className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-gray-400 p-2.5 sm:p-2">
                   <Trash2 size={15} />
                 </button>
               </div>
             </div>
           );
         })}
-        <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+        <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 py-2 sm:py-0 text-xs text-blue-600 hover:text-blue-800 font-medium">
           <Plus size={13} /> Add Item
         </button>
       </div>
 
       {activeRows.length > 0 && (
-        <div className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2.5">
+        <div className="flex justify-between items-center gap-3 bg-gray-50 rounded-lg px-4 py-2.5">
           <span className="text-sm font-medium text-gray-600">Total (what the customer paid)</span>
           <span className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</span>
         </div>
@@ -750,9 +750,9 @@ function BackfillEntryForm({ businessId, managerPin, onCreated, onCancel }: {
           value={note} onChange={e => setNote(e.target.value)} />
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button onClick={onCancel} disabled={submitting} className="btn-secondary">Cancel</button>
-        <button onClick={submit} disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+        <button onClick={onCancel} disabled={submitting} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+        <button onClick={submit} disabled={submitting} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-50">
           {submitting ? 'Creating...' : 'Create & Continue to Refund/Exchange'}
         </button>
       </div>

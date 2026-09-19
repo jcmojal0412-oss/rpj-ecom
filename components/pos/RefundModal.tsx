@@ -103,8 +103,8 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
           refundAmount={completed.total}
         />
         <div className="flex justify-center gap-3 pt-2">
-          <button onClick={() => window.print()} className="btn-secondary"><Printer size={15} /> Print</button>
-          <button onClick={onRefunded} className="btn-primary">New Sale</button>
+          <button onClick={() => window.print()} className="btn-secondary justify-center py-2.5 sm:py-2 flex-1 sm:flex-none"><Printer size={15} /> Print</button>
+          <button onClick={onRefunded} className="btn-primary justify-center py-2.5 sm:py-2 flex-1 sm:flex-none">New Sale</button>
         </div>
       </div>
     );
@@ -124,18 +124,18 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button type="button" disabled={it.remaining <= 0} onClick={() => setQty(it.id, (qtyMap[it.id] ?? 0) - 1, it.remaining)}
-                  className="p-1 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"><Minus size={12} /></button>
+                  className="p-2.5 lg:p-1 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"><Minus size={12} /></button>
                 <span className="text-sm font-semibold w-6 text-center tabular-nums">{qtyMap[it.id] ?? 0}</span>
                 <button type="button" disabled={it.remaining <= 0} onClick={() => setQty(it.id, (qtyMap[it.id] ?? 0) + 1, it.remaining)}
-                  className="p-1 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"><Plus size={12} /></button>
+                  className="p-2.5 lg:p-1 rounded hover:bg-gray-100 text-gray-500 disabled:opacity-30"><Plus size={12} /></button>
               </div>
             </div>
             {(qtyMap[it.id] ?? 0) > 0 && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="text-[10px] text-gray-400">Condition:</span>
+                <span className="text-xs sm:text-[10px] text-gray-400">Condition:</span>
                 {(['Sellable', 'Defective'] as const).map(c => (
                   <button key={c} type="button" onClick={() => setConditionMap(prev => ({ ...prev, [it.id]: c }))}
-                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${(conditionMap[it.id] ?? 'Sellable') === c ? (c === 'Sellable' ? 'bg-green-50 border-green-400 text-green-700' : 'bg-amber-50 border-amber-400 text-amber-700') : 'bg-white border-gray-200 text-gray-500'}`}>
+                    className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-xs sm:text-[10px] font-semibold border ${(conditionMap[it.id] ?? 'Sellable') === c ? (c === 'Sellable' ? 'bg-green-50 border-green-400 text-green-700' : 'bg-amber-50 border-amber-400 text-amber-700') : 'bg-white border-gray-200 text-gray-500'}`}>
                     {c}
                   </button>
                 ))}
@@ -151,7 +151,7 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
           <div className="flex gap-2 mt-2">
             {(['YES', 'NO'] as const).map(v => (
               <button key={v} type="button" onClick={() => setFreebiesReturned(v)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold border ${freebiesReturned === v ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-700'}`}>
+                className={`px-4 py-2 sm:px-3 sm:py-1 rounded-md text-xs font-semibold border ${freebiesReturned === v ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-amber-300 text-amber-700'}`}>
                 {v}
               </button>
             ))}
@@ -166,10 +166,10 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
 
       <div>
         <label className="form-label">Refund Via</label>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {REFUND_METHODS.map(m => (
             <button key={m} type="button" onClick={() => setRefundMethod(m)}
-              className={`px-2 py-1.5 rounded-md text-xs font-semibold border transition-all ${refundMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              className={`px-2 py-2.5 sm:py-1.5 rounded-md text-xs font-semibold border transition-all ${refundMethod === m ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               {m}
             </button>
           ))}
@@ -181,9 +181,9 @@ export default function RefundModal({ sale, items, refunds, cashierName, onCance
         <span className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</span>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button onClick={onCancel} disabled={submitting} className="btn-secondary">Cancel</button>
-        <button onClick={submit} disabled={submitting || !hasSelection} className="btn-danger disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+        <button onClick={onCancel} disabled={submitting} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+        <button onClick={submit} disabled={submitting || !hasSelection} className="btn-danger justify-center py-2.5 sm:py-2 disabled:opacity-50">
           {submitting ? 'Processing...' : 'Refund Selected Items'}
         </button>
       </div>

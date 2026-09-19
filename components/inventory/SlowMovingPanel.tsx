@@ -23,7 +23,7 @@ export default function SlowMovingPanel({ refreshKey }: { refreshKey?: number })
   useEffect(() => { fetchRows(); }, [fetchRows, refreshKey]);
 
   return (
-    <div className="card">
+    <div className="card p-4 sm:p-6">
       <button
         type="button"
         onClick={() => setCollapsed(c => !c)}
@@ -51,7 +51,7 @@ export default function SlowMovingPanel({ refreshKey }: { refreshKey?: number })
                 <button
                   key={d}
                   onClick={() => setDays(d)}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  className={`px-3 py-2 sm:px-2.5 sm:py-1 rounded-md font-medium transition-colors ${
                     days === d ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >

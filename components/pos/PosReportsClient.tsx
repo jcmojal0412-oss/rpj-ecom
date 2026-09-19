@@ -125,11 +125,11 @@ export default function PosReportsClient() {
   const dateRangeLabel = range ? `${formatDate(range.from)} - ${formatDate(range.to)}` : 'All Dates';
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center gap-3">
-        <Link href="/pos" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/pos" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Sales Reports</h1>
           <p className="text-sm text-gray-500">Sales summary, cashier performance, and top products</p>
@@ -137,7 +137,7 @@ export default function PosReportsClient() {
       </div>
 
       {isOwner && exchangeBugCount > 0 && (
-        <div className="card flex items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
+        <div className="card flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-2 border-red-200 bg-red-50">
           <div className="flex items-center gap-2.5">
             <Wrench className="text-red-600 shrink-0" size={18} />
             <p className="text-sm text-red-800">
@@ -146,34 +146,34 @@ export default function PosReportsClient() {
               This corrects the total to match — it does not touch stock, cash amounts, or the linked refund.
             </p>
           </div>
-          <button onClick={runFixExchangeBug} disabled={fixingExchangeBug} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
+          <button onClick={runFixExchangeBug} disabled={fixingExchangeBug} className="btn-primary text-xs py-2.5 sm:py-1.5 justify-center shrink-0 disabled:opacity-50 bg-red-600 hover:bg-red-700">
             {fixingExchangeBug ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
             {fixingExchangeBug ? 'Correcting...' : 'Correct Totals Now'}
           </button>
         </div>
       )}
 
-      <div className="card space-y-3">
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+      <div className="card p-4 sm:p-6 space-y-3">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
         </div>
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
-        <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+        <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
           <option value="">All Businesses</option>
           {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
@@ -183,13 +183,13 @@ export default function PosReportsClient() {
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="rounded-xl p-4 bg-slate-800 text-white">
-              <div className="flex items-center justify-between">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div className="rounded-xl p-3 sm:p-4 bg-slate-800 text-white">
+              <div className="flex items-center justify-between gap-x-2 lg:gap-x-0 flex-wrap lg:flex-nowrap">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gross Sales</p>
                 <Link href="/pos/reports/payment-methods" className="text-[10px] font-semibold text-white/70 hover:text-white underline">Payment Methods →</Link>
               </div>
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.grossSales)}</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.grossSales)}</p>
               {(summary.deliveryFeeTotal > 0 || summary.additionalFeeTotal > 0) && (
                 <div className="mt-2 space-y-0.5 text-[11px] text-white/70">
                   {summary.additionalFeeTotal > 0 && <div className="flex justify-between"><span>+ Additional Fee</span><span className="tabular-nums">{formatCurrency(summary.additionalFeeTotal)}</span></div>}
@@ -199,8 +199,8 @@ export default function PosReportsClient() {
               <p className="text-[11px] text-white/60 mt-2">{dateRangeLabel}</p>
             </div>
 
-            <div className="rounded-xl p-4 bg-red-500 text-white">
-              <div className="flex items-center justify-between">
+            <div className="rounded-xl p-3 sm:p-4 bg-red-500 text-white">
+              <div className="flex items-center justify-between gap-x-2 lg:gap-x-0 flex-wrap lg:flex-nowrap">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Less: Discount</p>
                 <Link href="/pos/reports/discounts" className="text-[10px] font-semibold text-white/80 hover:text-white underline">Discount Report →</Link>
               </div>
@@ -208,12 +208,12 @@ export default function PosReportsClient() {
                   it (total = subtotal - discount + additional_fee + tax + service_charge +
                   delivery_fee) — only Discount is a genuine deduction, so this card no longer
                   lumps the fee totals in here as if they reduced Gross Sales. */}
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal)}</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.discountTotal)}</p>
               <p className="text-[11px] text-white/70 mt-2">{dateRangeLabel}</p>
             </div>
 
-            <div className="rounded-xl p-4 bg-amber-500 text-white">
-              <div className="flex items-center justify-between">
+            <div className="rounded-xl p-3 sm:p-4 bg-amber-500 text-white">
+              <div className="flex items-center justify-between gap-x-2 lg:gap-x-0 flex-wrap lg:flex-nowrap">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Total Expenses</p>
                 {summary.grossSales > 0 && (
                   <span className="text-[11px] font-semibold text-white/80 tabular-nums">
@@ -221,7 +221,7 @@ export default function PosReportsClient() {
                   </span>
                 )}
               </div>
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.totalExpenses + summary.cogs + summary.totalRefunds)}</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.totalExpenses + summary.cogs + summary.totalRefunds)}</p>
               <div className="mt-2 space-y-0.5 text-[11px] text-white/85">
                 <div className="flex justify-between"><span>Expenses</span><span className="tabular-nums">{formatCurrency(summary.totalExpenses)}</span></div>
                 <div className="flex justify-between"><span>COGS</span><span className="tabular-nums">{formatCurrency(summary.cogs)}</span></div>
@@ -229,8 +229,8 @@ export default function PosReportsClient() {
               </div>
             </div>
 
-            <div className="rounded-xl p-4 bg-violet-500 text-white">
-              <div className="flex items-center justify-between">
+            <div className="rounded-xl p-3 sm:p-4 bg-violet-500 text-white">
+              <div className="flex items-center justify-between gap-x-2 lg:gap-x-0 flex-wrap lg:flex-nowrap">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Net Income</p>
                 {summary.grossSales > 0 && (
                   <span className="text-[11px] font-semibold text-white/80 tabular-nums">
@@ -238,18 +238,18 @@ export default function PosReportsClient() {
                   </span>
                 )}
               </div>
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.netIncome)}</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums mt-1">{formatCurrency(summary.netIncome)}</p>
               <p className="text-[11px] text-white/70 mt-2">{dateRangeLabel}</p>
             </div>
 
-            <div className="rounded-xl p-4 bg-teal-500 text-white">
+            <div className="rounded-xl p-3 sm:p-4 bg-teal-500 text-white">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/80 flex items-center gap-1"><Package size={12} /> Total Inventory Value</p>
-              <p className="text-xl font-bold tabular-nums mt-1">{formatCurrency(inventoryValue)}</p>
+              <p className="text-lg sm:text-xl font-bold tabular-nums mt-1">{formatCurrency(inventoryValue)}</p>
               <p className="text-[11px] text-white/70 mt-2">As of {formatDate(todayISO())}</p>
             </div>
           </div>
 
-          <div className="card">
+          <div className="card p-3 sm:p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Sales Summary</h2>
             {chartData.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-8">No sales in this range.</p>
@@ -266,10 +266,10 @@ export default function PosReportsClient() {
             )}
           </div>
 
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-base font-semibold text-gray-900">Cashier&apos;s Report</h2>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
                 <Link href="/pos/reports/freebies" className="text-xs font-semibold text-orange-600 hover:text-orange-800">Freebies Report →</Link>
                 <Link href="/pos/reports/cashiers" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View Full Report →</Link>
               </div>
@@ -277,6 +277,7 @@ export default function PosReportsClient() {
             {cashiers.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-8">No sales in this range.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -293,12 +294,13 @@ export default function PosReportsClient() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
+          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="card p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4 gap-2">
                 <h2 className="text-base font-semibold text-gray-900">Top 20 Fast Moving</h2>
                 <Link href="/pos/reports/products" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View Full Report →</Link>
               </div>
@@ -320,7 +322,7 @@ export default function PosReportsClient() {
               )}
             </div>
 
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <h2 className="text-base font-semibold text-gray-900 mb-1">Top 20 Slow Moving</h2>
               <p className="text-xs text-gray-400 mb-4">Ranked by least sold — biggest remaining stock first, so this is priority order for what to push.</p>
               {slowMovers.length === 0 ? (

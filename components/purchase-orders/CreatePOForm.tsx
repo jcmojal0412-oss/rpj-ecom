@@ -81,7 +81,7 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">PO Number *</label>
           <input className="form-input" value={poNumber} onChange={e => setPoNumber(e.target.value)} required />
@@ -103,7 +103,7 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Notes</label>
           <textarea className="form-input" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
@@ -112,7 +112,7 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold text-gray-700">Line Items</h3>
-          <button type="button" onClick={addItem} className="btn-secondary text-xs py-1">
+          <button type="button" onClick={addItem} className="btn-secondary text-xs py-2 sm:py-1">
             <Plus size={13} /> Add Item
           </button>
         </div>
@@ -124,8 +124,8 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
             ).slice(0, 8);
             const lineTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_cost) || 0);
             return (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-start">
-                <div className="col-span-5 relative">
+              <div key={idx} className="grid grid-cols-12 gap-2 items-start rounded-lg border border-gray-200 p-2 sm:border-0 sm:p-0">
+                <div className="col-span-12 sm:col-span-5 relative">
                   <input
                     className="form-input text-xs"
                     placeholder="Search product..."
@@ -145,21 +145,21 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
                     </ul>
                   )}
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-3 sm:col-span-2">
                   <input type="number" min="1" className="form-input text-xs" placeholder="Qty"
                     value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-4 sm:col-span-2">
                   <input type="number" step="0.01" className="form-input text-xs" placeholder="Unit cost"
                     value={item.unit_cost} onChange={e => updateItem(idx, 'unit_cost', e.target.value)} />
                 </div>
-                <div className="col-span-2 pt-2 text-xs text-gray-600 font-medium text-right">
+                <div className="col-span-3 sm:col-span-2 pt-2 text-xs text-gray-600 font-medium text-right">
                   {formatCurrency(lineTotal)}
                 </div>
-                <div className="col-span-1 flex justify-end">
+                <div className="col-span-2 sm:col-span-1 flex justify-end">
                   {items.length > 1 && (
                     <button type="button" onClick={() => removeItem(idx)}
-                      className="p-1.5 text-red-400 hover:text-red-600 mt-0.5">
+                      className="p-2.5 sm:p-1.5 mt-0.5 text-red-400 hover:text-red-600">
                       <Trash2 size={14} />
                     </button>
                   )}
@@ -173,9 +173,9 @@ export default function CreatePOForm({ onSuccess, onCancel }: Props) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {submitting ? 'Saving...' : 'Create PO'}
         </button>
       </div>

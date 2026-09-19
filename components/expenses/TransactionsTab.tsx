@@ -79,22 +79,36 @@ export default function TransactionsTab() {
 
   const totalAmount = expenses.reduce((s, e) => s + e.amount, 0);
 
+  // Shared by the desktop table row and the phone card so both always offer
+  // exactly the same actions; `big` only enlarges the tap targets.
+  const rowActions = (e: Expense, big: boolean) => {
+    const pad = big ? 'p-2.5' : 'p-1.5';
+    const iconSize = big ? 18 : 14;
+    return (
+      <div className="flex items-center gap-1">
+        <button onClick={() => setViewing(e)} className={`${pad} rounded-lg hover:bg-blue-50 text-blue-600`} title="View"><Eye size={iconSize} /></button>
+        <button onClick={() => setEditingRow(e)} className={`${pad} rounded-lg hover:bg-blue-50 text-blue-600`} title="Edit"><Pencil size={iconSize} /></button>
+        <button onClick={() => setDeleting(e)} className={`${pad} rounded-lg hover:bg-red-50 ${big ? 'text-red-500' : 'text-gray-300 hover:text-red-500'}`} title="Delete"><Trash2 size={iconSize} /></button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       {/* Filters */}
-      <div className="card space-y-3">
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+      <div className="card p-4 sm:p-6 space-y-3">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button
             onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
@@ -102,45 +116,72 @@ export default function TransactionsTab() {
 
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-3">
-          <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
             <option value="">All Businesses</option>
             {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <select className="form-input py-1.5 text-sm w-auto" value={category} onChange={e => setCategory(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={category} onChange={e => setCategory(e.target.value)}>
             <option value="">All Categories</option>
             {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select className="form-input py-1.5 text-sm w-auto" value={status} onChange={e => setStatus(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">All Status</option>
             {EXPENSE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <form onSubmit={runSearch} className="flex items-center gap-1.5 ml-auto">
-            <div className="relative">
+          <form onSubmit={runSearch} className="flex items-center gap-1.5 w-full sm:w-auto sm:ml-auto">
+            <div className="relative w-full sm:w-auto">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-              <input className="form-input py-1.5 text-sm pl-8 w-48" placeholder="Search supplier, ref, notes"
+              <input className="form-input py-2 sm:py-1.5 text-sm pl-8 w-full sm:w-48" placeholder="Search supplier, ref, notes"
                 value={searchInput} onChange={e => setSearchInput(e.target.value)} />
             </div>
           </form>
-          <button onClick={exportCSV} className="btn-secondary text-xs py-1.5"><Download size={13} /> CSV</button>
-          <button onClick={exportExcel} className="btn-secondary text-xs py-1.5"><FileSpreadsheet size={13} /> Excel</button>
+          <button onClick={exportCSV} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Download size={13} /> CSV</button>
+          <button onClick={exportExcel} className="btn-secondary text-xs py-2.5 sm:py-1.5"><FileSpreadsheet size={13} /> Excel</button>
         </div>
       </div>
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : expenses.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-12">No expenses match these filters.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Phone: the 10-column table can't fit, so each expense is a card. */}
+            <div className="md:hidden space-y-2.5">
+              {expenses.map(e => (
+                <div key={e.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900">{e.paid_to || '—'}</p>
+                      <p className="text-xs text-gray-500">{formatDate(e.date)} · {e.category}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(e.amount)}</p>
+                      <span className={e.status === 'Verified' ? 'badge-green' : 'badge-amber'}>{e.status}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                    {e.business_name && <span>{e.business_name}</span>}
+                    {e.payment_method && <span>{e.payment_method}</span>}
+                    {e.reference_no && <span className="text-gray-500">Ref: {e.reference_no}</span>}
+                    {e.receipt_path && (
+                      <button onClick={() => setLightbox(e.receipt_path)} className="text-orange-600 hover:text-orange-800 text-xs font-semibold py-1">View receipt</button>
+                    )}
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">{rowActions(e, true)}</div>
+                </div>
+              ))}
+            </div>
+
+            <table className="w-full text-sm hidden md:table">
               <thead>
                 <tr className="border-b border-gray-100">
                   {['Date', 'Business', 'Category', 'Paid To', 'Payment', 'Reference', 'Amount', 'Status', 'Receipt', 'Actions'].map(h => (
@@ -166,13 +207,7 @@ export default function TransactionsTab() {
                         <button onClick={() => setLightbox(e.receipt_path)} className="text-orange-600 hover:text-orange-800 text-xs font-semibold">View</button>
                       ) : '—'}
                     </td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setViewing(e)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="View"><Eye size={14} /></button>
-                        <button onClick={() => setEditingRow(e)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Edit"><Pencil size={14} /></button>
-                        <button onClick={() => setDeleting(e)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500" title="Delete"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
+                    <td className="table-cell">{rowActions(e, false)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -201,7 +236,7 @@ export default function TransactionsTab() {
           onDeleted={() => { setDeleting(null); showToast('Expense deleted'); fetchExpenses(); }} />
       )}
       {lightbox && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-6" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="Receipt" className="max-h-[90vh] max-w-full rounded-lg" />
         </div>
       )}

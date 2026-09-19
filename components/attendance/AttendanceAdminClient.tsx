@@ -69,20 +69,20 @@ export default function AttendanceAdminClient() {
   const [tab, setTab] = useState<Tab>('today');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Attendance</h1>
         <p className="text-sm text-gray-500 mt-1">Today's status, daily records, and approvals</p>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 overflow-x-auto sm:overflow-visible sm:flex-wrap">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors ${
               tab === t.key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -200,7 +200,7 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
   if (loading || !settings) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
 
   return (
-    <div className="card space-y-5 max-w-2xl">
+    <div className="card p-4 sm:p-6 space-y-5 max-w-2xl">
       <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 text-xs text-blue-700">
         Work start/end time and grace period are now set per Shift Template — see the <b>Shifts</b> tab.
       </div>
@@ -211,7 +211,7 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
         <input type="number" className="form-input max-w-xs" value={settings.min_minutes_before_ot} onChange={e => setSettings({ ...settings, min_minutes_before_ot: Number(e.target.value) })} />
       </div>
 
-      <div className="border-t border-gray-100 pt-4 grid grid-cols-2 gap-4">
+      <div className="border-t border-gray-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Lunch Break Duration (minutes)</label>
           <input type="number" className="form-input" value={settings.lunch_break_minutes} onChange={e => setSettings({ ...settings, lunch_break_minutes: Number(e.target.value) })} />
@@ -250,7 +250,7 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
       </div>
 
       <div className="flex justify-end pt-2">
-        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+        <button onClick={save} disabled={saving} className="btn-primary w-full sm:w-auto justify-center py-2.5 sm:py-2 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
@@ -283,17 +283,17 @@ function RecordsTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div>
+        <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
           <label className="form-label">From</label>
-          <input type="date" className="form-input py-1.5 text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+          <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={from} onChange={e => setFrom(e.target.value)} />
         </div>
-        <div>
+        <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
           <label className="form-label">To</label>
-          <input type="date" className="form-input py-1.5 text-sm w-auto" value={to} onChange={e => setTo(e.target.value)} />
+          <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={to} onChange={e => setTo(e.target.value)} />
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="form-label">Employee</label>
-          <select className="form-input py-1.5 text-sm w-auto" value={userId} onChange={e => setUserId(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={userId} onChange={e => setUserId(e.target.value)}>
             <option value="">All Employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
@@ -306,7 +306,8 @@ function RecordsTab() {
         ) : rows.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No records for this range.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -343,6 +344,33 @@ function RecordsTab() {
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 10-column table can't fit, so each day becomes a card. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {rows.map((r, i) => (
+              <div key={i} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{r.name}</p>
+                    <p className="text-xs text-gray-500">{formatDate(r.date)}{r.shift_name ? ` · ${r.shift_name}` : ''}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={STATUS_BADGE[r.status as ExtendedStatus]}>{STATUS_LABEL[r.status as ExtendedStatus]}</span>
+                    {r.exceptionLabel && r.exceptionLabel !== STATUS_LABEL[r.status as ExtendedStatus] && <p className="text-xs text-gray-400 mt-0.5">{r.exceptionLabel}</p>}
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Work Hours</span><span className="font-medium text-gray-800">{fmtMinutes(r.totalWorkMinutes)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Break</span><span className="font-medium text-gray-800">{fmtMinutes(r.breakMinutes)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Excess Break</span><span className="font-medium text-gray-800">{r.excessBreakMinutes > 0 ? fmtMinutes(r.excessBreakMinutes) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{r.lateMinutes > 0 ? fmtMinutes(r.lateMinutes) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</span></div>
+                  <div className="flex justify-between gap-2 items-center"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{r.potentialOtMinutes > 0 ? <span className="badge-blue">{fmtMinutes(r.potentialOtMinutes)} pending</span> : '—'}</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -388,7 +416,7 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
                     <td className="table-cell">{r.employee_name}</td>
                     <td className="table-cell"><span className="badge-blue">{fmtMinutes(r.excess_minutes)}</span></td>
                     <td className="table-cell text-right">
-                      <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-1.5">Review</button>
+                      <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5 sm:py-1.5">Review</button>
                     </td>
                   </tr>
                 ))}
@@ -429,9 +457,9 @@ export function OtReviewModal({ request, onClose, onDone }: { request: any; onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">Review OT Request</h2>
         <p className="text-sm text-gray-600">
           {request.employee_name} — {formatDate(request.event_date)} — excess time worked: <b>{fmtMinutes(request.excess_minutes)}</b>
@@ -444,7 +472,7 @@ export function OtReviewModal({ request, onClose, onDone }: { request: any; onCl
           <label className="form-label">Remarks</label>
           <textarea className="form-input" rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={() => submit('reject')} disabled={!!saving} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
             {saving === 'reject' ? <Loader2 size={14} className="animate-spin inline" /> : 'Reject'}
@@ -478,12 +506,12 @@ function CorrectionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 max-w-full overflow-x-auto">
         {(['pending', 'approved', 'rejected'] as const).map(s => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-3.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
               statusFilter === s ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -498,7 +526,8 @@ function CorrectionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 
         ) : rows.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No {statusFilter} correction requests.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -520,7 +549,7 @@ function CorrectionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 
                     <td className="table-cell text-gray-500 text-xs max-w-xs truncate">{r.reason}</td>
                     <td className="table-cell text-right">
                       {r.status === 'pending' ? (
-                        <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-1.5">Review</button>
+                        <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5 sm:py-1.5">Review</button>
                       ) : (
                         <span className={r.status === 'approved' ? 'badge-green' : 'badge-red'}>{r.status}</span>
                       )}
@@ -530,6 +559,31 @@ function CorrectionsTab({ showToast }: { showToast: (m: string, t?: 'success' | 
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per correction request instead of the 6-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {rows.map(r => (
+              <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{r.employee_name}</p>
+                    <p className="text-xs text-gray-500">{formatDate(r.event_date)}</p>
+                  </div>
+                  {r.status !== 'pending' && <span className={`shrink-0 ${r.status === 'approved' ? 'badge-green' : 'badge-red'}`}>{r.status}</span>}
+                </div>
+                <p className="mt-2 text-sm text-gray-700">
+                  {EVENT_LABELS[r.requested_event_type as EventType]} → {new Date(r.requested_time).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </p>
+                {r.reason && <p className="mt-1 text-xs text-gray-500 break-words">{r.reason}</p>}
+                {r.status === 'pending' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                    <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5">Review</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -561,9 +615,9 @@ export function CorrectionReviewModal({ request, onClose, onDone }: { request: a
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">Review Correction Request</h2>
         <div className="text-sm text-gray-600 space-y-1">
           <p><b>{request.employee_name}</b> — {formatDate(request.event_date)}</p>
@@ -574,7 +628,7 @@ export function CorrectionReviewModal({ request, onClose, onDone }: { request: a
           <label className="form-label">Remarks</label>
           <textarea className="form-input" rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={() => submit('reject')} disabled={!!saving} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
             {saving === 'reject' ? <Loader2 size={14} className="animate-spin inline" /> : 'Reject'}
@@ -666,7 +720,7 @@ export function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 sm:p-4 flex items-start gap-3">
         <FlaskConical className="text-amber-500 shrink-0 mt-0.5" size={20} />
         <div>
           <p className="text-sm font-semibold text-amber-800">Admin Test / Simulation Mode</p>
@@ -680,30 +734,30 @@ export function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="form-label">Employee</label>
-          <select className="form-input py-1.5 text-sm w-auto" value={userId} onChange={e => setUserId(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={userId} onChange={e => setUserId(e.target.value)}>
             <option value="">Select employee...</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="form-label">Date</label>
-          <input type="date" className="form-input py-1.5 text-sm w-auto" value={date} onChange={e => setDate(e.target.value)} />
+          <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="form-label">Simulate With Shift</label>
-          <select className="form-input py-1.5 text-sm w-auto" value={shiftId} onChange={e => setShiftId(e.target.value)}>
+          <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={shiftId} onChange={e => setShiftId(e.target.value)}>
             <option value="">Employee's assigned shift</option>
             {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({fmtShiftTime(s.start_time)}–{fmtShiftTime(s.end_time)})</option>)}
           </select>
         </div>
         {userId && (
-          <button onClick={clearDay} className="btn-secondary text-xs py-1.5">
+          <button onClick={clearDay} className="btn-secondary text-xs py-2.5 sm:py-1.5">
             <Trash2 size={13} /> Clear This Day
           </button>
         )}
-        <button onClick={clearAll} className="text-xs text-red-500 hover:text-red-700 font-medium ml-auto">
+        <button onClick={clearAll} className="text-xs text-red-500 hover:text-red-700 font-medium sm:ml-auto py-2 sm:py-0">
           Clear All Test Data
         </button>
       </div>
@@ -724,7 +778,7 @@ export function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success
               <label className="form-label">Time (PH-local)</label>
               <input type="time" className="form-input" value={time} onChange={e => setTime(e.target.value)} />
             </div>
-            <button onClick={addEvent} disabled={adding} className="btn-primary w-full justify-center disabled:opacity-50">
+            <button onClick={addEvent} disabled={adding} className="btn-primary w-full justify-center py-2.5 sm:py-2 disabled:opacity-50">
               {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               {adding ? 'Adding...' : 'Add Simulated Event'}
             </button>
@@ -760,7 +814,7 @@ export function TestModeTab({ showToast }: { showToast: (m: string, t?: 'success
             ) : summary ? (
               <>
                 <span className={STATUS_BADGE[summary.status as AttendanceStatus]}>{STATUS_LABEL[summary.status as AttendanceStatus]}</span>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2">
                   <div className="flex justify-between"><span className="text-gray-500">Worked Hours</span><span className="font-medium text-gray-800">{fmtMinutes(summary.totalWorkMinutes)}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Break Time</span><span className="font-medium text-gray-800">{fmtMinutes(summary.breakMinutes)}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{summary.lateMinutes > 0 ? fmtMinutes(summary.lateMinutes) : '—'}</span></div>
@@ -821,13 +875,14 @@ export function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' 
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-sm font-semibold text-gray-700">Shift Templates</p>
-          <button onClick={() => setEditingShift('new')} className="btn-secondary text-xs py-1.5">
+          <button onClick={() => setEditingShift('new')} className="btn-secondary text-xs py-2.5 sm:py-1.5 shrink-0">
             <Plus size={13} /> Add Shift Template
           </button>
         </div>
         <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -858,6 +913,23 @@ export function ShiftsTab({ showToast }: { showToast: (m: string, t?: 'success' 
               ))}
             </tbody>
           </table>
+          </div>
+
+          {/* Phone: card per shift template instead of the 6-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {shifts.map(s => (
+              <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{s.name}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{fmtShiftTime(s.start_time)} – {fmtShiftTime(s.end_time)} · {s.grace_period_minutes}m grace</p>
+                  <span className={`mt-1.5 ${s.active ? 'badge-green' : 'badge-gray'}`}>{s.active ? 'Active' : 'Inactive'}</span>
+                </div>
+                <button onClick={() => setEditingShift(s)} className="p-2.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
+                  <Pencil size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -932,7 +1004,7 @@ function ShiftTemplateForm({ shift, onCancel, onSaved }: { shift: ShiftTemplate 
         </div>
       )}
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}

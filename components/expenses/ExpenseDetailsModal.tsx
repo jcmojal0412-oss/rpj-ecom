@@ -91,22 +91,22 @@ export default function ExpenseDetailsModal({ expense, businesses, onClose, onCh
               </div>
             )}
             {expense.status === 'For Review' && (
-              <button type="button" onClick={markVerified} className="text-xs font-semibold text-green-700 hover:text-green-800 flex items-center gap-1">
+              <button type="button" onClick={markVerified} className="text-xs font-semibold text-green-700 hover:text-green-800 flex items-center gap-1 py-2 sm:py-0">
                 <CheckCircle2 size={14} /> Mark as Verified
               </button>
             )}
-            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => setShowDelete(true)} className="btn-secondary text-red-600 hover:bg-red-50">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2 border-t border-gray-100">
+              <button type="button" onClick={() => setShowDelete(true)} className="btn-secondary justify-center py-2.5 sm:py-2 text-red-600 hover:bg-red-50">
                 <Trash2 size={14} /> Delete Expense
               </button>
-              <button type="button" onClick={() => setEditing(true)} className="btn-primary">
+              <button type="button" onClick={() => setEditing(true)} className="btn-primary justify-center py-2.5 sm:py-2">
                 <Pencil size={14} /> Edit Expense
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Business *</label>
                 <select className="form-input" value={businessId} onChange={e => setBusinessId(e.target.value)} required>
@@ -128,7 +128,7 @@ export default function ExpenseDetailsModal({ expense, businesses, onClose, onCh
                 <label className="form-label">Amount (₱) *</label>
                 <input type="number" step="0.01" min="0.01" className="form-input" value={amount} onChange={e => setAmount(e.target.value)} required />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="form-label">Paid To / Supplier *</label>
                 <input className="form-input" value={paidTo} onChange={e => setPaidTo(e.target.value)} required />
               </div>
@@ -143,14 +143,14 @@ export default function ExpenseDetailsModal({ expense, businesses, onClose, onCh
                 <label className="form-label">Reference Number</label>
                 <input className="form-input" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className="form-label">Notes</label>
                 <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setEditing(false)} className="btn-secondary">Cancel</button>
-              <button type="button" onClick={saveEdit} disabled={saving} className="btn-primary disabled:opacity-50">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setEditing(false)} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+              <button type="button" onClick={saveEdit} disabled={saving} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
@@ -159,7 +159,7 @@ export default function ExpenseDetailsModal({ expense, businesses, onClose, onCh
       </Modal>
 
       {showImage && expense.receipt_path && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6" onClick={() => setShowImage(false)}>
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-6" onClick={() => setShowImage(false)}>
           <img src={expense.receipt_path} alt="Receipt" className="max-h-[90vh] max-w-full rounded-lg" />
         </div>
       )}

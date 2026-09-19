@@ -79,7 +79,7 @@ export default function ProductCard({
   };
 
   return (
-    <div className={`card border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
+    <div className={`card p-4 sm:p-6 border-2 ${style.border} ${style.bg} flex flex-col gap-3`}>
       {displayImage && !imageFailed && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -91,7 +91,7 @@ export default function ProductCard({
       )}
 
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-bold text-gray-900 leading-snug">{product.product_name}</h3>
+        <h3 className="font-bold text-gray-900 leading-snug min-w-0">{product.product_name}</h3>
         <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${style.badge}`}>
           {product.decision}
         </span>
@@ -130,7 +130,7 @@ export default function ProductCard({
         <ScoreBar label="Overall Score"   value={product.overall_score}          icon={Tag} />
       </div>
 
-      <div className="flex items-center gap-3 text-xs pt-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-1">
         <span className="flex items-center gap-1 text-gray-500">
           <Shield size={12} /> Compliance: <b className="text-gray-700">{product.compliance_risk}</b>
         </span>
@@ -141,7 +141,7 @@ export default function ProductCard({
 
       <button
         onClick={toggleExpand}
-        className="flex items-center justify-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 py-1"
+        className="flex items-center justify-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 py-3 lg:py-1"
       >
         {expanded ? <>Hide Details <ChevronUp size={14} /></> : <>Expand Details <ChevronDown size={14} /></>}
       </button>
@@ -207,7 +207,7 @@ export default function ProductCard({
       <button
         onClick={() => onSave(details)}
         disabled={saving || saved}
-        className="btn-primary justify-center mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="btn-primary justify-center mt-1 min-h-[44px] sm:min-h-0 disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <Save size={14} />
         {saved ? 'Saved to Vault' : saving ? 'Saving...' : 'Save to Product Vault'}

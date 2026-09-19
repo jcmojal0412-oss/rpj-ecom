@@ -36,7 +36,7 @@ const PRESETS: { key: string; label: string; type: PeriodType; shift: number }[]
 ];
 
 const ICON_BOX = 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0';
-const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-3.5';
+const STAT_CARD = 'bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-5 flex flex-col sm:flex-row items-start gap-2 sm:gap-3.5';
 
 interface DateRange { from: string; to: string; }
 
@@ -319,12 +319,26 @@ export default function CEOOverviewClient() {
     fetchData();
   };
 
+  // Shared by the desktop table row and the phone card; `touch` only enlarges the hit area.
+  const expenseActions = (e: MarketingExpense, touch: boolean) => (
+    <div className="flex items-center gap-1">
+      <button onClick={() => { setEditingExpense(e); setShowExpenseModal(true); }}
+        className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-blue-50 text-blue-600 transition-colors`} title="Edit">
+        <Pencil size={14} />
+      </button>
+      <button onClick={() => handleDeleteExpense(e)}
+        className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors`} title="Delete">
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">CEO Overview</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">CEO Overview</h1>
         <p className="text-sm text-gray-500 mt-0.5">Service Center performance at a glance — income, technician payouts, and customer balances</p>
       </div>
 
@@ -332,12 +346,12 @@ export default function CEOOverviewClient() {
       <div className="space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-sm font-semibold text-gray-700">Period</p>
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 flex-wrap">
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:overflow-visible sm:flex-wrap">
             {PRESETS.map(p => (
               <button
                 key={p.key}
                 onClick={() => applyPreset(p)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
                   activePreset === p.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -349,20 +363,20 @@ export default function CEOOverviewClient() {
 
         {periodType === 'Custom' ? (
           <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom}
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom}
               onChange={e => e.target.value && setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo}
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo}
               onChange={e => e.target.value && setCustomTo(e.target.value)} />
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1 pt-1">
             <div className="flex items-center gap-3">
-              <button onClick={() => shiftPeriod(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+              <button onClick={() => shiftPeriod(-1)} className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
                 <ChevronLeft size={18} />
               </button>
-              <span className="text-lg font-bold text-gray-900 text-center tabular-nums">{periodLabel}</span>
-              <button onClick={() => shiftPeriod(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+              <span className="text-base sm:text-lg font-bold text-gray-900 text-center tabular-nums">{periodLabel}</span>
+              <button onClick={() => shiftPeriod(1)} className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -372,7 +386,7 @@ export default function CEOOverviewClient() {
             {!isCurrentPeriod && (
               <button
                 onClick={() => { setAnchor(todayISO()); setActivePreset(PRESETS.find(p => p.type === periodType && p.shift === 0)?.key ?? ''); }}
-                className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-1"
+                className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-1 py-2 sm:py-0"
               >
                 Back to Today
               </button>
@@ -382,7 +396,7 @@ export default function CEOOverviewClient() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className={STAT_CARD}>
           <div className={`${ICON_BOX} bg-blue-50`}><Banknote className="text-blue-500" size={20} /></div>
           <div className="min-w-0">
@@ -457,7 +471,7 @@ export default function CEOOverviewClient() {
           </div>
         </div>
 
-        <div className={STAT_CARD}>
+        <div className={`${STAT_CARD} col-span-2 sm:col-span-1`}>
           <div className={`${ICON_BOX} bg-red-50`}><AlertTriangle className="text-red-500" size={20} /></div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500">Customer Outstanding</p>
@@ -480,7 +494,7 @@ export default function CEOOverviewClient() {
 
       {/* Trend chart + Performance comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 card">
+        <div className="lg:col-span-2 card p-3 sm:p-6">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <div>
               <p className="text-sm font-semibold text-gray-800">Service Center Performance</p>
@@ -491,7 +505,7 @@ export default function CEOOverviewClient() {
                 <button
                   key={p}
                   onClick={() => setChartPeriod(p)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  className={`px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${
                     chartPeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -513,7 +527,7 @@ export default function CEOOverviewClient() {
           </ResponsiveContainer>
         </div>
 
-        <div className="card">
+        <div className="card p-3 sm:p-6">
           <p className="text-sm font-semibold text-gray-800 mb-1">Performance Comparison</p>
           <p className="text-xs text-gray-400 mb-4">{comparisonLabel}</p>
           <div className="space-y-3">
@@ -528,18 +542,18 @@ export default function CEOOverviewClient() {
       </div>
 
       {/* Marketing efficiency + expense log */}
-      <div className="card space-y-5">
+      <div className="card p-3 sm:p-6 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-sm font-semibold text-gray-800">Marketing</p>
             <p className="text-xs text-gray-400 mt-0.5">Efficiency for the selected period, and the full spend log</p>
           </div>
-          <button onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} className="btn-primary text-xs py-1.5">
+          <button onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} className="btn-primary text-xs py-2.5 sm:py-1.5 w-full sm:w-auto justify-center">
             <Plus size={14} /> Add Marketing Expense
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-8">
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
           <div>
             <p className="text-xs text-gray-500">Marketing ROI</p>
             <p className="text-base font-bold text-gray-900 mt-0.5 tabular-nums">{marketingROI == null ? 'N/A' : `${marketingROI.toFixed(1)}%`}</p>
@@ -551,14 +565,15 @@ export default function CEOOverviewClient() {
         </div>
 
         <div>
-          <button onClick={() => setShowHistory(s => !s)} className="text-xs font-semibold text-orange-600 hover:text-orange-800">
+          <button onClick={() => setShowHistory(s => !s)} className="text-xs font-semibold text-orange-600 hover:text-orange-800 py-2 sm:py-0">
             {showHistory ? 'Hide Marketing Expenses' : 'View Marketing Expenses'}
           </button>
           {showHistory && (
             expenses.length === 0 ? (
               <p className="text-sm text-gray-400 py-3">No marketing expenses recorded yet.</p>
             ) : (
-              <div className="overflow-x-auto mt-3">
+              <>
+              <div className="overflow-x-auto mt-3 hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -577,29 +592,38 @@ export default function CEOOverviewClient() {
                         <td className="table-cell text-gray-600">{e.description || '—'}</td>
                         <td className="table-cell font-semibold">{formatCurrency(e.amount)}</td>
                         <td className="table-cell">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => { setEditingExpense(e); setShowExpenseModal(true); }}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
-                              <Pencil size={14} />
-                            </button>
-                            <button onClick={() => handleDeleteExpense(e)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                          {expenseActions(e, false)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {/* Phone: 5-column expense log becomes one card per expense. */}
+              <div className="md:hidden mt-3 space-y-2.5">
+                {expenses.map(e => (
+                  <div key={e.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 break-words">{e.category}</p>
+                        <p className="text-xs text-gray-500">{formatDate(e.expense_date)}</p>
+                      </div>
+                      <p className="text-base font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(e.amount)}</p>
+                    </div>
+                    {e.description && <p className="mt-1.5 text-xs text-gray-600 break-words">{e.description}</p>}
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">{expenseActions(e, true)}</div>
+                  </div>
+                ))}
+              </div>
+              </>
             )
           )}
         </div>
       </div>
 
       {/* Quick CEO summary */}
-      <div className="card">
+      <div className="card p-3 sm:p-6">
         <p className="text-sm font-semibold text-gray-800 mb-1">Quick CEO Summary</p>
         <p className="text-xs text-gray-400 mb-4">{periodLabel}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 text-sm">

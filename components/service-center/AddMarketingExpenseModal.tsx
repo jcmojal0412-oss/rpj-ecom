@@ -40,7 +40,7 @@ export default function AddMarketingExpenseModal({ initial, onSuccess, onCancel 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Date *</label>
           <input type="date" className="form-input" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required />
@@ -50,27 +50,27 @@ export default function AddMarketingExpenseModal({ initial, onSuccess, onCancel 
           <input type="number" step="0.01" min="0.01" className="form-input" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
         </div>
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Category *</label>
           <select className="form-input" value={category} onChange={e => setCategory(e.target.value)}>
             {MARKETING_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Description / Notes</label>
           <input className="form-input" placeholder="e.g. Service Center Repair Campaign" value={description} onChange={e => setDescription(e.target.value)} />
         </div>
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Reference</label>
           <input className="form-input" placeholder="Optional — receipt no., ad ID, etc." value={reference} onChange={e => setReference(e.target.value)} />
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting || !amount || !expenseDate} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button type="submit" disabled={submitting || !amount || !expenseDate} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Expense' : 'Add Expense'}
         </button>
       </div>

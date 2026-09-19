@@ -119,7 +119,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
             </p>
             <button
               onClick={downloadTemplate}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-2.5 sm:py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Download size={13} /> Download Template (.xlsx)
             </button>
@@ -138,7 +138,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              className={`border-2 border-dashed rounded-xl p-5 sm:p-8 text-center cursor-pointer transition-colors ${
                 dragging
                   ? 'border-green-500 bg-green-50'
                   : 'border-gray-300 hover:border-green-400 hover:bg-gray-50'
@@ -166,7 +166,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
             )}
           </>
         ) : stage === 'reading' || stage === 'importing' ? (
-          <div className="border-2 border-dashed border-green-300 rounded-xl p-8 text-center bg-green-50">
+          <div className="border-2 border-dashed border-green-300 rounded-xl p-5 sm:p-8 text-center bg-green-50">
             <div className="flex items-center justify-center gap-2 text-green-700">
               <svg className="animate-spin" width={20} height={20} viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
@@ -223,14 +223,14 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
             )}
 
             <div className="flex justify-between items-center pt-1">
-              <button onClick={startOver} className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Ibang file</button>
-              <button onClick={confirmImport} className="btn-primary text-sm">Confirm Import</button>
+              <button onClick={startOver} className="py-2.5 sm:py-0 text-xs text-gray-500 hover:text-gray-700 font-medium">← Ibang file</button>
+              <button onClick={confirmImport} className="btn-primary text-sm min-h-[44px] sm:min-h-0">Confirm Import</button>
             </div>
           </div>
         ) : result ? (
           <div className="space-y-3">
             {/* Summary */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-gray-900">{result.total}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Total Rows</p>
@@ -285,7 +285,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
             {/* Import another */}
             <button
               onClick={startOver}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              className="py-2.5 sm:py-0 text-xs text-blue-600 hover:text-blue-800 font-medium"
             >
               ← Mag-import ng isa pang file
             </button>
@@ -295,7 +295,7 @@ export default function ImportModal({ onSuccess, onClose }: Props) {
 
       {/* Footer */}
       <div className="flex justify-end pt-2 border-t border-gray-100">
-        <button onClick={onClose} className="btn-secondary text-sm">
+        <button onClick={onClose} className="btn-secondary text-sm min-h-[44px] sm:min-h-0">
           {stage === 'done' ? 'Close' : 'Cancel'}
         </button>
       </div>

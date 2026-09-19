@@ -43,38 +43,38 @@ export default function HrSettingsClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">HR Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">HR Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Advanced configuration — shift templates, attendance rules, holidays, leave types, and testing tools</p>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3">
+      <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-gray-500">Kiosk Attendance Link</p>
           <p className="text-sm text-gray-800 truncate">{kioskUrl}</p>
           <p className="text-xs text-gray-400 mt-0.5">Public page — no login needed. Open this on the kiosk device/tablet.</p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <a href="/attendance-kiosk" target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5">
+        <div className="flex gap-2 sm:shrink-0 [&>*]:flex-1 sm:[&>*]:flex-none [&>*]:justify-center">
+          <a href="/attendance-kiosk" target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-2.5 sm:py-1.5">
             <ExternalLink size={13} />
             Open
           </a>
-          <button onClick={copyKioskLink} className="btn-secondary text-xs py-1.5">
+          <button onClick={copyKioskLink} className="btn-secondary text-xs py-2.5 sm:py-1.5">
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 overflow-x-auto sm:overflow-visible sm:flex-wrap">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors ${
               tab === t.key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >

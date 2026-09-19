@@ -72,11 +72,11 @@ export default function PayslipPrintPage() {
 
   return (
     <>
-      <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-gray-900 text-white shadow-xl">
-        <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-white transition-colors">← Back</button>
+      <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 bg-gray-900 text-white shadow-xl">
+        <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-white transition-colors py-2 pr-3 sm:p-0">← Back</button>
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           🖨️ Print / Save as PDF
         </button>
@@ -207,6 +207,20 @@ export default function PayslipPrintPage() {
           .ps-emp-grid { grid-template-columns: 1fr 1fr; }
           .ps-head { flex-direction: column; }
           .ps-head-right { text-align: left; }
+        }
+        /* Phone screen only (never print): the A4-width sheet would otherwise
+           force sideways page scroll, so let it fill the screen instead. */
+        @media screen and (max-width: 640px) {
+          .ps-page { padding: 8px !important; padding-top: 60px !important; }
+          .ps-doc { width: 100%; min-width: 0; min-height: 0; padding: 14px; }
+          .ps-head { gap: 12px; }
+          .ps-head-left { min-width: 0; }
+          .ps-emp-grid { padding: 12px; gap: 10px 14px; }
+          .ps-emp-value { overflow-wrap: anywhere; }
+          .ps-row { gap: 12px; }
+          .ps-amt { white-space: nowrap; flex-shrink: 0; }
+          .ps-net-pay { padding: 14px 16px; flex-wrap: wrap; gap: 6px 12px; }
+          .ps-net-amt { font-size: 26px; }
         }
       `}</style>
     </>

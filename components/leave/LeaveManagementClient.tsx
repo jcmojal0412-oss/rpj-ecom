@@ -20,20 +20,20 @@ export default function LeaveManagementClient() {
   const [tab, setTab] = useState<Tab>('leave_requests');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Leave Management</h1>
         <p className="text-sm text-gray-500 mt-1">Leave types, requests, holiday calendar, and attendance exceptions</p>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 overflow-x-auto sm:overflow-visible sm:flex-wrap">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors ${
               tab === t.key ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -71,13 +71,14 @@ export function LeaveTypesTab({ showToast }: { showToast: (m: string, t?: 'succe
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus size={16} /> Add Leave Type</button>
+        <button onClick={() => setShowAdd(true)} className="btn-primary py-2.5 sm:py-2"><Plus size={16} /> Add Leave Type</button>
       </div>
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -101,6 +102,24 @@ export function LeaveTypesTab({ showToast }: { showToast: (m: string, t?: 'succe
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per leave type. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {types.map(t => (
+              <div key={t.id} className="rounded-xl border border-gray-200 bg-white p-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{t.name}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {t.paid ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}
+                    {t.active ? <span className="badge-blue">Active</span> : <span className="badge-gray">Inactive</span>}
+                    <span className="text-xs text-gray-500">Annual Credits: {t.annual_credits ?? '—'}</span>
+                  </div>
+                </div>
+                <button onClick={() => setEditing(t)} className="shrink-0 px-3 py-2.5 -my-1 text-xs text-orange-600 hover:text-orange-700 font-medium">Edit</button>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -160,7 +179,7 @@ function LeaveTypeForm({ leaveType, onCancel, onSaved }: { leaveType: LeaveType 
         <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Active
       </label>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -190,12 +209,12 @@ export function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'su
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 max-w-full overflow-x-auto">
         {REQUEST_STATUS_FILTERS.map(f => (
           <button
             key={f}
             onClick={() => setStatusFilter(f)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-3.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
               statusFilter === f ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -210,7 +229,8 @@ export function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'su
         ) : requests.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No leave requests found.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -249,6 +269,40 @@ export function LeaveRequestsTab({ showToast }: { showToast: (m: string, t?: 'su
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per leave request instead of the 7-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {requests.map(r => (
+              <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{r.employee_name}</p>
+                    <p className="text-xs text-gray-600">{r.leave_type_name} {r.leave_type_paid ? '' : <span className="text-gray-400">(Unpaid)</span>}</p>
+                  </div>
+                  <span className={`shrink-0 ${r.status === 'approved' ? 'badge-green' : r.status === 'rejected' ? 'badge-red' : 'badge-amber'}`}>{r.status}</span>
+                </div>
+                <p className="mt-2 text-xs text-gray-700">
+                  {formatDate(r.from_date)}{r.from_date !== r.to_date ? ` – ${formatDate(r.to_date)}` : ''} · <span className="capitalize">{r.day_type}</span>
+                </p>
+                {(r.reason || r.attachment_path) && (
+                  <p className="mt-1 text-xs text-gray-500 break-words">
+                    {r.reason}
+                    {r.attachment_path && (
+                      <a href={`/api/leave-requests/attachments/${r.attachment_path}`} target="_blank" rel="noreferrer" className="ml-1.5 inline-flex items-center text-blue-500 hover:text-blue-600 p-1 -m-1">
+                        <Paperclip size={14} />
+                      </a>
+                    )}
+                  </p>
+                )}
+                {r.status === 'pending' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                    <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5">Review</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -280,9 +334,9 @@ export function LeaveReviewModal({ request, onClose, onDone }: { request: any; o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">Review Leave Request</h2>
         <div className="text-sm text-gray-600 space-y-1">
           <p><b>{request.employee_name}</b> — {request.leave_type_name}</p>
@@ -298,7 +352,7 @@ export function LeaveReviewModal({ request, onClose, onDone }: { request: any; o
           <label className="form-label">Remarks</label>
           <textarea className="form-input" rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={() => submit('reject')} disabled={!!saving} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
             {saving === 'reject' ? <Loader2 size={14} className="animate-spin inline" /> : 'Reject'}
@@ -341,7 +395,7 @@ export function HolidaysTab({ showToast }: { showToast: (m: string, t?: 'success
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus size={16} /> Add Holiday</button>
+        <button onClick={() => setShowAdd(true)} className="btn-primary py-2.5 sm:py-2"><Plus size={16} /> Add Holiday</button>
       </div>
       <div className="card p-0 overflow-hidden">
         {loading ? (
@@ -349,7 +403,8 @@ export function HolidaysTab({ showToast }: { showToast: (m: string, t?: 'success
         ) : holidays.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No holidays configured yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -378,6 +433,26 @@ export function HolidaysTab({ showToast }: { showToast: (m: string, t?: 'success
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per holiday instead of the 5-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {holidays.map(h => (
+              <div key={h.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{h.name}</p>
+                    <p className="text-xs text-gray-500">{formatDate(h.date)} · {h.holiday_type}</p>
+                  </div>
+                  {h.is_working ? <span className="badge-blue shrink-0">Working</span> : <span className="badge-gray shrink-0">Non-working</span>}
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end gap-1">
+                  <button onClick={() => setEditing(h)} className="px-3 py-2.5 text-xs text-orange-600 hover:text-orange-700 font-medium">Edit</button>
+                  <button onClick={() => remove(h.id)} className="px-3 py-2.5 text-xs text-red-500 hover:text-red-600 font-medium">Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -441,7 +516,7 @@ function HolidayForm({ holiday, onCancel, onSaved }: { holiday: Holiday | null; 
       </label>
       <p className="text-xs text-gray-400">Leave unchecked for a non-working holiday — employees won't be marked Absent that day even without a Time In.</p>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -480,9 +555,9 @@ export function ExceptionsTab({ showToast }: { showToast: (m: string, t?: 'succe
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <p className="text-xs text-gray-400 max-w-md">Records an admin-approved exception directly — no separate review step, since creating it here is the approval.</p>
-        <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus size={16} /> Add Exception</button>
+        <button onClick={() => setShowAdd(true)} className="btn-primary py-2.5 sm:py-2"><Plus size={16} /> Add Exception</button>
       </div>
       <div className="card p-0 overflow-hidden">
         {loading ? (
@@ -490,7 +565,8 @@ export function ExceptionsTab({ showToast }: { showToast: (m: string, t?: 'succe
         ) : exceptions.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No attendance exceptions recorded.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -516,6 +592,27 @@ export function ExceptionsTab({ showToast }: { showToast: (m: string, t?: 'succe
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per exception instead of the 6-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {exceptions.map(ex => (
+              <div key={ex.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{ex.employee_name}</p>
+                    <p className="text-xs text-gray-600">{EXCEPTION_LABELS[ex.exception_type] ?? ex.exception_type}</p>
+                  </div>
+                  {ex.paid ? <span className="badge-green shrink-0">Paid</span> : <span className="badge-gray shrink-0">Unpaid</span>}
+                </div>
+                <p className="mt-2 text-xs text-gray-700">{formatDate(ex.from_date)}{ex.from_date !== ex.to_date ? ` – ${formatDate(ex.to_date)}` : ''}</p>
+                {ex.reason && <p className="mt-1 text-xs text-gray-500 break-words">{ex.reason}</p>}
+                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                  <button onClick={() => remove(ex.id)} className="px-3 py-2.5 text-xs text-red-500 hover:text-red-600 font-medium">Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -575,7 +672,7 @@ function ExceptionForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (
           {EXCEPTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="form-label">From Date</label>
           <input type="date" className="form-input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
@@ -593,7 +690,7 @@ function ExceptionForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (
         <textarea className="form-input" rows={2} value={reason} onChange={e => setReason(e.target.value)} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}

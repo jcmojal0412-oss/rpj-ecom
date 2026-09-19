@@ -121,10 +121,10 @@ export default function AddExpenseTab({ onSaved }: Props) {
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <p className="text-sm font-semibold text-gray-800 mb-1">Receipt / Proof of Payment</p>
         <p className="text-xs text-gray-400 mb-4">Optional — upload a receipt or payment screenshot and AI will fill in the fields below for you to review.</p>
         <AIReceiptCapture
@@ -135,9 +135,9 @@ export default function AddExpenseTab({ onSaved }: Props) {
         />
       </div>
 
-      <form onSubmit={e => { e.preventDefault(); if (canSubmit) submit(false); }} className="card space-y-4">
+      <form onSubmit={e => { e.preventDefault(); if (canSubmit) submit(false); }} className="card p-4 sm:p-6 space-y-4">
         <p className="text-sm font-semibold text-gray-800">Expense Details</p>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="form-label">Business *</label>
             <select className="form-input" value={businessId} onChange={e => setBusinessId(e.target.value)} required>
@@ -160,7 +160,7 @@ export default function AddExpenseTab({ onSaved }: Props) {
             <label className="form-label">Amount (₱) *</label>
             <input type="number" step="0.01" min="0.01" className="form-input" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="form-label">Paid To / Supplier *</label>
             <input className="form-input" placeholder="e.g. Meta Platforms, ABC Supplier, Meralco" value={paidTo} onChange={e => setPaidTo(e.target.value)} required />
           </div>
@@ -175,7 +175,7 @@ export default function AddExpenseTab({ onSaved }: Props) {
             <label className="form-label">Reference Number</label>
             <input className="form-input" placeholder="Optional" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="form-label">Notes</label>
             <textarea className="form-input" rows={3} placeholder="Optional" value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
@@ -187,9 +187,9 @@ export default function AddExpenseTab({ onSaved }: Props) {
           </p>
         )}
 
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={resetForm} className="btn-secondary">Cancel</button>
-          <button type="submit" disabled={submitting || !canSubmit} className="btn-primary disabled:opacity-50">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+          <button type="button" onClick={resetForm} className="btn-secondary justify-center py-2.5 sm:py-2">Cancel</button>
+          <button type="submit" disabled={submitting || !canSubmit} className="btn-primary justify-center py-2.5 sm:py-2 disabled:opacity-50">
             {submitting ? 'Saving...' : 'Save Expense'}
           </button>
         </div>

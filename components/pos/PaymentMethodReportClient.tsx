@@ -167,54 +167,54 @@ export default function PaymentMethodReportClient() {
   };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center gap-3 print:hidden">
-        <Link href="/pos/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/pos/reports" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <h1 className="text-xl font-bold text-gray-900">Payment Method Report</h1>
       </div>
 
-      <div className="card space-y-3 print:hidden">
+      <div className="card p-4 sm:p-6 space-y-3 print:hidden">
         <div className="flex flex-wrap items-end gap-3">
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">Business</label>
-            <select className="form-input py-1.5 text-sm w-40" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+            <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-40" value={businessId} onChange={e => setBusinessId(e.target.value)}>
               <option value="">All Businesses</option>
               {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">Cashier</label>
-            <select className="form-input py-1.5 text-sm w-40" value={cashierId} onChange={e => setCashierId(e.target.value)}>
+            <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-40" value={cashierId} onChange={e => setCashierId(e.target.value)}>
               <option value="">All Cashiers</option>
               {cashiers.map(c => <option key={c.cashier_id} value={c.cashier_id ?? ''}>{c.cashier_name || '—'}</option>)}
             </select>
           </div>
         </div>
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
         </div>
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
       </div>
 
       {isOwner && mismatchCount > 0 && (
-        <div className="card flex items-center justify-between gap-3 border-2 border-amber-200 bg-amber-50 print:hidden">
+        <div className="card flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-2 border-amber-200 bg-amber-50 print:hidden">
           <div className="flex items-center gap-2.5">
             <Wrench className="text-amber-600 shrink-0" size={18} />
             <p className="text-sm text-amber-800">
@@ -222,7 +222,7 @@ export default function PaymentMethodReportClient() {
               (financing was used but not reflected — e.g. shows just &quot;Cash&quot; instead of &quot;Cash + Salmon Financing&quot;).
             </p>
           </div>
-          <button onClick={runFix} disabled={fixing} className="btn-primary text-xs py-1.5 shrink-0 disabled:opacity-50">
+          <button onClick={runFix} disabled={fixing} className="btn-primary text-xs py-2.5 sm:py-1.5 justify-center shrink-0 disabled:opacity-50">
             {fixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
             {fixing ? 'Fixing...' : 'Fix Now'}
           </button>
@@ -233,37 +233,37 @@ export default function PaymentMethodReportClient() {
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="card">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="card p-4 sm:p-6">
               <p className="text-xs text-gray-500">Net Sales</p>
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{formatCurrency(data.totalSales)}</p>
             </div>
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <p className="text-xs text-gray-500">Total Transactions</p>
               <p className="text-xl font-bold text-gray-900 tabular-nums mt-1">{data.totalCount}</p>
             </div>
           </div>
 
           {data.byLeg && (
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <h2 className="text-base font-semibold text-gray-900">Actual Cash / Online / Financing</h2>
               <p className="text-xs text-gray-500 mt-0.5 mb-4">
                 A Cash + Financing sale is split into its actual legs here, so this matches the Cashier&apos;s Report&apos;s Payment Breakdown
                 exactly — unlike the table below, which shows each sale&apos;s full value under its combined label instead.
               </p>
-              <div className="flex flex-wrap gap-4">
-                <div className="bg-gray-50 rounded-xl px-4 py-3 min-w-[120px]">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-4">
+                <div className="bg-gray-50 rounded-xl px-4 py-3 sm:min-w-[120px]">
                   <p className="text-xs text-gray-500">Cash</p>
                   <p className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">{formatCurrency(data.byLeg.cash)}</p>
                 </div>
                 {data.byLeg.online.map(o => (
-                  <div key={o.method} className="bg-gray-50 rounded-xl px-4 py-3 min-w-[120px]">
+                  <div key={o.method} className="bg-gray-50 rounded-xl px-4 py-3 sm:min-w-[120px]">
                     <p className="text-xs text-gray-500">{o.method}</p>
                     <p className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">{formatCurrency(o.amount)}</p>
                   </div>
                 ))}
                 {data.byLeg.financing > 0 && (
-                  <div className="bg-amber-50 rounded-xl px-4 py-3 min-w-[120px]">
+                  <div className="bg-amber-50 rounded-xl px-4 py-3 sm:min-w-[120px]">
                     <p className="text-xs text-amber-700">Financing</p>
                     <p className="text-lg font-bold text-amber-800 tabular-nums mt-0.5">{formatCurrency(data.byLeg.financing)}</p>
                   </div>
@@ -272,11 +272,12 @@ export default function PaymentMethodReportClient() {
             </div>
           )}
 
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">By Payment Method</h2>
             {data.byMethod.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-8">No sales in this range.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -304,16 +305,17 @@ export default function PaymentMethodReportClient() {
                   </tr>
                 </tfoot>
               </table>
+              </div>
             )}
           </div>
 
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
-              <div className="flex items-center gap-2">
-                <button onClick={doPrint} className="btn-secondary text-xs py-1.5"><Printer size={13} /> Print</button>
-                <button onClick={doCopy} className="btn-secondary text-xs py-1.5"><Copy size={13} /> Copy</button>
-                <button onClick={doExcel} className="btn-secondary text-xs py-1.5"><FileSpreadsheet size={13} /> Excel</button>
-                <button onClick={doCsv} className="btn-secondary text-xs py-1.5"><Download size={13} /> CSV</button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={doPrint} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Printer size={13} /> Print</button>
+                <button onClick={doCopy} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Copy size={13} /> Copy</button>
+                <button onClick={doExcel} className="btn-secondary text-xs py-2.5 sm:py-1.5"><FileSpreadsheet size={13} /> Excel</button>
+                <button onClick={doCsv} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Download size={13} /> CSV</button>
               </div>
             </div>
 
@@ -321,7 +323,35 @@ export default function PaymentMethodReportClient() {
               <p className="text-center text-gray-400 text-sm py-12">No sales match these filters.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                {/* Phone: the wide table can't fit, so rows become cards and sorting moves to a select. */}
+                <div className="md:hidden flex items-center gap-2 mb-3 print:hidden">
+                  <select className="form-input py-2 text-sm flex-1 min-w-0" value={sortKey} onChange={e => { if (e.target.value !== sortKey) toggleSort(e.target.value as SortKey); }} aria-label="Sort by">
+                    {COLUMNS.map(c => <option key={c.key} value={c.key}>Sort: {c.label}</option>)}
+                  </select>
+                  <button onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))} className="btn-secondary text-xs py-2.5 shrink-0">
+                    <ArrowUpDown size={13} /> {sortDir === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
+                </div>
+                <div className="md:hidden space-y-2.5">
+                  {paged.map(s => (
+                    <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 tabular-nums">#{String(s.id).padStart(6, '0')}</p>
+                          <p className="text-xs text-gray-500">{formatDate(s.created_at)}</p>
+                        </div>
+                        <p className="text-base font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(s.total)}</p>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span className="font-medium text-gray-800">{s.payment_method || '—'}</span>
+                        {s.business_name && <span>{s.business_name}</span>}
+                        {s.cashier_name && <span>Cashier: {s.cashier_name}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <table className="w-full text-sm hidden md:table">
                   <thead>
                     <tr className="border-b border-gray-100">
                       {COLUMNS.map(c => (
@@ -345,18 +375,18 @@ export default function PaymentMethodReportClient() {
                   </tbody>
                 </table>
 
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 print:hidden">
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100 print:hidden">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>Show</span>
-                    <select className="form-input py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                    <select className="form-input py-1.5 sm:py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
                       {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                     <span>entries — showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, sortedSales.length)} of {sortedSales.length}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
+                  <div className="flex items-center justify-center sm:justify-start gap-1">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
                     <span className="text-sm px-2">{page} / {totalPages}</span>
-                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
                   </div>
                 </div>
               </div>

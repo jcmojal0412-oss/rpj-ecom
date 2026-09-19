@@ -111,39 +111,39 @@ export default function InventoryMovementClient() {
   };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center gap-3 print:hidden">
-        <Link href="/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/reports" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <h1 className="text-xl font-bold text-gray-900">Beginning &amp; Ending Inventory Report</h1>
       </div>
 
-      <div className="card space-y-3 print:hidden">
+      <div className="card p-4 sm:p-6 space-y-3 print:hidden">
         <div className="flex items-center gap-3 flex-wrap">
-          <div>
+          <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">From</label>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={from} onChange={e => setFrom(e.target.value)} />
           </div>
-          <div>
+          <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">To</label>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={to} onChange={e => setTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={to} onChange={e => setTo(e.target.value)} />
           </div>
         </div>
         <p className="text-xs text-gray-400">products/inventory are shared across all businesses — no per-business filter applies here.</p>
       </div>
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
-          <div className="flex items-center gap-2">
-            <button onClick={doPrint} className="btn-secondary text-xs py-1.5"><Printer size={13} /> Print</button>
-            <button onClick={doCopy} className="btn-secondary text-xs py-1.5"><Copy size={13} /> Copy</button>
-            <button onClick={doExcel} className="btn-secondary text-xs py-1.5"><FileSpreadsheet size={13} /> Excel</button>
-            <button onClick={doCsv} className="btn-secondary text-xs py-1.5"><Download size={13} /> CSV</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={doPrint} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Printer size={13} /> Print</button>
+            <button onClick={doCopy} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Copy size={13} /> Copy</button>
+            <button onClick={doExcel} className="btn-secondary text-xs py-2.5 sm:py-1.5"><FileSpreadsheet size={13} /> Excel</button>
+            <button onClick={doCsv} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Download size={13} /> CSV</button>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input className="form-input py-1.5 text-sm pl-8 w-56" placeholder="Search product, SKU, category"
+            <input className="form-input py-2 sm:py-1.5 text-sm pl-8 w-full sm:w-56" placeholder="Search product, SKU, category"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
@@ -154,7 +154,51 @@ export default function InventoryMovementClient() {
           <p className="text-center text-gray-400 text-sm py-12">No products found.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Phone: the wide table can't fit, so rows become cards and sorting moves to a select. */}
+                <div className="md:hidden flex items-center gap-2 mb-3 print:hidden">
+                  <select className="form-input py-2 text-sm flex-1 min-w-0" value={sortKey} onChange={e => { if (e.target.value !== sortKey) toggleSort(e.target.value as SortKey); }} aria-label="Sort by">
+                    {COLUMNS.map(c => <option key={c.key} value={c.key}>Sort: {c.label}</option>)}
+                  </select>
+                  <button onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))} className="btn-secondary text-xs py-2.5 shrink-0">
+                    <ArrowUpDown size={13} /> {sortDir === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
+                </div>
+                <div className="md:hidden space-y-2.5">
+                  {paged.map(r => (
+                    <div key={r.product_id} className="rounded-xl border border-gray-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900">{r.name}</p>
+                          <p className="text-xs text-gray-500"><span className="font-mono font-semibold text-gray-600">{r.sku}</span>{r.category ? ` · ${r.category}` : ''}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-base font-bold text-gray-900 tabular-nums">{r.ending_qty}</p>
+                          <p className="text-[10px] text-gray-400">ending qty</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                        <span>Beginning <span className="font-medium text-gray-800 tabular-nums">{r.beginning_qty}</span></span>
+                        <span>Stock in <span className="font-medium text-emerald-600 tabular-nums">{r.stock_in > 0 ? `+${r.stock_in}` : 0}</span></span>
+                        <span>Stock out <span className="font-medium text-red-500 tabular-nums">{r.stock_out > 0 ? `-${r.stock_out}` : 0}</span></span>
+                        <span>Begin value <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.beginning_value)}</span></span>
+                        <span>End value <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.ending_value)}</span></span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="rounded-xl border-2 border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+                    <p className="text-sm font-bold text-gray-900 mb-1">TOTAL</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <span>Beginning <span className="font-bold text-gray-900 tabular-nums">{totals.beginning_qty}</span></span>
+                      <span>Ending <span className="font-bold text-gray-900 tabular-nums">{totals.ending_qty}</span></span>
+                      <span>Stock in <span className="font-bold text-emerald-600 tabular-nums">+{totals.stock_in}</span></span>
+                      <span>Stock out <span className="font-bold text-red-500 tabular-nums">-{totals.stock_out}</span></span>
+                      <span>Begin value <span className="font-bold text-gray-900 tabular-nums">{formatCurrency(totals.beginning_value)}</span></span>
+                      <span>End value <span className="font-bold text-gray-900 tabular-nums">{formatCurrency(totals.ending_value)}</span></span>
+                    </div>
+                  </div>
+                </div>
+
+            <table className="w-full text-sm hidden md:table">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="table-header">SKU</th>
@@ -194,18 +238,18 @@ export default function InventoryMovementClient() {
               </tfoot>
             </table>
 
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 print:hidden">
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100 print:hidden">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <span>Show</span>
-                <select className="form-input py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                <select className="form-input py-1.5 sm:py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
                   {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
                 <span>entries — showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredRows.length)} of {filteredRows.length}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
+              <div className="flex items-center justify-center sm:justify-start gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
                 <span className="text-sm px-2">{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
               </div>
             </div>
           </div>

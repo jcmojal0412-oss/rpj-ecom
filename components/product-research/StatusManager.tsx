@@ -122,13 +122,13 @@ export default function StatusManager({ onChanged }: Props) {
         {statuses.map((s, idx) => {
           const colors = getStatusColor(s.color);
           return (
-            <div key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 ${colors.bg}`}>
+            <div key={s.id} className={`flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-xl border-2 ${colors.bg}`}>
               {/* Reorder arrows */}
               <div className="flex flex-col gap-0.5">
                 <button onClick={() => moveStatus(s.id, 'up')} disabled={idx === 0}
-                  className="text-gray-400 hover:text-gray-700 disabled:opacity-20 leading-none text-xs">▲</button>
+                  className="px-2 py-1.5 sm:p-0 text-gray-400 hover:text-gray-700 disabled:opacity-20 leading-none text-xs">▲</button>
                 <button onClick={() => moveStatus(s.id, 'down')} disabled={idx === statuses.length - 1}
-                  className="text-gray-400 hover:text-gray-700 disabled:opacity-20 leading-none text-xs">▼</button>
+                  className="px-2 py-1.5 sm:p-0 text-gray-400 hover:text-gray-700 disabled:opacity-20 leading-none text-xs">▼</button>
               </div>
 
               {/* Color dot */}
@@ -139,21 +139,21 @@ export default function StatusManager({ onChanged }: Props) {
                    their own rows; sharing one flex-wrap row let 11 fixed-
                    width color dots crowd out the name input down to almost
                    no typing room (min-w-0 let it shrink that far). */
-                <div className="flex-1 flex flex-col gap-2">
+                <div className="flex-1 min-w-0 flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <input
                       autoFocus
-                      className="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      className="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-2 py-2 sm:py-1 focus:outline-none focus:ring-2 focus:ring-orange-400"
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
                     />
                     <button onClick={saveEdit} disabled={saving}
-                      className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 shrink-0">
+                      className="p-2.5 sm:p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 shrink-0">
                       <Check size={13} />
                     </button>
                     <button onClick={() => setEditingId(null)}
-                      className="p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 shrink-0">
+                      className="p-2.5 sm:p-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 shrink-0">
                       <X size={13} />
                     </button>
                   </div>
@@ -163,7 +163,7 @@ export default function StatusManager({ onChanged }: Props) {
                       <button
                         key={key}
                         onClick={() => setEditColor(key)}
-                        className={`w-6 h-6 rounded-full shadow-sm transition-all shrink-0 ${
+                        className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full shadow-sm transition-all shrink-0 ${
                           editColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                         }`}
                         style={{ backgroundColor: STATUS_COLORS[key].hex }}
@@ -179,7 +179,7 @@ export default function StatusManager({ onChanged }: Props) {
                     {s.name}
                   </span>
                   {/* Inline color swatches */}
-                  <div className="flex items-center gap-1.5 flex-wrap max-w-[160px]">
+                  <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto order-last sm:order-none sm:max-w-[160px]">
                     {COLOR_KEYS.map(key => (
                       <button
                         key={key}
@@ -193,7 +193,7 @@ export default function StatusManager({ onChanged }: Props) {
                           fetchStatuses();
                           onChanged();
                         }}
-                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 shadow-sm ${
+                        className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full transition-all hover:scale-110 shadow-sm ${
                           s.color === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-75 hover:opacity-100'
                         }`}
                         style={{ backgroundColor: STATUS_COLORS[key].hex }}
@@ -202,12 +202,12 @@ export default function StatusManager({ onChanged }: Props) {
                   </div>
                   <div className="flex items-center gap-1 ml-1">
                     <button onClick={() => startEdit(s)}
-                      className="p-1.5 rounded-lg hover:bg-white/70 text-gray-500 hover:text-orange-500 transition-colors"
+                      className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/70 text-gray-500 hover:text-orange-500 transition-colors"
                       title="Edit name">
                       <Pencil size={13} />
                     </button>
                     <button onClick={() => handleDelete(s.id)}
-                      className="p-1.5 rounded-lg hover:bg-white/70 text-gray-400 hover:text-red-600 transition-colors"
+                      className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/70 text-gray-400 hover:text-red-600 transition-colors"
                       title="Delete">
                       <Trash2 size={13} />
                     </button>
@@ -224,7 +224,7 @@ export default function StatusManager({ onChanged }: Props) {
         <p className="text-xs font-semibold text-gray-600 mb-2">Add New Status</p>
         <div className="flex items-center gap-2 flex-wrap">
           <input
-            className="flex-1 min-w-0 form-input text-sm"
+            className="flex-1 min-w-full sm:min-w-0 form-input text-sm"
             placeholder="Status name (e.g. For Revision)"
             value={addName}
             onChange={e => setAddName(e.target.value)}
@@ -236,7 +236,7 @@ export default function StatusManager({ onChanged }: Props) {
               <button
                 key={key}
                 onClick={() => setAddColor(key)}
-                className={`w-6 h-6 rounded-full shadow-sm transition-all ${
+                className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full shadow-sm transition-all ${
                   addColor === key ? 'ring-2 ring-offset-1 ring-gray-700 scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
                 }`}
                 style={{ backgroundColor: STATUS_COLORS[key].hex }}
@@ -247,7 +247,7 @@ export default function StatusManager({ onChanged }: Props) {
           <button
             onClick={handleAdd}
             disabled={saving || !addName.trim()}
-            className="btn-primary text-xs py-2 disabled:opacity-50"
+            className="btn-primary text-xs py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 disabled:opacity-50"
           >
             <Plus size={14} /> Add
           </button>

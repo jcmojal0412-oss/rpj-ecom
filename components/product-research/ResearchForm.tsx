@@ -118,7 +118,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
         {/* Cost & Pricing Breakdown */}
         <div className="col-span-2">
           <p className="form-label mb-2">Cost & Pricing</p>
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+          <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-gray-500">COGS (₱)</label>
@@ -151,8 +151,8 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
             <div className={`rounded-xl px-4 py-3 transition-colors ${
               !hasValues ? 'bg-white' : profit > 0 ? 'bg-green-50 border border-green-200' : profit < 0 ? 'bg-red-50 border border-red-200' : 'bg-white'
             }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-y-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-gray-700">💰 Profit per Unit</span>
                   {hasValues && (
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -187,8 +187,8 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
               <div className={`rounded-xl px-4 py-3 transition-colors ${
                 !hasBundleValues ? 'bg-white' : bundleProfit > 0 ? 'bg-green-50 border border-green-200' : bundleProfit < 0 ? 'bg-red-50 border border-red-200' : 'bg-white'
               }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-gray-700">🎁 Bundle Profit (2 units)</span>
                     {hasBundleValues && (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -247,7 +247,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
         </div>
 
         {/* Objectives */}
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           <label className="form-label">Objectives</label>
           <select className="form-input" value={objectives} onChange={e => setObjectives(e.target.value)}>
             <option value="">— Select —</option>
@@ -257,7 +257,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
 
 
         {/* Status */}
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           <label className="form-label">Status</label>
           <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
             {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -265,12 +265,12 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
         </div>
 
         {/* FB Page */}
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           <label className="form-label">FB Page Name</label>
           <input className="form-input" value={fbPage} onChange={e => setFbPage(e.target.value)}
             placeholder="Page name" />
         </div>
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           <label className="form-label">FB Page Admin</label>
           <input className="form-input" value={fbAdmin} onChange={e => setFbAdmin(e.target.value)}
             placeholder="Admin name" />
@@ -279,7 +279,7 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
         {/* Checklist section */}
         <div className="col-span-2">
           <p className="form-label mb-2">Checklist</p>
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+          <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-3">
             {[
               { id: 'imageReady',       label: 'Image Ready',               checked: imageReady,       onChange: setImageReady },
               { id: 'webcakeWarehouse', label: 'Change Webcake Warehouse',   checked: webcakeWarehouse, onChange: setWebcakeWarehouse },
@@ -288,13 +288,13 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
               { id: 'doneBotcake',      label: 'Done Botcake',               checked: doneBotcake,      onChange: setDoneBotcake },
               { id: 'doneWebcake',      label: 'Done Webcake',               checked: doneWebcake,      onChange: setDoneWebcake },
             ].map(item => (
-              <div key={item.id} className="flex items-center gap-3">
+              <div key={item.id} className="flex items-center gap-3 py-1 sm:py-0">
                 <input
                   type="checkbox"
                   id={item.id}
                   checked={item.checked}
                   onChange={e => item.onChange(e.target.checked)}
-                  className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400"
+                  className="w-5 h-5 sm:w-4 sm:h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-400"
                 />
                 <label htmlFor={item.id} className={`text-sm font-medium transition-colors ${item.checked ? 'text-green-600 line-through' : 'text-gray-700'}`}>
                   {item.checked ? '✓ ' : ''}{item.label}
@@ -305,9 +305,9 @@ export default function ResearchForm({ initial, defaultStatus, statuses, onSucce
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Product' : 'Add Product'}
         </button>
       </div>

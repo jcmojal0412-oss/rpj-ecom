@@ -57,36 +57,36 @@ export default function ProfitLossClient() {
   ] : [];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/reports" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Profit &amp; Loss Report</h1>
           <p className="text-sm text-gray-500">Sales revenue, cost of goods, and operating expenses</p>
         </div>
       </div>
 
-      <div className="card space-y-3">
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+      <div className="card p-4 sm:p-6 space-y-3">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
         </div>
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
-        <select className="form-input py-1.5 text-sm w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+        <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={businessId} onChange={e => setBusinessId(e.target.value)}>
           <option value="">All Businesses</option>
           {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
@@ -95,9 +95,9 @@ export default function ProfitLossClient() {
       {loading || !data ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : (
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Statement */}
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Statement</h2>
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between"><span className="text-gray-600">Revenue (Sales)</span><span className="tabular-nums">{formatCurrency(data.revenue)}</span></div>
@@ -105,7 +105,7 @@ export default function ProfitLossClient() {
               <div className="flex justify-between font-semibold pt-1.5 border-t border-gray-100"><span>Net Revenue</span><span className="tabular-nums">{formatCurrency(data.netRevenue)}</span></div>
 
               <div className="flex justify-between pt-2"><span className="text-gray-500">Less: Cost of Goods Sold</span><span className="tabular-nums text-red-500">-{formatCurrency(data.cogs)}</span></div>
-              <div className="flex justify-between font-bold text-base pt-1.5 border-t border-gray-100">
+              <div className="flex justify-between gap-3 font-bold text-base pt-1.5 border-t border-gray-100">
                 <span>Gross Profit</span>
                 <span className="tabular-nums">{formatCurrency(data.grossProfit)} <span className="text-xs font-normal text-gray-400">({data.grossMarginPct.toFixed(1)}%)</span></span>
               </div>
@@ -119,7 +119,7 @@ export default function ProfitLossClient() {
                 ))}
               </div>
 
-              <div className={`flex justify-between font-bold text-lg pt-2 border-t-2 border-gray-200 ${data.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              <div className={`flex justify-between gap-3 font-bold text-base sm:text-lg pt-2 border-t-2 border-gray-200 ${data.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 <span>Net Profit</span>
                 <span className="tabular-nums">{formatCurrency(data.netProfit)} <span className="text-xs font-normal text-gray-400">({data.netMarginPct.toFixed(1)}%)</span></span>
               </div>
@@ -127,7 +127,7 @@ export default function ProfitLossClient() {
           </div>
 
           {/* Chart */}
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Overview</h2>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>

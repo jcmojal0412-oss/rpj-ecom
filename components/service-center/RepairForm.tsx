@@ -85,7 +85,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Date *</label>
           <input type="date" className="form-input" value={repairDate} onChange={e => setRepairDate(e.target.value)} required />
@@ -95,7 +95,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           <input className="form-input" placeholder="e.g. IPHONE 13" value={unitModel} onChange={e => setUnitModel(e.target.value)} />
         </div>
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">Repair Details</label>
           <input className="form-input" placeholder="e.g. ORDER LCD, FUSE PROBLEM..." value={repairDetails} onChange={e => setRepairDetails(e.target.value)} />
         </div>
@@ -104,7 +104,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           <label className="form-label">Technician</label>
           <input className="form-input" placeholder="e.g. Gerald" value={technicianName} onChange={e => setTechnicianName(e.target.value)} />
         </div>
-        <div />
+        <div className="hidden sm:block" />
 
         <div>
           <label className="form-label">Order No. {!initial && '*'}</label>
@@ -125,16 +125,16 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
         </div>
 
         {/* Auto-computed split preview */}
-        <div className="col-span-2 bg-gray-50 rounded-xl px-4 py-3 space-y-2">
-          <div className="flex items-center justify-between text-sm">
+        <div className="sm:col-span-2 bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-gray-600">Labor Amount (Repair Amount − COGS)</span>
             <span className="font-bold text-gray-900">{hasValues ? formatCurrency(labor) : '—'}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-blue-600">BNS Share (60%)</span>
             <span className="font-bold text-blue-700">{hasValues ? formatCurrency(bns) : '—'}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-amber-600">Technician Share (40%)</span>
             <span className="font-bold text-amber-700">{hasValues ? formatCurrency(gerald) : '—'}</span>
           </div>
@@ -155,7 +155,7 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           </select>
         </div>
 
-        <div className="col-span-2 flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+        <div className="sm:col-span-2 flex flex-wrap items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
           <input
             type="checkbox"
             id="paidToTech"
@@ -165,15 +165,15 @@ export default function RepairForm({ initial, onSuccess, onCancel }: Props) {
           />
           <label htmlFor="paidToTech" className="text-sm font-medium text-gray-700 flex-1">Paid to Technician</label>
           {paidToTech && (
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={techPaidDate}
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={techPaidDate}
               onChange={e => setTechPaidDate(e.target.value)} />
           )}
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting || !repairDate} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button type="submit" disabled={submitting || !repairDate} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Repair' : 'Add Repair'}
         </button>
       </div>

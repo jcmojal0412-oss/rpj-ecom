@@ -105,7 +105,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-[2.5rem] overflow-hidden">
 
           {/* Logo section */}
-          <div className="flex flex-col items-center pt-10 pb-6 px-10"
+          <div className="flex flex-col items-center pt-8 sm:pt-10 pb-6 px-6 sm:px-10"
             style={{ background: 'linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%)' }}>
             <div className="mb-5">
               <Image src="/logo.png" alt="RPJ Corp" width={120} height={100} className="object-contain" priority />
@@ -114,7 +114,7 @@ export default function LoginPage() {
             {/* Back button */}
             {view === 'staff' && (
               <button onClick={goBack}
-                className="absolute top-8 left-8 flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium">
+                className="absolute top-6 left-6 p-2 -m-2 sm:top-8 sm:left-8 sm:p-0 sm:m-0 flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium">
                 <ArrowLeft size={13} /> Back
               </button>
             )}
@@ -145,7 +145,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form section */}
-          <div className="px-10 pb-10 space-y-4">
+          <div className="px-6 sm:px-10 pb-8 sm:pb-10 space-y-4">
 
             {/* Username — only in main view */}
             {view === 'main' && (
@@ -162,7 +162,7 @@ export default function LoginPage() {
                   onChange={e => setUsername(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && passRef.current?.focus()}
                   placeholder="Enter username"
-                  className="w-full rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-300 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-3 text-base sm:text-sm text-gray-900 placeholder-gray-300 transition-all outline-none"
                   style={{
                     background: '#f4f6fb',
                     border: '1.5px solid transparent',
@@ -187,7 +187,7 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   placeholder="••••••••"
-                  className="w-full rounded-xl px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-300 transition-all outline-none"
+                  className="w-full rounded-xl px-4 py-3 pr-11 text-base sm:text-sm text-gray-900 placeholder-gray-300 transition-all outline-none"
                   style={{
                     background: '#f4f6fb',
                     border: '1.5px solid transparent',
@@ -196,7 +196,7 @@ export default function LoginPage() {
                   onBlur={e => (e.target.style.border = '1.5px solid transparent')}
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                  className="absolute right-1 p-2.5 sm:right-3.5 sm:p-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>

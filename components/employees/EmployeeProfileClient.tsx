@@ -100,7 +100,7 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <button onClick={() => router.push('/employees')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 py-2 -my-2">
@@ -109,7 +109,7 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{employee.full_name}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{employee.full_name}</h1>
           <p className="text-sm text-gray-500 mt-1 font-mono">{employee.employee_code} · {employee.position || 'No position set'}</p>
         </div>
         <span className={
@@ -121,12 +121,12 @@ export default function EmployeeProfileClient({ employeeId }: { employeeId: numb
         </span>
       </div>
 
-      <div className="flex gap-1 flex-wrap items-center">
+      <div className="flex gap-1 items-center overflow-x-auto sm:overflow-visible sm:flex-wrap">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-lg font-semibold transition-colors ${t.soon ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} ${
+            className={`shrink-0 whitespace-nowrap rounded-lg font-semibold transition-colors ${t.soon ? 'px-3 py-2 sm:py-1.5 text-xs' : 'px-4 py-2.5 sm:py-2 text-sm'} ${
               tab === t.key ? 'bg-orange-500 text-white' : t.soon ? 'bg-gray-50 text-gray-400 hover:bg-gray-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -249,7 +249,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
     <div className="space-y-5">
       <div className="grid md:grid-cols-2 gap-5">
         {/* Basic Information */}
-        <div className="card space-y-3">
+        <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Basic Information</p>
           <div>
             <label className="form-label">Employee ID</label>
@@ -259,7 +259,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             <label className="form-label">Full Name</label>
             <input type="text" className="form-input" value={form.full_name} onChange={e => set({ full_name: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Mobile Number</label>
               <input type="text" className="form-input" value={form.mobile_number} onChange={e => set({ mobile_number: e.target.value })} />
@@ -277,7 +277,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             <label className="form-label">Birthday</label>
             <input type="date" className="form-input" value={form.birthday} onChange={e => set({ birthday: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Emergency Contact Name</label>
               <input type="text" className="form-input" value={form.emergency_contact_name} onChange={e => set({ emergency_contact_name: e.target.value })} />
@@ -290,9 +290,9 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         </div>
 
         {/* Employment */}
-        <div className="card space-y-3">
+        <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Employment</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Position</label>
               <input type="text" className="form-input" value={form.position} onChange={e => set({ position: e.target.value })} />
@@ -302,7 +302,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
               <input type="text" className="form-input" value={form.department} onChange={e => set({ department: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Branch</label>
               <input type="text" className="form-input" value={form.branch} onChange={e => set({ branch: e.target.value })} />
@@ -312,7 +312,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
               <input type="date" className="form-input" value={form.date_hired} onChange={e => set({ date_hired: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Employment Type</label>
               <select className="form-input" value={form.employment_type} onChange={e => set({ employment_type: e.target.value as any })}>
@@ -331,7 +331,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
               </select>
             </div>
           </div>
-          <button onClick={quickToggleStatus} disabled={saving} className="btn-secondary text-xs py-1.5 disabled:opacity-50">
+          <button onClick={quickToggleStatus} disabled={saving} className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-50">
             {form.employment_status === 'Active' ? 'Quick Deactivate' : 'Quick Activate'}
           </button>
 
@@ -346,13 +346,13 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
             <p className="text-xs text-gray-400 mt-1">Only needed if this employee logs in to clock their own attendance.</p>
 
             {employee.linked_user && (
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mt-2">
+              <div className="flex items-center justify-between flex-wrap gap-2 bg-gray-50 rounded-lg px-3 py-2 mt-2">
                 <div>
                   <p className="text-xs text-gray-400">Username</p>
                   <p className="text-sm font-mono text-gray-700">{employee.linked_user.username}</p>
                 </div>
                 {isOwner && (
-                  <button onClick={() => setShowSetPassword(true)} className="btn-secondary text-xs py-1">Set / Reset Password</button>
+                  <button onClick={() => setShowSetPassword(true)} className="btn-secondary text-xs py-2 sm:py-1">Set / Reset Password</button>
                 )}
               </div>
             )}
@@ -360,21 +360,21 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         </div>
 
         {/* Attendance */}
-        <div className="card space-y-3">
+        <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Attendance</p>
           <div>
             <label className="form-label">Default Shift</label>
             {employee.current_shift ? (
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between flex-wrap gap-2 bg-gray-50 rounded-lg px-3 py-2">
                 <span className="text-sm text-gray-700">
                   {employee.current_shift.name} ({fmtShiftTime(employee.current_shift.start_time)}–{fmtShiftTime(employee.current_shift.end_time)})
                 </span>
-                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-1">Change Default Shift</button>
+                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-2 sm:py-1">Change Default Shift</button>
               </div>
             ) : (
-              <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between flex-wrap gap-2 bg-red-50 rounded-lg px-3 py-2">
                 <span className="text-sm text-red-600">No default shift assigned</span>
-                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-1">Assign Shift</button>
+                <button onClick={() => setShowReassign(true)} className="btn-secondary text-xs py-2 sm:py-1">Assign Shift</button>
               </div>
             )}
             <p className="text-xs text-gray-400 mt-1">
@@ -389,7 +389,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
                   key={d}
                   type="button"
                   onClick={() => toggleWorkDay(i)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     form.work_days.includes(i) ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -415,9 +415,9 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         </div>
 
         {/* Compensation */}
-        <div className="card space-y-3">
+        <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Compensation <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Salary Type</label>
               <select className="form-input" value={form.salary_type} onChange={e => set({ salary_type: e.target.value as any })}>
@@ -455,23 +455,23 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
         {/* Statutory Contributions — SSS/PhilHealth/Pag-IBIG numbers are
             HR/Payroll-only; canSeeStatutoryIds mirrors the API's own gate
             (see EmployeeDetail's sss_number?: comment above). */}
-        <div className="card space-y-3">
+        <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Statutory Contributions <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
 
           <div className="space-y-1.5 pb-2 border-b border-gray-100">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center justify-between sm:gap-3">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input type="checkbox" checked={form.sss_enabled} onChange={e => set({ sss_enabled: e.target.checked })} />
                 SSS Enabled
               </label>
               {canSeeStatutoryIds ? (
-                <input type="text" className="form-input max-w-[180px]" placeholder="SSS Number" value={form.sss_number} onChange={e => set({ sss_number: e.target.value })} />
+                <input type="text" className="form-input sm:max-w-[180px]" placeholder="SSS Number" value={form.sss_number} onChange={e => set({ sss_number: e.target.value })} />
               ) : (
                 <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
               )}
             </div>
             {canSeeStatutoryIds && (
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
                 <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.sss_deduction_amount} onChange={e => set({ sss_deduction_amount: Number(e.target.value) })} />
               </div>
@@ -479,19 +479,19 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
           </div>
 
           <div className="space-y-1.5 pb-2 border-b border-gray-100">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center justify-between sm:gap-3">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input type="checkbox" checked={form.philhealth_enabled} onChange={e => set({ philhealth_enabled: e.target.checked })} />
                 PhilHealth Enabled
               </label>
               {canSeeStatutoryIds ? (
-                <input type="text" className="form-input max-w-[180px]" placeholder="PhilHealth Number" value={form.philhealth_number} onChange={e => set({ philhealth_number: e.target.value })} />
+                <input type="text" className="form-input sm:max-w-[180px]" placeholder="PhilHealth Number" value={form.philhealth_number} onChange={e => set({ philhealth_number: e.target.value })} />
               ) : (
                 <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
               )}
             </div>
             {canSeeStatutoryIds && (
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
                 <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.philhealth_deduction_amount} onChange={e => set({ philhealth_deduction_amount: Number(e.target.value) })} />
               </div>
@@ -499,19 +499,19 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center justify-between sm:gap-3">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input type="checkbox" checked={form.pagibig_enabled} onChange={e => set({ pagibig_enabled: e.target.checked })} />
                 Pag-IBIG Enabled
               </label>
               {canSeeStatutoryIds ? (
-                <input type="text" className="form-input max-w-[180px]" placeholder="Pag-IBIG MID Number" value={form.pagibig_number} onChange={e => set({ pagibig_number: e.target.value })} />
+                <input type="text" className="form-input sm:max-w-[180px]" placeholder="Pag-IBIG MID Number" value={form.pagibig_number} onChange={e => set({ pagibig_number: e.target.value })} />
               ) : (
                 <span className="text-xs text-gray-400 italic">Hidden — requires Payroll access</span>
               )}
             </div>
             {canSeeStatutoryIds && (
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <label className="text-xs text-gray-400">Default deduction (₱/cutoff)</label>
                 <input type="number" min="0" step="0.01" className="form-input max-w-[120px] py-1.5 text-sm" value={form.pagibig_deduction_amount} onChange={e => set({ pagibig_deduction_amount: Number(e.target.value) })} />
               </div>
@@ -525,7 +525,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
 
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex justify-end">
-        <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+        <button onClick={save} disabled={saving} className="btn-primary w-full sm:w-auto justify-center py-2.5 sm:py-2 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
@@ -581,7 +581,7 @@ function SetPasswordForm({ userId, onCancel, onSaved }: { userId: number; onCanc
         <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary text-sm py-2 px-4">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary text-sm py-2 px-4 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -638,7 +638,7 @@ function ReassignShiftForm({ employeeId, onCancel, onSaved }: { employeeId: numb
         <p className="text-xs text-gray-400 mt-1">Attendance before this date keeps using the previous shift — past records are never recalculated.</p>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -676,17 +676,17 @@ function AttendanceTab({ employeeId, showToast }: { employeeId: number; showToas
       <ShiftOverridesSection employeeId={employeeId} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
+        <div className="flex flex-wrap items-end gap-3 w-full sm:w-auto">
+          <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
             <label className="form-label">From</label>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={from} onChange={e => setFrom(e.target.value)} />
           </div>
-          <div>
+          <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
             <label className="form-label">To</label>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={to} onChange={e => setTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-auto" value={to} onChange={e => setTo(e.target.value)} />
           </div>
         </div>
-        <button onClick={() => setShowCorrectionForm(true)} className="btn-secondary text-sm">
+        <button onClick={() => setShowCorrectionForm(true)} className="btn-secondary text-sm w-full sm:w-auto justify-center py-2.5 sm:py-2">
           <FileEdit size={14} /> File Correction
         </button>
       </div>
@@ -707,7 +707,8 @@ function AttendanceTab({ employeeId, showToast }: { employeeId: number; showToas
         ) : rows.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No attendance records for this range.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -733,6 +734,25 @@ function AttendanceTab({ employeeId, showToast }: { employeeId: number; showToas
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per day instead of the 6-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {rows.map((r, i) => (
+              <div key={i} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-900">{formatDate(r.date)}</p>
+                  <span className="text-sm text-gray-600 capitalize">{r.status.replace('_', ' ')}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Work Hours</span><span className="font-medium text-gray-800">{fmtMinutes(r.totalWorkMinutes)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{r.lateMinutes > 0 ? fmtMinutes(r.lateMinutes) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{r.potentialOtMinutes > 0 ? fmtMinutes(r.potentialOtMinutes) : '—'}</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -758,8 +778,8 @@ function LeaveHistoryTab({ employeeId, showToast }: { employeeId: number; showTo
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowLeaveForm(true)} className="btn-secondary text-sm">
+      <div className="flex sm:justify-end">
+        <button onClick={() => setShowLeaveForm(true)} className="btn-secondary text-sm w-full sm:w-auto justify-center py-2.5 sm:py-2">
           <Palmtree size={14} /> Request Leave
         </button>
       </div>
@@ -780,7 +800,8 @@ function LeaveHistoryTab({ employeeId, showToast }: { employeeId: number; showTo
       ) : rows.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-12">No leave requests yet.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -808,6 +829,27 @@ function LeaveHistoryTab({ employeeId, showToast }: { employeeId: number; showTo
             </tbody>
           </table>
         </div>
+
+        {/* Phone: card per leave request instead of the 6-column table. */}
+        <div className="md:hidden p-2.5 space-y-2.5">
+          {rows.map((r: any) => (
+            <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{r.leave_type_name}</p>
+                  <p className="text-xs text-gray-500">{formatDate(r.from_date)}{r.from_date !== r.to_date ? ` – ${formatDate(r.to_date)}` : ''}</p>
+                </div>
+                <span className={`shrink-0 ${r.status === 'approved' ? 'badge-green' : r.status === 'rejected' ? 'badge-red' : 'badge-amber'}`}>{r.status}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                <span className="capitalize">{r.day_type}</span>
+                {r.leave_type_paid ? <span className="badge-green">Paid</span> : <span className="badge-gray">Unpaid</span>}
+              </div>
+              {r.reason && <p className="mt-1.5 text-xs text-gray-500 break-words">{r.reason}</p>}
+            </div>
+          ))}
+        </div>
+        </>
       )}
     </div>
     </div>
@@ -880,7 +922,7 @@ function CorrectionForm({ employeeId, onCancel, onSubmitted }: { employeeId: num
         <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Forgot to clock out, phone battery died" />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={submit} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -946,7 +988,7 @@ function LeaveRequestForm({ employeeId, onCancel, onSubmitted }: { employeeId: n
           {leaveTypes.map(t => <option key={t.id} value={t.id}>{t.name}{t.paid ? '' : ' (Unpaid)'}</option>)}
         </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="form-label">From Date</label>
           <input type="date" className="form-input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
@@ -972,7 +1014,7 @@ function LeaveRequestForm({ employeeId, onCancel, onSubmitted }: { employeeId: n
         <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="form-input" onChange={e => setFile(e.target.files?.[0] ?? null)} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={submit} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -1016,7 +1058,8 @@ function PayrollHistoryTab({ employeeId }: { employeeId: number }) {
         ) : rows.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No payroll history yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -1046,6 +1089,27 @@ function PayrollHistoryTab({ employeeId }: { employeeId: number }) {
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per payroll entry instead of the 8-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {rows.map((r: any) => (
+              <div key={r.id} onClick={() => setDetailEntryId(r.id)} className="rounded-xl border border-gray-200 bg-white p-3 cursor-pointer active:bg-gray-50">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-900 min-w-0">{r.period_label}</p>
+                  <span className={`shrink-0 ${STATUS_BADGE[r.period_status]}`}>{STATUS_LABEL[r.period_status]}</span>
+                </div>
+                <p className="mt-1 text-base font-bold text-gray-900 tabular-nums">{formatCurrency(r.net_pay)} <span className="text-xs font-medium text-gray-500">net pay</span></p>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Basic Pay</span><span className="font-medium text-gray-800">{formatCurrency(r.basic_pay)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">OT</span><span className="font-medium text-gray-800">{formatCurrency(r.ot_pay)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Allowances / Other</span><span className="font-medium text-gray-800">{formatCurrency(r.allowance_pay + r.bonus_earnings)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Deductions</span><span className="font-medium text-red-500">-{formatCurrency(r.total_deductions)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Gross Pay</span><span className="font-medium text-gray-800">{formatCurrency(r.gross_pay)}</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
         <p className="text-xs text-gray-400 px-4 py-2 border-t border-gray-100">Click a row to see the full breakdown.</p>
       </div>
@@ -1156,13 +1220,13 @@ function ShiftOverridesSection({ employeeId }: { employeeId: number }) {
   };
 
   return (
-    <div className="card space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="card p-4 sm:p-6 space-y-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-700">Date-Specific Shift Override</p>
           <p className="text-xs text-gray-400 mt-0.5">For a temporary schedule change on a single day only — the default shift resumes automatically afterward.</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-secondary text-xs py-1.5 shrink-0">Add Override</button>
+        <button onClick={() => setShowAdd(true)} className="btn-secondary text-xs py-2.5 sm:py-1.5 shrink-0">Add Override</button>
       </div>
 
       {loading ? (
@@ -1178,7 +1242,7 @@ function ShiftOverridesSection({ employeeId }: { employeeId: number }) {
                 <span className="text-gray-500"> — {o.shift_name} ({fmtShiftTime(o.start_time)}–{fmtShiftTime(o.end_time)})</span>
                 {o.reason && <span className="text-gray-400"> · {o.reason}</span>}
               </span>
-              <button onClick={() => remove(o.id)} className="text-xs text-red-500 hover:text-red-600 shrink-0 ml-2">Remove</button>
+              <button onClick={() => remove(o.id)} className="text-xs text-red-500 hover:text-red-600 shrink-0 ml-2 py-2 px-1 sm:py-0 sm:px-0">Remove</button>
             </div>
           ))}
         </div>
@@ -1243,7 +1307,7 @@ function AddOverrideForm({ employeeId, onCancel, onSaved }: { employeeId: number
         <input type="text" className="form-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Covering Shift B for a day" />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onCancel} className="btn-secondary">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}

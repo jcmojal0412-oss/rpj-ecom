@@ -197,61 +197,61 @@ export default function CashierShiftsReportClient() {
   };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center gap-3 print:hidden">
-        <Link href="/pos/reports" className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
+        <Link href="/pos/reports" className="p-2.5 lg:p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"><ArrowLeft size={18} /></Link>
         <h1 className="text-xl font-bold text-gray-900">Cashier&apos;s Report</h1>
       </div>
 
-      <div className="card space-y-3 print:hidden">
+      <div className="card p-4 sm:p-6 space-y-3 print:hidden">
         <div className="flex flex-wrap items-end gap-3">
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">Username</label>
-            <input className="form-input py-1.5 text-sm w-48" placeholder="Member Username" value={username} onChange={e => setUsername(e.target.value)} />
+            <input className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-48" placeholder="Member Username" value={username} onChange={e => setUsername(e.target.value)} />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="text-[11px] text-gray-500 font-medium block mb-1">Business</label>
-            <select className="form-input py-1.5 text-sm w-40" value={businessId} onChange={e => setBusinessId(e.target.value)}>
+            <select className="form-input py-2 sm:py-1.5 text-sm w-full sm:w-40" value={businessId} onChange={e => setBusinessId(e.target.value)}>
               <option value="">All Businesses</option>
               {businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
         </div>
 
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 w-fit flex-wrap">
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5 max-w-full overflow-x-auto sm:w-fit sm:flex-wrap">
           <button onClick={() => setPreset(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all ${!preset ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             All Dates
           </button>
           {DATE_PRESETS.map(p => (
             <button key={p} onClick={() => setPreset(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${preset === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p}
             </button>
           ))}
         </div>
         {preset === 'Custom' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
             <span className="text-gray-400 text-sm">—</span>
-            <input type="date" className="form-input py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+            <input type="date" className="form-input py-2 sm:py-1.5 text-sm w-auto" value={customTo} onChange={e => setCustomTo(e.target.value)} />
           </div>
         )}
       </div>
 
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
-          <div className="flex items-center gap-2">
-            <button onClick={doPrint} className="btn-secondary text-xs py-1.5"><Printer size={13} /> Print</button>
-            <button onClick={doCopy} className="btn-secondary text-xs py-1.5"><Copy size={13} /> Copy</button>
-            <button onClick={doExcel} className="btn-secondary text-xs py-1.5"><FileSpreadsheet size={13} /> Excel</button>
-            <button onClick={doCsv} className="btn-secondary text-xs py-1.5"><Download size={13} /> CSV</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={doPrint} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Printer size={13} /> Print</button>
+            <button onClick={doCopy} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Copy size={13} /> Copy</button>
+            <button onClick={doExcel} className="btn-secondary text-xs py-2.5 sm:py-1.5"><FileSpreadsheet size={13} /> Excel</button>
+            <button onClick={doCsv} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Download size={13} /> CSV</button>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-            <input className="form-input py-1.5 text-sm pl-8 w-56" placeholder="Search cashier or username"
+            <input className="form-input py-2 sm:py-1.5 text-sm pl-8 w-full sm:w-56" placeholder="Search cashier or username"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
@@ -262,7 +262,50 @@ export default function CashierShiftsReportClient() {
           <p className="text-center text-gray-400 text-sm py-12">No shifts match these filters.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Phone: the 15-column table can't fit, so each shift is a card and sorting moves to a select. */}
+            <div className="md:hidden flex items-center gap-2 mb-3 print:hidden">
+              <select className="form-input py-2 text-sm flex-1 min-w-0" value={sortKey} onChange={e => { if (e.target.value !== sortKey) toggleSort(e.target.value as SortKey); }} aria-label="Sort by">
+                {COLUMNS.map(c => <option key={c.key} value={c.key}>Sort: {c.label}</option>)}
+              </select>
+              <button onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))} className="btn-secondary text-xs py-2.5 shrink-0">
+                <ArrowUpDown size={13} /> {sortDir === 'asc' ? 'Asc' : 'Desc'}
+              </button>
+            </div>
+            <div className="md:hidden space-y-2.5">
+              {paged.map(r => (
+                <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{r.cashier_name || '—'}</p>
+                      <p className="text-xs text-gray-500">{formatDate(r.time_in)} → {r.time_out ? formatDate(r.time_out) : '—'} · {r.total_hours.toFixed(1)}h</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-base font-bold text-gray-900 tabular-nums">{formatCurrency(r.total_sales)}</p>
+                      <span className={r.status === 'Open' ? 'badge-amber' : 'badge-green'}>{r.status}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                    <span>Cash <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.cash_sales ?? 0)}</span></span>
+                    <span>Online/Card <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.online_sales ?? 0)}</span></span>
+                    <span>Financing <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.financing_receivable ?? 0)}</span></span>
+                    <span>Starting <span className="font-medium text-gray-800 tabular-nums">{formatCurrency(r.starting_cash)}</span></span>
+                    <span>Expected <span className="font-medium text-gray-800 tabular-nums">{r.expected_cash != null ? formatCurrency(r.expected_cash) : '—'}</span></span>
+                    <span>Actual <span className="font-medium text-gray-800 tabular-nums">{r.actual_cash != null ? formatCurrency(r.actual_cash) : '—'}</span></span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                    {overShortLabel(r.discrepancy) ? (
+                      <span className="inline-flex items-center gap-1">
+                        {isLargeDiscrepancy(r.discrepancy) && <AlertTriangle size={13} className="text-red-500" />}
+                        <span className={`${overShortLabel(r.discrepancy)!.cls} whitespace-nowrap`}>{overShortLabel(r.discrepancy)!.text}</span>
+                      </span>
+                    ) : <span className="text-xs text-gray-400">—</span>}
+                    <button onClick={() => openShift(r.id)} className="p-2.5 rounded-lg hover:bg-blue-50 text-blue-600" title="View"><Eye size={18} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <table className="w-full text-sm hidden md:table">
               <thead>
                 <tr className="border-b border-gray-100">
                   {COLUMNS.map(c => (
@@ -308,18 +351,18 @@ export default function CashierShiftsReportClient() {
               </tbody>
             </table>
 
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 print:hidden">
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100 print:hidden">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <span>Show</span>
-                <select className="form-input py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
+                <select className="form-input py-1.5 sm:py-1 text-xs w-16" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
                   {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
                 <span>entries — showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredRows.length)} of {filteredRows.length}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
+              <div className="flex items-center justify-center sm:justify-start gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronLeft size={16} /></button>
                 <span className="text-sm px-2">{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2.5 lg:p-1.5 rounded hover:bg-gray-100 disabled:opacity-40"><ChevronRight size={16} /></button>
               </div>
             </div>
           </div>
@@ -407,6 +450,7 @@ export default function CashierShiftsReportClient() {
               {viewing.sales.length === 0 ? (
                 <p className="text-center text-gray-400 text-sm py-6">No sales recorded during this shift.</p>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -430,12 +474,14 @@ export default function CashierShiftsReportClient() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 
             {viewing.cashMovements.length > 0 && (
               <div>
                 <p className="text-sm font-semibold text-gray-800 mb-2">Cash In/Out ({viewing.cashMovements.length})</p>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -454,12 +500,14 @@ export default function CashierShiftsReportClient() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
             {viewing.expenses.length > 0 && (
               <div>
                 <p className="text-sm font-semibold text-gray-800 mb-2">Expenses During This Shift ({viewing.expenses.length})</p>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -478,16 +526,17 @@ export default function CashierShiftsReportClient() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               {isOwner && viewing.shift.status === 'Closed' && (
-                <button onClick={reopenShift} disabled={reopening} className="btn-secondary">
+                <button onClick={reopenShift} disabled={reopening} className="btn-secondary justify-center py-2.5 sm:py-2">
                   <RotateCcw size={14} /> {reopening ? 'Reopening...' : 'Reopen Shift'}
                 </button>
               )}
-              <button onClick={() => setViewing(null)} className="btn-secondary">Close</button>
+              <button onClick={() => setViewing(null)} className="btn-secondary justify-center py-2.5 sm:py-2">Close</button>
             </div>
           </div>
         </Modal>

@@ -33,9 +33,9 @@ export default function ProductHunterForm({
     setCriteria(c => ({ ...c, [field]: e.target.value }));
 
   return (
-    <div className="card space-y-4">
+    <div className="card p-4 sm:p-6 space-y-4">
       <h2 className="text-base font-semibold text-gray-900">Research Criteria</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div>
           <label className="form-label">Season</label>
           <input className="form-input" value={criteria.season} onChange={set('season')} placeholder="e.g. Rainy Season" />
@@ -60,7 +60,7 @@ export default function ProductHunterForm({
           <label className="form-label">Desired Margin %</label>
           <input type="number" className="form-input" value={criteria.margin} onChange={set('margin')} />
         </div>
-        <div className="col-span-2 md:col-span-3">
+        <div className="sm:col-span-2 md:col-span-3">
           <label className="form-label">Notes</label>
           <textarea className="form-input" rows={2} value={criteria.notes} onChange={set('notes')} placeholder="Optional notes / constraints..." />
         </div>
@@ -68,7 +68,7 @@ export default function ProductHunterForm({
       <button
         onClick={() => onSearch(criteria)}
         disabled={loading}
-        className="btn-primary justify-center w-full md:w-auto disabled:opacity-60"
+        className="btn-primary justify-center w-full md:w-auto min-h-[44px] md:min-h-0 disabled:opacity-60"
       >
         {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
         {loading ? 'Analyzing...' : 'Find Winning Products'}

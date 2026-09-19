@@ -58,19 +58,19 @@ export default function POPrintPage() {
   return (
     <>
       {/* Print controls — hidden when printing */}
-      <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-gray-900 text-white shadow-xl">
-        <div className="flex items-center gap-4">
+      <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-2 px-3 sm:px-6 py-3 bg-gray-900 text-white shadow-xl">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             onClick={() => window.history.back()}
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             ← Back
           </button>
-          <span className="text-sm text-gray-300">PO #{po.po_number}</span>
+          <span className="text-sm text-gray-300 truncate">PO #{po.po_number}</span>
         </div>
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 sm:px-5 py-2 shrink-0 whitespace-nowrap bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           🖨️ Print / Save as PDF
         </button>
@@ -242,6 +242,12 @@ export default function POPrintPage() {
           body { background: #e5e7eb; }
           .po-page { min-height: 100vh; display: flex; justify-content: center; padding: 20px; }
           .po-doc { background: white; width: 210mm; min-height: 297mm; padding: 18mm 16mm; box-shadow: 0 4px 24px rgba(0,0,0,0.15); }
+        }
+        /* Phone screens only: the fixed A4-width sheet scrolls inside its own
+           container instead of forcing horizontal scroll on the whole page. */
+        @media screen and (max-width: 860px) {
+          .po-page { justify-content: flex-start; overflow-x: auto; padding: 8px; }
+          .po-doc { flex-shrink: 0; }
         }
         @media print {
           @page { margin: 12mm 14mm; size: A4; }

@@ -76,8 +76,8 @@ export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onC
       {/* Basic Info */}
       <div>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Basic Information</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
             <F label="Full Name *"><input className="form-input" value={name} onChange={e => setName(e.target.value)} required placeholder="Juan dela Cruz" /></F>
           </div>
           <F label="Contact No."><input className="form-input" value={contact} onChange={e => setContact(e.target.value)} placeholder="09XX XXX XXXX" /></F>
@@ -90,7 +90,7 @@ export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onC
       {/* Discovery Call */}
       <div>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Discovery Call & Subscription</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <F label="Call Status"><S value={remarks} onChange={setRemarks} options={STATUSES} /></F>
           <F label="Subscription"><S value={subscription} onChange={setSubscription} options={SUBSCRIPTIONS} /></F>
           <F label="Price (₱)"><input type="number" className="form-input" value={price} onChange={e => setPrice(e.target.value)} placeholder="999" /></F>
@@ -103,7 +103,7 @@ export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onC
       {/* Onboarding Stages */}
       <div>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Onboarding Progress</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <F label="Contract Signing"><S value={contractSigning} onChange={setContractSigning} options={STAGES} /></F>
           <F label="Onboarding"><S value={onboarding} onChange={setOnboarding} options={STAGES} /></F>
           <F label="Start Ads"><S value={startAds} onChange={setStartAds} options={ADS_STAGES} /></F>
@@ -113,7 +113,7 @@ export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onC
       {/* Banking */}
       <div>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Banking Details</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <F label="Bank"><input className="form-input" value={bank} onChange={e => setBank(e.target.value)} placeholder="BDO, GCash..." /></F>
           <F label="Account Name"><input className="form-input" value={acctName} onChange={e => setAcctName(e.target.value)} /></F>
           <F label="Account Number"><input className="form-input" value={acctNumber} onChange={e => setAcctNumber(e.target.value)} /></F>
@@ -123,9 +123,9 @@ export default function PartnerForm({ initial, defaultOnboarding, onSuccess, onC
       {/* Notes */}
       <F label="Notes"><textarea className="form-input" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes..." /></F>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Partner' : 'Add Partner'}
         </button>
       </div>

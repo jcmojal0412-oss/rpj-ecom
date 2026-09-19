@@ -41,23 +41,23 @@ export default function UserManager() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage staff accounts and module access</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">
+        <button onClick={() => setShowAdd(true)} className="btn-primary w-full sm:w-auto justify-center py-3 sm:py-2">
           <Plus size={16} /> Add Staff
         </button>
       </div>
 
       {/* Credentials info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 sm:px-5 py-4">
         <p className="text-sm font-semibold text-blue-900 mb-1">Default Login Credentials</p>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs text-blue-700">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-blue-700">
           <span>Owner: <code className="bg-blue-100 px-1 rounded">owner</code> / <code className="bg-blue-100 px-1 rounded">rpj2026</code></span>
           <span>Staff default: <code className="bg-blue-100 px-1 rounded">staff123</code></span>
         </div>
@@ -73,7 +73,7 @@ export default function UserManager() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {users.map(u => (
-            <div key={u.id} className={`card relative ${!u.active ? 'opacity-60' : ''}`}>
+            <div key={u.id} className={`card p-4 sm:p-6 relative ${!u.active ? 'opacity-60' : ''}`}>
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-base shrink-0"
                   style={{ backgroundColor: AVATAR_HEX[u.avatar_color] ?? '#3b82f6' }}>
@@ -108,7 +108,7 @@ export default function UserManager() {
                       <p className="text-xs text-indigo-500 mt-2 font-medium">Full access to all modules</p>
                       <button
                         onClick={() => setChangingPw(u)}
-                        className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 font-medium transition-colors"
+                        className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 font-medium transition-colors py-2 sm:py-0"
                       >
                         <KeyRound size={12} /> Change Password
                       </button>
@@ -119,10 +119,10 @@ export default function UserManager() {
 
               {u.role !== 'owner' && (
                 <div className="flex items-center gap-1 mt-4 pt-3 border-t border-gray-100">
-                  <button onClick={() => setEditing(u)} className="btn-secondary text-xs py-1.5">
+                  <button onClick={() => setEditing(u)} className="btn-secondary text-xs py-2.5 sm:py-1.5">
                     <Pencil size={12} /> Edit
                   </button>
-                  <button onClick={() => setDeleting(u)} className="ml-auto p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
+                  <button onClick={() => setDeleting(u)} className="ml-auto p-2.5 lg:p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -158,9 +158,9 @@ export default function UserManager() {
             <p className="text-sm text-gray-700">
               Sure ka bang i-remove ang account ni <span className="font-semibold">{deleting.name}</span>?
             </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={() => handleDelete(deleting)} className="btn-danger"><Trash2 size={14} /> Remove</button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+              <button onClick={() => handleDelete(deleting)} className="btn-danger justify-center py-3 sm:py-2"><Trash2 size={14} /> Remove</button>
             </div>
           </div>
         </Modal>
@@ -239,7 +239,7 @@ function ChangePasswordForm({ user, onSuccess, onCancel }: {
             autoFocus
           />
           <button type="button" onClick={() => setShowNew(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            className="absolute right-1 p-2.5 sm:right-3 sm:p-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         </div>
@@ -256,14 +256,14 @@ function ChangePasswordForm({ user, onSuccess, onCancel }: {
             required
           />
           <button type="button" onClick={() => setShowConfirm(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            className="absolute right-1 p-2.5 sm:right-3 sm:p-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         </div>
       </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {submitting ? 'Saving...' : 'Change Password'}
         </button>
       </div>
@@ -322,7 +322,7 @@ function UserForm({ initial, onSuccess, onCancel }: {
         <div className="flex items-center gap-2 flex-wrap mt-1">
           {AVATAR_COLORS.map(c => (
             <button key={c} type="button" onClick={() => setColor(c)}
-              className={`w-8 h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-gray-800 scale-110' : 'hover:scale-105'}`}
+              className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-gray-800 scale-110' : 'hover:scale-105'}`}
               style={{ backgroundColor: AVATAR_HEX[c] ?? '#3b82f6' }}
             />
           ))}
@@ -340,7 +340,7 @@ function UserForm({ initial, onSuccess, onCancel }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Full Name *</label>
           <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="Maria Santos" required />
@@ -349,7 +349,7 @@ function UserForm({ initial, onSuccess, onCancel }: {
           <label className="form-label">Username *</label>
           <input className="form-input" value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="maria" required />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="form-label">{initial ? 'New Password (leave blank to keep)' : 'Password *'}</label>
           <div className="relative">
             <input
@@ -361,7 +361,7 @@ function UserForm({ initial, onSuccess, onCancel }: {
               required={!initial}
             />
             <button type="button" onClick={() => setShowPassword(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              className="absolute right-1 p-2.5 sm:right-3 sm:p-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
@@ -371,8 +371,8 @@ function UserForm({ initial, onSuccess, onCancel }: {
       {/* Active toggle */}
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => setActive(v => !v)}
-          className={`relative w-10 h-5 rounded-full transition-colors ${active ? 'bg-orange-500' : 'bg-gray-200'}`}>
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${active ? 'translate-x-5' : ''}`} />
+          className={`relative w-12 h-6 sm:w-10 sm:h-5 rounded-full transition-colors ${active ? 'bg-orange-500' : 'bg-gray-200'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 sm:w-4 sm:h-4 rounded-full bg-white shadow transition-transform ${active ? 'translate-x-6 sm:translate-x-5' : ''}`} />
         </button>
         <label className="text-sm text-gray-700 font-medium">Account Active</label>
       </div>
@@ -401,9 +401,9 @@ function UserForm({ initial, onSuccess, onCancel }: {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Account' : 'Create Account'}
         </button>
       </div>
@@ -424,7 +424,7 @@ function ManagerPinCard({ showToast }: { showToast: (msg: string, type?: 'succes
   useEffect(() => { fetchStatus(); }, []);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
+    <div className="bg-white border border-gray-200 rounded-xl px-4 sm:px-5 py-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Lock size={16} className="text-gray-400 shrink-0" />
@@ -443,7 +443,7 @@ function ManagerPinCard({ showToast }: { showToast: (msg: string, type?: 'succes
               <span className="flex items-center gap-1 text-xs font-medium text-amber-600"><ShieldAlert size={14} /> Not set yet</span>
             )
           )}
-          <button onClick={() => setShowSet(true)} className="btn-secondary text-xs py-1.5">
+          <button onClick={() => setShowSet(true)} className="btn-secondary text-xs py-2.5 sm:py-1.5">
             {isSet ? 'Change PIN' : 'Set PIN'}
           </button>
         </div>
@@ -499,7 +499,7 @@ function SetPinForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: 
             maxLength={6} autoFocus required
           />
           <button type="button" onClick={() => setShowPin(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            className="absolute right-1 p-2.5 sm:right-3 sm:p-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         </div>
@@ -512,9 +512,9 @@ function SetPinForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: 
           maxLength={6} required
         />
       </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {submitting ? 'Saving...' : 'Save PIN'}
         </button>
       </div>

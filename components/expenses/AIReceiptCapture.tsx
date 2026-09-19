@@ -166,10 +166,10 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
           {receiptPath && (
             <p className="text-xs text-gray-400">Your receipt was uploaded successfully — only reading it with AI failed.</p>
           )}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={retry} className="btn-secondary text-xs">Try Again</button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button type="button" onClick={retry} className="btn-secondary text-xs py-2.5 sm:py-2">Try Again</button>
             {receiptPath && (
-              <button type="button" onClick={() => { onSkipAI(receiptPath); reset(); }} className="btn-primary text-xs">
+              <button type="button" onClick={() => { onSkipAI(receiptPath); reset(); }} className="btn-primary text-xs py-2.5 sm:py-2">
                 Use This Receipt Without AI
               </button>
             )}
@@ -190,12 +190,12 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <AIField label="Date" value={fields.date} unclear={isUnclear('date')} type="date"
               onChange={v => setFields(f => ({ ...f, date: v }))} />
             <AIField label="Amount (₱)" value={fields.amount} unclear={isUnclear('amount')} type="number"
               onChange={v => setFields(f => ({ ...f, amount: v }))} />
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <AIField label="Paid To" value={fields.paid_to} unclear={isUnclear('paid_to')}
                 onChange={v => setFields(f => ({ ...f, paid_to: v }))} />
             </div>
@@ -232,11 +232,11 @@ export default function AIReceiptCapture({ businesses, onCaptured, onConfirmSave
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={() => onCaptured(buildFields())} className="btn-secondary text-sm">Edit Details</button>
-            <button type="button" onClick={() => onConfirmSave(buildFields())} className="btn-primary text-sm">Confirm &amp; Save</button>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-1">
+            <button type="button" onClick={() => onCaptured(buildFields())} className="btn-secondary text-sm justify-center py-2.5 sm:py-2">Edit Details</button>
+            <button type="button" onClick={() => onConfirmSave(buildFields())} className="btn-primary text-sm justify-center py-2.5 sm:py-2">Confirm &amp; Save</button>
           </div>
-          <button type="button" onClick={reset} className="text-xs text-gray-400 hover:text-gray-600">Scan a different image</button>
+          <button type="button" onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 py-2 sm:py-0">Scan a different image</button>
         </div>
       )}
     </div>

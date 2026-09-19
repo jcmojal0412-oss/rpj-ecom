@@ -126,18 +126,30 @@ export default function DailyRecordsClient() {
     }
   };
 
+  // Shared by the desktop table row and the phone card; `touch` only enlarges the hit area.
+  const recordActions = (r: Record, touch: boolean) => (
+    <div className="flex items-center justify-end gap-1">
+      <button onClick={() => { setEditing(r); setShowForm(true); }} className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700`}>
+        <Pencil size={14} />
+      </button>
+      <button onClick={() => setDeleting(r)} className={`${touch ? 'p-2.5' : 'p-1.5'} rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500`}>
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#233653]">Daily Records</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#233653]">Daily Records</h1>
           <p className="text-sm text-gray-500 mt-1">Enter each day's marketing spend, sales, buyers, and store visits — CAC, conversion, and ROAS are calculated automatically.</p>
         </div>
         <button
           onClick={() => { setEditing(null); setShowForm(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#233653] hover:bg-[#1b2941] text-white text-sm font-medium rounded-lg transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2 w-full sm:w-auto bg-[#233653] hover:bg-[#1b2941] text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus size={16} /> Add Record
         </button>
@@ -157,7 +169,8 @@ export default function DailyRecordsClient() {
             <p className="text-sm text-gray-400">No marketing records yet. Add your first daily entry to get started.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
@@ -188,20 +201,40 @@ export default function DailyRecordsClient() {
                     <td className="px-4 py-3 text-[#B68B3C] font-semibold whitespace-nowrap">{times(computeROAS(r.gross_sales, r.marketing_spend))}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs max-w-[180px] truncate">{r.notes || '—'}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => { setEditing(r); setShowForm(true); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleting(r)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {recordActions(r, false)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Phone: the 11-column table becomes one card per daily record. */}
+          <div className="md:hidden p-3 space-y-2.5">
+            {records.map(r => (
+              <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{formatDate(r.entry_date)}</p>
+                    <p className="text-xs text-gray-500">Gross Sales</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(r.gross_sales)}</p>
+                </div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Spend</dt><dd className="text-gray-700 tabular-nums">{formatCurrency(r.marketing_spend)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">ROAS</dt><dd className="text-[#B68B3C] font-semibold tabular-nums">{times(computeROAS(r.gross_sales, r.marketing_spend))}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Buyers</dt><dd className="text-gray-700 tabular-nums">{r.total_buyers.toLocaleString()}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">New Cust.</dt><dd className="text-gray-700 tabular-nums">{r.new_customers.toLocaleString()}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">CAC</dt><dd className="text-gray-700 tabular-nums">{money(computeCAC(r.marketing_spend, r.new_customers))}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-gray-400">Visits</dt><dd className="text-gray-700 tabular-nums">{r.store_visits.toLocaleString()}</dd></div>
+                  <div className="col-span-2 flex justify-between gap-2"><dt className="text-gray-400">Conversion</dt><dd className="text-gray-700 tabular-nums">{pct(computeConversionRate(r.total_buyers, r.store_visits))}</dd></div>
+                </dl>
+                {r.notes && <p className="mt-2 text-xs text-gray-500 break-words">{r.notes}</p>}
+                <div className="mt-2 pt-2 border-t border-gray-100">{recordActions(r, true)}</div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -222,9 +255,9 @@ export default function DailyRecordsClient() {
             <p className="text-sm text-gray-600">
               Delete marketing record for {formatDate(deleting.entry_date)}? This cannot be undone.
             </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+              <button onClick={handleDelete} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-3 sm:py-2 rounded-lg transition-colors">
                 Delete
               </button>
             </div>
@@ -340,7 +373,7 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={importing}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg hover:bg-[#F0F3F8] transition-colors disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 px-3 py-2.5 sm:py-1.5 w-full sm:w-auto bg-white border border-[#E5EAF0] text-[#16233B] text-xs font-medium rounded-lg hover:bg-[#F0F3F8] transition-colors disabled:opacity-50"
         >
           {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} className="text-[#66758A]" />}
           {importing ? 'Reading file...' : 'Import Gross Sales from POS Report'}
@@ -387,16 +420,16 @@ function RecordForm({ record, existingDates, onCancel, onSaved }: {
       </div>
 
       {/* Live-computed preview — these are never manually entered */}
-      <div className="bg-[#FBF8F1] border border-[#E9DFC7] rounded-lg p-3 grid grid-cols-2 gap-y-2 gap-x-3 text-xs">
+      <div className="bg-[#FBF8F1] border border-[#E9DFC7] rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-3 text-xs">
         <div className="flex justify-between"><span className="text-gray-500">CAC</span><span className="font-semibold text-gray-800">{money(computeCAC(spend, newCust))}</span></div>
         <div className="flex justify-between"><span className="text-gray-500">Conversion Rate</span><span className="font-semibold text-gray-800">{pct(computeConversionRate(buyers, visits))}</span></div>
         <div className="flex justify-between"><span className="text-gray-500">ROAS</span><span className="font-semibold text-[#B68B3C]">{times(computeROAS(sales, spend))}</span></div>
         <div className="flex justify-between"><span className="text-gray-500">Avg. Spend / Buyer</span><span className="font-semibold text-gray-800">{money(computeAvgSpendPerBuyer(sales, buyers))}</span></div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button onClick={handleSave} disabled={saving || !canSave} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+        <button onClick={onCancel} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+        <button onClick={handleSave} disabled={saving || !canSave} className="btn-primary justify-center py-3 sm:py-2 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
           {saving ? 'Saving...' : 'Save'}
         </button>

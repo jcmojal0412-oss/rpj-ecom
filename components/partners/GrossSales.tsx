@@ -68,6 +68,98 @@ export default function GrossSales() {
     'OLD PARTNER STARTER':'bg-gray-100 text-gray-600',
   };
 
+  // Active partners first (each list keeps the API's highest-to-lowest order),
+  // then inactive ones — shared by the desktop table and the phone cards.
+  const rankedRows = (() => {
+    const activeRows   = rows.filter(r => r.active !== 0);
+    const inactiveRows = rows.filter(r => r.active === 0);
+    const sorted = [...activeRows, ...inactiveRows];
+    let activeRank = 0;
+    return sorted.map((row, i) => {
+      const isActive = row.active !== 0;
+      if (isActive) activeRank++;
+      const showDivider = !isActive && i > 0 && sorted[i-1].active !== 0;
+      const rankEmoji = isActive
+        ? (activeRank === 1 ? '🥇' : activeRank === 2 ? '🥈' : activeRank === 3 ? '🥉' : `${activeRank}`)
+        : '—';
+      return { row, i, isActive, showDivider, rankEmoji };
+    });
+  })();
+
+  const subscriptionBadge = (row: SalesRow) => (
+    row.subscription ? (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subColors[row.subscription] ?? 'bg-gray-100 text-gray-600'}`}>
+        {row.subscription}
+      </span>
+    ) : <>—</>
+  );
+
+  const grossLabel = (row: SalesRow) => (
+    <span className={`font-bold ${row.gross_sales > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+      {row.gross_sales > 0 ? formatCurrency(row.gross_sales) : '—'}
+    </span>
+  );
+
+  // `big` only enlarges the tap targets for the phone card.
+  const activeToggle = (row: SalesRow, isActive: boolean, big: boolean) => (
+    <button
+      onClick={async () => {
+        await fetch(`/api/partners/${row.id}/toggle`, { method: 'POST' });
+        fetchSales();
+      }}
+      className={`relative inline-flex rounded-full transition-colors duration-200 focus:outline-none ${
+        big ? 'w-12 h-7' : 'w-10 h-5'
+      } ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 rounded-full bg-white shadow transition-transform duration-200 ${
+        big ? 'w-6 h-6' : 'w-4 h-4'
+      } ${
+        isActive ? (big ? 'translate-x-5' : 'translate-x-5') : 'translate-x-0'
+      }`} />
+    </button>
+  );
+
+  const rowActions = (row: SalesRow, big: boolean) => (
+    <div className="flex items-center justify-center gap-1">
+      <button
+        onClick={() => setAddingFor(row)}
+        className={`flex items-center gap-1 px-2 ${big ? 'py-2.5 px-3' : 'py-1'} bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 transition-colors`}
+      >
+        <Plus size={11} /> Add
+      </button>
+      {row.entry_count > 0 && (
+        <button
+          onClick={() => expanded === row.id ? setExpanded(null) : loadEntries(row.id)}
+          className={`${big ? 'p-2.5' : 'p-1'} rounded-lg hover:bg-gray-100 text-gray-400 transition-colors`}
+        >
+          {expanded === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      )}
+    </div>
+  );
+
+  const entriesList = (row: SalesRow) => (
+    <>
+      <p className="text-xs font-semibold text-gray-500 mb-2">Sales History</p>
+      <div className="space-y-1.5">
+        {entries.map(e => (
+          <div key={e.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs min-w-0">
+              <span className="font-bold text-green-700">{formatCurrency(e.amount)}</span>
+              {e.period_label && <span className="text-gray-600">{e.period_label}</span>}
+              {e.sale_date && <span className="text-gray-400">{new Date(e.sale_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
+              {e.notes && <span className="text-gray-400 italic">{e.notes}</span>}
+            </div>
+            <button onClick={() => deleteEntry(e.id, row.id)}
+              className="p-2 sm:p-1 shrink-0 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded transition-colors">
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <div className="space-y-4">
       {/* Header + Period Filter */}
@@ -79,7 +171,7 @@ export default function GrossSales() {
         <div className="flex flex-wrap items-center gap-1.5">
           {DATE_FILTERS.map(({ key, label }) => (
             <button key={key} onClick={() => setPeriod(key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              className={`px-3 py-2 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
                 period === key ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>{label}</button>
           ))}
@@ -88,25 +180,26 @@ export default function GrossSales() {
               type="month"
               value={selectedMonth}
               onChange={e => setSelectedMonth(e.target.value)}
-              className="form-input text-xs py-1.5 w-40"
+              className="form-input text-sm sm:text-xs py-2 sm:py-1.5 w-full sm:w-40"
             />
           )}
         </div>
       </div>
 
       {/* Total banner */}
-      <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-5 py-3 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-orange-700">
           Total Gross Sales — {DATE_FILTERS.find(f => f.key === period)?.label}
         </p>
-        <p className="text-2xl font-black text-orange-600">{formatCurrency(total)}</p>
+        <p className="text-xl sm:text-2xl font-black text-orange-600 shrink-0">{formatCurrency(total)}</p>
       </div>
 
       {/* Per partner table */}
       {loading ? (
         <div className="flex justify-center py-8"><Spinner /></div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <>
+        <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -127,19 +220,7 @@ export default function GrossSales() {
                   </td>
                 </tr>
               )}
-              {(() => {
-                const activeRows   = rows.filter(r => r.active !== 0);
-                const inactiveRows = rows.filter(r => r.active === 0);
-                const sorted = [...activeRows, ...inactiveRows];
-                let activeRank = 0;
-                return sorted.map((row, i) => {
-                const isActive = row.active !== 0;
-                if (isActive) activeRank++;
-                const showDivider = !isActive && i > 0 && sorted[i-1].active !== 0;
-                const rankEmoji = isActive
-                  ? (activeRank === 1 ? '🥇' : activeRank === 2 ? '🥈' : activeRank === 3 ? '🥉' : `${activeRank}`)
-                  : '—';
-                return (
+              {rankedRows.map(({ row, i, isActive, showDivider, rankEmoji }) => (
                 <Fragment key={row.id}>
                   {showDivider && (
                     <tr key={`divider-${row.id}`}>
@@ -156,88 +237,75 @@ export default function GrossSales() {
                       <p className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{row.name}</p>
                       {row.company_name && <p className="text-xs text-gray-400">{row.company_name}</p>}
                     </td>
-                    <td className="table-cell">
-                      {row.subscription ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subColors[row.subscription] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {row.subscription}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="table-cell text-right">
-                      <span className={`font-bold ${row.gross_sales > 0 ? 'text-green-700' : 'text-gray-400'}`}>
-                        {row.gross_sales > 0 ? formatCurrency(row.gross_sales) : '—'}
-                      </span>
-                    </td>
+                    <td className="table-cell">{subscriptionBadge(row)}</td>
+                    <td className="table-cell text-right">{grossLabel(row)}</td>
                     <td className="table-cell text-center text-gray-500">{row.entry_count}</td>
-                    <td className="table-cell text-center">
-                      <button
-                        onClick={async () => {
-                          await fetch(`/api/partners/${row.id}/toggle`, { method: 'POST' });
-                          fetchSales();
-                        }}
-                        className={`relative inline-flex w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${
-                          isActive ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                          isActive ? 'translate-x-5' : 'translate-x-0'
-                        }`} />
-                      </button>
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => setAddingFor(row)}
-                          className="flex items-center gap-1 px-2 py-1 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 transition-colors"
-                        >
-                          <Plus size={11} /> Add
-                        </button>
-                        {row.entry_count > 0 && (
-                          <button
-                            onClick={() => expanded === row.id ? setExpanded(null) : loadEntries(row.id)}
-                            className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
-                          >
-                            {expanded === row.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    <td className="table-cell text-center">{activeToggle(row, isActive, false)}</td>
+                    <td className="table-cell">{rowActions(row, false)}</td>
                   </tr>
 
                   {/* Expanded entries */}
                   {expanded === row.id && (
                     <tr>
                       <td colSpan={7} className="bg-blue-50/40 px-6 py-3">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">Sales History</p>
-                        <div className="space-y-1.5">
-                          {entries.map(e => (
-                            <div key={e.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                              <div className="flex items-center gap-3 text-xs">
-                                <span className="font-bold text-green-700">{formatCurrency(e.amount)}</span>
-                                {e.period_label && <span className="text-gray-600">{e.period_label}</span>}
-                                {e.sale_date && <span className="text-gray-400">{new Date(e.sale_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
-                                {e.notes && <span className="text-gray-400 italic">{e.notes}</span>}
-                              </div>
-                              <button onClick={() => deleteEntry(e.id, row.id)}
-                                className="p-1 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded transition-colors">
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                        {entriesList(row)}
                       </td>
                     </tr>
                   )}
                 </Fragment>
-                );
-              });
-              })()}
+              ))}
               {rows.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-sm">No onboarded partners yet.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Phone: the 7-column table cannot fit, so each partner becomes a
+            card with the same active toggle, Add button and sales history. */}
+        <div className="md:hidden space-y-2.5">
+          {rows.filter(r => r.active !== 0).length > 0 && (
+            <div className="px-3 py-2 bg-green-50 text-xs font-bold text-green-700 uppercase tracking-wider rounded-lg border border-green-100">
+              🟢 Active Partners — sorted highest to lowest
+            </div>
+          )}
+          {rankedRows.map(({ row, isActive, showDivider, rankEmoji }) => (
+            <Fragment key={row.id}>
+              {showDivider && (
+                <div className="px-3 py-2 bg-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider rounded-lg border border-gray-200">
+                  ⚫ Inactive Partners
+                </div>
+              )}
+              <div className={`rounded-xl border border-gray-200 bg-white p-3 ${!isActive ? 'opacity-50' : ''}`}>
+                <div className="flex items-start gap-3">
+                  <span className="text-base font-bold text-gray-500 w-6 text-center shrink-0">{rankEmoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-semibold break-words ${isActive ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{row.name}</p>
+                    {row.company_name && <p className="text-xs text-gray-400 break-words">{row.company_name}</p>}
+                    <div className="mt-1">{subscriptionBadge(row)}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {grossLabel(row)}
+                    <p className="text-[11px] text-gray-500 mt-0.5">{row.entry_count} entr{row.entry_count === 1 ? 'y' : 'ies'}</p>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                  {activeToggle(row, isActive, true)}
+                  {rowActions(row, true)}
+                </div>
+                {expanded === row.id && (
+                  <div className="mt-2 rounded-lg bg-blue-50/40 p-2">
+                    {entriesList(row)}
+                  </div>
+                )}
+              </div>
+            </Fragment>
+          ))}
+          {rows.length === 0 && (
+            <p className="text-center py-8 text-gray-400 text-sm">No onboarded partners yet.</p>
+          )}
+        </div>
+        </>
       )}
 
       {/* Add Sales Modal */}
@@ -317,9 +385,9 @@ function AddSalesForm({ partner, onSuccess, onCancel }: {
         <input className="form-input" placeholder="Additional info..."
           value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={saving || !amount} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={saving || !amount} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {saving ? 'Saving...' : 'Save Sales'}
         </button>
       </div>

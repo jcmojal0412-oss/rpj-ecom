@@ -64,22 +64,35 @@ export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: num
     }
   };
 
+  // Shared by the desktop table row and the phone card.
+  const voidButton = (m: Movement) => (
+    <button
+      onClick={() => voidMovement(m)}
+      disabled={voidingId === m.id}
+      title="Void this entry — reverses its effect on current stock"
+      className="flex items-center gap-1 py-2.5 md:py-0 text-gray-400 hover:text-red-600 disabled:opacity-50 text-xs font-medium"
+    >
+      {voidingId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
+      Void
+    </button>
+  );
+
   return (
-    <div className="card">
+    <div className="card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-base font-semibold text-gray-900">Stock Movement Log</h2>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
             <input
-              className="form-input w-48 text-xs pl-8"
+              className="form-input w-full sm:w-48 text-sm sm:text-xs pl-8"
               placeholder="Search SKU, product, note..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
           <select
-            className="form-input w-auto text-xs"
+            className="form-input w-full sm:w-auto text-sm sm:text-xs"
             value={days}
             onChange={e => setDays(e.target.value)}
           >
@@ -99,7 +112,8 @@ export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: num
       ) : filteredMoves.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-8">{search ? 'No movements match your search.' : 'No movements in this period.'}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -125,25 +139,44 @@ export default function MovementLog({ refreshKey, onVoided }: { refreshKey?: num
                       {m.note}
                       {voided && <span className="ml-2 badge-gray">VOIDED</span>}
                     </td>
-                    <td className="table-cell">
-                      {canVoid && (
-                        <button
-                          onClick={() => voidMovement(m)}
-                          disabled={voidingId === m.id}
-                          title="Void this entry — reverses its effect on current stock"
-                          className="flex items-center gap-1 text-gray-400 hover:text-red-600 disabled:opacity-50 text-xs font-medium"
-                        >
-                          {voidingId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
-                          Void
-                        </button>
-                      )}
-                    </td>
+                    <td className="table-cell">{canVoid && voidButton(m)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+
+        {/* Phone: the 7-column table can't fit, so each movement becomes a card. */}
+        <div className="md:hidden space-y-2.5">
+          {filteredMoves.map(m => {
+            const voided = !!m.voided_at;
+            const canVoid = isOwner && !voided && isManualNote(m.note);
+            return (
+              <div key={m.id} className={`rounded-xl border border-gray-200 bg-white p-3 ${voided ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs font-semibold text-gray-500">{m.sku}</p>
+                    <p className="text-sm font-semibold text-gray-900 break-words">{m.name}</p>
+                    <p className="text-xs text-gray-500">{formatDate(m.moved_at)}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-base font-bold tabular-nums ${voided ? 'line-through' : ''}`}>{m.quantity}</p>
+                    <span className={m.type === 'IN' ? 'badge-green' : 'badge-red'}>{m.type}</span>
+                  </div>
+                </div>
+                {(m.note || voided) && (
+                  <p className="mt-2 text-xs text-gray-500 break-words">
+                    {m.note}
+                    {voided && <span className="ml-2 badge-gray">VOIDED</span>}
+                  </p>
+                )}
+                {canVoid && <div className="mt-1 pt-1 border-t border-gray-100">{voidButton(m)}</div>}
+              </div>
+            );
+          })}
+        </div>
+        </>
       )}
     </div>
   );

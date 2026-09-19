@@ -181,9 +181,9 @@ export default function ProductForm({ initial, suggestedSku, onSuccess, onCancel
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
           {submitting ? 'Saving...' : initial ? 'Update Product' : 'Add Product'}
         </button>
       </div>

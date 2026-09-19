@@ -73,37 +73,63 @@ export default function DiscoveryCallsPage() {
   const pending = partners.filter(p => p.remarks === 'PENDING').length;
   const noShow  = partners.filter(p => p.remarks === 'NO SHOW').length;
 
+  const scheduleLabel = (p: Partner) => p.schedule ? new Date(p.schedule).toLocaleDateString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }) : '—';
+
+  // Shared by the desktop table row and the phone card; `touch` only enlarges the hit area.
+  const leadActions = (p: Partner, touch: boolean) => {
+    const pad = touch ? 'p-2.5' : 'p-1.5';
+    return (
+      <div className="flex gap-1">
+        <button onClick={() => setSmsTarget(p)}
+          className={`${pad} rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500`}>
+          <MessageSquare size={13} />
+        </button>
+        <button onClick={() => setEditing(p)}
+          className={`${pad} rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500`}>
+          <Pencil size={13} />
+        </button>
+        <button onClick={() => setDeleting(p)}
+          className={`${pad} rounded hover:bg-red-50 text-gray-400 hover:text-red-500`}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Discovery Calls</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Discovery Calls</h1>
           <p className="text-sm text-gray-500 mt-1">Prospects and scheduled discovery calls</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowAdd(true)} className="btn-primary">
+          <button onClick={() => setShowAdd(true)} className="btn-primary w-full sm:w-auto justify-center py-3 sm:py-2">
             <Plus size={16} /> Add Lead
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="card text-center">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-gray-900">{total}</p>
           <p className="text-xs text-gray-500">Total Leads</p>
         </div>
-        <div className="card text-center">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-green-700">{done}</p>
           <p className="text-xs text-gray-500">Call Done</p>
         </div>
-        <div className="card text-center">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-amber-600">{pending}</p>
           <p className="text-xs text-gray-500">Pending</p>
         </div>
-        <div className="card text-center">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-red-600">{noShow}</p>
           <p className="text-xs text-gray-500">No Show</p>
         </div>
@@ -111,15 +137,15 @@ export default function DiscoveryCallsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-0 max-w-xs">
+        <div className="relative w-full sm:w-auto sm:flex-1 min-w-0 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
           <input className="form-input pl-9" placeholder="Search name, contact..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 max-w-full overflow-x-auto">
           {STATUS_FILTERS.map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3 py-2.5 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 filter === f ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>{f}</button>
           ))}
@@ -132,10 +158,10 @@ export default function DiscoveryCallsPage() {
         <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-800">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-1.5">
+            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-2.5 sm:py-1.5">
               <MessageSquare size={13} /> Send SMS
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded hover:bg-blue-100 text-blue-600">
+            <button onClick={() => setSelectedIds(new Set())} className="p-2.5 lg:p-1.5 rounded hover:bg-blue-100 text-blue-600">
               <X size={14} />
             </button>
           </div>
@@ -143,7 +169,7 @@ export default function DiscoveryCallsPage() {
       )}
 
       {/* Table */}
-      <div className="card overflow-x-auto">
+      <div className="card p-3 sm:p-6 overflow-x-auto">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : partners.length === 0 ? (
@@ -155,6 +181,8 @@ export default function DiscoveryCallsPage() {
             </button>
           </div>
         ) : (
+          <>
+          <div className="hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -187,10 +215,7 @@ export default function DiscoveryCallsPage() {
                     ) : '—'}
                   </td>
                   <td className="table-cell text-xs text-gray-500">
-                    {p.schedule ? new Date(p.schedule).toLocaleDateString('en-PH', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit'
-                    }) : '—'}
+                    {scheduleLabel(p)}
                   </td>
                   <td className="table-cell">{remarksBadge(p.remarks)}</td>
                   <td className="table-cell">
@@ -201,25 +226,55 @@ export default function DiscoveryCallsPage() {
                     ) : '—'}
                   </td>
                   <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button onClick={() => setSmsTarget(p)}
-                        className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500">
-                        <MessageSquare size={13} />
-                      </button>
-                      <button onClick={() => setEditing(p)}
-                        className="p-1.5 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setDeleting(p)}
-                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                    {leadActions(p, false)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
+
+          {/* Phone: the 7-column table becomes one card per lead (same selection + action handlers). */}
+          <div className="md:hidden space-y-2.5">
+            <label className="flex items-center gap-2 px-1 py-1 text-xs font-medium text-gray-500">
+              <input type="checkbox" className="rounded border-gray-300 w-4 h-4"
+                checked={partners.length > 0 && selectedIds.size === partners.length}
+                onChange={toggleSelectAll} />
+              Select all
+            </label>
+            {partners.map(p => (
+              <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" className="rounded border-gray-300 w-4 h-4 mt-1 shrink-0"
+                    checked={selectedIds.has(p.id)} onChange={() => toggleSelected(p.id)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 break-words">{p.name}</p>
+                        {p.company_name && <p className="text-xs text-gray-400 break-words">{p.company_name}</p>}
+                      </div>
+                      <div className="shrink-0">{remarksBadge(p.remarks)}</div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                      {p.contact && (
+                        <a href={`tel:${p.contact}`} className="flex items-center gap-1 hover:text-orange-500">
+                          <Phone size={11} /> {p.contact}
+                        </a>
+                      )}
+                      {p.schedule && <span>{scheduleLabel(p)}</span>}
+                      {p.subscription && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          {p.subscription}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">{leadActions(p, true)}</div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -265,9 +320,9 @@ export default function DiscoveryCallsPage() {
         <Modal open={!!deleting} onClose={() => setDeleting(null)} title="Remove Lead" size="sm">
           <div className="space-y-4">
             <p className="text-sm text-gray-700">Sure ka bang i-remove si <span className="font-semibold">{deleting.name}</span>?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={() => handleDelete(deleting)} className="btn-danger"><Trash2 size={14} /> Remove</button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center py-3 sm:py-2">Cancel</button>
+              <button onClick={() => handleDelete(deleting)} className="btn-danger justify-center py-3 sm:py-2"><Trash2 size={14} /> Remove</button>
             </div>
           </div>
         </Modal>

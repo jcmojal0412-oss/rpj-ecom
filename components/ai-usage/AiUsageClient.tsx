@@ -59,9 +59,9 @@ export default function AiUsageClient() {
   const last7Cost = last7.reduce((s, d) => s + d.estimatedCostPhp, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Wallet size={22} className="text-orange-500" /> AI Usage</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2"><Wallet size={22} className="text-orange-500 shrink-0" /> AI Usage</h1>
         <p className="text-sm text-gray-500 mt-1">Estimated Claude API cost across all AI features (Ad Copy Generator text/photo/video, autofill). Owner-only.</p>
       </div>
 
@@ -71,27 +71,27 @@ export default function AiUsageClient() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="card">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="card p-4 sm:p-6">
               <p className="text-xs text-gray-400 font-medium">Today</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(today?.estimatedCostPhp ?? 0)}</p>
               <p className="text-xs text-gray-400 mt-1">{today?.calls ?? 0} generation{today?.calls === 1 ? '' : 's'} · {formatTokens((today?.inputTokens ?? 0) + (today?.outputTokens ?? 0))} tokens</p>
             </div>
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <p className="text-xs text-gray-400 font-medium">Last 7 Days</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(last7Cost)}</p>
               <p className="text-xs text-gray-400 mt-1">{last7.reduce((s, d) => s + d.calls, 0)} generations</p>
             </div>
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <p className="text-xs text-gray-400 font-medium">Last 30 Days</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(last30Cost)}</p>
               <p className="text-xs text-gray-400 mt-1">{daily.reduce((s, d) => s + d.calls, 0)} generations</p>
             </div>
           </div>
 
-          <div className="card">
+          <div className="card p-4 sm:p-6">
             <p className="text-sm font-semibold text-gray-700 mb-3">Daily Breakdown — Last 30 Days</p>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
@@ -115,16 +115,29 @@ export default function AiUsageClient() {
                 </tbody>
               </table>
             </div>
+
+            {/* Phone: the 5-column table is too wide, so each day is a compact row. */}
+            <div className="md:hidden">
+              {[...daily].reverse().map(d => (
+                <div key={d.date} className={`py-2 border-b border-gray-50 last:border-0 ${d.calls === 0 ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span>{formatDateLabel(d.date)}</span>
+                    <span className="font-medium">{formatCurrency(d.estimatedCostPhp)}</span>
+                  </div>
+                  <p className="text-xs mt-0.5 opacity-80">{d.calls} generation{d.calls === 1 ? '' : 's'} · in {formatTokens(d.inputTokens)} · out {formatTokens(d.outputTokens)}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {byFeature.length > 0 && (
-            <div className="card">
+            <div className="card p-4 sm:p-6">
               <p className="text-sm font-semibold text-gray-700 mb-3">By Feature — Last 30 Days</p>
               <div className="space-y-2">
                 {byFeature.map(f => (
-                  <div key={f.feature} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0">
+                  <div key={f.feature} className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 gap-y-0.5 text-sm border-b border-gray-50 pb-2 last:border-0">
                     <span className="text-gray-700">{FEATURE_LABELS[f.feature] || f.feature}</span>
-                    <span className="text-gray-400 text-xs">{f.calls} calls · {formatTokens(f.inputTokens + f.outputTokens)} tokens</span>
+                    <span className="text-gray-400 text-xs order-last sm:order-none w-full sm:w-auto">{f.calls} calls · {formatTokens(f.inputTokens + f.outputTokens)} tokens</span>
                     <span className="font-medium text-gray-900">{formatCurrency(f.estimatedCostPhp)}</span>
                   </div>
                 ))}

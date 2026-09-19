@@ -372,7 +372,7 @@ export default function BulkScanModal({
 
                 <button
                   onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                  className="text-gray-300 hover:text-red-400 shrink-0"
+                  className="p-2 -m-1 sm:p-0 sm:m-0 text-gray-300 hover:text-red-400 shrink-0"
                 >
                   <X size={14} />
                 </button>
@@ -408,12 +408,12 @@ export default function BulkScanModal({
                       onChange={e => update(i, { notes: e.target.value })}
                     />
                   </div>
-                  <div className="col-span-2 flex justify-end gap-2">
+                  <div className="col-span-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                     {item.duplicateOf && (
                       <button
                         onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
                         disabled={saving === i}
-                        className="btn-secondary text-xs py-1.5 disabled:opacity-50"
+                        className="btn-secondary justify-center text-xs py-2.5 sm:py-1.5 disabled:opacity-50"
                       >
                         Discard (it's a duplicate)
                       </button>
@@ -421,7 +421,7 @@ export default function BulkScanModal({
                     <button
                       onClick={() => item.duplicateOf ? saveDuplicateAnyway(i) : saveMatched(i)}
                       disabled={saving === i || !item.amount}
-                      className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                      className="btn-primary justify-center text-xs py-2.5 sm:py-1.5 disabled:opacity-50"
                     >
                       {saving === i ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
                       {saving === i ? 'Saving...' : item.duplicateOf ? 'Not a duplicate — Save' : 'Save Payment'}
@@ -445,13 +445,13 @@ export default function BulkScanModal({
       )}
 
       {pendingMatchCount > 1 && (
-        <button onClick={saveAll} className="btn-primary w-full justify-center">
+        <button onClick={saveAll} className="btn-primary w-full justify-center min-h-[44px] sm:min-h-0">
           Save All {pendingMatchCount} Payments
         </button>
       )}
 
       <div className="flex justify-end">
-        <button onClick={onClose} className="btn-secondary">Close</button>
+        <button onClick={onClose} className="btn-secondary min-h-[44px] sm:min-h-0">Close</button>
       </div>
     </div>
   );

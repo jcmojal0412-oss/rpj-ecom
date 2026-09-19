@@ -149,16 +149,72 @@ export default function PartnersClient() {
     'OLD PARTNER STARTER':'bg-gray-100 text-gray-600',
   };
 
+  // Shared by the desktop table and the phone card so both always show the
+  // same subscription badge, actions and expanded details.
+  const subscriptionBadge = (p: Partner) => (
+    p.subscription ? (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subColors[p.subscription] ?? 'bg-gray-100 text-gray-600'}`}>
+        {p.subscription}
+      </span>
+    ) : <>—</>
+  );
+
+  // `big` only enlarges the tap targets for the phone card.
+  const rowActions = (p: Partner, big: boolean) => {
+    const pad = big ? 'p-2.5' : 'p-1.5';
+    const iconSize = big ? 18 : 13;
+    return (
+      <div className="flex gap-1">
+        <button onClick={() => setSmsTarget(p)} className={`${pad} rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500`}>
+          <MessageSquare size={iconSize} />
+        </button>
+        <button onClick={() => setEditing(p)} className={`${pad} rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500`}>
+          <Pencil size={iconSize} />
+        </button>
+        <button onClick={() => setDeleting(p)} className={`${pad} rounded hover:bg-red-50 text-gray-400 hover:text-red-500`}>
+          <Trash2 size={iconSize} />
+        </button>
+      </div>
+    );
+  };
+
+  const partnerDetails = (p: Partner) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+      <div>
+        <p className="font-semibold text-gray-500 mb-1">CONTACT</p>
+        {p.contact && <p className="flex items-center gap-1"><Phone size={11} /> {p.contact}</p>}
+        {p.email && <p className="flex items-center gap-1 mt-1 break-all"><Mail size={11} className="shrink-0" /> {p.email}</p>}
+      </div>
+      <div>
+        <p className="font-semibold text-gray-500 mb-1">BANKING</p>
+        {p.bank && <p>{p.bank}</p>}
+        {p.acct_name && <p>{p.acct_name}</p>}
+        {p.acct_number && <p className="font-mono">{p.acct_number}</p>}
+      </div>
+      <div>
+        <p className="font-semibold text-gray-500 mb-1">DETAILS</p>
+        {p.referred_by && <p>Referred by: <span className="font-medium">{p.referred_by}</span></p>}
+        {p.assist_by && <p>Assisted by: <span className="font-medium">{p.assist_by}</span></p>}
+        {p.subscription && <p>Plan: <span className="font-medium">{p.subscription} — {formatCurrency(p.price)}</span></p>}
+      </div>
+      <div>
+        <p className="font-semibold text-gray-500 mb-1">SCHEDULE</p>
+        {p.schedule && <p>{new Date(p.schedule).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+        {p.notes && <p className="mt-1 text-gray-600 italic">{p.notes}</p>}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">SEDO Partners</h1>
           <p className="text-sm text-gray-500 mt-1">Discovery calls, onboarding, and partner records</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">
+        <button onClick={() => setShowAdd(true)} className="btn-primary min-h-[44px] sm:min-h-0">
           <Plus size={16} /> Add Partner
         </button>
       </div>
@@ -169,7 +225,7 @@ export default function PartnersClient() {
           <button
             key={key}
             onClick={() => setDatePeriod(key)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-full text-xs font-semibold transition-all ${
               datePeriod === key
                 ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -184,43 +240,43 @@ export default function PartnersClient() {
             type="month"
             value={selectedMonth}
             onChange={e => setSelectedMonth(e.target.value)}
-            className="form-input text-xs py-1.5 w-40"
+            className="form-input text-sm sm:text-xs py-2 sm:py-1.5 w-full sm:w-40"
           />
         )}
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="card text-center">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="card p-3 sm:p-6 text-center">
           <Users size={20} className="text-blue-500 mx-auto mb-1" />
           <p className="text-2xl font-bold text-gray-900">{total}</p>
           <p className="text-xs text-gray-500">Total Partners</p>
         </div>
-        <div className="card text-center">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-green-700">{onboarded}</p>
           <p className="text-xs text-gray-500">Onboarded</p>
         </div>
-        <div className="card text-center">
+        <div className="card p-3 sm:p-6 text-center">
           <p className="text-2xl font-bold text-orange-600">{adsRunning}</p>
           <p className="text-xs text-gray-500">Ads Running</p>
         </div>
-        <div className="card text-center">
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRev)}</p>
+        <div className="card p-3 sm:p-6 text-center">
+          <p className="text-lg sm:text-2xl font-bold text-gray-900">{formatCurrency(totalRev)}</p>
           <p className="text-xs text-gray-500">Total Subscriptions</p>
         </div>
       </div>
 
       {/* Filters + Search */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-0 max-w-xs">
+        <div className="relative flex-none w-full sm:w-auto sm:flex-1 min-w-0 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
           <input className="form-input pl-9" placeholder="Search name, company, email..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 max-w-full overflow-x-auto">
           {STATUS_FILTERS.map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 filter === f ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>{f}</button>
           ))}
@@ -233,10 +289,10 @@ export default function PartnersClient() {
         <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-blue-800">{selectedIds.size} selected</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-1.5">
+            <button onClick={() => setShowBulkSms(true)} className="btn-primary text-xs py-2.5 sm:py-1.5">
               <MessageSquare size={13} /> Send SMS
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded hover:bg-blue-100 text-blue-600">
+            <button onClick={() => setSelectedIds(new Set())} className="p-2.5 lg:p-1.5 rounded hover:bg-blue-100 text-blue-600">
               <X size={14} />
             </button>
           </div>
@@ -244,13 +300,14 @@ export default function PartnersClient() {
       )}
 
       {/* Partners Table */}
-      <div className="card overflow-x-auto">
+      <div className="card p-4 sm:p-6 overflow-x-auto">
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : partners.length === 0 ? (
           <p className="text-center text-gray-400 py-10 text-sm">No partners found.</p>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          <table className="w-full text-sm hidden md:table">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="table-header w-8">
@@ -279,60 +336,21 @@ export default function PartnersClient() {
                       {p.company_name && <p className="text-xs text-gray-500">{p.company_name}</p>}
                     </td>
                     <td className="table-cell text-gray-500 text-xs">{p.contact ?? '—'}</td>
-                    <td className="table-cell">
-                      {p.subscription ? (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${subColors[p.subscription] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {p.subscription}
-                        </span>
-                      ) : '—'}
-                    </td>
+                    <td className="table-cell">{subscriptionBadge(p)}</td>
                     <td className="table-cell">{remarksBadge(p.remarks)}</td>
                     <td className="table-cell text-center">{stageBadge(p.contract_signing, ['DONE',''])}</td>
                     <td className="table-cell text-center">{stageBadge(p.onboarding, ['DONE',''])}</td>
                     <td className="table-cell text-center">{stageBadge(p.start_ads, ['START',''])}</td>
                     <td className="table-cell text-xs text-gray-600">{p.commission ?? '—'}</td>
                     <td className="table-cell">
-                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setSmsTarget(p)} className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500">
-                          <MessageSquare size={13} />
-                        </button>
-                        <button onClick={() => setEditing(p)} className="p-1.5 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500">
-                          <Pencil size={13} />
-                        </button>
-                        <button onClick={() => setDeleting(p)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      <div onClick={e => e.stopPropagation()}>{rowActions(p, false)}</div>
                     </td>
                   </tr>
                   {/* Expanded detail row */}
                   {expanded === p.id && (
                     <tr className="bg-blue-50/50">
                       <td colSpan={10} className="px-6 py-4">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                          <div>
-                            <p className="font-semibold text-gray-500 mb-1">CONTACT</p>
-                            {p.contact && <p className="flex items-center gap-1"><Phone size={11} /> {p.contact}</p>}
-                            {p.email && <p className="flex items-center gap-1 mt-1"><Mail size={11} /> {p.email}</p>}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-500 mb-1">BANKING</p>
-                            {p.bank && <p>{p.bank}</p>}
-                            {p.acct_name && <p>{p.acct_name}</p>}
-                            {p.acct_number && <p className="font-mono">{p.acct_number}</p>}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-500 mb-1">DETAILS</p>
-                            {p.referred_by && <p>Referred by: <span className="font-medium">{p.referred_by}</span></p>}
-                            {p.assist_by && <p>Assisted by: <span className="font-medium">{p.assist_by}</span></p>}
-                            {p.subscription && <p>Plan: <span className="font-medium">{p.subscription} — {formatCurrency(p.price)}</span></p>}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-500 mb-1">SCHEDULE</p>
-                            {p.schedule && <p>{new Date(p.schedule).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
-                            {p.notes && <p className="mt-1 text-gray-600 italic">{p.notes}</p>}
-                          </div>
-                        </div>
+                        {partnerDetails(p)}
                       </td>
                     </tr>
                   )}
@@ -340,6 +358,51 @@ export default function PartnersClient() {
               ))}
             </tbody>
           </table>
+
+          {/* Phone: the 10-column table cannot fit, so each partner becomes a
+              card; tapping it expands the same detail block as a table row. */}
+          <div className="md:hidden space-y-2.5">
+            <label className="flex items-center gap-2.5 px-1 py-1 text-xs font-medium text-gray-500 cursor-pointer">
+              <input type="checkbox" className="w-5 h-5 rounded border-gray-300"
+                checked={partners.length > 0 && selectedIds.size === partners.length}
+                onChange={toggleSelectAll} />
+              Select all
+            </label>
+            {partners.map(p => (
+              <div key={p.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <div className="p-3 cursor-pointer" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 -m-2 p-2" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="block w-5 h-5 rounded border-gray-300"
+                        checked={selectedIds.has(p.id)} onChange={() => toggleSelected(p.id)} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 break-words">{p.name}</p>
+                      {p.company_name && <p className="text-xs text-gray-500 break-words">{p.company_name}</p>}
+                      {p.contact && <p className="text-xs text-gray-500 mt-0.5">{p.contact}</p>}
+                    </div>
+                    <div className="shrink-0">{remarksBadge(p.remarks)}</div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
+                    {subscriptionBadge(p)}
+                    <span>Contract {stageBadge(p.contract_signing, ['DONE',''])}</span>
+                    <span>Onboard {stageBadge(p.onboarding, ['DONE',''])}</span>
+                    <span>Ads {stageBadge(p.start_ads, ['START',''])}</span>
+                    {p.commission && <span>Commission: {p.commission}</span>}
+                  </div>
+                </div>
+                {expanded === p.id && (
+                  <div className="bg-blue-50/50 border-t border-blue-100 px-3 py-3">
+                    {partnerDetails(p)}
+                  </div>
+                )}
+                <div className="px-3 py-1.5 border-t border-gray-100 flex justify-end">
+                  {rowActions(p, true)}
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -378,9 +441,9 @@ export default function PartnersClient() {
         <Modal open={!!deleting} onClose={() => setDeleting(null)} title="Remove Partner" size="sm">
           <div className="space-y-4">
             <p className="text-sm text-gray-700">Sure ka bang i-remove si <span className="font-semibold">{deleting.name}</span>?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleting(null)} className="btn-secondary">Cancel</button>
-              <button onClick={() => handleDelete(deleting)} className="btn-danger"><Trash2 size={14} /> Remove</button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button onClick={() => setDeleting(null)} className="btn-secondary justify-center">Cancel</button>
+              <button onClick={() => handleDelete(deleting)} className="btn-danger justify-center"><Trash2 size={14} /> Remove</button>
             </div>
           </div>
         </Modal>

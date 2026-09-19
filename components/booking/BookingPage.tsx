@@ -291,7 +291,7 @@ export default function BookingPage() {
       <div className="relative w-full max-w-5xl rounded-3xl shadow-2xl shadow-[#0F2747]/10 border border-white overflow-hidden bg-white flex flex-col md:flex-row">
         <Sidebar />
 
-        <div className="flex-1 p-6 sm:p-8 md:p-10 min-w-0">
+        <div className="flex-1 p-4 sm:p-8 md:p-10 min-w-0">
           {view !== 'confirmed' && <ProgressIndicator />}
 
           {view === 'confirmed' ? (
@@ -347,7 +347,7 @@ export default function BookingPage() {
               <button
                 type="button"
                 onClick={() => setView('calendar')}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-[#0057B8] transition-colors -ml-1"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-[#0057B8] transition-colors -ml-1 py-2 sm:py-0"
               >
                 <ArrowLeft size={13} /> Back to calendar
               </button>
@@ -370,7 +370,7 @@ export default function BookingPage() {
                 <label htmlFor="booking-name" className="block text-sm font-semibold text-[#0F2747] mb-1.5">Full Name *</label>
                 <input
                   id="booking-name"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Juan Dela Cruz"
@@ -382,7 +382,7 @@ export default function BookingPage() {
                 <input
                   id="booking-email"
                   type="email"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="you@email.com"
@@ -398,7 +398,7 @@ export default function BookingPage() {
                     id="booking-contact"
                     type="tel"
                     inputMode="tel"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors"
                     value={contact}
                     onChange={e => setContact(e.target.value)}
                     placeholder={fieldConfig.contact === 'required' ? '09XX XXX XXXX' : '09XX XXX XXXX (optional)'}
@@ -414,7 +414,7 @@ export default function BookingPage() {
                   </label>
                   <textarea
                     id="booking-experience"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
                     rows={2}
                     value={businessExperience}
                     onChange={e => setBusinessExperience(e.target.value)}
@@ -430,7 +430,7 @@ export default function BookingPage() {
                   </label>
                   <textarea
                     id="booking-goal"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base sm:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0057B8]/40 focus:border-[#0057B8] transition-colors resize-none"
                     rows={2}
                     value={mainGoal}
                     onChange={e => setMainGoal(e.target.value)}
@@ -537,7 +537,7 @@ export default function BookingPage() {
                         type="button"
                         aria-pressed={!use24h}
                         onClick={() => setUse24h(false)}
-                        className={clsx('px-2 py-1 rounded', !use24h ? 'bg-white shadow-sm text-[#0057B8]' : 'text-gray-400')}
+                        className={clsx('px-3 py-2 sm:px-2 sm:py-1 rounded', !use24h ? 'bg-white shadow-sm text-[#0057B8]' : 'text-gray-400')}
                       >
                         12h
                       </button>
@@ -545,7 +545,7 @@ export default function BookingPage() {
                         type="button"
                         aria-pressed={use24h}
                         onClick={() => setUse24h(true)}
-                        className={clsx('px-2 py-1 rounded', use24h ? 'bg-white shadow-sm text-[#0057B8]' : 'text-gray-400')}
+                        className={clsx('px-3 py-2 sm:px-2 sm:py-1 rounded', use24h ? 'bg-white shadow-sm text-[#0057B8]' : 'text-gray-400')}
                       >
                         24h
                       </button>
@@ -567,7 +567,7 @@ export default function BookingPage() {
                             aria-pressed={isSel}
                             onClick={() => { setSelectedSlot(s); setView('form'); }}
                             className={clsx(
-                              'px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0057B8]',
+                              'px-2 sm:px-3 py-3 sm:py-2.5 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0057B8]',
                               isSel
                                 ? 'bg-[#0057B8] border-[#0057B8] text-white shadow-md'
                                 : 'bg-[#EAF3FF]/60 border-[#0057B8]/15 text-[#0057B8] hover:bg-[#0057B8] hover:text-white hover:border-[#0057B8]'

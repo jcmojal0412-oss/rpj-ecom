@@ -72,7 +72,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 shrink-0"
+      className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 flex items-center gap-1.5 shrink-0"
     >
       {copied ? <Check size={13} /> : <Copy size={13} />}
       {copied ? 'Copied' : label}
@@ -82,8 +82,8 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
 
 function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle?: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <Icon size={14} className="text-orange-500" />
+    <div className="flex flex-wrap items-center gap-x-1.5 min-w-0">
+      <Icon size={14} className="text-orange-500 shrink-0" />
       <p className="text-xs font-semibold text-gray-700">{title}</p>
       {subtitle && <span className="text-[10px] text-gray-400 font-normal">— {subtitle}</span>}
     </div>
@@ -312,17 +312,17 @@ export default function AdCopyGeneratorClient() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><PenTool size={22} className="text-orange-500" /> Ad Copy Generator</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2"><PenTool size={22} className="text-orange-500 shrink-0" /> Ad Copy Generator</h1>
         <p className="text-sm text-gray-500 mt-1">Generate FB ad creatives, BotCake chatbot prompts, and Messenger follow-up sequences for your products.</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
+      <div className="grid lg:grid-cols-2 gap-4 lg:gap-6 items-start">
         {/* LEFT: Inputs */}
-        <div className="card space-y-5">
+        <div className="card p-4 sm:p-6 space-y-5">
           <p className="text-sm font-semibold text-gray-700">Product Details</p>
 
           <div>
@@ -330,7 +330,7 @@ export default function AdCopyGeneratorClient() {
             {imagePreviewUrl ? (
               <div className="relative">
                 <img src={imagePreviewUrl} alt="Product" className="w-full h-40 object-contain bg-gray-50 rounded-lg border border-gray-200" />
-                <button onClick={() => onFileChange(null)} className="absolute top-2 right-2 btn-secondary text-xs py-1 px-2 bg-white">Remove</button>
+                <button onClick={() => onFileChange(null)} className="absolute top-2 right-2 btn-secondary text-xs py-2 sm:py-1 px-2 bg-white">Remove</button>
               </div>
             ) : (
               <button onClick={() => fileInputRef.current?.click()} className="w-full h-28 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-orange-300 hover:text-orange-500 transition-colors">
@@ -340,7 +340,7 @@ export default function AdCopyGeneratorClient() {
             )}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => onFileChange(e.target.files?.[0] || null)} />
             {imageFile && (
-              <button onClick={autofillFromImage} disabled={autofilling} className="btn-secondary text-xs py-1.5 px-3 mt-2 flex items-center gap-1.5 disabled:opacity-50">
+              <button onClick={autofillFromImage} disabled={autofilling} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 mt-2 flex items-center gap-1.5 disabled:opacity-50">
                 {autofilling ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                 {autofilling ? 'Analyzing...' : 'Auto-fill from image'}
               </button>
@@ -358,10 +358,10 @@ export default function AdCopyGeneratorClient() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <label className="form-label mb-0">Key Features <span className="text-gray-400 font-normal">— up to 5</span></label>
               {imageFile && (
-                <button onClick={generateFeaturesFromImage} disabled={generatingFeatures} className="text-xs text-orange-600 font-medium flex items-center gap-1 disabled:opacity-50">
+                <button onClick={generateFeaturesFromImage} disabled={generatingFeatures} className="text-xs text-orange-600 font-medium flex items-center gap-1 py-2 sm:py-0 disabled:opacity-50">
                   {generatingFeatures ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                   {generatingFeatures ? 'Generating...' : 'Generate with AI'}
                 </button>
@@ -372,13 +372,13 @@ export default function AdCopyGeneratorClient() {
                 <div key={i} className="flex gap-1.5">
                   <input type="text" className="form-input" value={f} onChange={e => setFeature(i, e.target.value)} placeholder={`Feature ${i + 1}`} />
                   {keyFeatures.length > 1 && (
-                    <button onClick={() => removeFeature(i)} className="btn-secondary px-2.5 shrink-0"><X size={14} /></button>
+                    <button onClick={() => removeFeature(i)} className="btn-secondary px-3 sm:px-2.5 shrink-0"><X size={14} /></button>
                   )}
                 </div>
               ))}
             </div>
             {keyFeatures.length < 5 && (
-              <button onClick={addFeature} className="text-xs text-orange-600 font-medium mt-1.5 flex items-center gap-1"><Plus size={13} /> Add feature</button>
+              <button onClick={addFeature} className="text-xs text-orange-600 font-medium mt-1.5 flex items-center gap-1 py-2 sm:py-0"><Plus size={13} /> Add feature</button>
             )}
           </div>
 
@@ -387,7 +387,7 @@ export default function AdCopyGeneratorClient() {
             <input type="text" className="form-input" value={targetAudience} onChange={e => setTargetAudience(e.target.value)} placeholder="e.g. Moms 25-40, budget-conscious" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Language</label>
               <select className="form-input" value={language} onChange={e => setLanguage(e.target.value as typeof LANGUAGES[number])}>
@@ -409,7 +409,7 @@ export default function AdCopyGeneratorClient() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Ad Objective</label>
               <select className="form-input" value={adObjective} onChange={e => setAdObjective(e.target.value as typeof AD_OBJECTIVES[number])}>
@@ -440,7 +440,7 @@ export default function AdCopyGeneratorClient() {
 
           <div className="border-t border-gray-100 pt-4 space-y-4">
             <p className="text-sm font-semibold text-gray-700">Shop Info</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Shop Name</label>
                 <input type="text" className="form-input" value={shopName} onChange={e => setShopName(e.target.value)} placeholder="e.g. Bodega ni Suki" />
@@ -461,7 +461,7 @@ export default function AdCopyGeneratorClient() {
               </label>
               <p className="text-[10px] text-gray-400 mt-1 ml-6">Hook, headline and caption won't show exact price. Promo mechanics like Buy 1 Take 1 can still be mentioned.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Delivery Time <span className="text-gray-400 font-normal">— optional</span></label>
                 <input type="text" className="form-input" value={deliveryTime} onChange={e => setDeliveryTime(e.target.value)} placeholder="3 to 6 days Luzon" />
@@ -476,7 +476,7 @@ export default function AdCopyGeneratorClient() {
               <textarea className="form-input" rows={2} value={legitimacyInfo} onChange={e => setLegitimacyInfo(e.target.value)} placeholder="e.g. 5000+ satisfied customers, DTI registered" />
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {LEGITIMACY_SUGGESTIONS.map(s => (
-                  <button key={s} onClick={() => addLegitimacySuggestion(s)} className="text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full px-2.5 py-1 hover:border-orange-300 hover:text-orange-600 transition-colors">+ {s}</button>
+                  <button key={s} onClick={() => addLegitimacySuggestion(s)} className="text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full px-2.5 py-2 sm:py-1 hover:border-orange-300 hover:text-orange-600 transition-colors">+ {s}</button>
                 ))}
               </div>
               <p className="text-[10px] text-gray-400 mt-1">Only add these if genuinely true for your business.</p>
@@ -496,7 +496,7 @@ export default function AdCopyGeneratorClient() {
         </div>
 
         {/* RIGHT: Output */}
-        <div className="card space-y-6 lg:sticky lg:top-6">
+        <div className="card p-4 sm:p-6 space-y-6 lg:sticky lg:top-6">
           <p className="text-sm font-semibold text-gray-700">Generated Content</p>
 
           {generating ? (
@@ -522,9 +522,9 @@ export default function AdCopyGeneratorClient() {
               {/* Choose Your Hook — only affects adCreatives[0] */}
               {result.hookOptions.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <SectionHeader icon={Sparkles} title="Choose Your Hook" subtitle="for the first ad" />
-                    <button onClick={() => regenerateHook()} disabled={regeneratingHook} className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50">
+                    <button onClick={() => regenerateHook()} disabled={regeneratingHook} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 flex items-center gap-1.5 disabled:opacity-50 shrink-0">
                       {regeneratingHook ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                       Generate 3 New Hooks
                     </button>
@@ -540,7 +540,7 @@ export default function AdCopyGeneratorClient() {
                             {active && <span className="text-[10px] font-semibold text-orange-600">● Active</span>}
                           </div>
                           <p className="text-sm font-bold text-gray-900">{h.hook}</p>
-                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || active} className="btn-secondary text-xs py-1 px-2.5 disabled:opacity-50">
+                          <button onClick={() => regenerateHook(h.hook, h.angle)} disabled={regeneratingHook || active} className="btn-secondary text-xs py-2.5 sm:py-1 px-2.5 disabled:opacity-50">
                             {active ? 'In Use' : 'Use This Hook'}
                           </button>
                         </div>
@@ -556,14 +556,14 @@ export default function AdCopyGeneratorClient() {
                 const fullAd = [v.hook, v.headline, v.primaryText].filter(Boolean).join('\n\n');
                 return (
                   <div key={i} className="space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <SectionHeader icon={Megaphone} title={isBest ? 'Best Ad Copy' : `Alternative Ad Version ${i + 1}`} subtitle={v.angle || (isBest ? 'FB Ads Manager' : undefined)} />
                       {isBest && <CopyButton text={fullAd} label="Copy Full Ad" />}
                     </div>
                     <div className={`rounded-lg p-3 space-y-2.5 ${isBest ? 'border-2 border-orange-200 bg-orange-50/40' : 'border border-gray-200'}`}>
                       {v.hook && (
                         <div>
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] font-semibold text-gray-400 uppercase">Hook</span>
                             <CopyButton text={v.hook} />
                           </div>
@@ -572,7 +572,7 @@ export default function AdCopyGeneratorClient() {
                       )}
 
                       <div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-semibold text-gray-400 uppercase">Headline</span>
                           <CopyButton text={v.headline} />
                         </div>
@@ -580,7 +580,7 @@ export default function AdCopyGeneratorClient() {
                       </div>
 
                       <div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-semibold text-gray-400 uppercase">Caption / Primary Text</span>
                           <CopyButton text={v.primaryText} />
                         </div>
@@ -593,7 +593,7 @@ export default function AdCopyGeneratorClient() {
 
               {/* Main Flow — support output for chat automation, shown after the ad copy itself */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <SectionHeader icon={MessageCircle} title="Main Flow" subtitle="First Auto-Reply" />
                   <CopyButton text={result.mainFlowReply} />
                 </div>
@@ -605,7 +605,7 @@ export default function AdCopyGeneratorClient() {
               {/* Messaging Template — from the Best Ad Copy variant */}
               {result.adCreatives[0]?.messagingTemplate && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <SectionHeader icon={MessageSquareText} title="Messaging Template" subtitle="Send Message click-through" />
                     <CopyButton text={result.adCreatives[0].messagingTemplate} />
                   </div>
@@ -629,30 +629,30 @@ export default function AdCopyGeneratorClient() {
 
               {/* BotCake Sales Prompt */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <SectionHeader icon={Bot} title="BotCake Sales Prompt" subtitle="paste into BotCake AI" />
                   <CopyButton text={result.salesPrompt} />
                 </div>
                 <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 max-h-56 overflow-y-auto">
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{result.salesPrompt}</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono">{result.salesPrompt}</p>
                 </div>
               </div>
 
               {/* BotCake After-Sales Prompt */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <SectionHeader icon={Headset} title="BotCake After-Sales Prompt" subtitle="paste into BotCake AI" />
                   <CopyButton text={result.afterSalesPrompt} />
                 </div>
                 <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 max-h-56 overflow-y-auto">
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{result.afterSalesPrompt}</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono">{result.afterSalesPrompt}</p>
                 </div>
               </div>
 
               {/* Follow-up Sequence */}
               {result.followUpMessages.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <SectionHeader icon={MessageSquareText} title="Follow-up Sequence" subtitle={`${result.followUpMessages.length} msg · uses {{first_name}} / {{PRICING}}`} />
                     <CopyButton text={result.followUpMessages.map((m, i) => `${i + 1}. ${m}`).join('\n\n')} label="Copy all" />
                   </div>
@@ -660,7 +660,7 @@ export default function AdCopyGeneratorClient() {
                     {result.followUpMessages.map((m, i) => (
                       <div key={i} className="flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 p-3">
                         <span className="text-xs font-semibold text-gray-400 mt-0.5 shrink-0">#{i + 1}</span>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{m}</p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1 min-w-0">{m}</p>
                         <CopyButton text={m} />
                       </div>
                     ))}

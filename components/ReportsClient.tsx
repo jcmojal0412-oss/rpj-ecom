@@ -87,20 +87,20 @@ export default function ReportsClient() {
   }).filter(r => r.shrinkage !== 0);
 
   return (
-    <div className="p-6 space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-6 sm:space-y-8">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-sm text-gray-500 mt-1">Inventory analytics and audit reports</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/reports/inventory-movement" className="btn-secondary text-sm">Beginning &amp; Ending Inventory →</Link>
-          <Link href="/reports/profit-loss" className="btn-secondary text-sm">Profit &amp; Loss →</Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href="/reports/inventory-movement" className="btn-secondary text-sm py-2.5 sm:py-2">Beginning &amp; Ending Inventory →</Link>
+          <Link href="/reports/profit-loss" className="btn-secondary text-sm py-2.5 sm:py-2">Profit &amp; Loss →</Link>
         </div>
       </div>
 
       {/* Category Value Chart */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Inventory Value by Category</h2>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={categoryData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -111,11 +111,11 @@ export default function ReportsClient() {
             <Bar dataKey="value" name="Inventory Value" fill="#16a34a" radius={[4,4,0,0]} maxBarSize={60} />
           </BarChart>
         </ResponsiveContainer>
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {categoryData.map(cat => (
             <div key={cat.category} className="bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500">{cat.category}</p>
-              <p className="text-lg font-bold text-gray-900">{formatCurrency(cat.value)}</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900">{formatCurrency(cat.value)}</p>
               <p className="text-xs text-gray-500">{cat.items} SKUs</p>
             </div>
           ))}
@@ -123,10 +123,34 @@ export default function ReportsClient() {
       </div>
 
       {/* Stock Aging */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Stock Aging Report</h2>
         <p className="text-xs text-gray-500 mb-3">Days since last stock out. Flagged at 30/60/90+ days.</p>
-        <div className="overflow-x-auto">
+        {/* Phone: the 7-column table can't fit, so each product is a card. */}
+        <div className="md:hidden space-y-2.5">
+          {agingRows.slice(0, 20).map(row => (
+            <div key={row.id} className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-900">{row.name}</p>
+                  <p className="text-xs text-gray-500"><span className="font-mono font-semibold text-gray-600">{row.sku}</span>{row.category ? ` · ${row.category}` : ''}</p>
+                </div>
+                <div className="shrink-0">
+                  {row.flag === '90+ days' && <span className="badge-red">{row.flag}</span>}
+                  {row.flag === '60+ days' && <span className="badge-amber">{row.flag}</span>}
+                  {row.flag === '30+ days' && <span className="badge-gray">{row.flag}</span>}
+                  {!row.flag && <span className="text-green-600 text-xs font-medium">Active</span>}
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                <span>Stock <span className="font-semibold text-gray-800">{row.quantity}</span></span>
+                <span>Last out <span className="font-medium text-gray-800">{row.lastOut ? formatDate(row.lastOut) : 'Never'}</span></span>
+                <span>Days since out <span className="font-medium text-gray-800">{row.daysSince === 999 ? '—' : row.daysSince}</span></span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -158,7 +182,7 @@ export default function ReportsClient() {
       </div>
 
       {/* Shrinkage Audit */}
-      <div className="card">
+      <div className="card p-4 sm:p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Inventory Shrinkage Audit</h2>
         <p className="text-xs text-gray-500 mb-3">
           Products where expected stock (IN − OUT) doesn't match actual quantity on hand (last 90 days).
@@ -166,7 +190,31 @@ export default function ReportsClient() {
         {shrinkageRows.length === 0 ? (
           <p className="text-sm text-green-700 font-medium">✓ No shrinkage detected across all products.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phone: the 7-column table can't fit, so each product is a card. */}
+          <div className="md:hidden space-y-2.5">
+            {shrinkageRows.map(row => (
+              <div key={row.id} className="rounded-xl border border-red-100 bg-red-50/40 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{row.name}</p>
+                    <p className="text-xs font-mono font-semibold text-gray-600">{row.sku}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-bold text-red-700 tabular-nums">{row.shrinkage > 0 ? `-${row.shrinkage}` : `+${Math.abs(row.shrinkage)}`}</p>
+                    <p className="text-[10px] text-gray-400">shrinkage</p>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                  <span>Total IN <span className="font-medium text-green-700">{row.totalIn}</span></span>
+                  <span>Total OUT <span className="font-medium text-red-600">{row.totalOut}</span></span>
+                  <span>Expected <span className="font-medium text-gray-800">{row.expected}</span></span>
+                  <span>Actual <span className="font-semibold text-gray-800">{row.actual}</span></span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -190,6 +238,7 @@ export default function ReportsClient() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

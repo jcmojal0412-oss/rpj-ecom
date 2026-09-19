@@ -65,7 +65,7 @@ export default function BulkSmsModal({
             {result.failed > 0 && <p><span className="font-semibold text-red-600">{result.failed}</span> failed to send</p>}
             {result.noContact > 0 && <p><span className="font-semibold text-gray-500">{result.noContact}</span> skipped (no mobile number)</p>}
           </div>
-          <button onClick={onClose} className="btn-primary mx-auto">Done</button>
+          <button onClick={onClose} className="btn-primary mx-auto min-h-[44px] sm:min-h-0">Done</button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -92,9 +92,9 @@ export default function BulkSmsModal({
             />
             <p className="text-xs text-gray-400 mt-1">{message.length}/480 characters</p>
           </div>
-          <div className="flex justify-end gap-3">
-            <button onClick={onClose} className="btn-secondary">Cancel</button>
-            <button onClick={handleSend} disabled={sending || !message.trim() || withContact.length === 0} className="btn-primary disabled:opacity-50">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <button onClick={onClose} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Cancel</button>
+            <button onClick={handleSend} disabled={sending || !message.trim() || withContact.length === 0} className="btn-primary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
               {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {sending ? 'Sending...' : `Send to ${withContact.length}`}
             </button>

@@ -10,16 +10,16 @@ export default function AdCopyGeneratorTabs() {
 
   return (
     <div>
-      <div className="px-6 pt-4 flex gap-2 border-b border-gray-100">
+      <div className="px-3 sm:px-4 lg:px-6 pt-4 flex gap-2 border-b border-gray-100 overflow-x-auto sm:overflow-visible">
         <button
           onClick={() => setTab('text')}
-          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 border-b-2 -mb-px transition-colors ${tab === 'text' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap text-sm font-medium px-3 py-3 sm:py-2 border-b-2 -mb-px transition-colors ${tab === 'text' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
           <PenTool size={14} /> Text / Photo
         </button>
         <button
           onClick={() => setTab('video')}
-          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 border-b-2 -mb-px transition-colors ${tab === 'video' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap text-sm font-medium px-3 py-3 sm:py-2 border-b-2 -mb-px transition-colors ${tab === 'video' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
           <Video size={14} /> Video
         </button>

@@ -15,21 +15,21 @@ export default function ComingSoon({
 }) {
   const Icon = ICONS[icon];
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-orange-100 rounded-xl">
+        <div className="p-2 bg-orange-100 rounded-xl shrink-0">
           <Icon className="text-orange-500" size={22} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{title}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
           </div>
-          <span className="badge-amber ml-2">Coming Soon</span>
+          <span className="badge-amber sm:ml-2">Coming Soon</span>
         </div>
       </div>
 
-      <div className="card opacity-60 pointer-events-none select-none space-y-4 max-w-xl">
+      <div className="card p-4 sm:p-6 opacity-60 pointer-events-none select-none space-y-4 max-w-xl">
         {fields.map(f => (
           <div key={f}>
             <label className="form-label">{f}</label>
@@ -39,7 +39,7 @@ export default function ComingSoon({
         <button className="btn-primary justify-center w-full" disabled>{buttonLabel}</button>
       </div>
 
-      <div className="card bg-blue-50 border-blue-100 flex items-center gap-3 max-w-xl">
+      <div className="card p-4 sm:p-6 bg-blue-50 border-blue-100 flex items-center gap-3 max-w-xl">
         <Clock className="text-blue-500 shrink-0" size={20} />
         <p className="text-sm text-blue-700">Feature under development. This module will go live in a future phase.</p>
       </div>

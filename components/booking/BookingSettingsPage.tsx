@@ -255,20 +255,20 @@ export default function BookingSettingsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">SEDO Bookings</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SEDO Bookings</h1>
         <p className="text-sm text-gray-500 mt-1">Weekly availability, Zoom, Google Calendar, and booking form settings</p>
       </div>
 
-      <div className="flex gap-1">
+      <div className="flex gap-1 max-w-full overflow-x-auto">
         {(['bookings', 'availability', 'experience'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors ${
               tab === t ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -292,7 +292,7 @@ export default function BookingSettingsPage() {
                   </div>
                 </div>
                 {zoomLink && (
-                  <button onClick={copyZoomLink} className="btn-secondary text-xs py-1.5 shrink-0">
+                  <button onClick={copyZoomLink} className="btn-secondary text-xs py-2.5 sm:py-1.5 shrink-0">
                     {copiedZoom ? <Check size={13} /> : <Copy size={13} />}
                     {copiedZoom ? 'Copied' : 'Copy'}
                   </button>
@@ -347,7 +347,7 @@ export default function BookingSettingsPage() {
 
             {overview.past.length > 0 && (
               <div>
-                <button onClick={() => setShowPast(p => !p)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-2">
+                <button onClick={() => setShowPast(p => !p)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-2 py-2 sm:py-0">
                   {showPast ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   Past ({overview.past.length})
                 </button>
@@ -392,13 +392,13 @@ export default function BookingSettingsPage() {
         loadingAvailability ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : (
-          <div className="card space-y-5">
+          <div className="card p-3 sm:p-6 space-y-5">
             <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-gray-500">Public Booking Link</p>
                 <p className="text-sm text-gray-800 truncate">{bookingUrl}</p>
               </div>
-              <button onClick={copyLink} className="btn-secondary text-xs py-1.5 shrink-0">
+              <button onClick={copyLink} className="btn-secondary text-xs py-2.5 sm:py-1.5 shrink-0">
                 {copied ? <Check size={13} /> : <Copy size={13} />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
@@ -420,12 +420,12 @@ export default function BookingSettingsPage() {
                 </div>
                 {gcalStatus?.configured && (
                   gcalStatus.connected ? (
-                    <button onClick={handleDisconnectGcal} disabled={disconnecting} className="btn-secondary text-xs py-1.5 shrink-0 disabled:opacity-50">
+                    <button onClick={handleDisconnectGcal} disabled={disconnecting} className="btn-secondary text-xs py-2.5 sm:py-1.5 shrink-0 disabled:opacity-50">
                       {disconnecting ? <Loader2 size={13} className="animate-spin" /> : null}
                       Disconnect
                     </button>
                   ) : (
-                    <a href="/api/settings/google-calendar/connect" className="btn-primary text-xs py-1.5 shrink-0">
+                    <a href="/api/settings/google-calendar/connect" className="btn-primary text-xs py-2.5 sm:py-1.5 shrink-0">
                       <ExternalLink size={13} /> Connect
                     </a>
                   )
@@ -441,7 +441,7 @@ export default function BookingSettingsPage() {
               <p className="text-xs text-gray-400 mt-1">Shown to the customer right after they book.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Call Duration (minutes)</label>
                 <input type="number" min={15} step={15} className="form-input"
@@ -465,21 +465,21 @@ export default function BookingSettingsPage() {
                         <span className="text-sm font-medium text-gray-700 w-24 shrink-0">{name}</span>
                         {ranges.length === 0 && <span className="text-xs text-gray-400">Unavailable</span>}
                         <button type="button" onClick={() => addRange(day)}
-                          className="p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600">
+                          className="p-2.5 lg:p-1 rounded hover:bg-orange-100 text-gray-400 hover:text-orange-600">
                           <Plus size={14} />
                         </button>
                       </div>
                       {ranges.length > 0 && (
                         <div className="space-y-1.5 mt-1.5">
                           {ranges.map((r, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <input type="time" className="form-input py-1 text-xs w-auto" value={r.start_time}
+                            <div key={i} className="flex flex-wrap items-center gap-2">
+                              <input type="time" className="form-input py-2 sm:py-1 text-xs w-auto" value={r.start_time}
                                 onChange={e => updateRange(day, i, { start_time: e.target.value })} />
                               <span className="text-gray-400 text-xs">to</span>
-                              <input type="time" className="form-input py-1 text-xs w-auto" value={r.end_time}
+                              <input type="time" className="form-input py-2 sm:py-1 text-xs w-auto" value={r.end_time}
                                 onChange={e => updateRange(day, i, { end_time: e.target.value })} />
                               <button type="button" onClick={() => removeRange(day, i)}
-                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                                className="p-2.5 lg:p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
                                 <X size={14} />
                               </button>
                             </div>
@@ -493,7 +493,7 @@ export default function BookingSettingsPage() {
             </div>
 
             <div className="flex justify-end pt-2">
-              <button onClick={handleSaveAvailability} disabled={savingAvailability} className="btn-primary disabled:opacity-50">
+              <button onClick={handleSaveAvailability} disabled={savingAvailability} className="btn-primary w-full sm:w-auto justify-center py-3 sm:py-2 disabled:opacity-50">
                 {savingAvailability ? <Loader2 size={14} className="animate-spin" /> : null}
                 {savingAvailability ? 'Saving...' : 'Save Availability'}
               </button>
@@ -504,7 +504,7 @@ export default function BookingSettingsPage() {
         loadingFields ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : (
-          <div className="card space-y-5">
+          <div className="card p-3 sm:p-6 space-y-5">
             <p className="text-sm text-gray-500">Control which optional fields appear on the public booking form.</p>
 
             {([
@@ -512,15 +512,15 @@ export default function BookingSettingsPage() {
               { key: 'experience', label: 'Current Business / Experience' },
               { key: 'goal', label: 'Main Goal for Joining' },
             ] as const).map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-4 py-3">
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 bg-gray-50 rounded-lg px-4 py-3">
                 <span className="text-sm font-medium text-gray-700">{label}</span>
-                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5 w-full sm:w-auto">
                   {FIELD_MODES.map(m => (
                     <button
                       key={m.value}
                       type="button"
                       onClick={() => setFieldConfig(prev => ({ ...prev, [key]: m.value }))}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                      className={`flex-1 sm:flex-none px-3 py-2.5 sm:py-1.5 rounded-md text-xs font-semibold transition-colors ${
                         fieldConfig[key] === m.value ? 'bg-white shadow-sm text-orange-600' : 'text-gray-500'
                       }`}
                     >
@@ -532,7 +532,7 @@ export default function BookingSettingsPage() {
             ))}
 
             <div className="flex justify-end pt-2">
-              <button onClick={handleSaveFields} disabled={savingFields} className="btn-primary disabled:opacity-50">
+              <button onClick={handleSaveFields} disabled={savingFields} className="btn-primary w-full sm:w-auto justify-center py-3 sm:py-2 disabled:opacity-50">
                 {savingFields ? <Loader2 size={14} className="animate-spin" /> : null}
                 {savingFields ? 'Saving...' : 'Save Booking Experience'}
               </button>

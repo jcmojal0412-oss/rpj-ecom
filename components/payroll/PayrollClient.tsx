@@ -75,17 +75,17 @@ export default function PayrollClient() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 max-w-5xl mx-auto">
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
       {view === 'list' ? (
         <>
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payroll</h1>
               <p className="text-sm text-gray-500 mt-1">Simple, guided payroll — one period at a time.</p>
             </div>
-            <button onClick={() => setShowSettings(true)} className="btn-secondary text-sm shrink-0">
+            <button onClick={() => setShowSettings(true)} className="btn-secondary text-sm shrink-0 py-2.5 sm:py-2">
               <Settings size={15} /> Payroll Settings
             </button>
           </div>
@@ -151,7 +151,7 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
 
   return (
     <div className="space-y-4">
-      <button onClick={onStartNew} className="btn-primary text-base py-3 px-6">
+      <button onClick={onStartNew} className="btn-primary text-base py-3 px-6 w-full sm:w-auto justify-center">
         <Plus size={18} /> Generate New Payroll
       </button>
 
@@ -161,7 +161,8 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
         ) : periods.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-12">No payroll periods yet. Click "Generate New Payroll" to create your first one.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -201,6 +202,35 @@ function PeriodList({ periods, loading, onOpen, onStartNew, onRefresh, showToast
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per payroll period instead of the 8-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {periods.map(p => (
+              <div key={p.id} onClick={() => onOpen(p)} className="rounded-xl border border-gray-200 bg-white p-3 cursor-pointer active:bg-gray-50">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-900 min-w-0">{p.label}</p>
+                  <span className={`shrink-0 ${STATUS_BADGE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {p.schedule ? PAYROLL_SCHEDULE_LABELS[p.schedule as PayrollScheduleId] : '—'} · Pay Date: {p.pay_date ? formatDate(p.pay_date) : '—'} · {p.employee_count} employee{p.employee_count === 1 ? '' : 's'}
+                </p>
+                <p className="mt-1.5 text-base font-bold text-gray-900 tabular-nums">{formatCurrency(p.total_net_pay)} <span className="text-xs font-medium text-gray-500">total net pay</span></p>
+                <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-orange-600 text-xs font-medium">Open →</span>
+                  <button
+                    onClick={e => voidPeriod(e, p)}
+                    disabled={voidingId === p.id}
+                    title={p.payslips_generated_at ? 'Void — payslips already generated, employees may have seen theirs' : 'Void payroll period'}
+                    className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors px-3 py-2.5 rounded-lg text-xs font-medium"
+                  >
+                    {voidingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                    Void
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -258,7 +288,7 @@ function PayrollSettingsForm({ onClose, showToast }: { onClose: () => void; show
         OT and Late are both billed in fixed 30-minute blocks (OT rounds down to the last completed block, Late rounds up) — not adjustable here.
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
         <button onClick={onClose} className="btn-secondary text-sm">Cancel</button>
         <button onClick={save} disabled={saving} className="btn-primary text-sm disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -307,19 +337,19 @@ function PayrollWizard({ periodId, initialStep, onBackToList, onGenerated, showT
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <button onClick={onBackToList} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 py-2 -my-2">
         <ArrowLeft size={15} /> Back to Payroll List
       </button>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 overflow-x-auto sm:overflow-visible sm:flex-wrap">
         {STEP_LABELS.map((label, i) => {
           const n = i + 1;
           const active = n === step;
           const done = n < step;
           return (
-            <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            <div key={label} className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold ${
               active ? 'bg-orange-500 text-white' : done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
             }`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/20' : ''}`}>{n}</span>
@@ -388,18 +418,18 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
   };
 
   return (
-    <div className="card space-y-5">
+    <div className="card p-4 sm:p-6 space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Select a payroll period</p>
         <p className="text-sm text-gray-500 mt-0.5">Choose the schedule and cutoff you want to run payroll for.</p>
       </div>
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center flex-wrap gap-2">
         {(['A', 'B'] as PayrollScheduleId[]).map(s => (
           <button
             key={s}
             onClick={() => changeSchedule(s)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`px-4 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors ${
               schedule === s ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -409,9 +439,9 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
       </div>
 
       <div className="flex items-center justify-center gap-4">
-        <button onClick={() => changeMonth(-1)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronLeft size={18} /></button>
+        <button onClick={() => changeMonth(-1)} className="p-2.5 sm:p-2 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronLeft size={18} /></button>
         <span className="text-sm font-semibold text-gray-800 w-40 text-center">{monthName} {year}</span>
-        <button onClick={() => changeMonth(1)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronRight size={18} /></button>
+        <button onClick={() => changeMonth(1)} className="p-2.5 sm:p-2 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronRight size={18} /></button>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
@@ -422,7 +452,7 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
               key={c.from}
               onClick={() => select(i)}
               disabled={notEnded}
-              className={`rounded-2xl border-2 p-6 text-left transition-colors ${
+              className={`rounded-2xl border-2 p-4 sm:p-6 text-left transition-colors ${
                 notEnded ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed' :
                 selected === i ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -443,7 +473,7 @@ function StepSelectPeriod({ onSelected }: { onSelected: (range: PeriodRange) => 
         </div>
       )}
 
-      <button onClick={next} disabled={selected === null} className="btn-primary text-base py-3 px-8 disabled:opacity-50">
+      <button onClick={next} disabled={selected === null} className="btn-primary text-base py-3 px-8 w-full sm:w-auto justify-center disabled:opacity-50">
         Next: Generate Payroll
       </button>
     </div>
@@ -474,7 +504,7 @@ function StepGeneratePayroll({ range, onGenerated, showToast }: { range: PeriodR
   };
 
   return (
-    <div className="card space-y-5 text-center">
+    <div className="card p-4 sm:p-6 space-y-5 text-center">
       <div>
         <p className="text-base font-semibold text-gray-900">Ready to generate payroll</p>
         <p className="text-sm text-gray-500 mt-1">{range.label}</p>
@@ -484,7 +514,7 @@ function StepGeneratePayroll({ range, onGenerated, showToast }: { range: PeriodR
         This will automatically pull in attendance, approved overtime, and leave records for every employee in this period.
       </p>
       {error && <p className="text-sm text-red-500">{error}</p>}
-      <button onClick={generate} disabled={generating} className="btn-primary text-base py-3 px-8 disabled:opacity-50 mx-auto">
+      <button onClick={generate} disabled={generating} className="btn-primary text-base py-3 px-8 disabled:opacity-50 mx-auto w-full sm:w-auto justify-center">
         {generating ? <Loader2 size={18} className="animate-spin" /> : null}
         {generating ? 'Generating...' : 'Generate Payroll'}
       </button>
@@ -508,7 +538,7 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
 
   return (
-    <div className="card space-y-5">
+    <div className="card p-4 sm:p-6 space-y-5">
       <div>
         <p className="text-base font-semibold text-gray-900">Attendance was imported automatically.</p>
         <p className="text-sm text-gray-500 mt-0.5">Here's anything that might need a second look — missing attendance, pending OT, pending corrections, or other issues.</p>
@@ -516,7 +546,7 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
 
       {warnings.length === 0 ? (
         <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl p-5">
-          <CheckCircle2 className="text-green-500" size={28} />
+          <CheckCircle2 className="text-green-500 shrink-0" size={28} />
           <p className="text-green-700 font-semibold">No issues found — everything looks good.</p>
         </div>
       ) : (
@@ -531,7 +561,7 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
         </div>
       )}
 
-      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Review Payroll</button>
+      <button onClick={onContinue} className="btn-primary text-base py-3 px-8 w-full sm:w-auto justify-center">Continue to Review Payroll</button>
     </div>
   );
 }
@@ -559,11 +589,11 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
 
   return (
     <div className="space-y-4">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {cards.map(c => (
-          <div key={c.label} className="card">
+          <div key={c.label} className="card p-3 sm:p-6">
             <p className="text-xs text-gray-500">{c.label}</p>
-            <p className="text-xl font-bold text-gray-900 mt-1">{c.value}</p>
+            <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{c.value}</p>
           </div>
         ))}
       </div>
@@ -575,13 +605,13 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
         <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(totalEmployerContributions)}</p>
       </div>
 
-      <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+      <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium py-2 sm:py-0">
         {showBreakdown ? 'Hide Employee Breakdown' : 'View Employee Breakdown'}
       </button>
 
       {showBreakdown && (
         <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -611,11 +641,31 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
               </tbody>
             </table>
           </div>
+
+          {/* Phone: card per employee instead of the 8-column table. */}
+          <div className="md:hidden p-2.5 space-y-2.5">
+            {entries.map(e => (
+              <div key={e.id} onClick={() => setDetailEntry(e)} className="rounded-xl border border-gray-200 bg-white p-3 cursor-pointer active:bg-gray-50">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-900 min-w-0">{e.employee_name_snapshot}</p>
+                  <p className="text-base font-bold text-gray-900 tabular-nums shrink-0">{formatCurrency(e.net_pay)}</p>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Basic Pay</span><span className="font-medium text-gray-800">{formatCurrency(e.basic_pay)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">OT</span><span className="font-medium text-gray-800">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Allowance</span><span className="font-medium text-gray-800">{formatCurrency(e.allowance_pay + e.bonus_earnings)}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Late/Undertime</span><span className="font-medium text-red-500">{(e.late_deduction + e.undertime_deduction) > 0 ? `-${formatCurrency(e.late_deduction + e.undertime_deduction)}` : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Absence/Unpaid</span><span className="font-medium text-red-500">{(e.absence_deduction + e.unpaid_leave_deduction) > 0 ? `-${formatCurrency(e.absence_deduction + e.unpaid_leave_deduction)}` : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Other Deduction</span><span className="font-medium text-red-500">{(e.excess_break_deduction + e.other_deductions) > 0 ? `-${formatCurrency(e.excess_break_deduction + e.other_deductions)}` : '—'}</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-gray-400 px-4 py-2 border-t border-gray-100">Click an employee to see the full breakdown and add bonuses or deductions.</p>
         </div>
       )}
 
-      <button onClick={onContinue} className="btn-primary text-base py-3 px-8">Continue to Approve Payroll</button>
+      <button onClick={onContinue} className="btn-primary text-base py-3 px-8 w-full sm:w-auto justify-center">Continue to Approve Payroll</button>
 
       {detailEntry && (
         <EntryDetailModal
@@ -692,7 +742,7 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div className="flex justify-between"><span className="text-gray-500">Basic Pay</span><span className="font-medium">{formatCurrency(entry.basic_pay)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Approved OT</span><span className="font-medium">{formatCurrency(entry.ot_pay)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Allowance</span><span className="font-medium">{formatCurrency(entry.allowance_pay)}</span></div>
@@ -702,7 +752,7 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
             <span>Gross Pay</span><span>{formatCurrency(entry.gross_pay)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm border-t border-gray-100 pt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm border-t border-gray-100 pt-3">
             <div className="flex justify-between"><span className="text-gray-500">Late</span><span className="text-red-500">-{formatCurrency(entry.late_deduction)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Undertime</span><span className="text-red-500">-{formatCurrency(entry.undertime_deduction)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Absence</span><span className="text-red-500">-{formatCurrency(entry.absence_deduction)}</span></div>
@@ -746,14 +796,14 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
             </div>
             <p className="text-gray-400 pt-1">Employee shares (SSS, PhilHealth, Pag-IBIG) reduce Net Pay above once saved. Employer shares + EC are company cost only — never deducted.</p>
             {!locked && (
-              <button onClick={saveContributions} disabled={savingContributions} className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-50">
+              <button onClick={saveContributions} disabled={savingContributions} className="btn-secondary text-xs py-2.5 sm:py-1.5 px-3 disabled:opacity-50">
                 {savingContributions ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
                 {savingContributions ? 'Saving...' : 'Save Contributions'}
               </button>
             )}
           </div>
 
-          <button onClick={() => setShowDetails(s => !s)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">
+          <button onClick={() => setShowDetails(s => !s)} className="text-xs text-orange-600 hover:text-orange-700 font-medium py-2 sm:py-0">
             {showDetails ? 'Hide Details' : 'View Details'}
           </button>
           {showDetails && (
@@ -778,20 +828,20 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
           <div className="border-t border-gray-100 pt-3 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Adjustments</p>
-              {!locked && <button onClick={() => setShowAddAdjustment(true)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">+ Add Adjustment</button>}
+              {!locked && <button onClick={() => setShowAddAdjustment(true)} className="text-xs text-orange-600 hover:text-orange-700 font-medium py-2 sm:py-0">+ Add Adjustment</button>}
             </div>
             {adjustments.length === 0 ? (
               <p className="text-xs text-gray-400">No manual adjustments.</p>
             ) : (
               <div className="space-y-1.5">
                 {adjustments.map((a: any) => (
-                  <div key={a.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-xs">
-                    <div>
+                  <div key={a.id} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+                    <div className="min-w-0">
                       <span className="font-medium text-gray-800">{ADJUSTMENT_LABELS[a.adjustment_type as AdjustmentType]}</span>
                       <span className={EARNING_TYPES.includes(a.adjustment_type) ? 'text-green-600' : 'text-red-500'}> {EARNING_TYPES.includes(a.adjustment_type) ? '+' : '-'}{formatCurrency(a.amount)}</span>
                       <p className="text-gray-400">{a.reason} — added by {a.added_by_name || 'admin'}</p>
                     </div>
-                    {!locked && <button onClick={() => removeAdjustment(a.id)} className="text-red-400 hover:text-red-600"><Trash2 size={13} /></button>}
+                    {!locked && <button onClick={() => removeAdjustment(a.id)} className="text-red-400 hover:text-red-600 p-2 -m-2 sm:p-0 sm:m-0 shrink-0"><Trash2 size={13} /></button>}
                   </div>
                 ))}
               </div>
@@ -854,9 +904,9 @@ function AddAdjustmentForm({ entryId, onCancel, onSaved }: { entryId: number; on
         <input type="text" className="form-input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Performance bonus for August" />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="btn-secondary text-xs py-1.5">Cancel</button>
-        <button onClick={save} disabled={saving} className="btn-primary text-xs py-1.5 disabled:opacity-50">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center">
+        <button onClick={onCancel} className="btn-secondary text-xs py-2.5 sm:py-1.5">Cancel</button>
+        <button onClick={save} disabled={saving} className="btn-primary text-xs py-2.5 sm:py-1.5 disabled:opacity-50">
           {saving ? <Loader2 size={12} className="animate-spin" /> : null}
           {saving ? 'Saving...' : 'Add'}
         </button>
@@ -908,7 +958,7 @@ function StepApproveAndPayslips({ period, entries, onRefresh, showToast }: { per
   };
 
   return (
-    <div className="card space-y-5">
+    <div className="card p-4 sm:p-6 space-y-5">
       <div className="text-center">
         <p className="text-sm text-gray-500">Total Net Payroll</p>
         <p className="text-3xl font-bold text-gray-900 mt-1">{formatCurrency(netPayroll)}</p>

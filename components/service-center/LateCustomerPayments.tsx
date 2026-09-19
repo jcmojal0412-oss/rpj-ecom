@@ -56,7 +56,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
 
   if (lateGroups.length === 0) {
     return (
-      <div className="card">
+      <div className="card p-3 sm:p-6">
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle className="text-red-500" size={20} />
           <h2 className="text-base font-semibold text-gray-900">Customer Outstanding</h2>
@@ -67,7 +67,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
   }
 
   return (
-    <div className="card space-y-5">
+    <div className="card p-3 sm:p-6 space-y-5">
       <div className="flex items-center gap-2">
         <AlertTriangle className="text-red-500" size={20} />
         <div>
@@ -84,7 +84,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
         {lateGroups.map(([key, { monday, items }]) => {
           const subtotal = items.reduce((s, r) => s + r.cs_payment, 0);
           return (
-            <div key={key} className="border border-red-200 bg-red-50/40 rounded-xl p-4">
+            <div key={key} className="border border-red-200 bg-red-50/40 rounded-xl p-3 sm:p-4">
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-800">{weekLabel(monday)}</p>
@@ -93,7 +93,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
                 <button
                   onClick={() => markPaid(key, items)}
                   disabled={payingWeek === key}
-                  className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                  className="btn-primary text-xs py-2.5 sm:py-1.5 justify-center w-full sm:w-auto disabled:opacity-50"
                 >
                   {payingWeek === key ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                   {payingWeek === key ? 'Marking Paid...' : 'Mark Week as Customer Paid'}
@@ -101,7 +101,7 @@ export default function LateCustomerPayments({ repairs, onSettled }: Props) {
               </div>
               <div className="space-y-1.5">
                 {items.map(r => (
-                  <div key={r.id} className="flex items-center justify-between text-xs bg-white rounded-lg px-3 py-2">
+                  <div key={r.id} className="flex items-center justify-between gap-2 text-xs bg-white rounded-lg px-3 py-2">
                     <div className="min-w-0">
                       <span className="text-gray-400">{formatDate(r.repair_date)}</span>{' '}
                       <span className="font-medium text-gray-700">{r.repair_details || r.unit_model || '—'}</span>

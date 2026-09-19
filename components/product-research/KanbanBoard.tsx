@@ -204,7 +204,7 @@ function DroppableColumn({ col, color, items, onEdit, onDelete, onAddModal, isAd
           {/* Full form button (modal) */}
           <button
             onClick={onAddModal}
-            className="w-5 h-5 flex items-center justify-center rounded-full bg-white/70 hover:bg-white transition-colors text-gray-600 font-bold text-sm"
+            className="w-8 h-8 lg:w-5 lg:h-5 flex items-center justify-center rounded-full bg-white/70 hover:bg-white transition-colors text-gray-600 font-bold text-sm"
             title="Add with full details"
           >
             +
@@ -235,7 +235,7 @@ function DroppableColumn({ col, color, items, onEdit, onDelete, onAddModal, isAd
       ) : (
         <button
           onClick={onStartAdd}
-          className="w-full mt-2 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-gray-300 text-xs text-gray-400 hover:border-orange-400 hover:text-orange-500 hover:bg-white/60 transition-colors"
+          className="w-full mt-2 flex items-center justify-center gap-1.5 py-3 lg:py-2 rounded-lg border border-dashed border-gray-300 text-xs text-gray-400 hover:border-orange-400 hover:text-orange-500 hover:bg-white/60 transition-colors"
         >
           <span className="text-base leading-none">+</span> Add card
         </button>
@@ -290,13 +290,13 @@ function QuickAddCard({ status, onSaved, onCancel }: {
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="px-3 py-1 bg-orange-500 text-white text-xs font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
+          className="px-4 py-2.5 lg:px-3 lg:py-1 bg-orange-500 text-white text-xs font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Adding...' : 'Add Card'}
         </button>
         <button
           onClick={onCancel}
-          className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          className="p-2.5 lg:p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X size={14} />
         </button>
@@ -354,7 +354,8 @@ function DraggableCard({ item, onEdit, onDelete }: {
       <div className="p-3 pb-1 cursor-grab active:cursor-grabbing" onClick={() => onEdit(item)}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-1.5 flex-1 min-w-0">
-            <GripVertical size={14} className="text-gray-300 group-hover:text-gray-400 shrink-0 mt-0.5 transition-colors" />
+            {/* touch-none handle: lets a finger drag from the grip while the rest of the card still scrolls the page */}
+            <span className="flex touch-none p-1.5 -m-1.5 shrink-0"><GripVertical size={14} className="text-gray-300 group-hover:text-gray-400 shrink-0 mt-0.5 transition-colors" /></span>
             <h3 className="text-sm font-semibold text-gray-900 leading-tight hover:text-orange-600 transition-colors">
               {item.product_name}
             </h3>
@@ -397,11 +398,11 @@ function DraggableCard({ item, onEdit, onDelete }: {
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-1 px-3 py-2 border-t border-gray-100 mt-1">
+      <div className="flex items-center gap-1 px-3 py-0 lg:py-2 border-t border-gray-100 mt-1">
         <button
           onPointerDown={e => e.stopPropagation()}
           onClick={e => { e.stopPropagation(); onEdit(item); }}
-          className="p-1 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition-colors"
+          className="p-3.5 lg:p-1 rounded hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition-colors"
           title="Edit"
         >
           <Pencil size={12} />
@@ -409,7 +410,7 @@ function DraggableCard({ item, onEdit, onDelete }: {
         <button
           onPointerDown={e => e.stopPropagation()}
           onClick={e => { e.stopPropagation(); if (confirm('Delete this product?')) onDelete(item.id); }}
-          className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+          className="p-3.5 lg:p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
           title="Delete"
         >
           <Trash2 size={12} />
