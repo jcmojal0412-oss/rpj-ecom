@@ -61,6 +61,16 @@ export function getActiveEmployeeForUser(db: Database.Database, userId: number):
   `).get(userId) as Employee | undefined) ?? null;
 }
 
+// The employee behind a logged-in user for PAYSLIP purposes. Same as
+// getActiveEmployeeForUser, except a fixed-rate employee (who never clocks, so
+// has Attendance disabled) is also recognised — otherwise they could never open
+// their own released payslip.
+export function getPayslipEmployeeForUser(db: Database.Database, userId: number): Employee | null {
+  return (db.prepare(`
+    SELECT * FROM employees WHERE linked_user_id = ? AND employment_status = 'Active' AND (attendance_enabled = 1 OR pay_basis = 'fixed')
+  `).get(userId) as Employee | undefined) ?? null;
+}
+
 // Identifies an employee at the unauthenticated Attendance Kiosk by
 // Employee ID (e.g. "RPJ-0006"), email, or mobile number — the kiosk has no
 // login, so this is the entire identification step (the required selfie on

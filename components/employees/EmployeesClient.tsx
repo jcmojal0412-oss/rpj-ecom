@@ -17,6 +17,7 @@ interface Employee {
   employment_type: string;
   employment_status: 'Active' | 'Inactive' | 'Resigned' | 'Terminated';
   attendance_enabled: number;
+  pay_basis?: string;
   payroll_schedule: 'A' | 'B' | null;
   default_shift: { id: number; name: string; start_time: string; end_time: string } | null;
 }
@@ -175,7 +176,7 @@ export default function EmployeesClient() {
                       {e.default_shift ? `${e.default_shift.name} (${fmtShiftTime(e.default_shift.start_time)}–${fmtShiftTime(e.default_shift.end_time)})` : <span className="text-gray-400">Not assigned</span>}
                     </td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}><span className={STATUS_BADGE[e.employment_status]}>{e.employment_status}</span></td>
-                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
+                    <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>{e.pay_basis === 'fixed' ? <span className="badge-amber">Fixed rate</span> : e.attendance_enabled ? <span className="badge-blue">Enabled</span> : <span className="badge-gray">Disabled</span>}</td>
                     <td className="table-cell" onClick={() => router.push(`/employees/${e.id}`)}>
                       {e.payroll_schedule ? <span className="badge-blue">Schedule {e.payroll_schedule}</span> : <span className="badge-amber">Not set</span>}
                     </td>
@@ -212,7 +213,7 @@ export default function EmployeesClient() {
                     {e.default_shift ? `${e.default_shift.name} (${fmtShiftTime(e.default_shift.start_time)}–${fmtShiftTime(e.default_shift.end_time)})` : <span className="text-gray-400">Shift not assigned</span>}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {e.attendance_enabled ? <span className="badge-blue">Attendance Enabled</span> : <span className="badge-gray">Attendance Disabled</span>}
+                    {e.pay_basis === 'fixed' ? <span className="badge-amber">Fixed rate · no attendance</span> : e.attendance_enabled ? <span className="badge-blue">Attendance Enabled</span> : <span className="badge-gray">Attendance Disabled</span>}
                     {e.payroll_schedule ? <span className="badge-blue">Schedule {e.payroll_schedule}</span> : <span className="badge-amber">Not set</span>}
                   </div>
                 </div>

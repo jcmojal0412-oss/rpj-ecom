@@ -52,6 +52,7 @@ interface EmployeeDetail {
   work_days: string;
   rest_day: number | null;
   attendance_enabled: number;
+  pay_basis?: 'attendance' | 'fixed';
   linked_user_id: number | null;
   linked_user: { id: number; name: string; username: string } | null;
   current_shift: { id: number; name: string; start_time: string; end_time: string } | null;
@@ -178,6 +179,7 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
     work_days: employee.work_days.split(',').filter(Boolean).map(Number),
     rest_day: employee.rest_day,
     attendance_enabled: !!employee.attendance_enabled,
+    pay_basis: (employee.pay_basis === 'fixed' ? 'fixed' : 'attendance') as 'attendance' | 'fixed',
     linked_user_id: employee.linked_user_id,
     salary_type: employee.salary_type,
     basic_rate: employee.basic_rate,
@@ -405,39 +407,68 @@ function OverviewTab({ employee, onSaved, showToast }: { employee: EmployeeDetai
               {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.attendance_enabled} onChange={e => set({ attendance_enabled: e.target.checked })} />
-            Attendance Enabled
-          </label>
-          <p className="text-xs text-gray-400">
-            Only Active employees with Attendance Enabled appear in Attendance and HR Dashboard reports.
-          </p>
+          {form.pay_basis === 'fixed' ? (
+            <p className="text-xs rounded-lg bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2">
+              Fixed-rate employee: does not time in / out, so Attendance is off. They are still included in Payroll (see Compensation).
+            </p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={form.attendance_enabled} onChange={e => set({ attendance_enabled: e.target.checked })} />
+                Attendance Enabled
+              </label>
+              <p className="text-xs text-gray-400">
+                Only Active employees with Attendance Enabled appear in Attendance and HR Dashboard reports.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Compensation */}
         <div className="card p-4 sm:p-6 space-y-3">
           <p className="text-sm font-semibold text-gray-700">Compensation <span className="text-xs font-normal text-gray-400">(used by Payroll)</span></p>
+          <div>
+            <label className="form-label">Pay Basis</label>
+            <select className="form-input" value={form.pay_basis} onChange={e => {
+              const fixed = e.target.value === 'fixed';
+              set(fixed ? { pay_basis: 'fixed', salary_type: 'Monthly', attendance_enabled: false } : { pay_basis: 'attendance' });
+            }}>
+              <option value="attendance">Based on attendance (time in / time out)</option>
+              <option value="fixed">Fixed monthly rate (no time in / out — e.g. freelancer)</option>
+            </select>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {form.pay_basis !== 'fixed' && (
+              <div>
+                <label className="form-label">Salary Type</label>
+                <select className="form-input" value={form.salary_type} onChange={e => set({ salary_type: e.target.value as any })}>
+                  <option value="Monthly">Monthly</option>
+                  <option value="Daily">Daily</option>
+                </select>
+              </div>
+            )}
             <div>
-              <label className="form-label">Salary Type</label>
-              <select className="form-input" value={form.salary_type} onChange={e => set({ salary_type: e.target.value as any })}>
-                <option value="Monthly">Monthly</option>
-                <option value="Daily">Daily</option>
-              </select>
-            </div>
-            <div>
-              <label className="form-label">{form.salary_type === 'Monthly' ? 'Basic Salary' : 'Daily Rate'} (₱)</label>
+              <label className="form-label">{form.pay_basis === 'fixed' ? 'Fixed Monthly Rate' : form.salary_type === 'Monthly' ? 'Basic Salary' : 'Daily Rate'} (₱)</label>
               <input type="number" className="form-input" value={form.basic_rate} onChange={e => set({ basic_rate: Number(e.target.value) })} />
             </div>
           </div>
+          {form.pay_basis === 'fixed' && (
+            <p className="text-xs text-gray-500">
+              Paid this amount every month, split across the two payroll cutoffs
+              ({form.basic_rate > 0 ? `₱${(form.basic_rate / 2).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each` : 'half each'}).
+              No late, undertime, absence or overtime is computed. Bonuses and deductions can still be added in Payroll.
+            </p>
+          )}
           <div>
             <label className="form-label">Allowance (₱)</label>
             <input type="number" className="form-input" value={form.allowance} onChange={e => set({ allowance: Number(e.target.value) })} />
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.ot_eligible} onChange={e => set({ ot_eligible: e.target.checked })} />
-            OT Eligible
-          </label>
+          {form.pay_basis !== 'fixed' && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.ot_eligible} onChange={e => set({ ot_eligible: e.target.checked })} />
+              OT Eligible
+            </label>
+          )}
           <div>
             <label className="form-label">Payroll Schedule</label>
             <select

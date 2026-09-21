@@ -19,6 +19,7 @@ interface Entry {
   paid_at: string | null; payment_date: string | null; paid_amount: number | null; payment_method: string | null; payment_reference: string | null; paid_by_name: string | null;
   payslip_released_at: string | null; payslip_first_viewed_at: string | null; payslip_last_viewed_at: string | null;
   payslip_ref: string | null;
+  pay_basis?: string;
   has_email: boolean; payslip_emailed_at: string | null; payslip_emailed_to: string | null;
   payslip_email_status: 'sent' | 'delayed' | 'delivered' | 'bounced' | 'complained' | 'failed' | null; payslip_email_status_at: string | null;
   issues: Issue[]; has_issue: boolean; detail: Record<string, any>;
@@ -322,7 +323,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [
       { label: 'View Payroll Details', onClick: () => setDetail({ entry: e, kind: 'details' }) },
       { label: 'View Payslip', onClick: () => setViewing(e) },
-      { label: 'View Attendance Basis', onClick: () => setDetail({ entry: e, kind: 'attendance' }) },
+      ...(e.pay_basis === 'fixed' ? [] : [{ label: 'View Attendance Basis', onClick: () => setDetail({ entry: e, kind: 'attendance' }) }]),
     ];
     if (editable) items.push({ label: 'Edit Payroll', onClick: () => router.push(`/payroll?period=${period.id}`) });
     if (canRecordPayment && e.payment_status !== 'PAID') items.push({ label: 'Mark as Paid', onClick: () => openConfirm({ kind: 'mark_paid', ids: [e.id] }) });
@@ -637,7 +638,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                             <td className="table-cell"><input type="checkbox" aria-label={`Select ${e.employee_name}`} checked={selected.has(e.id)} onChange={() => toggleOne(e.id)} className="rounded border-gray-300 text-orange-500" /></td>
                             <td className="table-cell">
                               <div className="flex items-center gap-1.5"><span className="font-medium text-gray-900">{e.employee_name}</span><IssueMark e={e} /></div>
-                              <p className="text-[11px] text-gray-400">{[e.employee_code, tidyDept(e.department)].filter(Boolean).join(' · ')}</p>
+                              <p className="text-[11px] text-gray-400">{[e.employee_code, tidyDept(e.department), e.pay_basis === 'fixed' ? 'Fixed rate' : ''].filter(Boolean).join(' · ')}</p>
                               <p className="text-[11px] text-gray-400 xl:hidden tabular-nums">Gross {formatCurrency(e.gross_pay)} · Deductions {formatCurrency(e.total_deductions)}</p>
                             </td>
                             <td className="table-cell text-right tabular-nums max-xl:hidden">{formatCurrency(e.gross_pay)}</td>

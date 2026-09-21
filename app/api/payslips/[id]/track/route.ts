@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
+import { getPayslipEmployeeForUser } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const isAdmin = session.role === 'owner' || session.permissions.includes('payroll');
     if (!isAdmin) {
-      const employee = getActiveEmployeeForUser(db, session.id);
+      const employee = getPayslipEmployeeForUser(db, session.id);
       if (!employee || employee.id !== entry.employee_id || !entry.payslip_released_at) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }

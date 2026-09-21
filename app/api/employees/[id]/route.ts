@@ -70,6 +70,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const payrollSchedule = body.payroll_schedule === 'A' || body.payroll_schedule === 'B' ? body.payroll_schedule : null;
+    // Fixed rate = a fixed MONTHLY amount for someone who does not clock in/out:
+    // always Monthly, and never on Attendance (they are not in attendance
+    // screens or the kiosk, but ARE in payroll).
+    const fixedRate = body.pay_basis === 'fixed';
 
     db.prepare(`
       UPDATE employees SET
@@ -77,7 +81,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         position=?, department=?, branch=?, date_hired=?, employment_type=?, employment_status=?,
         work_days=?, rest_day=?, attendance_enabled=?, linked_user_id=?,
         salary_type=?, basic_rate=?, allowance=?, ot_eligible=?, payroll_schedule=?,
-        sss_enabled=?, philhealth_enabled=?, pagibig_enabled=?
+        sss_enabled=?, philhealth_enabled=?, pagibig_enabled=?, pay_basis=?
       WHERE id=?
     `).run(
       body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
@@ -85,10 +89,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       body.position || null, body.department || null, body.branch || null, body.date_hired || null,
       body.employment_type || 'Probationary', body.employment_status || 'Active',
       Array.isArray(body.work_days) ? body.work_days.join(',') : '1,2,3,4,5',
-      body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
-      body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
+      body.rest_day ?? null, fixedRate || body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
+      fixedRate ? 'Monthly' : (body.salary_type || 'Monthly'), Number(body.basic_rate) || 0, Number(body.allowance) || 0,
       body.ot_eligible === false ? 0 : 1, payrollSchedule,
       body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1,
+      fixedRate ? 'fixed' : 'attendance',
       params.id
     );
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { computePayroll, type PayrollInput } from '@/lib/payroll';
-import { aggregateAttendanceForPeriod, getApprovedOtMinutes, type PayrollEmployee } from '@/lib/payroll-data';
+import { aggregateAttendanceForPeriod, getApprovedOtMinutes, NO_ATTENDANCE, type PayrollEmployee } from '@/lib/payroll-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +36,7 @@ export async function GET() {
   // from every payroll run (see POST below), so this needs to stay visible
   // until HR/owner assigns everyone, not just discovered by surprise later.
   const unassignedCount = (db.prepare(`
-    SELECT COUNT(*) as c FROM employees WHERE employment_status = 'Active' AND attendance_enabled = 1 AND payroll_schedule IS NULL
+    SELECT COUNT(*) as c FROM employees WHERE employment_status = 'Active' AND (attendance_enabled = 1 OR pay_basis = 'fixed') AND payroll_schedule IS NULL
   `).get() as { c: number }).c;
 
   return NextResponse.json({ periods, unassigned_count: unassignedCount });
@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
     // explicit choice: no default/fallback schedule). See the warning banner
     // on the Payroll list, which surfaces how many employees are still unset.
     const employees = db.prepare(`
-      SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, position,
+      SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, position, pay_basis,
         sss_enabled, philhealth_enabled, pagibig_enabled,
         sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
-      FROM employees WHERE employment_status = 'Active' AND attendance_enabled = 1 AND payroll_schedule = ?
+      FROM employees WHERE employment_status = 'Active' AND (attendance_enabled = 1 OR pay_basis = 'fixed') AND payroll_schedule = ?
     `).all(schedule) as (PayrollEmployee & { position: string | null; sss_deduction_amount: number; philhealth_deduction_amount: number; pagibig_deduction_amount: number })[];
 
     let periodId = 0;
@@ -99,8 +99,11 @@ export async function POST(req: NextRequest) {
       periodId = Number(periodInfo.lastInsertRowid);
 
       for (const employee of employees) {
-        const attendance = aggregateAttendanceForPeriod(db, employee, from_date, to_date);
-        const approvedOtMinutes = employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
+        // A fixed-rate employee (does not time in/out) has no attendance at
+        // all: same formula, zero attendance, so pay is exactly the fixed rate.
+        const fixed = employee.pay_basis === 'fixed';
+        const attendance = fixed ? NO_ATTENDANCE : aggregateAttendanceForPeriod(db, employee, from_date, to_date);
+        const approvedOtMinutes = !fixed && employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
 
         // Statutory Contributions are MANUAL per payroll run (not
         // auto-computed) — but each entry starts PRE-FILLED with the
@@ -137,7 +140,7 @@ export async function POST(req: NextRequest) {
         };
         const breakdown = computePayroll(input);
 
-        db.prepare(`
+        const entryInsert = db.prepare(`
           INSERT INTO payroll_entries (
             payroll_period_id, employee_id, employee_name_snapshot, employee_code_snapshot, position_snapshot,
             salary_type_snapshot, basic_rate_snapshot, allowance_snapshot,
@@ -164,6 +167,7 @@ export async function POST(req: NextRequest) {
           breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, null,
           breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, null
         );
+        if (fixed) db.prepare(`UPDATE payroll_entries SET pay_basis_snapshot = 'fixed' WHERE id = ?`).run(entryInsert.lastInsertRowid);
       }
 
       db.prepare(`

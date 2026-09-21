@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
+import { getPayslipEmployeeForUser } from '@/lib/attendance-shifts';
 import { payslipContactEmails } from '@/lib/payslip-email';
 import { netMismatch } from '@/lib/payslip-integrity';
 
@@ -28,7 +28,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   const isAdmin = session.role === 'owner' || session.permissions.includes('payroll');
   if (!isAdmin) {
-    const employee = getActiveEmployeeForUser(db, session.id);
+    const employee = getPayslipEmployeeForUser(db, session.id);
     if (!employee || employee.id !== entry.employee_id || !entry.payslip_released_at) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
@@ -36,7 +36,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   // "Viewed" means the EMPLOYEE opened their own released payslip — HR or the
   // owner opening it to check it doesn't count.
-  const viewer = getActiveEmployeeForUser(db, session.id);
+  const viewer = getPayslipEmployeeForUser(db, session.id);
   if (viewer && viewer.id === entry.employee_id && entry.payslip_released_at) {
     db.prepare(`
       UPDATE payroll_entries SET payslip_viewed_at = COALESCE(payslip_viewed_at, datetime('now')), payslip_last_viewed_at = datetime('now') WHERE id = ?

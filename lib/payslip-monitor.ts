@@ -52,6 +52,7 @@ export interface MonitorEntry {
   employee_name: string;
   employee_code: string;
   payslip_ref: string | null; // "PS-20260915-00012", searchable by HR
+  pay_basis: string; // 'attendance' | 'fixed'
   position: string | null;
   department: string | null;
   gross_pay: number;
@@ -182,7 +183,10 @@ export function buildMonitor(db: Database.Database, periodId: number) {
 
     // ---- attendance / setup (only while payroll can still be corrected) ----
     if (emp && editable) {
-      const warnings = checkAttendanceWarnings(db, emp, period.from_date, period.to_date);
+      // A fixed-rate employee has no attendance: only a missing rate can be wrong.
+      const warnings = r.pay_basis_snapshot === 'fixed'
+        ? (emp.basic_rate > 0 ? [] : [{ type: 'missing_rate' as const, message: `${emp.full_name} has no salary/rate configured.` }])
+        : checkAttendanceWarnings(db, emp, period.from_date, period.to_date);
       const missingOut = warnings.filter(w => w.type === 'missing_time_out' && w.date).map(w => shortDate(w.date as string));
       if (missingOut.length) {
         issues.push({ code: 'attendance_missing_time_out', severity: 'warning', title: 'Attendance incomplete', action: 'review_attendance', message: `Missing time-out: ${missingOut.join(', ')}.` });
@@ -212,7 +216,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     if (adj > 0) issues.push({ code: 'manual_adjustment', severity: 'info', title: 'Manual adjustment', action: null, message: `${adj} manual adjustment${adj === 1 ? '' : 's'} applied.` });
 
     return {
-      id: r.id, employee_id: r.employee_id, employee_name: r.employee_name_snapshot, employee_code: r.employee_code_snapshot, payslip_ref: (r.payslip_ref ?? null) as string | null,
+      id: r.id, employee_id: r.employee_id, employee_name: r.employee_name_snapshot, employee_code: r.employee_code_snapshot, payslip_ref: (r.payslip_ref ?? null) as string | null, pay_basis: (r.pay_basis_snapshot ?? 'attendance') as string,
       position: r.position_snapshot, department: emp?.department ?? null,
       gross_pay: r.gross_pay, total_deductions: r.total_deductions, net_pay: r.net_pay,
       payment_status: paymentStatus, payslip_status: payslipStatus,

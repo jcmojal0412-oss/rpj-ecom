@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
+import { getPayslipEmployeeForUser } from '@/lib/attendance-shifts';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(rows);
   }
 
-  const employee = getActiveEmployeeForUser(db, session.id);
+  const employee = getPayslipEmployeeForUser(db, session.id);
   if (!employee) return NextResponse.json([]);
 
   const rows = db.prepare(`

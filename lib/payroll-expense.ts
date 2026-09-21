@@ -54,7 +54,7 @@ interface Row {
   total_deductions: number; net_pay: number; approved_ot_minutes: number;
   sss_ee_contribution: number; sss_er_contribution: number; sss_ec_contribution: number;
   philhealth_ee_contribution: number; philhealth_er_contribution: number; pagibig_ee_contribution: number; pagibig_er_contribution: number;
-  payment_status: string | null; paid_amount: number | null; department_snapshot: string | null;
+  payment_status: string | null; paid_amount: number | null; department_snapshot: string | null; pay_basis_snapshot: string;
   period_id: number; label: string; from_date: string; to_date: string; pay_date: string | null; schedule: string | null; period_status: string;
 }
 
@@ -188,7 +188,7 @@ export function buildMonthlyExpense(db: Database.Database, opts: ExpenseOptions)
   const employeeRows = [...empMap.entries()].map(([id, rows]) => {
     const et = totals(rows), last = rows[rows.length - 1];
     return {
-      employee_id: id, name: last.employee_name_snapshot, code: last.employee_code_snapshot, department: deptLabel(last.department_snapshot), runs: new Set(rows.map(r => r.period_id)).size,
+      employee_id: id, name: last.employee_name_snapshot, code: last.employee_code_snapshot, department: deptLabel(last.department_snapshot), pay_basis: last.pay_basis_snapshot ?? 'attendance', runs: new Set(rows.map(r => r.period_id)).size,
       basic: et.basic, overtime: et.overtime, allowances: round2(et.allowance + et.bonus), gross: et.gross, employer: et.employer, net: et.net, total_cost: et.expense, ot_minutes: et.otMinutes,
     };
   }).sort((a, b) => b.total_cost - a.total_cost);

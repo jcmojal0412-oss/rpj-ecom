@@ -22,10 +22,16 @@ export interface PayrollEmployee {
   basic_rate: number;
   allowance: number;
   ot_eligible: number;
+  pay_basis?: string; // 'fixed' = paid a fixed rate, no attendance
   sss_enabled: number;
   philhealth_enabled: number;
   pagibig_enabled: number;
 }
+
+// What a fixed-rate employee contributes from attendance: nothing. Feeding the
+// unchanged Monthly formula zeros gives exactly basic_rate / 2 per cutoff, with
+// no late / undertime / absence / overtime.
+export const NO_ATTENDANCE: AttendanceAggregate = { workDaysInPeriod: 0, lateMinutes: 0, undertimeMinutes: 0, excessBreakMinutes: 0, absenceDays: 0, unpaidLeaveDays: 0 };
 
 export interface AttendanceAggregate {
   workDaysInPeriod: number;
@@ -373,11 +379,14 @@ export function getFinalizedPayrollPeriodFor(db: Database.Database, date: string
 // they were snapshotted. Returns true when the entry was refreshed.
 export function refreshPayrollEntryFromAttendance(db: Database.Database, entryId: number): boolean {
   const row = db.prepare(`
-    SELECT e.id, e.employee_id, p.from_date, p.to_date, p.status, p.voided_at
+    SELECT e.id, e.employee_id, e.pay_basis_snapshot, p.from_date, p.to_date, p.status, p.voided_at
     FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
     WHERE e.id = ?
-  `).get(entryId) as { id: number; employee_id: number; from_date: string; to_date: string; status: string; voided_at: string | null } | undefined;
+  `).get(entryId) as { id: number; employee_id: number; pay_basis_snapshot: string; from_date: string; to_date: string; status: string; voided_at: string | null } | undefined;
   if (!row || row.voided_at || (row.status !== 'draft' && row.status !== 'for_review')) return false;
+  // A fixed-rate entry has no attendance to refresh (re-reading it would count
+  // every day as an absence).
+  if (row.pay_basis_snapshot === 'fixed') return false;
 
   const employee = db.prepare(`
     SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible,

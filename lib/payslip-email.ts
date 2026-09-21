@@ -112,7 +112,7 @@ export function buildPayslipEmail(
     ['Employee ID', entry.employee_code_snapshot],
     ['Position', entry.position_snapshot],
     ['Department', options.department],
-    ['Salary Type', entry.salary_type_snapshot],
+    ['Salary Type', entry.pay_basis_snapshot === 'fixed' ? 'Monthly · Fixed rate' : entry.salary_type_snapshot],
   ] as [string, unknown][]).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '').map(([k, v]) => [k, String(v)]);
   const infoCell = ([k, v]: [string, string]) =>
     `<td valign="top" width="50%" style="padding:4px 8px 4px 0"><div style="font-size:11px;line-height:14px;color:${FAINT};text-transform:uppercase;letter-spacing:.8px">${esc(k)}</div>` +

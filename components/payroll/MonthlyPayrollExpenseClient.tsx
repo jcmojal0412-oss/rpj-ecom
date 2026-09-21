@@ -446,7 +446,7 @@ export default function MonthlyPayrollExpenseClient() {
                     <tbody className="divide-y divide-gray-50">
                       {rows.map((e: any) => (
                         <tr key={e.employee_id} className="hover:bg-gray-50/60">
-                          <td className="table-cell"><p className="font-medium text-gray-900">{e.name}</p><p className="text-[11px] text-gray-400">{e.code}{e.runs > 1 ? ` · ${e.runs} runs` : ''}</p></td>
+                          <td className="table-cell"><p className="font-medium text-gray-900">{e.name}</p><p className="text-[11px] text-gray-400">{e.code}{e.pay_basis === 'fixed' ? ' · Fixed rate' : ''}{e.runs > 1 ? ` · ${e.runs} runs` : ''}</p></td>
                           <td className="table-cell">{e.department}</td>
                           <td className="table-cell text-right tabular-nums">{peso(e.basic)}</td><td className="table-cell text-right tabular-nums">{peso(e.overtime)}</td><td className="table-cell text-right tabular-nums">{peso(e.allowances)}</td>
                           <td className="table-cell text-right tabular-nums">{peso(e.gross)}</td><td className="table-cell text-right tabular-nums">{peso(e.employer)}</td><td className="table-cell text-right tabular-nums">{peso(e.net)}</td>

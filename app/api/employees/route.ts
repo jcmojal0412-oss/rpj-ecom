@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     const canEditStatutoryIds = session!.role === 'owner' || session!.permissions.includes('payroll');
 
     const payrollSchedule = body.payroll_schedule === 'A' || body.payroll_schedule === 'B' ? body.payroll_schedule : null;
+    const fixedRate = body.pay_basis === 'fixed'; // fixed monthly rate, no time in/out (see [id] PUT)
 
     let newId = 0;
     runTransaction(() => {
@@ -88,16 +89,16 @@ export async function POST(req: NextRequest) {
           work_days, rest_day, attendance_enabled, linked_user_id,
           salary_type, basic_rate, allowance, ot_eligible, payroll_schedule,
           sss_number, philhealth_number, pagibig_number, sss_enabled, philhealth_enabled, pagibig_enabled,
-          sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
-        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?)
+          sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount, pay_basis
+        ) VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?)
       `).run(
         body.full_name.trim(), body.mobile_number || null, body.email || null, body.address || null,
         body.birthday || null, body.emergency_contact_name || null, body.emergency_contact_number || null,
         body.position || null, body.department || null, body.branch || null, body.date_hired || null,
         body.employment_type || 'Probationary', body.employment_status || 'Active',
         Array.isArray(body.work_days) ? body.work_days.join(',') : '1,2,3,4,5',
-        body.rest_day ?? null, body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
-        body.salary_type || 'Monthly', Number(body.basic_rate) || 0, Number(body.allowance) || 0,
+        body.rest_day ?? null, fixedRate || body.attendance_enabled === false ? 0 : 1, body.linked_user_id || null,
+        fixedRate ? 'Monthly' : (body.salary_type || 'Monthly'), Number(body.basic_rate) || 0, Number(body.allowance) || 0,
         body.ot_eligible === false ? 0 : 1, payrollSchedule,
         canEditStatutoryIds ? (body.sss_number || null) : null,
         canEditStatutoryIds ? (body.philhealth_number || null) : null,
@@ -105,7 +106,8 @@ export async function POST(req: NextRequest) {
         body.sss_enabled === false ? 0 : 1, body.philhealth_enabled === false ? 0 : 1, body.pagibig_enabled === false ? 0 : 1,
         canEditStatutoryIds ? (Number(body.sss_deduction_amount) || 0) : 0,
         canEditStatutoryIds ? (Number(body.philhealth_deduction_amount) || 0) : 0,
-        canEditStatutoryIds ? (Number(body.pagibig_deduction_amount) || 0) : 0
+        canEditStatutoryIds ? (Number(body.pagibig_deduction_amount) || 0) : 0,
+        fixedRate ? 'fixed' : 'attendance'
       );
       newId = Number(info.lastInsertRowid);
 

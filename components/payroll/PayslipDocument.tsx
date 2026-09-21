@@ -62,6 +62,8 @@ export default function PayslipDocument({ entry, adjustments, contactEmail, warn
   const manualDeductions = adjustments.filter((a: any) => !EARNING_TYPES.includes(a.adjustment_type));
 
   const isDaily = entry.salary_type_snapshot === 'Daily';
+  // Fixed-rate (freelance) pay has no attendance, so there are no days to show.
+  const fixedRate = entry.pay_basis_snapshot === 'fixed';
   const basicPayLabel = isDaily ? `Scheduled Basic Pay (${fmtDays(entry.work_days_count)})` : 'Basic Pay';
   const daysWorked = Math.max(0, entry.work_days_count - entry.absence_days - entry.unpaid_leave_days);
 
@@ -101,11 +103,13 @@ export default function PayslipDocument({ entry, adjustments, contactEmail, warn
         <div className="ps-emp-field"><span className="ps-emp-label">Employee ID</span><span className="ps-emp-value">{entry.employee_code_snapshot}</span></div>
         <div className="ps-emp-field"><span className="ps-emp-label">Employee Name</span><span className="ps-emp-value">{entry.employee_name_snapshot}</span></div>
         <div className="ps-emp-field"><span className="ps-emp-label">Position</span><span className="ps-emp-value">{entry.position_snapshot || '—'}</span></div>
-        <div className="ps-emp-field"><span className="ps-emp-label">Salary Type</span><span className="ps-emp-value">{entry.salary_type_snapshot}</span></div>
+        <div className="ps-emp-field"><span className="ps-emp-label">Salary Type</span><span className="ps-emp-value">{fixedRate ? 'Monthly · Fixed rate' : entry.salary_type_snapshot}</span></div>
         <div className="ps-emp-field"><span className="ps-emp-label">{isDaily ? 'Daily Rate' : 'Monthly Salary'}</span><span className="ps-emp-value">{peso(entry.basic_rate_snapshot)}</span></div>
         <div className="ps-emp-field"><span className="ps-emp-label">Pay Date</span><span className="ps-emp-value">{fmtDate(entry.pay_date || entry.to_date)}</span></div>
         <div className="ps-emp-field"><span className="ps-emp-label">Pay Period</span><span className="ps-emp-value">{fmtDate(entry.from_date)} &ndash; {fmtDate(entry.to_date)}</span></div>
-        <div className="ps-emp-field"><span className="ps-emp-label">Days Worked</span><span className="ps-emp-value">{daysWorked} / {entry.work_days_count}</span></div>
+        {fixedRate
+          ? <div className="ps-emp-field"><span className="ps-emp-label">Pay Basis</span><span className="ps-emp-value">Fixed rate</span></div>
+          : <div className="ps-emp-field"><span className="ps-emp-label">Days Worked</span><span className="ps-emp-value">{daysWorked} / {entry.work_days_count}</span></div>}
       </div>
 
       <div className="ps-cols">

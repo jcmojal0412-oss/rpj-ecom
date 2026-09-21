@@ -20,7 +20,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const period = db.prepare('SELECT * FROM payroll_periods WHERE id = ?').get(params.id) as { from_date: string; to_date: string } | undefined;
   if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 });
 
-  const employeeIds = (db.prepare('SELECT employee_id FROM payroll_entries WHERE payroll_period_id = ?').all(params.id) as { employee_id: number }[]).map(r => r.employee_id);
+  // Fixed-rate entries have no attendance to warn about.
+  const employeeIds = (db.prepare(`SELECT employee_id FROM payroll_entries WHERE payroll_period_id = ? AND pay_basis_snapshot != 'fixed'`).all(params.id) as { employee_id: number }[]).map(r => r.employee_id);
   const warnings = [];
   for (const employeeId of employeeIds) {
     const employee = db.prepare(`
