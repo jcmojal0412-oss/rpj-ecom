@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { todayISO } from '@/lib/utils';
 import { CalendarError, capsOf, runMaintenance, touchCalendar, type Caps } from '@/lib/calendar-service';
+import { kickGoogleSync } from '@/lib/calendar-google';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,9 @@ export function calendarRoute<P = Record<string, string>>(handler: (req: NextReq
       const res = await handler(req, { db, caps: capsOf(session), today, session: session as Ctx['session'] }, params);
       // After any change, let the next read re-run the overdue / reminder upkeep straight away.
       if (req.method !== 'GET') touchCalendar();
+      // Push changes to Google Calendar in the background (does nothing unless the Owner turned sync on).
+      // After a change: straight away. After a plain read: at most every 10 minutes, to pick up newly in-range schedules.
+      if (opts.maintain !== false || req.method !== 'GET') kickGoogleSync(db, today, req.method === 'GET' ? 600_000 : 0);
       return res;
     } catch (e) {
       if (e instanceof CalendarError) return NextResponse.json({ error: e.message }, { status: e.status });

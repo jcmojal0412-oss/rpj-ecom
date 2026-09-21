@@ -170,6 +170,16 @@ export function migrateCalendarSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_calendar_notifications_user ON calendar_notifications(user_id, read_at);
   `);
 
+  // Google Calendar sync (additive columns on the calendar's own tables).
+  const addCol = (table: string, col: string, def: string) => {
+    if (!(db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some(x => x.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  };
+  addCol('calendar_events', 'sync_google', 'INTEGER NOT NULL DEFAULT 1');
+  addCol('calendar_events', 'google_meet', 'INTEGER NOT NULL DEFAULT 0');
+  addCol('calendar_google_sync', 'payload_hash', 'TEXT');
+  addCol('calendar_google_sync', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
+  addCol('calendar_google_sync', 'next_attempt_at', 'TEXT');
+
   const count = (db.prepare('SELECT COUNT(*) c FROM calendar_business_units').get() as { c: number }).c;
   if (count === 0) {
     const ins = db.prepare('INSERT OR IGNORE INTO calendar_business_units (name, business_id, sort_order) VALUES (?, ?, ?)');

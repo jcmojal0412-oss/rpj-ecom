@@ -15,14 +15,14 @@ interface Form {
   start_date: string; end_date: string; multiDay: boolean; start_time: string; end_time: string; all_day: boolean; description: string; privacy: string;
   amount: string; payee: string; payment_method: string; reference_no: string; account_bank: string; other_financial: string;
   meeting_location: string; meeting_link: string; attendeeUsers: number[]; guests: { name: string; email: string }[];
-  reminders: number[]; customReminder: string;
+  reminders: number[]; customReminder: string; sync_google: boolean; google_meet: boolean;
   repeat: Repeat; unit: 'day' | 'week' | 'month' | 'year'; interval: string; weekdays: number[]; monthdays: string; endType: 'never' | 'until' | 'count'; until: string; count: string;
 }
 
 const fresh = (meta: Meta, date: string): Form => ({
   event_title: '', category: 'meeting', business_unit_id: '', assigned_user_id: '', start_date: date, end_date: date, multiDay: false, start_time: '09:00', end_time: '10:00', all_day: false,
   description: '', privacy: 'public', amount: '', payee: '', payment_method: '', reference_no: '', account_bank: '', other_financial: 'NONE',
-  meeting_location: '', meeting_link: '', attendeeUsers: [], guests: [], reminders: [], customReminder: '',
+  meeting_location: '', meeting_link: '', attendeeUsers: [], guests: [], reminders: [], customReminder: '', sync_google: true, google_meet: false,
   repeat: 'none', unit: 'week', interval: '1', weekdays: [], monthdays: '', endType: 'never', until: '', count: '10',
 });
 
@@ -34,7 +34,7 @@ function fromEvent(e: CalEvent): Form {
     description: e.description ?? '', privacy: e.privacy, amount: e.amount != null ? String(e.amount) : '', payee: e.payee ?? '', payment_method: e.payment_method ?? '', reference_no: e.reference_no ?? '',
     account_bank: e.account_bank ?? '', other_financial: e.financial_type, meeting_location: e.meeting_location ?? '', meeting_link: e.meeting_link ?? '',
     attendeeUsers: (e.attendees ?? []).filter(a => a.user_id).map(a => a.user_id as number), guests: (e.attendees ?? []).filter(a => !a.user_id).map(a => ({ name: a.name, email: a.email ?? '' })),
-    reminders: e.reminders ?? [],
+    reminders: e.reminders ?? [], sync_google: e.sync_google !== 0, google_meet: !!e.google_meet,
   };
 }
 
@@ -93,6 +93,7 @@ export default function EventForm({ meta, initialDate, event, onClose, onSaved }
         event_title: f.event_title, category: f.category, business_unit_id: f.business_unit_id ? Number(f.business_unit_id) : null, assigned_user_id: f.assigned_user_id ? Number(f.assigned_user_id) : null,
         start_date: f.start_date, end_date: f.multiDay ? f.end_date : f.start_date, all_day: f.all_day, start_time: f.all_day ? null : f.start_time, end_time: f.all_day ? null : (f.end_time || null),
         description: f.description, privacy: f.privacy, reminders: f.reminders,
+        sync_google: f.sync_google, google_meet: isMeeting && f.google_meet,
       };
       if (f.category === 'other') body.financial_type = f.other_financial;
       if (isFinancial) Object.assign(body, { amount: f.amount === '' ? null : Number(f.amount), payee: f.payee, payment_method: f.payment_method, reference_no: f.reference_no, account_bank: f.account_bank });
@@ -313,6 +314,18 @@ export default function EventForm({ meta, initialDate, event, onClose, onSaved }
           </div>
           <p className="text-[11px] text-gray-400 mt-1">You and the people involved are alerted inside RPJ System on those days.</p>
         </div>
+
+        {meta.google?.available && (
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3.5 space-y-2" data-testid="google-options">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Google Calendar</p>
+            <label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="mt-0.5" checked={f.sync_google} onChange={e => set({ sync_google: e.target.checked })} />
+              <span>Show in Google Calendar<span className="block text-xs text-gray-400">{isFinancial ? 'Only the basic headline is sent (e.g. “RPJ – Supplier Payment Due”) unless the Owner turned on details.' : 'Sent with its title, time and place.'}</span></span></label>
+            {isMeeting && f.sync_google && (
+              <label className="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="mt-0.5" checked={f.google_meet} onChange={e => set({ google_meet: e.target.checked })} />
+                <span>Create a Google Meet link<span className="block text-xs text-gray-400">The link appears here shortly after saving.</span></span></label>
+            )}
+          </div>
+        )}
 
         <div>
           <label className={label} htmlFor="ev-priv">Privacy</label>

@@ -7,6 +7,7 @@ import { STATUS_LABEL, addDays, addMonthsYM, monthBounds, startOfWeek } from '@/
 import EventForm from './EventForm';
 import EventDetail from './EventDetail';
 import PaymentDialog from './PaymentDialog';
+import GoogleSyncPanel from './GoogleSyncPanel';
 import { AgendaView, DayView, EventRow, MonthView, WeekView, eventsOn } from './CalendarViews';
 import { NotificationBell, OverdueBanner, SummaryCards, TodayWidget, WeekWidget, type Summary, type Upcoming } from './CalendarWidgets';
 import { catLabel, longDate, niceDate, type CalEvent, type Meta } from './calendar-ui';
@@ -231,6 +232,8 @@ export default function CalendarClient() {
           {upcoming && <WeekWidget u={upcoming} onOpen={e => setDetailId(e.id)} />}
         </aside>
       </div>
+
+      {meta.caps.is_owner && <GoogleSyncPanel onChanged={() => { fetch('/api/calendar/meta', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(m => { if (m) setMeta(m); }).catch(() => {}); }} />}
 
       {meta.caps.is_owner && (
         <div className="text-xs text-gray-400 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="demo-controls">

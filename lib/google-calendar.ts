@@ -27,7 +27,8 @@ export function isGoogleCalendarConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-export function getGoogleAuthUrl() {
+// `state` lets a caller (the Operations Calendar) be sent back to its own page after consent.
+export function getGoogleAuthUrl(state?: string) {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID || '',
     redirect_uri: redirectUri(),
@@ -36,6 +37,7 @@ export function getGoogleAuthUrl() {
     access_type: 'offline',
     prompt: 'consent', // force a refresh_token even on re-connect
   });
+  if (state) params.set('state', state);
   return `${AUTH_URL}?${params.toString()}`;
 }
 
@@ -75,7 +77,7 @@ export function disconnectGoogleCalendar() {
   getDb().prepare("DELETE FROM app_settings WHERE key IN ('google_calendar_refresh_token','google_calendar_email')").run();
 }
 
-async function getFreshAccessToken(): Promise<string | null> {
+export async function getFreshAccessToken(): Promise<string | null> {
   const db = getDb();
   const refreshToken = getSetting(db, 'google_calendar_refresh_token');
   if (!refreshToken || !isGoogleCalendarConfigured()) return null;

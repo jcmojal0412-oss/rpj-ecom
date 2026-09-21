@@ -12,7 +12,8 @@ const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://rpjcorp.com';
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
   const error = req.nextUrl.searchParams.get('error');
-  const redirectTo = new URL('/sedo-bookings', SITE_ORIGIN);
+  // Only known pages are allowed as a return target (no open redirect).
+  const redirectTo = new URL(req.nextUrl.searchParams.get('state') === 'calendar' ? '/calendar' : '/sedo-bookings', SITE_ORIGIN);
 
   if (error || !code) {
     redirectTo.searchParams.set('gcal', 'error');

@@ -12,11 +12,13 @@ export interface CalEvent {
   created_by: number | null; created_by_name: string | null; created_at: string; updated_at: string; is_demo: number;
   masked?: boolean; can_edit?: boolean; can_pay?: boolean; can_update_status?: boolean;
   attendees?: { user_id: number | null; name: string; email: string | null }[]; reminders?: number[]; attachment_count?: number;
+  sync_google?: number; google_meet?: number;
 }
 export interface Meta {
   today: string; categories: { key: string; label: string; color: string; soft: string; financial: string; kind: string }[];
   business_units: { id: number; name: string }[]; people: { id: number; name: string }[];
   caps: { user_id: number; is_owner: boolean; finance: boolean; payroll: boolean };
+  google?: { available: boolean };
 }
 
 export const catColor = (key: string) => CATEGORY_BY_KEY[key]?.color ?? '#7B8794';

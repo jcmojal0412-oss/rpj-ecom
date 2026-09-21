@@ -50,17 +50,20 @@ export interface EventInput {
   description?: string | null; privacy?: Privacy; financial_type?: string | null;
   amount?: number | null; payee?: string | null; payment_method?: string | null; reference_no?: string | null; account_bank?: string | null;
   meeting_location?: string | null; meeting_link?: string | null;
+  sync_google?: boolean | number | null; google_meet?: boolean | number | null;
   attendees?: { user_id?: number | null; name?: string; email?: string | null }[];
   reminders?: number[];
   recurrence?: RepeatRule | null;
 }
+// true / 1 → 1, false / 0 → 0, missing → the default
+const flag = (v: unknown, dflt: number) => (v === undefined || v === null ? dflt : v ? 1 : 0);
 const clean = (v: unknown, max: number) => { const s = typeof v === 'string' ? v.trim() : ''; return s ? s.slice(0, max) : null; };
 
 interface Cleaned {
   event_title: string; category: string; event_type: string; financial_type: FinancialType; business_unit_id: number | null; assigned_user_id: number | null;
   start_date: string; end_date: string; start_time: string | null; end_time: string | null; all_day: number; description: string | null; privacy: Privacy;
   amount: number | null; payee: string | null; payment_method: string | null; reference_no: string | null; account_bank: string | null;
-  meeting_location: string | null; meeting_link: string | null;
+  meeting_location: string | null; meeting_link: string | null; sync_google: number; google_meet: number;
   attendees: { user_id: number | null; name: string; email: string | null }[]; reminders: number[]; rule: NormalizedRule | null;
 }
 
@@ -144,6 +147,7 @@ export function cleanInput(db: Database.Database, i: EventInput, base?: { start_
     amount, payee: financial !== 'NONE' ? clean(i.payee, 160) : null, payment_method: financial !== 'NONE' ? clean(i.payment_method, 60) : null,
     reference_no: financial !== 'NONE' ? clean(i.reference_no, 120) : null, account_bank: financial !== 'NONE' ? clean(i.account_bank, 160) : null,
     meeting_location: category === 'meeting' ? clean(i.meeting_location, 200) : null, meeting_link: category === 'meeting' ? link : null,
+    sync_google: flag(i.sync_google, 1), google_meet: category === 'meeting' ? flag(i.google_meet, 0) : 0,
     attendees, reminders, rule,
   };
 }
@@ -199,7 +203,7 @@ export interface ApiEvent {
   original_due_date: string | null; payee: string | null; payment_method: string | null; reference_no: string | null; account_bank: string | null;
   created_by: number | null; created_by_name: string | null; created_at: string; updated_at: string; is_demo: number;
   masked?: boolean; can_edit?: boolean; can_pay?: boolean; can_update_status?: boolean; attendees?: { user_id: number | null; name: string; email: string | null }[]; reminders?: number[];
-  attachment_count?: number; google?: { status: string; meet_link: string | null } | null;
+  attachment_count?: number; sync_google?: number; google_meet?: number; google?: { status: string; meet_link: string | null } | null;
 }
 
 const BASE_SQL = `
@@ -250,6 +254,7 @@ function shape(row: any, c: Caps, att: { user_id: number | null; name: string; e
     created_by: row.created_by, created_by_name: row.created_by_name, created_at: row.created_at, updated_at: row.updated_at, is_demo: row.is_demo,
     can_edit: canEditEvent(c, row), can_pay: row.financial_type !== 'NONE' && manage && row.status !== 'cancelled',
     can_update_status: canEditEvent(c, row) || row.assigned_user_id === c.userId, attachment_count: row.attachment_count,
+    sync_google: row.sync_google, google_meet: row.google_meet,
   };
   if (detail) out.attendees = att;
   return out;
@@ -306,10 +311,10 @@ export function getEventDetail(db: Database.Database, c: Caps, id: number, today
 function insertEventRow(db: Database.Database, v: Cleaned, actor: number, extra: { recurrence_id?: number | null; occurrence_date?: string | null; demo?: boolean } = {}): number {
   const info = db.prepare(`
     INSERT INTO calendar_events (event_title, event_type, category, business_unit_id, assigned_user_id, start_date, end_date, start_time, end_time, all_day, description,
-      financial_type, amount, payee, payment_method, reference_no, account_bank, status, original_due_date, privacy, meeting_location, meeting_link, recurrence_id, occurrence_date, is_demo, created_by, updated_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      financial_type, amount, payee, payment_method, reference_no, account_bank, status, original_due_date, privacy, meeting_location, meeting_link, sync_google, google_meet, recurrence_id, occurrence_date, is_demo, created_by, updated_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(v.event_title, v.event_type, v.category, v.business_unit_id, v.assigned_user_id, v.start_date, v.end_date, v.start_time, v.end_time, v.all_day, v.description,
-    v.financial_type, v.amount, v.payee, v.payment_method, v.reference_no, v.account_bank, initialStatus(v.financial_type), v.start_date, v.privacy, v.meeting_location, v.meeting_link,
+    v.financial_type, v.amount, v.payee, v.payment_method, v.reference_no, v.account_bank, initialStatus(v.financial_type), v.start_date, v.privacy, v.meeting_location, v.meeting_link, v.sync_google, v.google_meet,
     extra.recurrence_id ?? null, extra.occurrence_date ?? null, extra.demo ? 1 : 0, actor, actor);
   return Number(info.lastInsertRowid);
 }
@@ -349,7 +354,7 @@ function materialize(db: Database.Database, recurrenceId: number, through: strin
       event_title: master.event_title, category: master.category, event_type: master.event_type, financial_type: master.financial_type, business_unit_id: master.business_unit_id, assigned_user_id: master.assigned_user_id,
       start_date: d, end_date: shiftEnd(master.start_date, master.end_date, d), start_time: master.start_time, end_time: master.end_time, all_day: master.all_day, description: master.description, privacy: master.privacy,
       amount: master.amount, payee: master.payee, payment_method: master.payment_method, reference_no: master.reference_no, account_bank: master.account_bank,
-      meeting_location: master.meeting_location, meeting_link: master.meeting_link, attendees, reminders: [], rule: null,
+      meeting_location: master.meeting_location, meeting_link: master.meeting_link, sync_google: master.sync_google, google_meet: master.google_meet, attendees, reminders: [], rule: null,
     };
     const id = insertEventRow(db, v, master.created_by ?? 0, { recurrence_id: recurrenceId, occurrence_date: d, demo: !!master.is_demo });
     db.prepare("UPDATE calendar_events SET created_by = ? WHERE id = ?").run(master.created_by, id);
@@ -436,9 +441,9 @@ export function updateEvent(db: Database.Database, c: Caps, id: number, input: E
       const end = isThis ? v.end_date : shiftEnd(t.start_date, t.end_date, t.start_date);
       db.prepare(`
         UPDATE calendar_events SET event_title=?, event_type=?, category=?, business_unit_id=?, assigned_user_id=?, start_date=?, end_date=?, start_time=?, end_time=?, all_day=?, description=?,
-          amount=?, payee=?, payment_method=?, reference_no=?, account_bank=?, privacy=?, meeting_location=?, meeting_link=?, updated_by=?, updated_at=datetime('now') WHERE id=?
+          amount=?, payee=?, payment_method=?, reference_no=?, account_bank=?, privacy=?, meeting_location=?, meeting_link=?, sync_google=?, google_meet=?, updated_by=?, updated_at=datetime('now') WHERE id=?
       `).run(v.event_title, v.event_type, v.category, v.business_unit_id, v.assigned_user_id, start, end, v.start_time, v.end_time, v.all_day, v.description,
-        amount, v.payee, v.payment_method, v.reference_no, v.account_bank, v.privacy, v.meeting_location, v.meeting_link, c.userId, tid);
+        amount, v.payee, v.payment_method, v.reference_no, v.account_bank, v.privacy, v.meeting_location, v.meeting_link, v.sync_google, v.google_meet, c.userId, tid);
       if (input.attendees) setChildren(db, tid, v);
       const moved = t.start_date !== start;
       audit(db, tid, c.userId, 'updated', `${isThis ? 'Edited' : 'Edited with the series'}${moved ? `; date moved ${t.start_date} → ${start} (original due date ${t.original_due_date ?? t.start_date} kept)` : ''}`);
@@ -526,7 +531,7 @@ export function duplicateEvent(db: Database.Database, c: Caps, id: number, today
   const input: EventInput = {
     event_title: `${ev.event_title} (copy)`, category: ev.category, business_unit_id: ev.business_unit_id, assigned_user_id: ev.assigned_user_id, start_date: ev.start_date, end_date: ev.end_date,
     start_time: ev.start_time, end_time: ev.end_time, all_day: !!ev.all_day, description: ev.description, privacy: ev.privacy, financial_type: ev.financial_type, amount: ev.amount,
-    payee: ev.payee, payment_method: ev.payment_method, reference_no: null, account_bank: ev.account_bank, meeting_location: ev.meeting_location, meeting_link: ev.meeting_link,
+    payee: ev.payee, payment_method: ev.payment_method, reference_no: null, account_bank: ev.account_bank, meeting_location: ev.meeting_location, meeting_link: ev.meeting_link, sync_google: ev.sync_google, google_meet: ev.google_meet,
     attendees: attendeesOf(db, id), reminders: (db.prepare('SELECT days_before FROM calendar_event_reminders WHERE event_id = ?').all(id) as { days_before: number }[]).map(r => r.days_before),
   };
   const newId = createEvent(db, c, input, today);

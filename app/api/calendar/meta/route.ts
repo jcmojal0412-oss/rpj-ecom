@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { calendarRoute } from '@/lib/calendar-http';
 import { CATEGORIES } from '@/lib/calendar';
+import { googleStatus } from '@/lib/calendar-google';
 
 // Everything the calendar screen needs to build its forms and filters.
 export const GET = calendarRoute(async (_req, { db, caps, today }) => {
@@ -10,5 +11,7 @@ export const GET = calendarRoute(async (_req, { db, caps, today }) => {
   return NextResponse.json({
     today, categories: CATEGORIES, business_units: businessUnits, people,
     caps: { user_id: caps.userId, is_owner: caps.isOwner, finance: caps.finance, payroll: caps.payroll },
+    // true when schedules can be sent to Google Calendar (connected + switched on) — shows the Google options in the form
+    google: { available: googleStatus(db).available },
   });
 }, { maintain: false });
