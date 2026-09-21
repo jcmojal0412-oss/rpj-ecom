@@ -158,8 +158,10 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'HR Dashboard',     href: '/hr-dashboard',  icon: LayoutGrid,     module: 'attendance' },
       { label: 'Employees',        href: '/employees',     icon: Contact,        module: 'employees' },
       { label: 'Attendance',       href: '/attendance',    icon: ClipboardCheck, module: 'attendance' },
-      { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll' },
+      // exact: '/payroll' is a prefix of '/payroll/reports', so without it both would light up.
+      { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll', exact: true },
       { label: 'Payslips',         href: '/payslips',      icon: Receipt,        module: '_any' },
+      { label: 'Payroll Reports',  href: '/payroll/reports', icon: BarChart3,    module: 'payroll' },
       { label: 'HR Settings',      href: '/hr-settings',   icon: Settings,       module: 'attendance' },
     ],
   },

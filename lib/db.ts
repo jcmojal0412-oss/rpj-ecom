@@ -1047,6 +1047,20 @@ function migrateSchema() {
       UPDATE payroll_entries SET payslip_ref = 'PS-' || replace((SELECT p.to_date FROM payroll_periods p WHERE p.id = NEW.payroll_period_id), '-', '') || '-' || printf('%05d', NEW.id) WHERE id = NEW.id;
     END;
   `);
+  // Department frozen per payroll record, for the Monthly Payroll Expense
+  // report: an employee moving departments later must not rewrite past cost.
+  // The trigger fills it for every new entry (payroll generation itself is
+  // untouched); rows that already exist get the department on file today —
+  // the best that can be known for them.
+  addColIfMissing('payroll_entries', 'department_snapshot', 'department_snapshot TEXT');
+  db.exec(`
+    UPDATE payroll_entries SET department_snapshot = (SELECT e.department FROM employees e WHERE e.id = payroll_entries.employee_id)
+    WHERE department_snapshot IS NULL;
+    CREATE TRIGGER IF NOT EXISTS trg_payroll_entries_department AFTER INSERT ON payroll_entries WHEN NEW.department_snapshot IS NULL
+    BEGIN
+      UPDATE payroll_entries SET department_snapshot = (SELECT e.department FROM employees e WHERE e.id = NEW.employee_id) WHERE id = NEW.id;
+    END;
+  `);
   addColIfMissing('payroll_entries', 'payslip_email_id', 'payslip_email_id TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status', 'payslip_email_status TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status_at', 'payslip_email_status_at TEXT');
