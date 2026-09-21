@@ -59,11 +59,11 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial
 const mailto = (a: string) => `<a href="mailto:${esc(a)}" style="color:${GOLD};text-decoration:underline">${esc(a)}</a>`;
 
 const line = (label: string, amount: string, strong = false) =>
-  `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font-size:14px;line-height:20px;color:${strong ? INK : MUTED};font-weight:${strong ? 700 : 400}">${label}</td>` +
-  `<td align="right" style="padding:9px 0 9px 12px;border-bottom:1px solid ${LINE};font-size:14px;line-height:20px;color:${INK};font-weight:${strong ? 700 : 600};white-space:nowrap">${amount}</td></tr>`;
+  `<tr><td style="padding:7px 0;border-bottom:1px solid ${LINE};font-size:14px;line-height:20px;color:${strong ? INK : MUTED};font-weight:${strong ? 700 : 400}">${label}</td>` +
+  `<td align="right" style="padding:7px 0 7px 12px;border-bottom:1px solid ${LINE};font-size:14px;line-height:20px;color:${INK};font-weight:${strong ? 700 : 600};white-space:nowrap">${amount}</td></tr>`;
 
 const heading = (text: string) =>
-  `<div style="padding:18px 0 2px;font-size:11px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${GOLD}">${text}</div>`;
+  `<div style="padding:14px 0 2px;font-size:11px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${GOLD}">${text}</div>`;
 
 export function buildPayslipEmail(
   entry: Record<string, any>,
@@ -115,13 +115,21 @@ export function buildPayslipEmail(
     ['Salary Type', entry.salary_type_snapshot],
   ] as [string, unknown][]).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '').map(([k, v]) => [k, String(v)]);
   const infoCell = ([k, v]: [string, string]) =>
-    `<td valign="top" width="50%" style="padding:6px 8px 6px 0"><div style="font-size:11px;line-height:14px;color:${FAINT};text-transform:uppercase;letter-spacing:.8px">${esc(k)}</div>` +
+    `<td valign="top" width="50%" style="padding:4px 8px 4px 0"><div style="font-size:11px;line-height:14px;color:${FAINT};text-transform:uppercase;letter-spacing:.8px">${esc(k)}</div>` +
     `<div style="font-size:14px;line-height:20px;color:${INK};font-weight:600;word-break:break-word">${esc(v)}</div></td>`;
   const infoRows: string[] = [];
   for (let i = 0; i < info.length; i += 2) infoRows.push(`<tr>${infoCell(info[i])}${info[i + 1] ? infoCell(info[i + 1]) : '<td width="50%"></td>'}</tr>`);
 
   const subject = `Your Payslip – ${periodText}`;
   const preheader = `Your payslip for ${periodText} is now available.`;
+
+  // Earnings | Deductions side by side on wide screens. Each column is an
+  // inline-block capped at COL px, so when there isn't room for two they simply
+  // stack (phones) with no media query; Outlook gets a ghost table instead.
+  const COL = 288, GUT = 8;
+  const col = (inner: string) => `<div style="display:inline-block;width:100%;max-width:${COL}px;vertical-align:top"><div style="padding:0 ${GUT}px;font-size:14px;line-height:20px;text-align:left">${inner}</div></div>`;
+  const earningsCol = col(`${heading('Earnings')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${earningRows}</table>`);
+  const deductionsCol = col(`${heading('Deductions')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${deductionRows}</table>`);
 
   const button = options.portalUrl
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto"><tr><td align="center" bgcolor="${GOLD}" style="background:${GOLD};border-radius:6px">` +
@@ -131,19 +139,20 @@ export function buildPayslipEmail(
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><title>${esc(subject)}</title>
 <style>
-  @media only screen and (max-width:620px){
+  @media only screen and (max-width:700px){
     .pad{padding-left:20px !important;padding-right:20px !important}
     .card-pad{padding-left:16px !important;padding-right:16px !important}
+    .cols{padding-left:8px !important;padding-right:8px !important}
     .net{font-size:28px !important}
   }
 </style></head>
 <body style="margin:0;padding:0;background:${PAGE};font-family:${FONT};color:${INK};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:${PAGE}">${esc(preheader)}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${PAGE}"><tr><td align="center" style="padding:24px 10px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid ${LINE};border-radius:8px">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:680px;background:#ffffff;border:1px solid ${LINE};border-radius:8px">
 
 <!-- 1. Branding -->
-<tr><td class="pad" style="padding:22px 32px 18px;border-bottom:3px solid ${GOLD}">
+<tr><td class="pad" style="padding:18px 32px 16px;border-bottom:3px solid ${GOLD}">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
     <td valign="middle" style="padding-right:14px"><img src="${esc(logoUrl)}" width="76" height="70" alt="RPJ Corp." style="display:block;width:76px;height:auto;border:0;outline:none;text-decoration:none"></td>
     <td valign="middle">
@@ -155,39 +164,38 @@ export function buildPayslipEmail(
 </td></tr>
 
 <!-- 2. The message from HR -->
-<tr><td class="pad" style="padding:28px 32px 30px;font-size:15px;line-height:24px;color:${INK}">
-  <p style="margin:0 0 16px">Hello ${esc(first) || 'there'},</p>
-  <p style="margin:0 0 16px">Your payslip for <b>${esc(periodText)}</b> is now available.</p>
-  ${payDate ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px"><tr><td style="padding:2px 0 2px 14px;border-left:3px solid ${GOLD}"><div style="font-size:12px;line-height:16px;color:${FAINT};text-transform:uppercase;letter-spacing:.8px">Pay Date</div><div style="font-size:16px;line-height:24px;font-weight:700;color:${INK}">${esc(payDate)}</div></td></tr></table>` : ''}
-  <p style="margin:0 0 16px">Please review your payroll details below.</p>
-  <p style="margin:0 0 22px">If you notice any discrepancy in your salary, attendance, deductions, or other payroll information, please contact HR${support ? ` at ${mailto(support)}` : ''}.</p>
+<tr><td class="pad" style="padding:24px 32px 26px;font-size:15px;line-height:24px;color:${INK}">
+  <p style="margin:0 0 14px">Hello ${esc(first) || 'there'},</p>
+  <p style="margin:0 0 14px">Your payslip for <b>${esc(periodText)}</b> is now available.</p>
+  ${payDate ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px"><tr><td style="padding:2px 0 2px 14px;border-left:3px solid ${GOLD}"><div style="font-size:12px;line-height:16px;color:${FAINT};text-transform:uppercase;letter-spacing:.8px">Pay Date</div><div style="font-size:16px;line-height:24px;font-weight:700;color:${INK}">${esc(payDate)}</div></td></tr></table>` : ''}
+  <p style="margin:0 0 14px">Please review your payroll details below.</p>
+  <p style="margin:0 0 18px">If you notice any discrepancy in your salary, attendance, deductions, or other payroll information, please contact HR${support ? ` at ${mailto(support)}` : ''}.</p>
   <p style="margin:0">Thank you,</p>
   <p style="margin:12px 0 0;line-height:22px"><b>HR &amp; Payroll Department</b><br><span style="color:${MUTED}">${COMPANY_NAME}</span></p>
 </td></tr>
 
 <!-- 3. The payslip, as a document -->
-<tr><td class="pad" style="padding:26px 32px;background:${BAND};border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
+<tr><td class="pad" style="padding:22px 32px;background:${BAND};border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #dcdfe3;border-radius:6px">
-    <tr><td class="card-pad" style="padding:22px 24px 16px;border-bottom:1px solid ${LINE}">
+    <tr><td class="card-pad" style="padding:18px 24px 14px;border-bottom:1px solid ${LINE}">
       <div style="font-size:11px;line-height:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${GOLD}">Employee Payslip</div>
       <div style="font-size:20px;line-height:28px;font-weight:700;color:${INK};padding-top:2px">${esc(periodText)}</div>
       ${payDate ? `<div style="font-size:13px;line-height:20px;color:${MUTED}">Pay Date: ${esc(payDate)}</div>` : ''}
     </td></tr>
-    <tr><td class="card-pad" style="padding:14px 24px 4px">
+    <tr><td class="card-pad" style="padding:12px 24px 0">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${infoRows.join('')}</table>
     </td></tr>
-    <tr><td class="card-pad" style="padding:0 24px">
-      ${heading('Earnings')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${earningRows}</table>
-      ${heading('Deductions')}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${deductionRows}</table>
+    <tr><td class="cols" align="left" style="padding:0 16px 4px;font-size:0;line-height:0;text-align:left">
+      <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="${COL}" valign="top"><![endif]-->${earningsCol}<!--[if mso]></td><td width="${COL}" valign="top"><![endif]-->${deductionsCol}<!--[if mso]></td></tr></table><![endif]-->
     </td></tr>
-    <tr><td class="card-pad" style="padding:20px 24px 24px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${GOLD_SOFT}" style="background:${GOLD_SOFT};border:1px solid ${GOLD_LINE};border-radius:6px"><tr><td align="center" style="padding:16px 12px">
+    <tr><td class="card-pad" style="padding:16px 24px 22px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${GOLD_SOFT}" style="background:${GOLD_SOFT};border:1px solid ${GOLD_LINE};border-radius:6px"><tr><td align="center" style="padding:14px 12px">
         <div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:${GOLD}">Net Pay</div>
         <div class="net" style="font-size:34px;line-height:42px;font-weight:700;color:${INK};padding-top:2px;white-space:nowrap">${peso(entry.net_pay)}</div>
       </td></tr></table>
     </td></tr>
   </table>
-  ${button ? `<div style="padding-top:22px">${button}</div>` : ''}
+  ${button ? `<div style="padding-top:20px">${button}</div>` : ''}
 </td></tr>
 
 <!-- 4. Support + confidentiality -->
