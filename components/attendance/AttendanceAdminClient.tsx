@@ -5,6 +5,7 @@ import { Loader2, FlaskConical, Trash2, Plus, Pencil } from 'lucide-react';
 import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
+import EditAttendanceModal from './EditAttendanceModal';
 import type { EventType, AttendanceStatus } from '@/lib/attendance';
 
 // Simple HR Mode: Attendance now only covers day-to-day operations —
@@ -270,6 +271,7 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
   const [loading, setLoading] = useState(true);
   const [reviewingOt, setReviewingOt] = useState<any | null>(null);
   const [openingOt, setOpeningOt] = useState<string | null>(null);
+  const [editingDay, setEditingDay] = useState<{ employeeId: number; name: string; date: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/attendance/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
@@ -366,6 +368,7 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
                   <th className="table-header">Late</th>
                   <th className="table-header">Undertime</th>
                   <th className="table-header">Potential OT</th>
+                  <th className="table-header"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -384,6 +387,10 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
                     <td className="table-cell">{r.lateMinutes > 0 ? fmtMinutes(r.lateMinutes) : '—'}</td>
                     <td className="table-cell">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</td>
                     <td className="table-cell">{otCell(r)}</td>
+                    <td className="table-cell text-right">
+                      <button type="button" onClick={() => setEditingDay({ employeeId: r.employee_id, name: r.name, date: r.date })}
+                        className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-800 ml-auto"><Pencil size={12} /> Edit</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -412,6 +419,10 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</span></div>
                   <div className="flex justify-between gap-2 items-center"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{otCell(r)}</span></div>
                 </div>
+                <div className="mt-2.5 pt-2.5 border-t border-gray-100 flex justify-end">
+                  <button type="button" onClick={() => setEditingDay({ employeeId: r.employee_id, name: r.name, date: r.date })}
+                    className="btn-secondary text-xs py-2.5"><Pencil size={13} /> Edit Attendance</button>
+                </div>
               </div>
             ))}
           </div>
@@ -424,6 +435,16 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
           request={reviewingOt}
           onClose={() => setReviewingOt(null)}
           onDone={(note) => { setReviewingOt(null); showToast(note ? `OT saved! ${note}` : 'OT saved!'); fetchRecords(); }}
+        />
+      )}
+
+      {editingDay && (
+        <EditAttendanceModal
+          employeeId={editingDay.employeeId}
+          employeeName={editingDay.name}
+          date={editingDay.date}
+          onClose={() => setEditingDay(null)}
+          onSaved={(note) => { setEditingDay(null); showToast(note ? `Attendance updated! ${note}` : 'Attendance updated!'); fetchRecords(); }}
         />
       )}
     </div>
