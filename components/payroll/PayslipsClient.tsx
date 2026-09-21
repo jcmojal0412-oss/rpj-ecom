@@ -4,8 +4,26 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Receipt } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import PayslipsMonitor from './PayslipsMonitor';
 
+// Owner / anyone with the Payroll permission gets the Payroll Monitoring
+// page; an employee only ever sees the simple list of their own released
+// payslips below (the API never returns anyone else's to them).
 export default function PayslipsClient() {
+  const [role, setRole] = useState<'loading' | 'admin' | 'employee'>('loading');
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+      setRole(u && (u.role === 'owner' || (Array.isArray(u.permissions) && u.permissions.includes('payroll'))) ? 'admin' : 'employee');
+    });
+  }, []);
+
+  if (role === 'loading') return <div className="flex justify-center py-16"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
+  if (role === 'admin') return <PayslipsMonitor />;
+  return <MyPayslips />;
+}
+
+function MyPayslips() {
   const router = useRouter();
   const [payslips, setPayslips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

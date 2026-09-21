@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2, Archive, Settings } from 'lucide-react';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
@@ -53,6 +53,18 @@ export default function PayrollClient() {
     });
   };
   useEffect(fetchPeriods, []);
+
+  // /payroll?period=ID (linked from the Payslips page) opens that run directly.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (deepLinked.current || loading || periods.length === 0) return;
+    const id = Number(new URLSearchParams(window.location.search).get('period'));
+    if (!id) return;
+    deepLinked.current = true;
+    const p = periods.find(x => x.id === id);
+    if (p) openPeriod(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periods, loading]);
 
   const openPeriod = (period: any) => {
     setActivePeriodId(period.id);

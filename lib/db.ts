@@ -997,6 +997,49 @@ function migrateSchema() {
   addColIfMissing('payroll_entries', 'pagibig_er_contribution', 'pagibig_er_contribution REAL NOT NULL DEFAULT 0');
   addColIfMissing('payroll_entries', 'pagibig_version_snapshot', 'pagibig_version_snapshot TEXT');
 
+  // Payslips & Payroll Monitoring: payment and payslip release are tracked
+  // PER EMPLOYEE, as two separate things. payment_status is only stored once
+  // something explicit happened (PAID / PARTIALLY_PAID / FAILED / RETURNED);
+  // the earlier stages (pending / for approval / approved) are derived from
+  // the period's own status so they can never disagree with it. Whether an
+  // employee can see their payslip used to be one period-wide switch
+  // (payroll_periods.payslips_generated_at); it is now payslip_released_at on
+  // each entry. No CHECK constraints, matching how other status-like columns
+  // here are validated in the API layer.
+  addColIfMissing('payroll_entries', 'payment_status', 'payment_status TEXT');
+  addColIfMissing('payroll_entries', 'paid_amount', 'paid_amount REAL');
+  addColIfMissing('payroll_entries', 'paid_at', 'paid_at TEXT');
+  addColIfMissing('payroll_entries', 'paid_by', 'paid_by INTEGER REFERENCES users(id)');
+  addColIfMissing('payroll_entries', 'payment_method', 'payment_method TEXT');
+  addColIfMissing('payroll_entries', 'payment_reference', 'payment_reference TEXT');
+  addColIfMissing('payroll_entries', 'payment_note', 'payment_note TEXT');
+  addColIfMissing('payroll_entries', 'payslip_released_at', 'payslip_released_at TEXT');
+  addColIfMissing('payroll_entries', 'payslip_released_by', 'payslip_released_by INTEGER REFERENCES users(id)');
+  addColIfMissing('payroll_entries', 'payslip_viewed_at', 'payslip_viewed_at TEXT');
+  addColIfMissing('payroll_entries', 'payslip_printed_at', 'payslip_printed_at TEXT');
+  addColIfMissing('payroll_entries', 'payslip_downloaded_at', 'payslip_downloaded_at TEXT');
+
+  // Historical payslips stay exactly as they were: a period whose payslips
+  // were already generated counts as released for every one of its entries,
+  // and a period already marked paid/locked counts as paid. Both statements
+  // only ever fill columns that are still empty, so they are safe to run on
+  // every start and never overwrite a later, explicit decision.
+  db.exec(`
+    UPDATE payroll_entries SET
+      payslip_released_at = (SELECT p.payslips_generated_at FROM payroll_periods p WHERE p.id = payroll_entries.payroll_period_id),
+      payslip_released_by = (SELECT p.payslips_generated_by FROM payroll_periods p WHERE p.id = payroll_entries.payroll_period_id)
+    WHERE payslip_released_at IS NULL
+      AND payroll_period_id IN (SELECT id FROM payroll_periods WHERE payslips_generated_at IS NOT NULL);
+
+    UPDATE payroll_entries SET
+      payment_status = 'PAID',
+      paid_at = (SELECT p.paid_at FROM payroll_periods p WHERE p.id = payroll_entries.payroll_period_id),
+      paid_by = (SELECT p.paid_by FROM payroll_periods p WHERE p.id = payroll_entries.payroll_period_id),
+      paid_amount = net_pay
+    WHERE payment_status IS NULL
+      AND payroll_period_id IN (SELECT id FROM payroll_periods WHERE status IN ('paid','locked'));
+  `);
+
   // AI FB Ads Generator V1 — one row per generated creative. product_id is
   // nullable (staff can generate for a product not yet in the Products
   // module, via manual entry + uploaded image). source_image_path is the

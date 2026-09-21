@@ -93,6 +93,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       db.prepare(`
         INSERT INTO payroll_audit_log (payroll_period_id, actor_user_id, action, details) VALUES (?, ?, ?, ?)
       `).run(params.id, session!.id, transition.next, `Status changed to ${transition.next}`);
+
+      // Marking the whole period paid marks every employee still awaiting
+      // payment as paid in full. An entry someone already recorded as
+      // FAILED / RETURNED / PARTIALLY_PAID is a deliberate per-employee
+      // decision and is left alone.
+      if (transition.next === 'paid') {
+        db.prepare(`
+          UPDATE payroll_entries SET payment_status = 'PAID', paid_at = datetime('now'), paid_by = ?, paid_amount = net_pay
+          WHERE payroll_period_id = ? AND payment_status IS NULL
+        `).run(session!.id, params.id);
+      }
     });
 
     return NextResponse.json({ ok: true, status: transition.next });

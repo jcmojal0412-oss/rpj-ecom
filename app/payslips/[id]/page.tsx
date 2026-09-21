@@ -50,6 +50,20 @@ export default function PayslipPrintPage() {
     });
   }, [params.id]);
 
+  // Records that the payslip was printed (shown as its status on the Payslips
+  // page), then opens the browser's print dialog.
+  const printPayslip = () => {
+    fetch(`/api/payslips/${params.id}/track`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'printed' }) }).catch(() => {});
+    window.print();
+  };
+
+  // "Print Payslip" from the Payslips page opens this with ?print=1.
+  useEffect(() => {
+    if (!data) return;
+    if (new URLSearchParams(window.location.search).get('print') === '1') setTimeout(printPayslip, 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   if (error) {
     return <div className="min-h-screen flex items-center justify-center text-sm text-red-500">{error}</div>;
   }
@@ -75,7 +89,7 @@ export default function PayslipPrintPage() {
       <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 bg-gray-900 text-white shadow-xl">
         <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-white transition-colors py-2 pr-3 sm:p-0">← Back</button>
         <button
-          onClick={() => window.print()}
+          onClick={printPayslip}
           className="flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           🖨️ Print / Save as PDF
