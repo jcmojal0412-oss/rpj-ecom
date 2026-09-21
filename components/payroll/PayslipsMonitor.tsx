@@ -8,6 +8,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
+import PayslipDocument from './PayslipDocument';
 
 // ── Types (mirror lib/payslip-monitor.ts) ────────────────────────────────
 type Issue = { code: string; severity: 'error' | 'warning' | 'info'; message: string };
@@ -60,7 +61,6 @@ type Confirm =
 export default function PayslipsMonitor() {
   const router = useRouter();
   const { toast, showToast, clearToast } = useToast();
-  const [me, setMe] = useState<{ role: string } | null>(null);
   const [periods, setPeriods] = useState<PeriodRef[]>([]);
   const [data, setData] = useState<any>(null);
   const [periodId, setPeriodId] = useState<number | null>(null);
@@ -78,12 +78,11 @@ export default function PayslipsMonitor() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [detail, setDetail] = useState<{ entry: Entry; kind: 'breakdown' | 'attendance' | 'issues' | 'activity' } | null>(null);
+  const [viewing, setViewing] = useState<Entry | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [paidForm, setPaidForm] = useState({ amount: '', method: '', reference: '', note: '' });
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState('');
-
-  const isOwner = me?.role === 'owner';
 
   const load = useCallback(async (id?: number | null) => {
     setLoading(true);
@@ -105,7 +104,6 @@ export default function PayslipsMonitor() {
   }, []);
 
   useEffect(() => { load(null); }, [load]);
-  useEffect(() => { fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => setMe(u)); }, []);
 
   const entries: Entry[] = data?.entries ?? [];
   const period = data?.period;
@@ -186,14 +184,14 @@ export default function PayslipsMonitor() {
   // ── Row action menu ────────────────────────────────────────────────────
   const menuItems = (e: Entry) => {
     const items: { label: string; onClick: () => void; danger?: boolean }[] = [
-      { label: 'View Payslip', onClick: () => router.push(`/payslips/${e.id}`) },
+      { label: 'View Payslip', onClick: () => setViewing(e) },
     ];
     if (['draft', 'for_review'].includes(period.status)) items.push({ label: 'Edit Payroll', onClick: () => router.push(`/payroll?period=${period.id}`) });
     items.push({ label: 'View Payroll Breakdown', onClick: () => setDetail({ entry: e, kind: 'breakdown' }) });
     items.push({ label: 'View Attendance Basis', onClick: () => setDetail({ entry: e, kind: 'attendance' }) });
     if (canRecordPayment && e.payment_status !== 'PAID') items.push({ label: 'Mark as Paid', onClick: () => openConfirm({ kind: 'mark_paid', ids: [e.id] }) });
     if (periodFinal && !e.payslip_released_at) items.push({ label: 'Release Payslip', onClick: () => openConfirm({ kind: 'release', ids: [e.id] }) });
-    items.push({ label: 'Print Payslip', onClick: () => router.push(`/payslips/${e.id}?print=1`) });
+    items.push({ label: 'Print Payslip', onClick: () => window.open(`/payslips/${e.id}?print=1`, '_blank') });
     if (canRecordPayment && !['PAID', 'RETURNED'].includes(e.payment_status) && e.payment_status !== 'FAILED') items.push({ label: 'Mark Payment Failed', onClick: () => openConfirm({ kind: 'mark_failed', ids: [e.id] }), danger: true });
     if (canRecordPayment && ['PAID', 'PARTIALLY_PAID'].includes(e.payment_status)) items.push({ label: 'Mark Payment Returned', onClick: () => openConfirm({ kind: 'mark_returned', ids: [e.id] }), danger: true });
     items.push({ label: 'View Activity Log', onClick: () => setDetail({ entry: e, kind: 'activity' }) });
@@ -202,7 +200,7 @@ export default function PayslipsMonitor() {
 
   const ActionCell = ({ e }: { e: Entry }) => (
     <div className="relative flex items-center justify-end gap-1.5">
-      <button onClick={() => router.push(`/payslips/${e.id}`)} className="text-xs font-medium text-orange-600 hover:text-orange-800 px-2 py-2 md:py-1">View Payslip</button>
+      <button onClick={() => setViewing(e)} className="text-xs font-medium text-orange-600 hover:text-orange-800 px-2 py-2 md:py-1">View Payslip</button>
       <button onClick={() => setMenuFor(menuFor === e.id ? null : e.id)} aria-label="More actions"
         className="p-2.5 md:p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"><MoreVertical size={16} /></button>
       {menuFor === e.id && (
@@ -279,9 +277,9 @@ export default function PayslipsMonitor() {
                 {period.status === 'draft' && (
                   <button onClick={() => openConfirm({ kind: 'submit' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0">Submit for Approval</button>
                 )}
-                {period.status === 'for_review' && (isOwner
-                  ? <button onClick={() => openConfirm({ kind: 'approve' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0"><CheckCircle2 size={15} /> Approve Payroll</button>
-                  : <span className="text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">Waiting for the owner to approve.</span>)}
+                {period.status === 'for_review' && (
+                  <button onClick={() => openConfirm({ kind: 'approve' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0"><CheckCircle2 size={15} /> Approve Payroll</button>
+                )}
                 <button onClick={() => router.push(`/payroll?period=${period.id}`)} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Open Payroll Run</button>
               </div>
             </div>
@@ -495,6 +493,13 @@ export default function PayslipsMonitor() {
         </>
       )}
 
+      {/* Payslip pop-up */}
+      {viewing && (
+        <Modal open onClose={() => setViewing(null)} size="xl" title={`Payslip — ${viewing.employee_name}`}>
+          <PayslipViewer id={viewing.id} onClose={() => setViewing(null)} />
+        </Modal>
+      )}
+
       {/* Detail dialogs */}
       {detail && (
         <Modal open onClose={() => setDetail(null)} size="sm"
@@ -607,6 +612,42 @@ function BreakdownView({ entry }: { entry: Entry }) {
       {line('SSS', d.sss_ee, true)}{line('PhilHealth', d.philhealth_ee, true)}{line('Pag-IBIG', d.pagibig_ee, true)}
       <div className="flex justify-between text-sm font-bold py-2"><span>Total Deductions</span><span className="tabular-nums">{formatCurrency(entry.total_deductions)}</span></div>
       <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200"><span>Net Pay</span><span className="tabular-nums">{formatCurrency(entry.net_pay)}</span></div>
+    </div>
+  );
+}
+
+// The payslip shown in a pop-up so the Payslips page never navigates away.
+// It reads the same /api/payslips/[id] the full page uses (so the viewer's
+// access rules and "viewed" tracking are identical) and draws the same
+// document component. Printing opens the print view in a new tab, which also
+// records the payslip as printed.
+function PayslipViewer({ id, onClose }: { id: number; onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/payslips/${id}`).then(async r => {
+      const d = await r.json();
+      if (!alive) return;
+      if (!r.ok) setError(d.error || 'Could not open this payslip.'); else setData(d);
+    }).catch(() => alive && setError('Could not open this payslip.'));
+    return () => { alive = false; };
+  }, [id]);
+
+  return (
+    <div className="space-y-4">
+      {error ? <p className="text-sm text-red-600">{error}</p> : !data ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
+      ) : (
+        <div className="ps-embedded overflow-x-auto rounded-lg border border-gray-200">
+          <PayslipDocument entry={data.entry} adjustments={data.adjustments} />
+        </div>
+      )}
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
+        <button onClick={onClose} className="btn-secondary">Close</button>
+        {data && <button onClick={() => window.open(`/payslips/${id}?print=1`, '_blank')} className="btn-primary">Print / Save as PDF</button>}
+      </div>
     </div>
   );
 }
