@@ -1018,6 +1018,17 @@ function migrateSchema() {
   addColIfMissing('payroll_entries', 'payslip_viewed_at', 'payslip_viewed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_printed_at', 'payslip_printed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_downloaded_at', 'payslip_downloaded_at TEXT');
+  // payment_date = the day the payment was actually made (chosen when recording
+  // it); paid_at stays the moment it was recorded. payslip_viewed_at is the
+  // employee's FIRST view; payslip_last_viewed_at is the latest one.
+  addColIfMissing('payroll_entries', 'payment_date', 'payment_date TEXT');
+  addColIfMissing('payroll_entries', 'payslip_last_viewed_at', 'payslip_last_viewed_at TEXT');
+  db.exec(`
+    UPDATE payroll_entries SET payment_date = date(paid_at, '+8 hours')
+    WHERE payment_date IS NULL AND paid_at IS NOT NULL AND payment_status IN ('PAID','PARTIALLY_PAID');
+    UPDATE payroll_entries SET payslip_last_viewed_at = payslip_viewed_at
+    WHERE payslip_last_viewed_at IS NULL AND payslip_viewed_at IS NOT NULL;
+  `);
   addColIfMissing('payroll_entries', 'payslip_emailed_at', 'payslip_emailed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_emailed_to', 'payslip_emailed_to TEXT');
 

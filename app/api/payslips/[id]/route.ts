@@ -35,8 +35,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   // "Viewed" means the EMPLOYEE opened their own released payslip — HR or the
   // owner opening it to check it doesn't count.
   const viewer = getActiveEmployeeForUser(db, session.id);
-  if (viewer && viewer.id === entry.employee_id && entry.payslip_released_at && !entry.payslip_viewed_at) {
-    db.prepare(`UPDATE payroll_entries SET payslip_viewed_at = datetime('now') WHERE id = ? AND payslip_viewed_at IS NULL`).run(params.id);
+  if (viewer && viewer.id === entry.employee_id && entry.payslip_released_at) {
+    db.prepare(`
+      UPDATE payroll_entries SET payslip_viewed_at = COALESCE(payslip_viewed_at, datetime('now')), payslip_last_viewed_at = datetime('now') WHERE id = ?
+    `).run(params.id);
   }
 
   const adjustments = db.prepare('SELECT adjustment_type, amount, reason FROM payroll_adjustments WHERE payroll_entry_id = ? ORDER BY created_at ASC').all(params.id);

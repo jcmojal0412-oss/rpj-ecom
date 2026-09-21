@@ -105,7 +105,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       // decision and is left alone.
       if (transition.next === 'paid') {
         db.prepare(`
-          UPDATE payroll_entries SET payment_status = 'PAID', paid_at = datetime('now'), paid_by = ?, paid_amount = net_pay
+          UPDATE payroll_entries SET payment_status = 'PAID', paid_at = datetime('now'), payment_date = date('now', '+8 hours'), paid_by = ?, paid_amount = net_pay
           WHERE payroll_period_id = ? AND payment_status IS NULL
         `).run(session!.id, params.id);
       }

@@ -141,6 +141,8 @@ export function getApprovedOtMinutes(db: Database.Database, employeeId: number, 
 export interface AttendanceWarning {
   type: 'missing_time_out' | 'pending_correction' | 'pending_ot' | 'pending_leave' | 'missing_rate';
   message: string;
+  date?: string;   // missing_time_out: the day (YYYY-MM-DD)
+  count?: number;  // pending_*: how many requests
 }
 
 // Simple, actionable warnings for Step 2 of the wizard — informational
@@ -163,28 +165,28 @@ export function checkAttendanceWarnings(db: Database.Database, employee: Payroll
     ORDER BY event_date ASC
   `).all(employee.id, fromDate, toDate, employee.id) as { event_date: string }[];
   for (const row of missingOut) {
-    warnings.push({ type: 'missing_time_out', message: `${employee.full_name} — missing Time Out on ${row.event_date}.` });
+    warnings.push({ type: 'missing_time_out', message: `${employee.full_name} — missing Time Out on ${row.event_date}.`, date: row.event_date });
   }
 
   const pendingCorrections = (db.prepare(`
     SELECT COUNT(*) as c FROM attendance_corrections WHERE employee_id = ? AND status = 'pending' AND event_date BETWEEN ? AND ?
   `).get(employee.id, fromDate, toDate) as { c: number }).c;
   if (pendingCorrections > 0) {
-    warnings.push({ type: 'pending_correction', message: `${employee.full_name} has ${pendingCorrections} pending attendance correction request(s).` });
+    warnings.push({ type: 'pending_correction', message: `${employee.full_name} has ${pendingCorrections} pending attendance correction request(s).`, count: pendingCorrections });
   }
 
   const pendingOt = (db.prepare(`
     SELECT COUNT(*) as c FROM attendance_ot_requests WHERE employee_id = ? AND status = 'pending' AND event_date BETWEEN ? AND ?
   `).get(employee.id, fromDate, toDate) as { c: number }).c;
   if (pendingOt > 0) {
-    warnings.push({ type: 'pending_ot', message: `${employee.full_name} has ${pendingOt} pending OT request(s) — will NOT be included until approved.` });
+    warnings.push({ type: 'pending_ot', message: `${employee.full_name} has ${pendingOt} pending OT request(s) — will NOT be included until approved.`, count: pendingOt });
   }
 
   const pendingLeave = (db.prepare(`
     SELECT COUNT(*) as c FROM leave_requests WHERE employee_id = ? AND status = 'pending' AND from_date <= ? AND to_date >= ?
   `).get(employee.id, toDate, fromDate) as { c: number }).c;
   if (pendingLeave > 0) {
-    warnings.push({ type: 'pending_leave', message: `${employee.full_name} has ${pendingLeave} pending leave request(s) overlapping this period.` });
+    warnings.push({ type: 'pending_leave', message: `${employee.full_name} has ${pendingLeave} pending leave request(s) overlapping this period.`, count: pendingLeave });
   }
 
   return warnings;

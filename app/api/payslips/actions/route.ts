@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { todayISO } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { buildPayslipEmail, isValidEmail } from '@/lib/payslip-email';
 
@@ -18,7 +19,7 @@ interface Row {
   period_status: string; voided_at: string | null;
 }
 
-const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const peso = (n: number) => `${n < 0 ? '−' : ''}₱${Math.abs(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Per-employee payslip release / email and payment recording, single or bulk. These
 // only ever write the new payment_* / payslip_* columns (and the audit log) —
@@ -42,6 +43,13 @@ export async function POST(req: NextRequest) {
     const method = String(body.method ?? '').trim().slice(0, 60) || null;
     const reference = String(body.reference ?? '').trim().slice(0, 120) || null;
     const note = String(body.note ?? '').trim().slice(0, 300) || null;
+
+    // The day the money was actually paid (optional; defaults to today, Philippine time).
+    const today = todayISO();
+    const rawDate = body.payment_date ? String(body.payment_date) : null;
+    if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return NextResponse.json({ error: 'Payment date is not a valid date.' }, { status: 400 });
+    if (rawDate && rawDate > today) return NextResponse.json({ error: 'Payment date can\'t be in the future.' }, { status: 400 });
+    const paymentDate = rawDate ?? today;
 
     const db = getDb();
     const rows = db.prepare(`
@@ -143,18 +151,20 @@ export async function POST(req: NextRequest) {
 
         if (action === 'mark_paid') {
           if (r.payment_status === 'PAID' || (periodStatus === 'paid' && r.payment_status === null)) { skipped.push({ id: r.id, name, reason: 'Already paid' }); continue; }
+          // A negative net pay is a payroll error, not an amount to pay out.
+          if (r.net_pay < 0) { skipped.push({ id: r.id, name, reason: `Net pay is negative (${peso(r.net_pay)}) — correct the payroll first` }); continue; }
           const already = r.payment_status === 'PARTIALLY_PAID' ? (r.paid_amount ?? 0) : 0;
           const pay = customAmount ?? Math.max(0, r.net_pay - already);
           const total = already + pay;
           if (total > r.net_pay + 0.005) { skipped.push({ id: r.id, name, reason: `Amount is more than the net pay (${peso(r.net_pay)})` }); continue; }
           const full = total >= r.net_pay - 0.005;
           db.prepare(`
-            UPDATE payroll_entries SET payment_status = ?, paid_amount = ?, paid_at = datetime('now'), paid_by = ?,
+            UPDATE payroll_entries SET payment_status = ?, paid_amount = ?, paid_at = datetime('now'), payment_date = ?, paid_by = ?,
               payment_method = COALESCE(?, payment_method), payment_reference = COALESCE(?, payment_reference), payment_note = COALESCE(?, payment_note)
             WHERE id = ?
-          `).run(full ? 'PAID' : 'PARTIALLY_PAID', full ? r.net_pay : total, session.id, method, reference, note, r.id);
+          `).run(full ? 'PAID' : 'PARTIALLY_PAID', full ? r.net_pay : total, paymentDate, session.id, method, reference, note, r.id);
           audit.run(periodId, r.id, session.id, full ? 'payment_paid' : 'payment_partial',
-            `${name}: ${full ? 'paid in full' : `partial payment ${peso(pay)} (${peso(total)} of ${peso(r.net_pay)})`}${method ? ` via ${method}` : ''}${reference ? ` ref ${reference}` : ''}`);
+            `${name}: ${full ? 'paid in full' : `partial payment ${peso(pay)} (${peso(total)} of ${peso(r.net_pay)})`} on ${paymentDate}${method ? ` via ${method}` : ''}${reference ? ` ref ${reference}` : ''}`);
           updated++;
           continue;
         }
