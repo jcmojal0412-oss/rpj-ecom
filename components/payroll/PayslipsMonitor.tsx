@@ -19,6 +19,7 @@ interface Entry {
   paid_at: string | null; payment_date: string | null; paid_amount: number | null; payment_method: string | null; payment_reference: string | null; paid_by_name: string | null;
   payslip_released_at: string | null; payslip_first_viewed_at: string | null; payslip_last_viewed_at: string | null;
   has_email: boolean; payslip_emailed_at: string | null; payslip_emailed_to: string | null;
+  payslip_email_status: 'sent' | 'delayed' | 'delivered' | 'bounced' | 'complained' | 'failed' | null; payslip_email_status_at: string | null;
   issues: Issue[]; has_issue: boolean; detail: Record<string, any>;
 }
 interface PeriodRef { id: number; label: string; from_date: string; to_date: string; pay_date: string | null; schedule: string | null; status: string }
@@ -59,6 +60,22 @@ function tidyDept(v: string | null): string {
   return v.trim().split(/\s+/).map(w => (w.length <= 3 && w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join(' ');
 }
 
+// Payslip email delivery. "Sent" only means the email service accepted it; the
+// rest comes back from it later. No status = sent before tracking existed.
+const EMAIL_LABEL: Record<string, string> = { sent: 'Sent', delivered: 'Delivered', delayed: 'Delayed', bounced: 'Bounced', complained: 'Marked spam', failed: 'Failed' };
+const EMAIL_TONE: Record<string, string> = { sent: 'text-gray-400', delivered: 'text-emerald-600', delayed: 'text-amber-600', bounced: 'text-red-600', complained: 'text-red-600', failed: 'text-red-600' };
+const EMAIL_HINT: Record<string, string> = {
+  sent: 'Accepted by the email service. Delivery is not confirmed yet.', delivered: 'Delivered to the employee\'s inbox.',
+  delayed: 'The email service is still trying to deliver it.', bounced: 'Bounced — the address is wrong or the mailbox is unavailable.',
+  complained: 'The employee marked it as spam.', failed: 'The email could not be sent.',
+};
+function EmailTag({ e }: { e: Entry }) {
+  if (!e.payslip_emailed_at) return null;
+  const st = e.payslip_email_status;
+  const title = `Emailed to ${e.payslip_emailed_to} · ${fmtWhen(e.payslip_emailed_at)}. ${st ? `${EMAIL_HINT[st]}${e.payslip_email_status_at ? ` (${fmtWhen(e.payslip_email_status_at)})` : ''}` : 'Sent before delivery tracking was added.'}`;
+  return <span title={title} className={`text-[11px] whitespace-nowrap font-medium ${st ? EMAIL_TONE[st] : 'text-gray-400'}`}>✉ {st ? EMAIL_LABEL[st] : 'Emailed'}</span>;
+}
+
 // ── Activity: plain-language events, repeated one-per-employee rows folded ──
 const GROUPED: Record<string, { one: (emp: string) => string; many: (n: number) => string }> = {
   payslip_released: { one: e => `Payslip released to ${e}`, many: n => `${n} payslips released` },
@@ -72,8 +89,10 @@ const EVENT: Record<string, (emp: string) => string> = {
   returned: () => 'Returned to HR', reopened: () => 'Payroll reopened',
   adjustment_added: e => `Manual adjustment added for ${e}`, adjustment_removed: e => `Manual adjustment removed for ${e}`, contributions_updated: e => `Government deductions changed for ${e}`,
   attendance_refreshed: () => 'Attendance refreshed from records', voided: () => 'Payroll voided',
+  payslip_email_bounced: e => `Payslip email to ${e} bounced`, payslip_email_failed: e => `Payslip email to ${e} failed to send`,
+  payslip_email_complained: e => `${e} marked the payslip email as spam`,
 };
-const SHOW_DETAILS = new Set(['returned', 'reopened', 'adjustment_added', 'adjustment_removed', 'contributions_updated', 'attendance_refreshed', 'payment_partial', 'payment_failed', 'payment_returned']);
+const SHOW_DETAILS = new Set(['returned', 'reopened', 'adjustment_added', 'adjustment_removed', 'contributions_updated', 'attendance_refreshed', 'payment_partial', 'payment_failed', 'payment_returned', 'payslip_email_bounced', 'payslip_email_failed', 'payslip_email_complained']);
 
 function describeActivity(rows: any[]) {
   const out: { key: string; text: string; detail: string; actor: string; when: string }[] = [];
@@ -133,6 +152,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [paidForm, setPaidForm] = useState(EMPTY_PAID_FORM());
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [dialogError, setDialogError] = useState('');
   const [reason, setReason] = useState('');
 
@@ -269,6 +289,23 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
     }
   };
 
+  // Ask the email service whether each payslip email actually arrived.
+  const checkDelivery = async (ids: number[]) => {
+    if (ids.length === 0 || checking) return;
+    setChecking(true);
+    try {
+      const res = await fetch('/api/payslips/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'check_email', entry_ids: ids }) });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Could not check delivery.', 'error'); return; }
+      const skipped = (d.skipped ?? []) as { name: string; reason: string }[];
+      const head = d.checked > 0 ? `Checked ${d.checked} email${d.checked === 1 ? '' : 's'} — ${d.updated ? `${d.updated} updated.` : 'no changes.'}` : 'Nothing could be checked.';
+      showToast(`${head}${skipped.length ? ` ${skipped[0].reason}` : ''}`, d.checked === 0 ? 'error' : 'success');
+      await load(period.id);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const allReleased = summary?.employees > 0 && summary?.released === summary?.employees;
   const statusIdx = !period ? 0
     : allReleased && ['paid', 'locked'].includes(period.status) ? 4
@@ -289,8 +326,10 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
     if (periodFinal && !e.payslip_released_at) items.push({ label: 'Release Payslip', onClick: () => openConfirm({ kind: 'release', ids: [e.id] }) });
     if (periodFinal) {
       items.push({ label: 'Print / Save as PDF', onClick: () => window.open(`/payslips/${e.id}?print=1`, '_blank') });
-      items.push({ label: e.has_email ? (e.payslip_emailed_at ? 'Send Again to Employee' : 'Send to Employee') : 'Send to Employee (no email on file)', onClick: () => e.has_email ? openConfirm({ kind: 'send_email', ids: [e.id] }) : showToast('This employee has no email address on file. Add it on their profile first.', 'error') });
+      const undelivered = e.payslip_email_status === 'bounced' || e.payslip_email_status === 'failed';
+      items.push({ label: e.has_email ? (e.payslip_emailed_at ? (undelivered ? 'Resend to Employee' : 'Send Again to Employee') : 'Send to Employee') : 'Send to Employee (no email on file)', onClick: () => e.has_email ? openConfirm({ kind: 'send_email', ids: [e.id] }) : showToast('This employee has no email address on file. Add it on their profile first.', 'error') });
     }
+    if (periodFinal && e.payslip_emailed_at) items.push({ label: 'Check Email Delivery', onClick: () => checkDelivery([e.id]) });
     if (canRecordPayment && !['PAID', 'RETURNED', 'FAILED'].includes(e.payment_status)) items.push({ label: 'Mark Payment Failed', onClick: () => openConfirm({ kind: 'mark_failed', ids: [e.id] }), danger: true });
     if (canRecordPayment && ['PAID', 'PARTIALLY_PAID'].includes(e.payment_status)) items.push({ label: 'Mark Payment Returned', onClick: () => openConfirm({ kind: 'mark_returned', ids: [e.id] }), danger: true });
     items.push({ label: 'View Activity Log', onClick: () => setDetail({ entry: e, kind: 'activity' }) });
@@ -561,6 +600,8 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                     className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title={canRecordPayment ? '' : 'Payroll must be approved first'}>Mark as Paid</button>
                   <button disabled={!periodFinal} onClick={() => openConfirm({ kind: 'send_email', ids: selectedEntries.map(e => e.id) })}
                     className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title={periodFinal ? '' : 'Payroll must be approved first'}>Send to Employee</button>
+                  <button disabled={checking || !selectedEntries.some(e => e.payslip_emailed_at)} onClick={() => checkDelivery(selectedEntries.filter(e => e.payslip_emailed_at).map(e => e.id))}
+                    className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title="See whether the emailed payslips actually arrived">{checking ? 'Checking…' : 'Check Delivery'}</button>
                   <button onClick={() => window.open(`/payslips/print?ids=${selectedEntries.map(e => e.id).join(',')}&print=1`, '_blank')}
                     className="btn-secondary text-xs py-2.5 sm:py-1.5">Print / Save as PDF</button>
                   <button onClick={() => setSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-800 px-2">Clear</button>
@@ -602,7 +643,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                             <td className="table-cell"><span className={PAYMENT_BADGE[e.payment_status]}>{PAYMENT_LABEL[e.payment_status]}</span></td>
                             <td className="table-cell">
                               <span className={PAYSLIP_BADGE[e.payslip_status]}>{PAYSLIP_LABEL[e.payslip_status]}</span>
-                              {e.payslip_emailed_at && <span title={`Emailed to ${e.payslip_emailed_to} · ${fmtWhen(e.payslip_emailed_at)}`} className="ml-1.5 text-[11px] text-gray-400 whitespace-nowrap">✉ Emailed</span>}
+                              {e.payslip_emailed_at && <span className="ml-1.5"><EmailTag e={e} /></span>}
                             </td>
                             <td className="table-cell"><ActionCell e={e} /></td>
                           </tr>
@@ -629,7 +670,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <span className={PAYMENT_BADGE[e.payment_status]}>{PAYMENT_LABEL[e.payment_status]}</span>
                           <span className={PAYSLIP_BADGE[e.payslip_status]}>Payslip: {PAYSLIP_LABEL[e.payslip_status]}</span>
-                          {e.payslip_emailed_at && <span className="text-[11px] text-gray-400">✉ Emailed</span>}
+                          <EmailTag e={e} />
                         </div>
                         <div className="mt-2 pt-2 border-t border-gray-100"><ActionCell e={e} /></div>
                       </div>
@@ -651,7 +692,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                   {describeActivity(data.activity).map(a => (
                     <li key={a.key} className="py-2.5 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm text-gray-800">{a.text} <span className="text-gray-500">by {a.actor}</span></p>
+                        <p className="text-sm text-gray-800">{a.text} {a.actor !== 'System' && <span className="text-gray-500">by {a.actor}</span>}</p>
                         {a.detail && <p className="text-xs text-gray-500 break-words">{a.detail}</p>}
                       </div>
                       <p className="text-[11px] text-gray-400 shrink-0 text-right">{a.when}</p>
@@ -721,7 +762,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                 <ul className="divide-y divide-gray-50">
                   {rows.map(a => (
                     <li key={a.key} className="py-2.5 flex items-start justify-between gap-3">
-                      <div><p className="text-sm text-gray-800">{a.text} <span className="text-gray-500">by {a.actor}</span></p>{a.detail && <p className="text-xs text-gray-500">{a.detail}</p>}</div>
+                      <div><p className="text-sm text-gray-800">{a.text} {a.actor !== 'System' && <span className="text-gray-500">by {a.actor}</span>}</p>{a.detail && <p className="text-xs text-gray-500">{a.detail}</p>}</div>
                       <p className="text-[11px] text-gray-400 shrink-0 text-right">{a.when}</p>
                     </li>
                   ))}
@@ -769,6 +810,8 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                   const noEmail = entries.filter(e => confirm.ids.includes(e.id) && !e.has_email);
                   return noEmail.length > 0 ? <p className="text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">No email on file for: {noEmail.map(e => e.employee_name).join(', ')}. They will be skipped.</p> : null;
                 })()}
+                {(data.email_setup?.copy_to?.length ?? 0) > 0 && <p className="text-xs rounded-lg bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2">A copy of each email is also sent to {data.email_setup.copy_to.join(', ')}.</p>}
+                {data.email_setup && !data.email_setup.tracking && <p className="text-xs text-gray-500">Delivered / Bounced updates are not switched on yet, so the status stays “Sent” until you press Check Delivery.</p>}
               </div>
             ) : confirm.kind === 'release' ? (
               <div className="text-sm text-gray-700 space-y-1.5">
@@ -870,6 +913,10 @@ function DetailsView({ entry }: { entry: Entry }) {
         {entry.payslip_released_at && row('First viewed by employee', entry.payslip_first_viewed_at ? fmtWhen(entry.payslip_first_viewed_at) : 'Not yet')}
         {entry.payslip_first_viewed_at && row('Last viewed by employee', fmtWhen(entry.payslip_last_viewed_at))}
         {entry.payslip_emailed_at && row('Emailed', `${fmtWhen(entry.payslip_emailed_at)} · ${entry.payslip_emailed_to}`)}
+        {entry.payslip_emailed_at && row('Email delivery', entry.payslip_email_status
+          ? <span className={EMAIL_TONE[entry.payslip_email_status]}>{EMAIL_LABEL[entry.payslip_email_status]}{entry.payslip_email_status_at ? ` · ${fmtWhen(entry.payslip_email_status_at)}` : ''}</span>
+          : <span className="text-gray-500">Not tracked</span>)}
+        {entry.payslip_emailed_at && entry.payslip_email_status === 'sent' && <p className="text-[11px] text-gray-400 py-1">“Sent” means the email service accepted it. Use Check Email Delivery to see if it arrived.</p>}
       </div>
     </div>
   );

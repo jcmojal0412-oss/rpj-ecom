@@ -3,12 +3,13 @@ import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
-import { buildPayslipEmail, isValidEmail } from '@/lib/payslip-email';
+import { buildPayslipEmail, isValidEmail, payslipCopyRecipients } from '@/lib/payslip-email';
+import { applyEmailStatus, lookupResendStatus } from '@/lib/email-status';
 
 export const dynamic = 'force-dynamic';
 
-type Action = 'release' | 'send_email' | 'mark_paid' | 'mark_failed' | 'mark_returned';
-const ACTIONS: Action[] = ['release', 'send_email', 'mark_paid', 'mark_failed', 'mark_returned'];
+type Action = 'release' | 'send_email' | 'check_email' | 'mark_paid' | 'mark_failed' | 'mark_returned';
+const ACTIONS: Action[] = ['release', 'send_email', 'check_email', 'mark_paid', 'mark_failed', 'mark_returned'];
 
 // What employees see as the sender of a payslip email (any address on the verified rpjcorp.com domain works).
 const PAYSLIP_FROM = process.env.PAYSLIP_FROM_EMAIL || 'payroll@rpjcorp.com';
@@ -65,6 +66,37 @@ export async function POST(req: NextRequest) {
     const periodStatus = rows[0].period_status;
     if (rows[0].voided_at) return NextResponse.json({ error: 'This payroll period was voided.' }, { status: 409 });
 
+    // Check Delivery: ask Resend where each payslip email got to. Read-only for
+    // payroll (only the email status columns change), so it works at any stage.
+    if (action === 'check_email') {
+      if (ids.length > 100) return NextResponse.json({ error: 'Check at most 100 employees at a time.' }, { status: 400 });
+      const getMail = db.prepare('SELECT payslip_email_id, payslip_emailed_at FROM payroll_entries WHERE id = ?');
+      const notChecked: { id: number; name: string; reason: string }[] = [];
+      let checked = 0, changed = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const m = getMail.get(r.id) as { payslip_email_id: string | null; payslip_emailed_at: string | null };
+        if (!m.payslip_emailed_at) { notChecked.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No payslip email was sent to this employee' }); continue; }
+        if (!m.payslip_email_id) { notChecked.push({ id: r.id, name: r.employee_name_snapshot, reason: 'Sent before delivery tracking existed — see the Resend dashboard' }); continue; }
+        const looked = await lookupResendStatus(m.payslip_email_id);
+        if (!looked.ok) {
+          const reason = looked.reason === 'forbidden' || looked.reason === 'no_key'
+            ? 'Resend does not let this key read email status — set up the delivery webhook instead'
+            : looked.reason === 'not_found' ? 'Resend has no record of this email' : 'Could not reach Resend';
+          notChecked.push({ id: r.id, name: r.employee_name_snapshot, reason });
+          // Same answer for everyone else: don't hammer the API.
+          if (looked.reason === 'forbidden' || looked.reason === 'no_key') {
+            for (const rest of rows.slice(i + 1)) notChecked.push({ id: rest.id, name: rest.employee_name_snapshot, reason });
+            break;
+          }
+          continue;
+        }
+        checked++;
+        if (applyEmailStatus(db, m.payslip_email_id, looked.status) === 'updated') changed++;
+      }
+      return NextResponse.json({ ok: true, updated: changed, checked, skipped: notChecked });
+    }
+
     if ((action === 'release' || action === 'send_email') && !['approved', 'paid', 'locked'].includes(periodStatus)) {
       return NextResponse.json({ error: `Payroll must be approved before payslips can be ${action === 'release' ? 'released' : 'sent'}.` }, { status: 409 });
     }
@@ -91,6 +123,7 @@ export async function POST(req: NextRequest) {
       const audit2 = db.prepare(`INSERT INTO payroll_audit_log (payroll_period_id, payroll_entry_id, actor_user_id, action, details) VALUES (?, ?, ?, ?, ?)`);
       let sent = 0;
       const notSent: { id: number; name: string; reason: string }[] = [];
+      const copyTo = payslipCopyRecipients();
 
       for (const r of rows) {
         const entry = getEntry.get(r.id) as Record<string, any>;
@@ -98,7 +131,8 @@ export async function POST(req: NextRequest) {
         if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
 
         const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period);
-        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation', PAYSLIP_FROM);
+        const bcc = copyTo.filter(c => c.toLowerCase() !== address.toLowerCase());
+        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation', PAYSLIP_FROM, bcc);
         if (!result.sent) {
           notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'error' in result && result.error ? 'The email could not be sent' : 'Email sending is not set up yet' });
           continue;
@@ -108,7 +142,12 @@ export async function POST(req: NextRequest) {
             db.prepare(`UPDATE payroll_entries SET payslip_released_at = datetime('now'), payslip_released_by = ? WHERE id = ?`).run(session.id, r.id);
             audit2.run(periodId, r.id, session.id, 'payslip_released', `Payslip released to ${r.employee_name_snapshot} (when emailed)`);
           }
-          db.prepare(`UPDATE payroll_entries SET payslip_emailed_at = datetime('now'), payslip_emailed_to = ? WHERE id = ?`).run(address, r.id);
+          // "sent" = accepted by Resend. Delivered / bounced arrives later.
+          db.prepare(`
+            UPDATE payroll_entries SET payslip_emailed_at = datetime('now'), payslip_emailed_to = ?,
+              payslip_email_id = ?, payslip_email_status = 'sent', payslip_email_status_at = datetime('now')
+            WHERE id = ?
+          `).run(address, ('id' in result && result.id) || null, r.id);
           audit2.run(periodId, r.id, session.id, 'payslip_emailed', `Payslip emailed to ${r.employee_name_snapshot} (${address})`);
         });
         sent++;

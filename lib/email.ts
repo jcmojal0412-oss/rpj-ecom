@@ -6,7 +6,7 @@
 // sender ("RPJ Corporation <payroll@rpjcorp.com>") without touching the ones
 // already going out with RESEND_FROM_EMAIL. Any @rpjcorp.com address works, as
 // Resend verifies the whole domain rather than each address.
-export async function sendEmail(to: string, subject: string, html: string, replyTo?: string, fromName?: string, fromAddress?: string) {
+export async function sendEmail(to: string, subject: string, html: string, replyTo?: string, fromName?: string, fromAddress?: string, bcc?: string[]) {
   const apiKey = process.env.RESEND_API_KEY;
   const configured = process.env.RESEND_FROM_EMAIL || 'SEDO Official <onboarding@resend.dev>';
   const configuredAddress = (configured.match(/<([^>]+)>/)?.[1] ?? configured).trim();
@@ -25,7 +25,7 @@ export async function sendEmail(to: string, subject: string, html: string, reply
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
+      body: JSON.stringify({ from, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}), ...(bcc?.length ? { bcc } : {}) }),
     });
 
     if (!res.ok) {
@@ -34,7 +34,9 @@ export async function sendEmail(to: string, subject: string, html: string, reply
       return { sent: false, error: `${res.status} ${body}` };
     }
 
-    return { sent: true };
+    // Resend answers { id }. Callers that want to track delivery keep it.
+    const json = await res.json().catch(() => null) as { id?: unknown } | null;
+    return { sent: true, id: typeof json?.id === 'string' ? json.id : undefined };
   } catch (e) {
     console.error('[email] send failed:', e);
     return { sent: false, error: String(e) };

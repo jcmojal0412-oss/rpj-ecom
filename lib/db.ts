@@ -1031,6 +1031,12 @@ function migrateSchema() {
   `);
   addColIfMissing('payroll_entries', 'payslip_emailed_at', 'payslip_emailed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_emailed_to', 'payslip_emailed_to TEXT');
+  // Delivery tracking for the payslip email: Resend's email id, plus the latest
+  // known status (sent / delayed / delivered / bounced / complained / failed).
+  addColIfMissing('payroll_entries', 'payslip_email_id', 'payslip_email_id TEXT');
+  addColIfMissing('payroll_entries', 'payslip_email_status', 'payslip_email_status TEXT');
+  addColIfMissing('payroll_entries', 'payslip_email_status_at', 'payslip_email_status_at TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_payroll_entries_email_id ON payroll_entries(payslip_email_id)');
 
   // Why a payroll went back to Draft: 'returned' (sent back to HR while waiting
   // for approval) or 'reopened' (an approved payroll reopened by the owner),

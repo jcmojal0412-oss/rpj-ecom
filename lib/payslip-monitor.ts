@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { checkAttendanceWarnings, type PayrollEmployee } from './payroll-data';
-import { isValidEmail } from './payslip-email';
+import { isValidEmail, payslipCopyRecipients } from './payslip-email';
 
 // Everything the Payslips & Payroll Monitoring page shows is READ from the
 // existing payroll_entries / payroll_periods rows (nothing is recalculated
@@ -69,6 +69,9 @@ export interface MonitorEntry {
   has_email: boolean; // an email address is on file for "Send to Employee"
   payslip_emailed_at: string | null;
   payslip_emailed_to: string | null;
+  // null = sent before delivery tracking existed
+  payslip_email_status: 'sent' | 'delayed' | 'delivered' | 'bounced' | 'complained' | 'failed' | null;
+  payslip_email_status_at: string | null;
   issues: PayrollIssue[];
   has_issue: boolean; // a real problem (error or warning); info-level notes don't count
   // Snapshot numbers, used by the details and attendance-basis dialogs.
@@ -166,6 +169,14 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     if (paymentStatus === 'RETURNED') issues.push({ code: 'payment_returned', severity: 'error', title: 'Payment returned', action: null, message: 'The payment for this employee was returned. Record it again once it is re-sent.' });
     if (paymentStatus === 'PARTIALLY_PAID') issues.push({ code: 'partially_paid', severity: 'warning', title: 'Only partly paid', action: null, message: `Only ${fmtPeso(r.paid_amount ?? 0)} of ${fmtPeso(r.net_pay)} has been paid.` });
 
+    // ---- payslip email that did not reach the employee ----
+    if (r.payslip_email_status === 'bounced' || r.payslip_email_status === 'failed') {
+      issues.push({
+        code: 'email_undelivered', severity: 'warning', title: 'Payslip email not delivered', action: 'open_employee',
+        message: `The payslip email to ${r.payslip_emailed_to ?? 'the employee'} ${r.payslip_email_status === 'bounced' ? 'bounced' : 'failed to send'}. Check their email address, then send it again.`,
+      });
+    }
+
     // ---- attendance / setup (only while payroll can still be corrected) ----
     if (emp && editable) {
       const warnings = checkAttendanceWarnings(db, emp, period.from_date, period.to_date);
@@ -194,6 +205,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
 
     // ---- notes (never counted as issues) ----
     const adj = adjCount.get(r.id) ?? 0;
+    if (r.payslip_email_status === 'complained') issues.push({ code: 'email_spam', severity: 'info', title: 'Marked as spam', action: null, message: 'The employee marked the payslip email as spam.' });
     if (adj > 0) issues.push({ code: 'manual_adjustment', severity: 'info', title: 'Manual adjustment', action: null, message: `${adj} manual adjustment${adj === 1 ? '' : 's'} applied.` });
 
     return {
@@ -205,6 +217,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
       paid_by_name: r.paid_by ? ((getUserName.get(r.paid_by) as { name: string } | undefined)?.name ?? null) : null,
       payslip_released_at: r.payslip_released_at, payslip_first_viewed_at: r.payslip_viewed_at, payslip_last_viewed_at: r.payslip_last_viewed_at,
       has_email: isValidEmail(emp?.email), payslip_emailed_at: r.payslip_emailed_at, payslip_emailed_to: r.payslip_emailed_to,
+      payslip_email_status: (r.payslip_email_status ?? null) as MonitorEntry['payslip_email_status'], payslip_email_status_at: r.payslip_email_status_at ?? null,
       issues, has_issue: issues.some(i => i.severity !== 'info'),
       detail: {
         salary_type: r.salary_type_snapshot, basic_rate: r.basic_rate_snapshot,
@@ -305,6 +318,8 @@ export function buildMonitor(db: Database.Database, periodId: number) {
       can_reopen: period.status === 'approved' && entries.every(e => !e.payslip_released_at && e.payment_status === 'PENDING'),
     },
     entries, summary,
+    // What the send dialog tells HR about how emails are handled.
+    email_setup: { copy_to: payslipCopyRecipients(), tracking: !!process.env.RESEND_WEBHOOK_SECRET },
     owner: { gross, deductions, net, previous },
     breakdown, activity,
   };

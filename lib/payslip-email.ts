@@ -79,3 +79,9 @@ export function buildPayslipEmail(entry: Record<string, any>, adjustments: Adjus
 }
 
 export const isValidEmail = (v: unknown): v is string => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+
+// Optional copy of every payslip email (PAYSLIP_BCC_EMAIL, one or more
+// addresses separated by commas) so the company keeps its own proof of sending.
+export function payslipCopyRecipients(): string[] {
+  return (process.env.PAYSLIP_BCC_EMAIL || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => x && isValidEmail(x));
+}
