@@ -70,8 +70,8 @@ function reconcileOvertimeForDay(db: Database.Database, employeeId: number, date
   `).all(employeeId, date) as AttendanceEvent[];
   const potential = resolved ? computeDaySummary(events, resolved.settings, true).potentialOtMinutes : 0;
 
-  const req = db.prepare('SELECT id, status, excess_minutes, approved_minutes FROM attendance_ot_requests WHERE employee_id = ? AND event_date = ?')
-    .get(employeeId, date) as { id: number; status: string; excess_minutes: number; approved_minutes: number | null } | undefined;
+  const req = db.prepare('SELECT id, status, excess_minutes, approved_minutes, remarks FROM attendance_ot_requests WHERE employee_id = ? AND event_date = ?')
+    .get(employeeId, date) as { id: number; status: string; excess_minutes: number; approved_minutes: number | null; remarks: string | null } | undefined;
 
   if (!req) {
     if (potential > 0 && ensureOvertimeRequest(employeeId, date)) notes.push(`OT request created (${potential} min, pending)`);
@@ -85,6 +85,14 @@ function reconcileOvertimeForDay(db: Database.Database, employeeId: number, date
       `).run('Auto-closed: no overtime after attendance was edited', actorId, new Date().toISOString(), req.id);
       notes.push(`OT ${req.status} -> rejected (no overtime after edit)`);
     }
+  } else if (req.status === 'rejected' && (req.remarks ?? '').startsWith('Auto-closed')) {
+    // Closed by the system (below the minimum / no OT), never by a person -
+    // and the corrected punches now show qualifying OT, so it goes back to
+    // the approval queue instead of staying buried under Rejected.
+    db.prepare(`
+      UPDATE attendance_ot_requests SET status='pending', excess_minutes=?, approved_minutes=NULL, remarks=NULL, reviewed_by=NULL, reviewed_at=NULL WHERE id=?
+    `).run(potential, req.id);
+    notes.push(`OT reopened for approval (${potential} min)`);
   } else if (potential !== req.excess_minutes) {
     let approved = req.approved_minutes;
     let capped = false;

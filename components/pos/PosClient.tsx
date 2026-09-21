@@ -1023,7 +1023,7 @@ export default function PosClient() {
               <p className="text-sm font-semibold text-gray-800">Current Order</p>
             </div>
             <div className="flex items-center gap-1.5">
-              <button onClick={() => searchRef.current?.focus()}
+              <button onClick={() => { setMobileView('products'); setTimeout(() => searchRef.current?.focus(), 0); }}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
                 <ScanBarcode size={13} /> Barcode
               </button>

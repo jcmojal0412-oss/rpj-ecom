@@ -61,9 +61,16 @@ export async function POST(req: NextRequest) {
     const result = applyManualAttendanceEdit(db, { employee, date, punches, reason, actorId: session.id });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
+    // The edit is already saved at this point, so a payroll refresh problem
+    // must not turn into a "failed" response - say so and point to the manual
+    // Refresh from Attendance instead.
     let payrollNote: string | undefined;
-    const refreshed = refreshOpenPayrollForEmployeeDate(db, employee.id, date);
-    if (refreshed.length) payrollNote = `Payroll updated: ${refreshed.join(', ')}`;
+    try {
+      const refreshed = refreshOpenPayrollForEmployeeDate(db, employee.id, date);
+      if (refreshed.length) payrollNote = `Payroll updated: ${refreshed.join(', ')}`;
+    } catch {
+      payrollNote = 'Saved, but payroll could not be refreshed automatically - use Refresh from Attendance in Payroll.';
+    }
 
     return NextResponse.json({ ok: true, before: result.before, after: result.after, ot_notes: result.otNotes, payroll_note: payrollNote });
   } catch (e) {
