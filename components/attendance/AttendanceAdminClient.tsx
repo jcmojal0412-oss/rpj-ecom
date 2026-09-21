@@ -6,6 +6,7 @@ import { formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import EditAttendanceModal from './EditAttendanceModal';
+import { getDatePresets, describeRange } from './dateRangePresets';
 import type { EventType, AttendanceStatus } from '@/lib/attendance';
 
 // Simple HR Mode: Attendance now only covers day-to-day operations —
@@ -327,8 +328,19 @@ function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'err
     );
   };
 
+  const presets = getDatePresets(todayISO());
+  const activePreset = presets.find(p => p.from === from && p.to === to)?.key ?? null;
+
   return (
     <div className="space-y-4">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mb-1">
+        {presets.map(p => (
+          <button key={p.key} type="button" onClick={() => { setFrom(p.from); setTo(p.to); }} title={describeRange(p)}
+            className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold transition-all ${activePreset === p.key ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+            {p.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[140px] sm:flex-none sm:min-w-0">
           <label className="form-label">From</label>
