@@ -1,9 +1,15 @@
 // Sends email via Resend's HTTPS API instead of raw SMTP — Railway blocks
 // outbound SMTP (ports 465/587) at the platform level, but this is a normal
 // HTTPS POST request, so it works without any network restrictions.
-export async function sendEmail(to: string, subject: string, html: string, replyTo?: string) {
+//
+// `fromName` swaps only the display name (e.g. "RPJ Corporation") while keeping
+// the verified sending address from RESEND_FROM_EMAIL, so a different kind of
+// email can show its own sender without touching the ones already going out.
+export async function sendEmail(to: string, subject: string, html: string, replyTo?: string, fromName?: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || 'SEDO Official <onboarding@resend.dev>';
+  const configured = process.env.RESEND_FROM_EMAIL || 'SEDO Official <onboarding@resend.dev>';
+  const address = (configured.match(/<([^>]+)>/)?.[1] ?? configured).trim();
+  const from = fromName ? `${fromName.replace(/[<>"]/g, '')} <${address}>` : configured;
 
   if (!apiKey) {
     console.error('[email] RESEND_API_KEY not configured — skipping send');

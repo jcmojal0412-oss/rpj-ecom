@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
 
         const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period);
-        const result = await sendEmail(address, subject, html);
+        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation');
         if (!result.sent) {
           notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'error' in result && result.error ? 'The email could not be sent' : 'Email sending is not set up yet' });
           continue;
