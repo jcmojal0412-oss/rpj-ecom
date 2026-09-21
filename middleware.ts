@@ -62,6 +62,8 @@ const ROUTE_MODULES: [string, string][] = [
   ['/hr-dashboard',          'attendance'],
   ['/hr-settings',           'attendance'],
   ['/api/hr',                'attendance'],
+  ['/calendar',              'calendar'],
+  ['/api/calendar',          'calendar'],
   ['/payroll',               'payroll'],
   ['/api/payroll',           'payroll'],
   // Self-service clock in/out now lives ONLY on the unauthenticated

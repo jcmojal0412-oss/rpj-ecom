@@ -11,6 +11,7 @@ import { formatCurrency, todayISO } from '@/lib/utils';
 import { resolvePeriod, pctChange, PERIOD_OPTIONS, type PeriodKey } from '@/lib/marketing-analytics';
 import MovingChart from './MovingChart';
 import Spinner from '@/components/ui/Spinner';
+import UpcomingScheduleWidget from './UpcomingScheduleWidget';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 
 interface KPIs {
@@ -417,6 +418,9 @@ export default function DashboardClient() {
           )}
         </div>
       )}
+
+      {/* Upcoming Schedule (from the Operations Calendar; hidden without the Calendar permission) */}
+      <UpcomingScheduleWidget />
 
       {/* Daily Top 10 */}
       <DailyTopSection

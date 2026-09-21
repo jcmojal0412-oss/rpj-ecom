@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { hashPassword, MODULES } from './auth-helpers';
 import { CASH_APPLIED_SQL, ONLINE_APPLIED_SQL } from './pos-shift-totals';
+import { migrateCalendarSchema } from './calendar-schema';
 
 const DB_PATH =
   process.env.DATABASE_PATH ||           // Railway volume (set in env vars)
@@ -17,6 +18,7 @@ export function getDb(): Database.Database {
     db.pragma('foreign_keys = ON');
     initSchema();
     migrateSchema();
+    migrateCalendarSchema(db);
     seedStatusesIfEmpty();
     seedUsersIfEmpty();
     seedPartnersIfEmpty();

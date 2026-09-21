@@ -10,7 +10,7 @@ import {
   LogOut, Users, Wallet, Calculator, Handshake, TrendingUp, PhoneCall,
   Sparkles, Wrench, CalendarClock, Landmark, Megaphone,
   ClipboardCheck, Contact, Banknote, Receipt, Settings, LayoutGrid, Compass, ChevronDown,
-  MoreVertical, History, PenTool,
+  MoreVertical, History, PenTool, CalendarDays,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AVATAR_HEX, initials } from '@/lib/auth-helpers';
@@ -50,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     pinned: true,
     items: [
       { label: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
+      { label: 'Calendar / Schedule', href: '/calendar', icon: CalendarDays, module: 'calendar' },
     ],
   },
   {
@@ -239,10 +240,22 @@ export default function Sidebar() {
   // navigating first.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  // Unread schedule alerts (payments due, meetings…) shown as a badge on Calendar / Schedule.
+  const [calUnread, setCalUnread] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => { if (u) setUser(u); });
   }, []);
+
+  const canSeeCalendar = !!user && (user.role === 'owner' || user.permissions.includes('calendar'));
+  useEffect(() => {
+    if (!canSeeCalendar) return;
+    let stop = false;
+    const load = () => fetch('/api/calendar/notifications', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => { if (j && !stop) setCalUnread(j.unread ?? 0); }).catch(() => {});
+    load();
+    const t = setInterval(load, 120_000);
+    return () => { stop = true; clearInterval(t); };
+  }, [canSeeCalendar, pathname]);
 
   useEffect(() => {
     const activeGroup = NAV_GROUPS.find(g => !g.pinned && g.items.some(item => isHrefActive(pathname, item.href)));
@@ -354,6 +367,9 @@ export default function Sidebar() {
                       >
                         <Icon size={18} className={pinnedIconClasses(active)} />
                         <span className="truncate">{item.label}</span>
+                        {item.href === '/calendar' && calUnread > 0 && (
+                          <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-[#B68B3C] text-white text-[11px] font-bold flex items-center justify-center" aria-label={`${calUnread} unread schedule alerts`}>{calUnread > 9 ? '9+' : calUnread}</span>
+                        )}
                       </Link>
                     );
                   })}
