@@ -92,7 +92,7 @@ export default function AttendanceAdminClient() {
       </div>
 
       {tab === 'today' && <TodayTab />}
-      {tab === 'records' && <RecordsTab />}
+      {tab === 'records' && <RecordsTab showToast={showToast} />}
       {tab === 'ot' && <OtTab showToast={showToast} />}
       {tab === 'corrections' && <CorrectionsTab showToast={showToast} />}
     </div>
@@ -261,24 +261,69 @@ export function SettingsTab({ showToast }: { showToast: (m: string, t?: 'success
 
 // ── Daily Records ────────────────────────────────────────────────────────
 
-function RecordsTab() {
+function RecordsTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
   const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
   const [userId, setUserId] = useState('');
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewingOt, setReviewingOt] = useState<any | null>(null);
+  const [openingOt, setOpeningOt] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/attendance/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
   }, []);
 
-  useEffect(() => {
+  const fetchRecords = () => {
     setLoading(true);
     const params = new URLSearchParams({ from, to });
     if (userId) params.set('employee_id', userId);
     fetch(`/api/attendance/records?${params}`).then(r => r.json()).then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); });
-  }, [from, to, userId]);
+  };
+  useEffect(fetchRecords, [from, to, userId]);
+
+  // Opens the OT request behind a Daily Records row. A day the background
+  // flagger never reached has no request yet, so it is created on demand
+  // (server-side, from the real punches) before the review dialog opens.
+  const openOt = async (r: any) => {
+    const key = `${r.employee_id}|${r.date}`;
+    if (r.otRequest) {
+      setReviewingOt({ ...r.otRequest, employee_name: r.name, event_date: r.date });
+      return;
+    }
+    setOpeningOt(key);
+    try {
+      const res = await fetch('/api/attendance/ot-requests/ensure', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: r.employee_id, event_date: r.date }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Could not open this OT request.', 'error'); return; }
+      setReviewingOt(data);
+    } finally {
+      setOpeningOt(null);
+    }
+  };
+
+  // Shows the request's real state and opens it on click - pending, approved
+  // (editable) or rejected (editable) - rather than a static "pending" label.
+  const otCell = (r: any) => {
+    const o = r.otRequest;
+    if (!o && !(r.potentialOtMinutes > 0)) return '—';
+    const busy = openingOt === `${r.employee_id}|${r.date}`;
+    const label = !o || o.status === 'pending' ? `${fmtMinutes(o?.excess_minutes ?? r.potentialOtMinutes)} pending`
+      : o.status === 'approved' ? `Approved ${fmtMinutes(o.approved_minutes ?? 0)}`
+      : 'Rejected';
+    const tone = !o || o.status === 'pending' ? 'badge-blue' : o.status === 'approved' ? 'badge-green' : 'badge-red';
+    return (
+      <button type="button" onClick={() => openOt(r)} disabled={busy}
+        title={!o || o.status === 'pending' ? 'Review this overtime' : 'Edit this overtime decision'}
+        className={`${tone} cursor-pointer underline-offset-2 hover:underline py-1.5 md:py-0.5 disabled:opacity-60`}>
+        {busy ? 'Opening…' : label}
+      </button>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -338,7 +383,7 @@ function RecordsTab() {
                     <td className="table-cell">{r.excessBreakMinutes > 0 ? fmtMinutes(r.excessBreakMinutes) : '—'}</td>
                     <td className="table-cell">{r.lateMinutes > 0 ? fmtMinutes(r.lateMinutes) : '—'}</td>
                     <td className="table-cell">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</td>
-                    <td className="table-cell">{r.potentialOtMinutes > 0 ? <span className="badge-blue">{fmtMinutes(r.potentialOtMinutes)} pending</span> : '—'}</td>
+                    <td className="table-cell">{otCell(r)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -365,7 +410,7 @@ function RecordsTab() {
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Excess Break</span><span className="font-medium text-gray-800">{r.excessBreakMinutes > 0 ? fmtMinutes(r.excessBreakMinutes) : '—'}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Late</span><span className="font-medium text-gray-800">{r.lateMinutes > 0 ? fmtMinutes(r.lateMinutes) : '—'}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Undertime</span><span className="font-medium text-gray-800">{r.undertimeMinutes > 0 ? fmtMinutes(r.undertimeMinutes) : '—'}</span></div>
-                  <div className="flex justify-between gap-2 items-center"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{r.potentialOtMinutes > 0 ? <span className="badge-blue">{fmtMinutes(r.potentialOtMinutes)} pending</span> : '—'}</span></div>
+                  <div className="flex justify-between gap-2 items-center"><span className="text-gray-500">Potential OT</span><span className="font-medium text-gray-800">{otCell(r)}</span></div>
                 </div>
               </div>
             ))}
@@ -373,6 +418,14 @@ function RecordsTab() {
           </>
         )}
       </div>
+
+      {reviewingOt && (
+        <OtReviewModal
+          request={reviewingOt}
+          onClose={() => setReviewingOt(null)}
+          onDone={(note) => { setReviewingOt(null); showToast(note ? `OT saved! ${note}` : 'OT saved!'); fetchRecords(); }}
+        />
+      )}
     </div>
   );
 }
@@ -380,24 +433,33 @@ function RecordsTab() {
 // ── OT Approval Queue ────────────────────────────────────────────────────
 
 function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<any | null>(null);
 
   const fetchRows = () => {
     setLoading(true);
-    fetch('/api/attendance/ot-requests?status=pending').then(r => r.json()).then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); });
+    fetch(`/api/attendance/ot-requests?status=${statusFilter}`).then(r => r.json()).then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); });
   };
 
-  useEffect(fetchRows, []);
+  useEffect(fetchRows, [statusFilter]);
 
   return (
     <div className="space-y-4">
+      <div className="flex gap-1.5 overflow-x-auto">
+        {(['pending', 'approved', 'rejected'] as const).map(st => (
+          <button key={st} onClick={() => setStatusFilter(st)}
+            className={`shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${statusFilter === st ? 'bg-orange-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+            {st}
+          </button>
+        ))}
+      </div>
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-12">No pending OT requests.</p>
+          <p className="text-sm text-gray-400 text-center py-12">No {statusFilter} OT requests.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -406,6 +468,7 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
                   <th className="table-header">Date</th>
                   <th className="table-header">Employee</th>
                   <th className="table-header">Excess Time</th>
+                  {statusFilter === 'approved' && <th className="table-header">Approved</th>}
                   <th className="table-header"></th>
                 </tr>
               </thead>
@@ -415,8 +478,9 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
                     <td className="table-cell">{formatDate(r.event_date)}</td>
                     <td className="table-cell">{r.employee_name}</td>
                     <td className="table-cell"><span className="badge-blue">{fmtMinutes(r.excess_minutes)}</span></td>
+                    {statusFilter === 'approved' && <td className="table-cell"><span className="badge-green">{fmtMinutes(r.approved_minutes ?? 0)}</span></td>}
                     <td className="table-cell text-right">
-                      <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5 sm:py-1.5">Review</button>
+                      <button onClick={() => setReviewing(r)} className="btn-secondary text-xs py-2.5 sm:py-1.5">{r.status === 'pending' ? 'Review' : 'Edit'}</button>
                     </td>
                   </tr>
                 ))}
@@ -430,27 +494,37 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
         <OtReviewModal
           request={reviewing}
           onClose={() => setReviewing(null)}
-          onDone={() => { setReviewing(null); showToast('OT request reviewed!'); fetchRows(); }}
+          onDone={(note) => { setReviewing(null); showToast(note ? `OT request saved! ${note}` : 'OT request saved!'); fetchRows(); }}
         />
       )}
     </div>
   );
 }
 
-export function OtReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: () => void }) {
-  const [approvedMinutes, setApprovedMinutes] = useState(String(request.excess_minutes));
-  const [remarks, setRemarks] = useState('');
+export function OtReviewModal({ request, onClose, onDone }: { request: any; onClose: () => void; onDone: (note?: string) => void }) {
+  // A request that was already reviewed is being EDITED: the same three
+  // decisions are available, sent with edit:true so the server knows this is
+  // a deliberate change to an earlier decision (and refuses it if payroll for
+  // that date is already finalized).
+  const isEdit = !!request.status && request.status !== 'pending';
+  const [approvedMinutes, setApprovedMinutes] = useState(String(isEdit && request.status === 'approved' ? (request.approved_minutes ?? request.excess_minutes) : request.excess_minutes));
+  const [remarks, setRemarks] = useState(isEdit ? (request.remarks ?? '') : '');
   const [saving, setSaving] = useState<'approve' | 'partial_approve' | 'reject' | null>(null);
+  const [error, setError] = useState('');
 
   const submit = async (action: 'approve' | 'partial_approve' | 'reject') => {
     setSaving(action);
+    setError('');
     try {
       const body: any = { action, remarks: remarks || undefined };
+      if (isEdit) body.edit = true;
       if (action === 'partial_approve') body.approved_minutes = Number(approvedMinutes);
       const res = await fetch(`/api/attendance/ot-requests/${request.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
-      if (res.ok) onDone();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) onDone(data.payroll_note);
+      else setError(data.error || 'Could not save this OT decision.');
     } finally {
       setSaving(null);
     }
@@ -460,10 +534,15 @@ export function OtReviewModal({ request, onClose, onDone }: { request: any; onCl
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Review OT Request</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit OT Decision' : 'Review OT Request'}</h2>
         <p className="text-sm text-gray-600">
           {request.employee_name} — {formatDate(request.event_date)} — excess time worked: <b>{fmtMinutes(request.excess_minutes)}</b>
         </p>
+        {isEdit && (
+          <p className="text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
+            Currently <b>{request.status}</b>{request.status === 'approved' ? <> ({fmtMinutes(request.approved_minutes ?? 0)})</> : null}. Saving replaces that decision and is recorded in the audit log.
+          </p>
+        )}
         <div>
           <label className="form-label">Approved Minutes (for partial approval)</label>
           <input type="number" min={0} max={request.excess_minutes} className="form-input" value={approvedMinutes} onChange={e => setApprovedMinutes(e.target.value)} />
@@ -472,6 +551,7 @@ export function OtReviewModal({ request, onClose, onDone }: { request: any; onCl
           <label className="form-label">Remarks</label>
           <textarea className="form-input" rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} />
         </div>
+        {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
         <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={() => submit('reject')} disabled={!!saving} className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50">

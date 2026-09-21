@@ -65,6 +65,16 @@ export async function GET(req: NextRequest) {
     eventsByEmployeeDate.get(key)!.push(e);
   }
 
+  // Any OT request already on file for these days, so Daily Records can show
+  // its real state (pending / approved / rejected) instead of always saying
+  // "pending", and let HR open it straight from the row.
+  const otRows = db.prepare(`
+    SELECT id, employee_id, event_date, status, excess_minutes, approved_minutes, remarks
+    FROM attendance_ot_requests
+    WHERE event_date BETWEEN ? AND ? AND employee_id IN (${employeeIds.map(() => '?').join(',')})
+  `).all(from, to, ...employeeIds) as { id: number; employee_id: number; event_date: string; status: string; excess_minutes: number; approved_minutes: number | null; remarks: string | null }[];
+  const otByEmployeeDate = new Map(otRows.map(o => [`${o.employee_id}|${o.event_date}`, o]));
+
   const today = todayISO();
   const allDates = dateRange(from, to);
   const rows: any[] = [];
@@ -102,6 +112,7 @@ export async function GET(req: NextRequest) {
       rows.push({
         employee_id: employee.id, name: employee.full_name, date, shift_name: resolved.shift.name,
         ...rawSummary, status, paid, exceptionLabel,
+        otRequest: otByEmployeeDate.get(`${employee.id}|${date}`) ?? null,
       });
     }
   }

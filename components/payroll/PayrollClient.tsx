@@ -944,6 +944,22 @@ function StepApproveAndPayslips({ period, entries, onRefresh, showToast }: { per
     }
   };
 
+  // Pulls attendance corrections / OT decisions approved after this period
+  // was generated into its entries (draft / for-review only).
+  const refreshAttendance = async () => {
+    setBusy('refresh');
+    try {
+      const res = await fetch(`/api/payroll/periods/${period.id}/refresh-attendance`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed.', 'error'); return; }
+      const n = Array.isArray(data.changed) ? data.changed.length : 0;
+      showToast(n === 0 ? 'Attendance is already up to date - nothing changed.' : `Updated ${n} employee${n === 1 ? '' : 's'} from attendance.`);
+      onRefresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const generatePayslips = async () => {
     setBusy('payslips');
     try {
@@ -970,6 +986,16 @@ function StepApproveAndPayslips({ period, entries, onRefresh, showToast }: { per
       </div>
 
       <div className="space-y-3">
+        {(period.status === 'draft' || period.status === 'for_review') && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-xs text-gray-600 flex-1">
+              Approved an attendance correction or OT after this payroll was generated? Refresh to pull it in - late, undertime and OT are re-read from attendance.
+            </p>
+            <button onClick={refreshAttendance} disabled={!!busy} className="btn-secondary justify-center text-xs py-2.5 sm:py-1.5 shrink-0 disabled:opacity-50">
+              {busy === 'refresh' ? <Loader2 size={13} className="animate-spin" /> : null} Refresh from Attendance
+            </button>
+          </div>
+        )}
         {period.status === 'draft' && (
           <button onClick={() => doTransition('review')} disabled={!!busy} className="btn-secondary w-full justify-center text-base py-3 disabled:opacity-50">
             {busy === 'review' ? <Loader2 size={16} className="animate-spin" /> : null} Review Payroll

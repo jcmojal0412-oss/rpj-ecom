@@ -73,6 +73,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid requested_event_type' }, { status: 400 });
     }
 
+    // The corrected time has to fall on the date being corrected (PH time).
+    // Otherwise the punch lands on a different day than event_date and the
+    // day's real (wrong) punch keeps being used, so the correction appears
+    // to be approved but changes nothing.
+    const requestedAt = new Date(requested_time);
+    if (Number.isNaN(requestedAt.getTime())) {
+      return NextResponse.json({ error: 'requested_time is not a valid date/time' }, { status: 400 });
+    }
+    const requestedPhDate = new Date(requestedAt.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    if (requestedPhDate !== event_date) {
+      return NextResponse.json({
+        error: `The Correct Time is on ${requestedPhDate}, but the Date being corrected is ${event_date}. Make both the same day.`,
+      }, { status: 400 });
+    }
+
     const info = db.prepare(`
       INSERT INTO attendance_corrections (employee_id, user_id, event_date, original_event_id, requested_event_type, requested_time, reason)
       VALUES (?, ?, ?, ?, ?, ?, ?)

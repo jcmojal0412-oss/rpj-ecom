@@ -346,3 +346,75 @@ export function recomputePayrollEntry(db: Database.Database, entryId: number): v
     entryId
   );
 }
+
+export interface PayrollPeriodRef { id: number; label: string; status: string; from_date: string; to_date: string; }
+
+// A period that has already been approved/paid/locked has frozen its entries
+// — changing an OT decision for a date inside it would silently disagree
+// with what was actually approved or paid. Voided periods don't count.
+export function getFinalizedPayrollPeriodFor(db: Database.Database, date: string): PayrollPeriodRef | null {
+  return (db.prepare(`
+    SELECT id, label, status, from_date, to_date FROM payroll_periods
+    WHERE voided_at IS NULL AND status IN ('approved','paid','locked') AND from_date <= ? AND to_date >= ?
+    ORDER BY from_date DESC LIMIT 1
+  `).get(date, date) as PayrollPeriodRef | undefined) ?? null;
+}
+
+// A payroll entry snapshots its attendance-derived numbers (late, undertime,
+// excess break, absences, unpaid leave, work days, approved OT) when the
+// period is generated. Anything approved AFTER that - an attendance
+// correction, an OT decision - never reached it, so the employee kept being
+// deducted for something HR had already fixed. This re-derives those numbers
+// the same way generation does and recomputes the entry. Only draft /
+// for-review periods are touched: once approved/paid/locked the figures are
+// frozen. Rates, allowance and statutory amounts are deliberately left as
+// they were snapshotted. Returns true when the entry was refreshed.
+export function refreshPayrollEntryFromAttendance(db: Database.Database, entryId: number): boolean {
+  const row = db.prepare(`
+    SELECT e.id, e.employee_id, p.from_date, p.to_date, p.status, p.voided_at
+    FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
+    WHERE e.id = ?
+  `).get(entryId) as { id: number; employee_id: number; from_date: string; to_date: string; status: string; voided_at: string | null } | undefined;
+  if (!row || row.voided_at || (row.status !== 'draft' && row.status !== 'for_review')) return false;
+
+  const employee = db.prepare(`
+    SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible,
+           sss_enabled, philhealth_enabled, pagibig_enabled
+    FROM employees WHERE id = ?
+  `).get(row.employee_id) as PayrollEmployee | undefined;
+  if (!employee) return false;
+
+  const attendance = aggregateAttendanceForPeriod(db, employee, row.from_date, row.to_date);
+  const approvedOt = employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, row.from_date, row.to_date) : 0;
+
+  db.prepare(`
+    UPDATE payroll_entries SET work_days_count = ?, late_minutes = ?, undertime_minutes = ?, excess_break_minutes = ?,
+      absence_days = ?, unpaid_leave_days = ?, approved_ot_minutes = ?
+    WHERE id = ?
+  `).run(
+    attendance.workDaysInPeriod, attendance.lateMinutes, attendance.undertimeMinutes, attendance.excessBreakMinutes,
+    attendance.absenceDays, attendance.unpaidLeaveDays, approvedOt, row.id,
+  );
+  recomputePayrollEntry(db, row.id);
+  return true;
+}
+
+// Refreshes the employee's entry in every draft / for-review period that
+// covers `date`. Returns the labels of the periods that were updated.
+export function syncApprovedOtIntoOpenPayroll(db: Database.Database, employeeId: number, date: string): string[] {
+  return refreshOpenPayrollForEmployeeDate(db, employeeId, date);
+}
+
+export function refreshOpenPayrollForEmployeeDate(db: Database.Database, employeeId: number, date: string): string[] {
+  const periods = db.prepare(`
+    SELECT id, label FROM payroll_periods
+    WHERE voided_at IS NULL AND status IN ('draft','for_review') AND from_date <= ? AND to_date >= ?
+  `).all(date, date) as { id: number; label: string }[];
+
+  const updated: string[] = [];
+  for (const p of periods) {
+    const entry = db.prepare('SELECT id FROM payroll_entries WHERE payroll_period_id = ? AND employee_id = ?').get(p.id, employeeId) as { id: number } | undefined;
+    if (entry && refreshPayrollEntryFromAttendance(db, entry.id)) updated.push(p.label);
+  }
+  return updated;
+}

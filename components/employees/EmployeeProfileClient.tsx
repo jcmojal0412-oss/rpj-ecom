@@ -905,7 +905,13 @@ function CorrectionForm({ employeeId, onCancel, onSubmitted }: { employeeId: num
     <div className="space-y-3">
       <div>
         <label className="form-label">Date</label>
-        <input type="date" className="form-input" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+        <input type="date" className="form-input" value={eventDate} onChange={e => {
+          // Keep the Correct Time on the same day: changing the Date moves the
+          // date part of the time with it (the time-of-day stays as typed).
+          const d = e.target.value;
+          setEventDate(d);
+          if (d) setRequestedTime(t => `${d}${t.slice(10)}`);
+        }} />
       </div>
       <div>
         <label className="form-label">Which action needs correcting?</label>

@@ -18,59 +18,93 @@ function parseWorkDays(employee: Employee): { work_days: number[] } {
   return { work_days: employee.work_days.split(',').filter(Boolean).map(Number) };
 }
 
-// Flags "Potential OT – Pending Approval" once a Time Out is recorded and
-// the excess minutes (measured against the EMPLOYEE'S OWN ASSIGNED SHIFT
-// end time, resolved for that specific date) clear the configured
-// threshold. This only ever writes to attendance_ot_requests with
-// status='pending' — nothing here (or anywhere else in the codebase) sets
-// status='approved' automatically or touches payroll. approved_minutes
-// stays NULL until a manager reviews it via the OT Approval Queue. Only
-// considers employees who are Active + Attendance Enabled — a system user
-// with no linked employee (or an inactive one) never gets flagged.
+// How far back the flagger looks. It used to cover only today + yesterday,
+// so any day it missed (app restarted, time-out corrected later, shift
+// assigned late) kept showing "Potential OT pending" in Daily Records with no
+// request behind it - nothing to review, nothing that could ever reach
+// payroll. Requests are idempotent per (employee, date), so a wide window
+// only ever fills gaps.
+const OT_LOOKBACK_DAYS = 45;
+
+// Creates the "Potential OT - Pending Approval" request for ONE employee/day
+// if it qualifies (Time Out recorded, excess minutes - measured against the
+// EMPLOYEE'S OWN ASSIGNED SHIFT end time for that date - clear the configured
+// threshold, and no request exists yet). Returns true when a new request was
+// created. Only ever writes status='pending' with approved_minutes NULL.
+function flagOvertimeForDay(db: ReturnType<typeof getDb>, employee: Employee, date: string): boolean {
+  if (!isConfiguredWorkDay(date, parseWorkDays(employee))) return false;
+
+  const hasTimeOut = db.prepare(`
+    SELECT 1 FROM attendance_events
+    WHERE employee_id = ? AND event_date = ? AND event_type = 'TIME_OUT' AND superseded_by IS NULL AND is_test = 0
+    LIMIT 1
+  `).get(employee.id, date);
+  if (!hasTimeOut) return false;
+
+  const existing = db.prepare('SELECT id FROM attendance_ot_requests WHERE employee_id = ? AND event_date = ?').get(employee.id, date);
+  if (existing) return false;
+
+  const resolved = resolveAttendanceSettings(db, employee.id, date);
+  if (!resolved) return false; // no shift assignment covering this date
+
+  const events = db.prepare(`
+    SELECT id, event_type, event_time, superseded_by FROM attendance_events
+    WHERE employee_id = ? AND event_date = ? AND is_test = 0 ORDER BY event_time ASC
+  `).all(employee.id, date) as AttendanceEvent[];
+
+  const summary = computeDaySummary(events, resolved.settings, true);
+  if (summary.potentialOtMinutes <= 0) return false;
+
+  const timeOutEvent = events.filter(e => e.event_type === 'TIME_OUT' && !e.superseded_by).pop();
+  // user_id is a legacy column nothing reads anymore (now nullable -
+  // see the attendance_ot_requests rebuild in lib/db.ts). The real
+  // idempotency guard is idx_attendance_ot_employee_date on
+  // (employee_id, event_date), not this column.
+  const info = db.prepare(`
+    INSERT OR IGNORE INTO attendance_ot_requests (employee_id, user_id, event_date, time_out_event_id, excess_minutes, status)
+    VALUES (?, ?, ?, ?, ?, 'pending')
+  `).run(employee.id, employee.linked_user_id ?? null, date, timeOutEvent?.id ?? null, summary.potentialOtMinutes);
+  return info.changes > 0;
+}
+
+// Nothing here (or anywhere else in the codebase) sets status='approved'
+// automatically or touches payroll - approved_minutes stays NULL until a
+// manager reviews it. Only Active + Attendance Enabled employees are
+// considered.
 export function flagPotentialOvertime(): number {
   const db = getDb();
   const employees = activeAttendanceEmployees(db);
   let flagged = 0;
 
-  for (const date of [phDateNDaysAgo(0), phDateNDaysAgo(1)]) {
+  for (let daysAgo = 0; daysAgo < OT_LOOKBACK_DAYS; daysAgo++) {
+    const date = phDateNDaysAgo(daysAgo);
     for (const employee of employees) {
-      if (!isConfiguredWorkDay(date, parseWorkDays(employee))) continue;
-
-      const hasTimeOut = db.prepare(`
-        SELECT 1 FROM attendance_events
-        WHERE employee_id = ? AND event_date = ? AND event_type = 'TIME_OUT' AND superseded_by IS NULL AND is_test = 0
-        LIMIT 1
-      `).get(employee.id, date);
-      if (!hasTimeOut) continue;
-
-      const existing = db.prepare('SELECT id FROM attendance_ot_requests WHERE employee_id = ? AND event_date = ?').get(employee.id, date);
-      if (existing) continue;
-
-      const resolved = resolveAttendanceSettings(db, employee.id, date);
-      if (!resolved) continue; // no shift assignment covering this date
-
-      const events = db.prepare(`
-        SELECT id, event_type, event_time, superseded_by FROM attendance_events
-        WHERE employee_id = ? AND event_date = ? AND is_test = 0 ORDER BY event_time ASC
-      `).all(employee.id, date) as AttendanceEvent[];
-
-      const summary = computeDaySummary(events, resolved.settings, true);
-      if (summary.potentialOtMinutes <= 0) continue;
-
-      const timeOutEvent = events.filter(e => e.event_type === 'TIME_OUT' && !e.superseded_by).pop();
-      // user_id is a legacy column nothing reads anymore (now nullable —
-      // see the attendance_ot_requests rebuild in lib/db.ts). The real
-      // idempotency guard is idx_attendance_ot_employee_date on
-      // (employee_id, event_date), not this column.
-      const info = db.prepare(`
-        INSERT OR IGNORE INTO attendance_ot_requests (employee_id, user_id, event_date, time_out_event_id, excess_minutes, status)
-        VALUES (?, ?, ?, ?, ?, 'pending')
-      `).run(employee.id, employee.linked_user_id ?? null, date, timeOutEvent?.id ?? null, summary.potentialOtMinutes);
-      if (info.changes > 0) flagged++;
+      if (flagOvertimeForDay(db, employee, date)) flagged++;
     }
   }
 
   return flagged;
+}
+
+// Used by Daily Records: the "Potential OT" figure there is computed live,
+// so a day older than the lookback (or one the job hasn't reached yet) may
+// have no request row. This creates it on demand - computed server-side from
+// the real punches, never from a client-supplied number - and returns the
+// request either way, or null if the day doesn't qualify for OT.
+export function ensureOvertimeRequest(employeeId: number, date: string): Record<string, unknown> | null {
+  const db = getDb();
+  const employee = db.prepare(
+    "SELECT * FROM employees WHERE id = ? AND employment_status = 'Active' AND attendance_enabled = 1"
+  ).get(employeeId) as Employee | undefined;
+  if (!employee) return null;
+
+  flagOvertimeForDay(db, employee, date);
+  const row = db.prepare(`
+    SELECT o.*, e.full_name AS employee_name FROM attendance_ot_requests o
+    JOIN employees e ON e.id = o.employee_id
+    WHERE o.employee_id = ? AND o.event_date = ?
+  `).get(employeeId, date) as Record<string, unknown> | undefined;
+  return row ?? null;
 }
 
 // Marks a durable "system flagged this" trail once EACH EMPLOYEE'S OWN
