@@ -3,7 +3,7 @@ import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { todayISO } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
-import { buildPayslipEmail, isValidEmail, payslipCopyRecipients } from '@/lib/payslip-email';
+import { appBaseUrl, buildPayslipEmail, isValidEmail, payslipContactEmails, payslipCopyRecipients } from '@/lib/payslip-email';
 import { applyEmailStatus, lookupResendStatus } from '@/lib/email-status';
 
 export const dynamic = 'force-dynamic';
@@ -119,20 +119,29 @@ export async function POST(req: NextRequest) {
         { label: string; from_date: string; to_date: string; pay_date: string | null };
       const getEntry = db.prepare('SELECT * FROM payroll_entries WHERE id = ?');
       const getAdj = db.prepare('SELECT adjustment_type, amount, reason FROM payroll_adjustments WHERE payroll_entry_id = ? ORDER BY created_at ASC');
-      const getEmail = db.prepare('SELECT email FROM employees WHERE id = ?');
+      const getEmployee = db.prepare('SELECT email, department, linked_user_id FROM employees WHERE id = ?');
       const audit2 = db.prepare(`INSERT INTO payroll_audit_log (payroll_period_id, payroll_entry_id, actor_user_id, action, details) VALUES (?, ?, ?, ?, ?)`);
       let sent = 0;
       const notSent: { id: number; name: string; reason: string }[] = [];
       const copyTo = payslipCopyRecipients();
+      const contact = payslipContactEmails();
+      const baseUrl = appBaseUrl();
 
       for (const r of rows) {
         const entry = getEntry.get(r.id) as Record<string, any>;
-        const address = ((getEmail.get(entry.employee_id) as { email: string | null } | undefined)?.email ?? '').trim();
+        const emp = getEmployee.get(entry.employee_id) as { email: string | null; department: string | null; linked_user_id: number | null } | undefined;
+        const address = (emp?.email ?? '').trim();
         if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
 
-        const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period);
+        // The portal button only appears for employees who actually have a login.
+        const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period, {
+          department: emp?.department,
+          portalUrl: emp?.linked_user_id ? `${baseUrl}/payslips` : null,
+          supportEmail: contact.support, hrEmail: contact.hr,
+          logoUrl: `${baseUrl}/email-logo.png`,
+        });
         const bcc = copyTo.filter(c => c.toLowerCase() !== address.toLowerCase());
-        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation', PAYSLIP_FROM, bcc);
+        const result = await sendEmail(address, subject, html, contact.support ?? undefined, 'RPJ Corporation', PAYSLIP_FROM, bcc);
         if (!result.sent) {
           notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'error' in result && result.error ? 'The email could not be sent' : 'Email sending is not set up yet' });
           continue;
