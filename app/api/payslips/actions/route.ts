@@ -9,6 +9,9 @@ export const dynamic = 'force-dynamic';
 type Action = 'release' | 'send_email' | 'mark_paid' | 'mark_failed' | 'mark_returned';
 const ACTIONS: Action[] = ['release', 'send_email', 'mark_paid', 'mark_failed', 'mark_returned'];
 
+// What employees see as the sender of a payslip email (any address on the verified rpjcorp.com domain works).
+const PAYSLIP_FROM = process.env.PAYSLIP_FROM_EMAIL || 'payroll@rpjcorp.com';
+
 interface Row {
   id: number; payroll_period_id: number; employee_name_snapshot: string; net_pay: number;
   payment_status: string | null; paid_amount: number | null; payslip_released_at: string | null;
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
         if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
 
         const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period);
-        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation');
+        const result = await sendEmail(address, subject, html, undefined, 'RPJ Corporation', PAYSLIP_FROM);
         if (!result.sent) {
           notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'error' in result && result.error ? 'The email could not be sent' : 'Email sending is not set up yet' });
           continue;

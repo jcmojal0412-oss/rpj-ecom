@@ -2,14 +2,16 @@
 // outbound SMTP (ports 465/587) at the platform level, but this is a normal
 // HTTPS POST request, so it works without any network restrictions.
 //
-// `fromName` swaps only the display name (e.g. "RPJ Corporation") while keeping
-// the verified sending address from RESEND_FROM_EMAIL, so a different kind of
-// email can show its own sender without touching the ones already going out.
-export async function sendEmail(to: string, subject: string, html: string, replyTo?: string, fromName?: string) {
+// `fromName` / `fromAddress` let one kind of email (e.g. payslips) show its own
+// sender ("RPJ Corporation <payroll@rpjcorp.com>") without touching the ones
+// already going out with RESEND_FROM_EMAIL. Any @rpjcorp.com address works, as
+// Resend verifies the whole domain rather than each address.
+export async function sendEmail(to: string, subject: string, html: string, replyTo?: string, fromName?: string, fromAddress?: string) {
   const apiKey = process.env.RESEND_API_KEY;
   const configured = process.env.RESEND_FROM_EMAIL || 'SEDO Official <onboarding@resend.dev>';
-  const address = (configured.match(/<([^>]+)>/)?.[1] ?? configured).trim();
-  const from = fromName ? `${fromName.replace(/[<>"]/g, '')} <${address}>` : configured;
+  const configuredAddress = (configured.match(/<([^>]+)>/)?.[1] ?? configured).trim();
+  const address = fromAddress && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]{2,}$/.test(fromAddress) ? fromAddress.trim() : configuredAddress;
+  const from = fromName || fromAddress ? `${(fromName ?? '').replace(/[<>"]/g, '').trim() || 'RPJ Corporation'} <${address}>` : configured;
 
   if (!apiKey) {
     console.error('[email] RESEND_API_KEY not configured — skipping send');
