@@ -57,7 +57,7 @@ export default function BulkPayslipPrintPage() {
       ) : (
         <div className="ps-stack">
           {docs.map(d => (
-            <div className="ps-sheet" key={d.id}><PayslipDocument entry={d.entry} adjustments={d.adjustments} /></div>
+            <div className="ps-sheet" key={d.id}><PayslipDocument entry={d.entry} adjustments={d.adjustments} contactEmail={d.contact_email} warning={d.calc_warning} /></div>
           ))}
         </div>
       )}

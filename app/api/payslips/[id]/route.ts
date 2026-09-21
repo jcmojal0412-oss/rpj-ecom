@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getActiveEmployeeForUser } from '@/lib/attendance-shifts';
+import { payslipContactEmails } from '@/lib/payslip-email';
+import { netMismatch } from '@/lib/payslip-integrity';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,5 +45,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   const adjustments = db.prepare('SELECT adjustment_type, amount, reason FROM payroll_adjustments WHERE payroll_entry_id = ? ORDER BY created_at ASC').all(params.id);
 
-  return NextResponse.json({ entry, adjustments });
+  // HR/admin see a warning when the stored totals disagree; the payslip is
+  // shown as approved, never silently "fixed". contact_email is the configured
+  // payroll mailbox (null when none is set — no made-up address).
+  const mismatch = isAdmin ? netMismatch(entry) : null;
+  const calc_warning = mismatch ? `Gross − Deductions = ${mismatch.expected.toFixed(2)}, but Net Pay is ${Number(entry.net_pay).toFixed(2)}. Correct the payroll before releasing this payslip.` : null;
+  return NextResponse.json({ entry, adjustments, contact_email: payslipContactEmails().support, calc_warning });
 }

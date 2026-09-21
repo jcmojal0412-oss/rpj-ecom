@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { netMismatch } from '@/lib/payslip-integrity';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,13 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
   if (!period) return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 });
   if (period.status !== 'approved' && period.status !== 'paid' && period.status !== 'locked') {
     return NextResponse.json({ error: 'Payroll must be approved before payslips can be generated.' }, { status: 409 });
+  }
+
+  // Never hand employees a payslip whose totals disagree with each other.
+  const pending = db.prepare(`SELECT employee_name_snapshot AS name, gross_pay, total_deductions, net_pay FROM payroll_entries WHERE payroll_period_id = ? AND payslip_released_at IS NULL`).all(params.id) as { name: string; gross_pay: number; total_deductions: number; net_pay: number }[];
+  const broken = pending.filter(e => netMismatch(e));
+  if (broken.length > 0) {
+    return NextResponse.json({ error: `Payslips can't be generated: the totals don't add up for ${broken.map(b => b.name).join(', ')}. Correct the payroll first.` }, { status: 409 });
   }
 
   runTransaction(() => {

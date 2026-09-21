@@ -18,6 +18,7 @@ interface Entry {
   payment_status: string; payslip_status: string;
   paid_at: string | null; payment_date: string | null; paid_amount: number | null; payment_method: string | null; payment_reference: string | null; paid_by_name: string | null;
   payslip_released_at: string | null; payslip_first_viewed_at: string | null; payslip_last_viewed_at: string | null;
+  payslip_ref: string | null;
   has_email: boolean; payslip_emailed_at: string | null; payslip_emailed_to: string | null;
   payslip_email_status: 'sent' | 'delayed' | 'delivered' | 'bounced' | 'complained' | 'failed' | null; payslip_email_status_at: string | null;
   issues: Issue[]; has_issue: boolean; detail: Record<string, any>;
@@ -201,7 +202,9 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   }, [entries]);
 
   const matches = useCallback((e: Entry) => {
-    if (search && !e.employee_name.toLowerCase().includes(search.toLowerCase())) return false;
+    // Search by employee name or by payslip Ref No. (e.g. "PS-20260915-00012" or just "00012").
+    const q = search.trim().toLowerCase();
+    if (q && !e.employee_name.toLowerCase().includes(q) && !(e.payslip_ref ?? '').toLowerCase().includes(q)) return false;
     if (dept && tidyDept(e.department).toLowerCase() !== dept.toLowerCase()) return false;
     if (payFilter === 'UNPAID' ? e.payment_status === 'PAID' : payFilter && e.payment_status !== payFilter) return false;
     if (slipFilter === 'NOT_RELEASED' ? e.payslip_released_at : slipFilter === 'RELEASED_ANY' ? !e.payslip_released_at : slipFilter && e.payslip_status !== slipFilter) return false;
@@ -558,7 +561,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2">
               <div className="relative w-full md:w-64">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-                <input className="form-input pl-8 py-2 md:py-1.5 text-sm w-full" placeholder="Search employee…" value={search} onChange={e => setSearch(e.target.value)} />
+                <input className="form-input pl-8 py-2 md:py-1.5 text-sm w-full" placeholder="Search employee or Ref No…" value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <select className="form-input py-2 md:py-1.5 text-sm w-full md:w-auto" value={dept} onChange={e => setDept(e.target.value)}>
                 <option value="">All departments</option>{departments.map(d => <option key={d} value={d}>{d}</option>)}
@@ -909,6 +912,7 @@ function DetailsView({ entry }: { entry: Entry }) {
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Payslip</p>
         {row('Payslip Status', <span className={PAYSLIP_BADGE[entry.payslip_status]}>{PAYSLIP_LABEL[entry.payslip_status]}</span>)}
+        {entry.payslip_ref && row('Reference No.', entry.payslip_ref)}
         {row('Released', entry.payslip_released_at ? fmtWhen(entry.payslip_released_at) : 'Not yet')}
         {entry.payslip_released_at && row('First viewed by employee', entry.payslip_first_viewed_at ? fmtWhen(entry.payslip_first_viewed_at) : 'Not yet')}
         {entry.payslip_first_viewed_at && row('Last viewed by employee', fmtWhen(entry.payslip_last_viewed_at))}
@@ -947,7 +951,7 @@ function PayslipViewer({ id, onClose }: { id: number; onClose: () => void }) {
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>
       ) : (
         <div className="ps-embedded overflow-x-auto rounded-lg border border-gray-200">
-          <PayslipDocument entry={data.entry} adjustments={data.adjustments} />
+          <PayslipDocument entry={data.entry} adjustments={data.adjustments} contactEmail={data.contact_email} warning={data.calc_warning} />
         </div>
       )}
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">

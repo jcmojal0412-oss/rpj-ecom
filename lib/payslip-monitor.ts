@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { checkAttendanceWarnings, type PayrollEmployee } from './payroll-data';
 import { isValidEmail, payslipCopyRecipients } from './payslip-email';
+import { netMismatch } from './payslip-integrity';
 
 // Everything the Payslips & Payroll Monitoring page shows is READ from the
 // existing payroll_entries / payroll_periods rows (nothing is recalculated
@@ -50,6 +51,7 @@ export interface MonitorEntry {
   employee_id: number;
   employee_name: string;
   employee_code: string;
+  payslip_ref: string | null; // "PS-20260915-00012", searchable by HR
   position: string | null;
   department: string | null;
   gross_pay: number;
@@ -154,10 +156,11 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     const issues: PayrollIssue[] = [];
 
     // ---- calculation checks ----
-    if (Math.abs(round2(r.gross_pay - r.total_deductions) - round2(r.net_pay)) > 0.01) {
+    const mismatch = netMismatch(r);
+    if (mismatch) {
       issues.push({
         code: 'calc_mismatch', severity: 'error', title: 'Payroll calculation does not add up', action: 'edit_payroll',
-        message: `Gross ${fmtPeso(r.gross_pay)} − deductions ${fmtPeso(r.total_deductions)} should be ${fmtPeso(round2(r.gross_pay - r.total_deductions))}, but net pay is ${fmtPeso(r.net_pay)}.`,
+        message: `Gross ${fmtPeso(r.gross_pay)} − deductions ${fmtPeso(r.total_deductions)} should be ${fmtPeso(mismatch.expected)}, but net pay is ${fmtPeso(r.net_pay)}.`,
       });
     }
     if (r.net_pay < 0) {
@@ -209,7 +212,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     if (adj > 0) issues.push({ code: 'manual_adjustment', severity: 'info', title: 'Manual adjustment', action: null, message: `${adj} manual adjustment${adj === 1 ? '' : 's'} applied.` });
 
     return {
-      id: r.id, employee_id: r.employee_id, employee_name: r.employee_name_snapshot, employee_code: r.employee_code_snapshot,
+      id: r.id, employee_id: r.employee_id, employee_name: r.employee_name_snapshot, employee_code: r.employee_code_snapshot, payslip_ref: (r.payslip_ref ?? null) as string | null,
       position: r.position_snapshot, department: emp?.department ?? null,
       gross_pay: r.gross_pay, total_deductions: r.total_deductions, net_pay: r.net_pay,
       payment_status: paymentStatus, payslip_status: payslipStatus,

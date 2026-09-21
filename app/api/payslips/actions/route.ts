@@ -5,6 +5,7 @@ import { todayISO } from '@/lib/utils';
 import { sendEmail } from '@/lib/email';
 import { appBaseUrl, buildPayslipEmail, isValidEmail, payslipContactEmails, payslipCopyRecipients } from '@/lib/payslip-email';
 import { applyEmailStatus, lookupResendStatus } from '@/lib/email-status';
+import { netMismatch, NET_MISMATCH_REASON } from '@/lib/payslip-integrity';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ const ACTIONS: Action[] = ['release', 'send_email', 'check_email', 'mark_paid', 
 const PAYSLIP_FROM = process.env.PAYSLIP_FROM_EMAIL || 'payroll@rpjcorp.com';
 
 interface Row {
-  id: number; payroll_period_id: number; employee_name_snapshot: string; net_pay: number;
+  id: number; payroll_period_id: number; employee_name_snapshot: string; net_pay: number; gross_pay: number; total_deductions: number;
   payment_status: string | null; paid_amount: number | null; payslip_released_at: string | null;
   period_status: string; voided_at: string | null;
 }
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const db = getDb();
     const rows = db.prepare(`
-      SELECT e.id, e.payroll_period_id, e.employee_name_snapshot, e.net_pay, e.payment_status, e.paid_amount, e.payslip_released_at,
+      SELECT e.id, e.payroll_period_id, e.employee_name_snapshot, e.net_pay, e.gross_pay, e.total_deductions, e.payment_status, e.paid_amount, e.payslip_released_at,
              p.status AS period_status, p.voided_at
       FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
       WHERE e.id IN (${ids.map(() => '?').join(',')})
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
 
       for (const r of rows) {
         const entry = getEntry.get(r.id) as Record<string, any>;
+        if (netMismatch(r)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: NET_MISMATCH_REASON }); continue; }
         const emp = getEmployee.get(entry.employee_id) as { email: string | null; department: string | null; linked_user_id: number | null } | undefined;
         const address = (emp?.email ?? '').trim();
         if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
@@ -191,6 +193,7 @@ export async function POST(req: NextRequest) {
 
         if (action === 'release') {
           if (r.payslip_released_at) { skipped.push({ id: r.id, name, reason: 'Already released' }); continue; }
+          if (netMismatch(r)) { skipped.push({ id: r.id, name, reason: NET_MISMATCH_REASON }); continue; }
           db.prepare(`UPDATE payroll_entries SET payslip_released_at = datetime('now'), payslip_released_by = ? WHERE id = ?`).run(session.id, r.id);
           audit.run(periodId, r.id, session.id, 'payslip_released', `Payslip released to ${name}`);
           updated++;

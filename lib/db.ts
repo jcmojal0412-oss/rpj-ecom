@@ -1033,6 +1033,20 @@ function migrateSchema() {
   addColIfMissing('payroll_entries', 'payslip_emailed_to', 'payslip_emailed_to TEXT');
   // Delivery tracking for the payslip email: Resend's email id, plus the latest
   // known status (sent / delayed / delivered / bounced / complained / failed).
+  // Payslip reference number ("PS-YYYYMMDD-00012": pay-period end + record id).
+  // Stored so HR can search it and it never changes; the trigger fills it for
+  // every new payroll entry, and the UPDATE gives existing rows the SAME value
+  // the payslip already showed.
+  addColIfMissing('payroll_entries', 'payslip_ref', 'payslip_ref TEXT');
+  db.exec(`
+    UPDATE payroll_entries SET payslip_ref = 'PS-' || replace((SELECT p.to_date FROM payroll_periods p WHERE p.id = payroll_entries.payroll_period_id), '-', '') || '-' || printf('%05d', id)
+    WHERE payslip_ref IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_entries_payslip_ref ON payroll_entries(payslip_ref);
+    CREATE TRIGGER IF NOT EXISTS trg_payroll_entries_payslip_ref AFTER INSERT ON payroll_entries WHEN NEW.payslip_ref IS NULL
+    BEGIN
+      UPDATE payroll_entries SET payslip_ref = 'PS-' || replace((SELECT p.to_date FROM payroll_periods p WHERE p.id = NEW.payroll_period_id), '-', '') || '-' || printf('%05d', NEW.id) WHERE id = NEW.id;
+    END;
+  `);
   addColIfMissing('payroll_entries', 'payslip_email_id', 'payslip_email_id TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status', 'payslip_email_status TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status_at', 'payslip_email_status_at TEXT');

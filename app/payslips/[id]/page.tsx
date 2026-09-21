@@ -39,7 +39,7 @@ export default function PayslipPrintPage() {
     return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Loading...</div>;
   }
 
-  const { entry, adjustments } = data;
+  const { entry, adjustments, contact_email, calc_warning } = data;
   return (
     <>
       <div className="no-print fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 bg-gray-900 text-white shadow-xl">
@@ -53,7 +53,7 @@ export default function PayslipPrintPage() {
       </div>
 
       <div className="ps-page" style={{ paddingTop: '60px' }}>
-        <PayslipDocument entry={entry} adjustments={adjustments} />
+        <PayslipDocument entry={entry} adjustments={adjustments} contactEmail={contact_email} warning={calc_warning} />
       </div>
 
       <style jsx global>{`
