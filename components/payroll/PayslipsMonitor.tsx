@@ -620,8 +620,8 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                         <tr className="border-b border-gray-100">
                           <th className="table-header w-10"><input type="checkbox" aria-label="Select all" checked={allShownSelected} onChange={toggleAll} className="rounded border-gray-300 text-orange-500" /></th>
                           <th className="table-header whitespace-nowrap">Employee</th>
-                          <th className="table-header whitespace-nowrap text-right hidden xl:table-cell">Gross Pay</th>
-                          <th className="table-header whitespace-nowrap text-right hidden xl:table-cell">Deductions</th>
+                          <th className="table-header whitespace-nowrap text-right max-xl:hidden">Gross Pay</th>
+                          <th className="table-header whitespace-nowrap text-right max-xl:hidden">Deductions</th>
                           <th className="table-header whitespace-nowrap text-right">Net Pay</th>
                           <th className="table-header whitespace-nowrap">Payment Status</th>
                           <th className="table-header whitespace-nowrap">Payslip Status</th>
@@ -637,8 +637,8 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                               <p className="text-[11px] text-gray-400">{[e.employee_code, tidyDept(e.department)].filter(Boolean).join(' · ')}</p>
                               <p className="text-[11px] text-gray-400 xl:hidden tabular-nums">Gross {formatCurrency(e.gross_pay)} · Deductions {formatCurrency(e.total_deductions)}</p>
                             </td>
-                            <td className="table-cell text-right tabular-nums hidden xl:table-cell">{formatCurrency(e.gross_pay)}</td>
-                            <td className="table-cell text-right tabular-nums text-gray-600 hidden xl:table-cell">{formatCurrency(e.total_deductions)}</td>
+                            <td className="table-cell text-right tabular-nums max-xl:hidden">{formatCurrency(e.gross_pay)}</td>
+                            <td className="table-cell text-right tabular-nums text-gray-600 max-xl:hidden">{formatCurrency(e.total_deductions)}</td>
                             <td className={`table-cell text-right tabular-nums font-semibold ${e.net_pay < 0 ? 'text-red-600' : ''}`}>{formatCurrency(e.net_pay)}</td>
                             <td className="table-cell"><span className={PAYMENT_BADGE[e.payment_status]}>{PAYMENT_LABEL[e.payment_status]}</span></td>
                             <td className="table-cell">
