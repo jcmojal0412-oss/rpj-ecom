@@ -96,15 +96,18 @@
    detail modal) both have real surrounding content, so without this rule
    printing pulls in page chrome — or, if more than one #pos-receipt
    happens to be in the DOM at once, all of them. */
+/* Scoped with :has() so it ONLY applies while a receipt is actually on the
+   page. As a bare `body *` rule it hid every other page's content too, so
+   printing a payslip, a purchase order or a POS report came out blank. */
 @media print {
-  body * {
+  body:has(#pos-receipt) * {
     visibility: hidden;
   }
-  #pos-receipt,
-  #pos-receipt * {
+  body:has(#pos-receipt) #pos-receipt,
+  body:has(#pos-receipt) #pos-receipt * {
     visibility: visible;
   }
-  #pos-receipt {
+  body:has(#pos-receipt) #pos-receipt {
     position: absolute;
     top: 0;
     left: 0;
