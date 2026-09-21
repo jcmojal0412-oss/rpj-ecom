@@ -77,6 +77,7 @@ export function buildPayslipEmail(
   const isDaily = entry.salary_type_snapshot === 'Daily';
   const support = options.supportEmail && isValidEmail(options.supportEmail) ? options.supportEmail.trim() : '';
   const hr = options.hrEmail && isValidEmail(options.hrEmail) && options.hrEmail.trim().toLowerCase() !== support.toLowerCase() ? options.hrEmail.trim() : '';
+  const contactEmail = support || hr;
   const logoUrl = options.logoUrl ?? 'https://rpjcorp.com/email-logo.png';
   const year = options.year ?? new Date().getFullYear();
 
@@ -190,15 +191,18 @@ export function buildPayslipEmail(
 </td></tr>
 
 <!-- 4. Support + confidentiality -->
-<tr><td class="pad" style="padding:24px 32px 8px;font-size:14px;line-height:22px;color:${INK}">
+<tr><td class="pad" style="padding:28px 32px 0;font-size:14px;line-height:22px;color:${INK}">
   <div style="font-weight:700">Questions about your payslip?</div>
-  <div style="color:${MUTED}">${support ? `Contact HR at: ${mailto(support)}` : 'Please contact HR.'}</div>
-  ${hr ? `<div style="color:${MUTED};padding-top:8px">For attendance concerns: ${mailto(hr)}</div>` : ''}
+  <div style="color:${MUTED}">Please contact HR${contactEmail ? ` at ${mailto(contactEmail)}` : ''}.</div>
+  ${support && hr ? `<div style="color:${MUTED};padding-top:8px">For attendance concerns: ${mailto(hr)}</div>` : ''}
 </td></tr>
-<tr><td class="pad" style="padding:14px 32px 26px;font-size:13px;line-height:20px;color:${MUTED}">
-  This email and payslip contain confidential payroll information intended only for the employee named above. If you received it by mistake, please tell HR and delete it.
-  <div style="padding-top:12px;font-size:12px;color:${FAINT}">&copy; ${year} ${COMPANY_NAME}</div>
+<tr><td class="pad" style="padding:30px 32px 0;font-size:13px;line-height:20px;color:${MUTED}">
+  <div style="margin:0 0 10px;font-size:11px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${INK}">Confidentiality Notice</div>
+  <p style="margin:0 0 10px">This email and its payslip contain confidential payroll information intended solely for the employee named above.</p>
+  <p style="margin:0 0 10px;font-weight:600;color:${INK}">Unauthorized sharing, forwarding, copying, or disclosure of this payslip to any other person is not allowed without proper authorization.</p>
+  <p style="margin:0">If you received this message in error, please notify HR immediately and delete it from your records.</p>
 </td></tr>
+<tr><td class="pad" style="padding:26px 32px 28px;font-size:12px;line-height:18px;color:${FAINT}">&copy; ${year} ${COMPANY_NAME}</td></tr>
 
 </table></td></tr></table></body></html>`;
   return { subject, html };
