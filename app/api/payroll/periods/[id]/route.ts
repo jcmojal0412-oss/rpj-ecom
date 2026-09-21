@@ -94,6 +94,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         INSERT INTO payroll_audit_log (payroll_period_id, actor_user_id, action, details) VALUES (?, ?, ?, ?)
       `).run(params.id, session!.id, transition.next, `Status changed to ${transition.next}`);
 
+      // Submitting for review again answers any earlier "returned" note.
+      if (transition.next === 'for_review') {
+        db.prepare(`UPDATE payroll_periods SET return_kind = NULL, return_reason = NULL, returned_by = NULL, returned_at = NULL WHERE id = ?`).run(params.id);
+      }
+
       // Marking the whole period paid marks every employee still awaiting
       // payment as paid in full. An entry someone already recorded as
       // FAILED / RETURNED / PARTIALLY_PAID is a deliberate per-employee

@@ -1018,6 +1018,16 @@ function migrateSchema() {
   addColIfMissing('payroll_entries', 'payslip_viewed_at', 'payslip_viewed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_printed_at', 'payslip_printed_at TEXT');
   addColIfMissing('payroll_entries', 'payslip_downloaded_at', 'payslip_downloaded_at TEXT');
+  addColIfMissing('payroll_entries', 'payslip_emailed_at', 'payslip_emailed_at TEXT');
+  addColIfMissing('payroll_entries', 'payslip_emailed_to', 'payslip_emailed_to TEXT');
+
+  // Why a payroll went back to Draft: 'returned' (sent back to HR while waiting
+  // for approval) or 'reopened' (an approved payroll reopened by the owner),
+  // with the reason, who and when. Cleared when it is submitted again.
+  addColIfMissing('payroll_periods', 'return_kind', 'return_kind TEXT');
+  addColIfMissing('payroll_periods', 'return_reason', 'return_reason TEXT');
+  addColIfMissing('payroll_periods', 'returned_by', 'returned_by INTEGER REFERENCES users(id)');
+  addColIfMissing('payroll_periods', 'returned_at', 'returned_at TEXT');
 
   // Historical payslips stay exactly as they were: a period whose payslips
   // were already generated counts as released for every one of its entries,

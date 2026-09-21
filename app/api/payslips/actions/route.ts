@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { sendEmail } from '@/lib/email';
+import { buildPayslipEmail, isValidEmail } from '@/lib/payslip-email';
 
 export const dynamic = 'force-dynamic';
 
-type Action = 'release' | 'mark_paid' | 'mark_failed' | 'mark_returned';
-const ACTIONS: Action[] = ['release', 'mark_paid', 'mark_failed', 'mark_returned'];
+type Action = 'release' | 'send_email' | 'mark_paid' | 'mark_failed' | 'mark_returned';
+const ACTIONS: Action[] = ['release', 'send_email', 'mark_paid', 'mark_failed', 'mark_returned'];
 
 interface Row {
   id: number; payroll_period_id: number; employee_name_snapshot: string; net_pay: number;
@@ -15,7 +17,7 @@ interface Row {
 
 const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// Per-employee payslip release and payment recording, single or bulk. These
+// Per-employee payslip release / email and payment recording, single or bulk. These
 // only ever write the new payment_* / payslip_* columns (and the audit log) —
 // no payroll amount is recalculated or edited here. Owner or Payroll
 // permission only.
@@ -52,15 +54,60 @@ export async function POST(req: NextRequest) {
     const periodStatus = rows[0].period_status;
     if (rows[0].voided_at) return NextResponse.json({ error: 'This payroll period was voided.' }, { status: 409 });
 
-    if (action === 'release' && !['approved', 'paid', 'locked'].includes(periodStatus)) {
-      return NextResponse.json({ error: 'Payroll must be approved before payslips can be released.' }, { status: 409 });
+    if ((action === 'release' || action === 'send_email') && !['approved', 'paid', 'locked'].includes(periodStatus)) {
+      return NextResponse.json({ error: `Payroll must be approved before payslips can be ${action === 'release' ? 'released' : 'sent'}.` }, { status: 409 });
     }
-    if (action !== 'release' && !['approved', 'paid'].includes(periodStatus)) {
+    if (action !== 'release' && action !== 'send_email' && !['approved', 'paid'].includes(periodStatus)) {
       return NextResponse.json({
         error: periodStatus === 'locked'
           ? 'This payroll is locked — payments can no longer be changed.'
           : 'Payroll must be approved before payments can be recorded.',
       }, { status: 409 });
+    }
+
+    // Send to Employee: e-mail each person their own payslip at the address on
+    // their employee record. Sending also counts as releasing it (it is now in
+    // their hands), but only after the e-mail actually went out, so a failed
+    // send changes nothing. Done one at a time (network calls), not in the
+    // single transaction the other actions use.
+    if (action === 'send_email') {
+      if (ids.length > 100) return NextResponse.json({ error: 'Send to at most 100 employees at a time.' }, { status: 400 });
+      const period = db.prepare('SELECT label, from_date, to_date, pay_date FROM payroll_periods WHERE id = ?').get(periodId) as
+        { label: string; from_date: string; to_date: string; pay_date: string | null };
+      const getEntry = db.prepare('SELECT * FROM payroll_entries WHERE id = ?');
+      const getAdj = db.prepare('SELECT adjustment_type, amount, reason FROM payroll_adjustments WHERE payroll_entry_id = ? ORDER BY created_at ASC');
+      const getEmail = db.prepare('SELECT email FROM employees WHERE id = ?');
+      const audit2 = db.prepare(`INSERT INTO payroll_audit_log (payroll_period_id, payroll_entry_id, actor_user_id, action, details) VALUES (?, ?, ?, ?, ?)`);
+      let sent = 0;
+      const notSent: { id: number; name: string; reason: string }[] = [];
+
+      for (const r of rows) {
+        const entry = getEntry.get(r.id) as Record<string, any>;
+        const address = ((getEmail.get(entry.employee_id) as { email: string | null } | undefined)?.email ?? '').trim();
+        if (!isValidEmail(address)) { notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'No email address on file' }); continue; }
+
+        const { subject, html } = buildPayslipEmail(entry, getAdj.all(r.id) as any[], period);
+        const result = await sendEmail(address, subject, html);
+        if (!result.sent) {
+          notSent.push({ id: r.id, name: r.employee_name_snapshot, reason: 'error' in result && result.error ? 'The email could not be sent' : 'Email sending is not set up yet' });
+          continue;
+        }
+        runTransaction(() => {
+          if (!r.payslip_released_at) {
+            db.prepare(`UPDATE payroll_entries SET payslip_released_at = datetime('now'), payslip_released_by = ? WHERE id = ?`).run(session.id, r.id);
+            audit2.run(periodId, r.id, session.id, 'payslip_released', `Payslip released to ${r.employee_name_snapshot} (when emailed)`);
+          }
+          db.prepare(`UPDATE payroll_entries SET payslip_emailed_at = datetime('now'), payslip_emailed_to = ? WHERE id = ?`).run(address, r.id);
+          audit2.run(periodId, r.id, session.id, 'payslip_emailed', `Payslip emailed to ${r.employee_name_snapshot} (${address})`);
+        });
+        sent++;
+      }
+
+      const totals2 = db.prepare(`SELECT COUNT(*) n, SUM(CASE WHEN payslip_released_at IS NOT NULL THEN 1 ELSE 0 END) released FROM payroll_entries WHERE payroll_period_id = ?`).get(periodId) as { n: number; released: number };
+      if (totals2.n > 0 && totals2.released === totals2.n) {
+        db.prepare(`UPDATE payroll_periods SET payslips_generated_by = COALESCE(payslips_generated_by, ?), payslips_generated_at = COALESCE(payslips_generated_at, datetime('now')) WHERE id = ?`).run(session.id, periodId);
+      }
+      return NextResponse.json({ ok: true, updated: sent, skipped: notSent });
     }
 
     // A custom amount only makes sense for one person at a time; a bulk

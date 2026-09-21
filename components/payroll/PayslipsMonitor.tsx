@@ -17,7 +17,8 @@ interface Entry {
   gross_pay: number; total_deductions: number; net_pay: number;
   payment_status: string; payslip_status: string;
   paid_at: string | null; paid_amount: number | null; payment_method: string | null; payment_reference: string | null;
-  payslip_released_at: string | null; issues: Issue[]; has_issue: boolean; detail: Record<string, any>;
+  payslip_released_at: string | null; has_email: boolean; payslip_emailed_at: string | null; payslip_emailed_to: string | null;
+  issues: Issue[]; has_issue: boolean; detail: Record<string, any>;
 }
 interface PeriodRef { id: number; label: string; from_date: string; to_date: string; pay_date: string | null; schedule: string | null; status: string }
 
@@ -39,6 +40,7 @@ const ACTION_LABEL: Record<string, string> = {
   generated: 'Payroll prepared', payslips_generated: 'Payslips released', payslip_released: 'Payslip released',
   payment_paid: 'Payment recorded', payment_partial: 'Partial payment recorded', payment_failed: 'Payment marked failed', payment_returned: 'Payment marked returned',
   attendance_refreshed: 'Attendance refreshed', voided: 'Payroll voided',
+  returned: 'Returned to HR', reopened: 'Payroll reopened', payslip_emailed: 'Payslip emailed',
 };
 
 const FLOW = ['Draft', 'For Approval', 'Approved', 'Paid', 'Payslips Released'];
@@ -55,10 +57,13 @@ type Confirm =
   | { kind: 'release'; ids: number[] }
   | { kind: 'mark_paid'; ids: number[] }
   | { kind: 'mark_failed' | 'mark_returned'; ids: number[] }
+  | { kind: 'send_email'; ids: number[] }
   | { kind: 'submit' }
-  | { kind: 'approve' };
+  | { kind: 'approve' }
+  | { kind: 'return' }
+  | { kind: 'reopen' };
 
-export default function PayslipsMonitor() {
+export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   const router = useRouter();
   const { toast, showToast, clearToast } = useToast();
   const [periods, setPeriods] = useState<PeriodRef[]>([]);
@@ -83,6 +88,7 @@ export default function PayslipsMonitor() {
   const [paidForm, setPaidForm] = useState({ amount: '', method: '', reference: '', note: '' });
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState('');
+  const [reason, setReason] = useState('');
 
   const load = useCallback(async (id?: number | null) => {
     setLoading(true);
@@ -136,7 +142,7 @@ export default function PayslipsMonitor() {
   const selectedEntries = entries.filter(e => selected.has(e.id));
 
   // ── Actions ────────────────────────────────────────────────────────────
-  const openConfirm = (c: Confirm) => { setDialogError(''); setPaidForm({ amount: '', method: '', reference: '', note: '' }); setConfirm(c); };
+  const openConfirm = (c: Confirm) => { setDialogError(''); setReason(''); setPaidForm({ amount: '', method: '', reference: '', note: '' }); setConfirm(c); };
 
   const runConfirm = async () => {
     if (!confirm) return;
@@ -150,6 +156,13 @@ export default function PayslipsMonitor() {
         const d = await res.json();
         if (!res.ok) { setDialogError(d.error || 'Could not update the payroll.'); return; }
         showToast(confirm.kind === 'submit' ? 'Payroll submitted for approval.' : 'Payroll approved.');
+      } else if (confirm.kind === 'return' || confirm.kind === 'reopen') {
+        const res = await fetch(`/api/payroll/periods/${period.id}/workflow`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: confirm.kind, reason }),
+        });
+        const d = await res.json();
+        if (!res.ok) { setDialogError(d.error || 'Could not update the payroll.'); return; }
+        showToast(confirm.kind === 'return' ? 'Payroll returned to HR.' : 'Payroll reopened for editing.');
       } else {
         const body: any = { action: confirm.kind, entry_ids: confirm.ids };
         if (confirm.kind === 'mark_paid') {
@@ -163,6 +176,7 @@ export default function PayslipsMonitor() {
         const skipped = (d.skipped ?? []) as { name: string; reason: string }[];
         const n = d.updated as number;
         const msg = confirm.kind === 'release' ? `Released ${n} payslip${n === 1 ? '' : 's'}.`
+          : confirm.kind === 'send_email' ? `Emailed ${n} payslip${n === 1 ? '' : 's'}.`
           : confirm.kind === 'mark_paid' ? `Marked ${n} employee${n === 1 ? '' : 's'} as paid.`
           : confirm.kind === 'mark_failed' ? 'Payment marked as failed.' : 'Payment marked as returned.';
         showToast(`${msg}${skipped.length ? ` ${skipped.length} skipped: ${skipped[0].reason}${skipped.length > 1 ? '…' : ''}` : ''}`, n === 0 ? 'error' : 'success');
@@ -192,6 +206,7 @@ export default function PayslipsMonitor() {
     if (canRecordPayment && e.payment_status !== 'PAID') items.push({ label: 'Mark as Paid', onClick: () => openConfirm({ kind: 'mark_paid', ids: [e.id] }) });
     if (periodFinal && !e.payslip_released_at) items.push({ label: 'Release Payslip', onClick: () => openConfirm({ kind: 'release', ids: [e.id] }) });
     items.push({ label: 'Print Payslip', onClick: () => window.open(`/payslips/${e.id}?print=1`, '_blank') });
+    if (periodFinal) items.push({ label: e.has_email ? (e.payslip_emailed_at ? 'Send Again to Employee' : 'Send to Employee') : 'Send to Employee (no email on file)', onClick: () => e.has_email ? openConfirm({ kind: 'send_email', ids: [e.id] }) : showToast('This employee has no email address on file. Add it on their profile first.', 'error') });
     if (canRecordPayment && !['PAID', 'RETURNED'].includes(e.payment_status) && e.payment_status !== 'FAILED') items.push({ label: 'Mark Payment Failed', onClick: () => openConfirm({ kind: 'mark_failed', ids: [e.id] }), danger: true });
     if (canRecordPayment && ['PAID', 'PARTIALLY_PAID'].includes(e.payment_status)) items.push({ label: 'Mark Payment Returned', onClick: () => openConfirm({ kind: 'mark_returned', ids: [e.id] }), danger: true });
     items.push({ label: 'View Activity Log', onClick: () => setDetail({ entry: e, kind: 'activity' }) });
@@ -278,11 +293,26 @@ export default function PayslipsMonitor() {
                   <button onClick={() => openConfirm({ kind: 'submit' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0">Submit for Approval</button>
                 )}
                 {period.status === 'for_review' && (
-                  <button onClick={() => openConfirm({ kind: 'approve' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0"><CheckCircle2 size={15} /> Approve Payroll</button>
+                  <>
+                    <button onClick={() => openConfirm({ kind: 'approve' })} className="btn-primary justify-center min-h-[44px] sm:min-h-0"><CheckCircle2 size={15} /> Approve Payroll</button>
+                    <button onClick={() => openConfirm({ kind: 'return' })} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Return to HR</button>
+                  </>
+                )}
+                {period.status === 'approved' && isOwner && (
+                  <button onClick={() => openConfirm({ kind: 'reopen' })} disabled={!period.can_reopen}
+                    title={period.can_reopen ? 'Reopen this payroll so its amounts can be edited again' : 'Payments or released payslips already depend on this payroll'}
+                    className="btn-secondary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-40">Reopen Payroll</button>
                 )}
                 <button onClick={() => router.push(`/payroll?period=${period.id}`)} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Open Payroll Run</button>
               </div>
             </div>
+
+            {period.status === 'draft' && period.return_reason && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900">
+                <p className="font-semibold">{period.return_kind === 'reopened' ? 'Reopened for editing' : 'Returned to HR'}{period.returned_by_name ? ` by ${period.returned_by_name}` : ''}{period.returned_at ? ` · ${fmtWhen(period.returned_at)}` : ''}</p>
+                <p className="mt-0.5 break-words">{period.return_reason}</p>
+              </div>
+            )}
 
             {/* Workflow */}
             <div>
@@ -401,6 +431,10 @@ export default function PayslipsMonitor() {
                     className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title={periodFinal ? '' : 'Payroll must be approved first'}>Release Payslips</button>
                   <button disabled={!canRecordPayment || selectedEntries.every(e => e.payment_status === 'PAID')} onClick={() => openConfirm({ kind: 'mark_paid', ids: selectedEntries.filter(e => e.payment_status !== 'PAID').map(e => e.id) })}
                     className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title={canRecordPayment ? '' : 'Payroll must be approved first'}>Mark as Paid</button>
+                  <button disabled={!periodFinal} onClick={() => openConfirm({ kind: 'send_email', ids: selectedEntries.map(e => e.id) })}
+                    className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-40" title={periodFinal ? '' : 'Payroll must be approved first'}>Send to Employee</button>
+                  <button onClick={() => window.open(`/payslips/print?ids=${selectedEntries.map(e => e.id).join(',')}&print=1`, '_blank')}
+                    className="btn-secondary text-xs py-2.5 sm:py-1.5">Print / Save as PDF</button>
                   <button onClick={() => setSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-800 px-2">Clear</button>
                 </div>
               </div>
@@ -433,7 +467,10 @@ export default function PayslipsMonitor() {
                             <td className="table-cell text-right tabular-nums text-gray-600">{formatCurrency(e.total_deductions)}</td>
                             <td className={`table-cell text-right tabular-nums font-semibold ${e.net_pay < 0 ? 'text-red-600' : ''}`}>{formatCurrency(e.net_pay)}</td>
                             <td className="table-cell"><span className={PAYMENT_BADGE[e.payment_status]}>{PAYMENT_LABEL[e.payment_status]}</span></td>
-                            <td className="table-cell"><span className={PAYSLIP_BADGE[e.payslip_status]}>{PAYSLIP_LABEL[e.payslip_status]}</span></td>
+                            <td className="table-cell">
+                              <span className={PAYSLIP_BADGE[e.payslip_status]}>{PAYSLIP_LABEL[e.payslip_status]}</span>
+                              {e.payslip_emailed_at && <span title={`Emailed to ${e.payslip_emailed_to} · ${fmtWhen(e.payslip_emailed_at)}`} className="ml-1.5 text-[11px] text-gray-400">✉ Emailed</span>}
+                            </td>
                             <td className="table-cell"><ActionCell e={e} /></td>
                           </tr>
                         ))}
@@ -459,6 +496,7 @@ export default function PayslipsMonitor() {
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <span className={PAYMENT_BADGE[e.payment_status]}>{PAYMENT_LABEL[e.payment_status]}</span>
                           <span className={PAYSLIP_BADGE[e.payslip_status]}>Payslip: {PAYSLIP_LABEL[e.payslip_status]}</span>
+                          {e.payslip_emailed_at && <span className="text-[11px] text-gray-400">✉ Emailed</span>}
                         </div>
                         <div className="mt-2 pt-2 border-t border-gray-100"><ActionCell e={e} /></div>
                       </div>
@@ -544,8 +582,9 @@ export default function PayslipsMonitor() {
       {/* Confirmations */}
       {confirm && data && (
         <Modal open onClose={() => !busy && setConfirm(null)} size="sm" title={
-          confirm.kind === 'release' ? 'Release payslips' : confirm.kind === 'mark_paid' ? 'Mark as paid' : confirm.kind === 'mark_failed' ? 'Mark payment as failed'
-            : confirm.kind === 'mark_returned' ? 'Mark payment as returned' : confirm.kind === 'submit' ? 'Submit for approval' : 'Approve payroll'}>
+          confirm.kind === 'release' ? 'Release payslips' : confirm.kind === 'send_email' ? 'Send payslips by email' : confirm.kind === 'mark_paid' ? 'Mark as paid' : confirm.kind === 'mark_failed' ? 'Mark payment as failed'
+            : confirm.kind === 'mark_returned' ? 'Mark payment as returned' : confirm.kind === 'submit' ? 'Submit for approval' : confirm.kind === 'return' ? 'Return to HR'
+            : confirm.kind === 'reopen' ? 'Reopen payroll' : 'Approve payroll'}>
           <div className="space-y-4">
             {(confirm.kind === 'submit' || confirm.kind === 'approve') ? (
               <div className="text-sm text-gray-700 space-y-2">
@@ -556,6 +595,27 @@ export default function PayslipsMonitor() {
                 </div>
                 {confirm.kind === 'approve' && <p className="text-xs text-gray-500">Once approved, payroll amounts are locked from normal editing.</p>}
                 {summary.with_issues > 0 && <p className="text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">{summary.with_issues} employee{summary.with_issues === 1 ? ' has' : 's have'} something to check. You can still continue.</p>}
+              </div>
+            ) : confirm.kind === 'return' || confirm.kind === 'reopen' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-700">
+                  {confirm.kind === 'return'
+                    ? <>Send <b>{period.label}</b> back to HR for correction? It goes back to Draft.</>
+                    : <>Reopen <b>{period.label}</b> so its amounts can be edited again? It goes back to Draft and will need approval again.</>}
+                </p>
+                <div>
+                  <label className="form-label">Reason *</label>
+                  <textarea className="form-input" rows={3} value={reason} onChange={e => setReason(e.target.value)}
+                    placeholder={confirm.kind === 'return' ? 'e.g. Incorrect attendance record for Employee X.' : 'e.g. A cash advance was missed.'} />
+                </div>
+              </div>
+            ) : confirm.kind === 'send_email' ? (
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>Email the payslip to <b>{confirm.ids.length}</b> employee{confirm.ids.length === 1 ? '' : 's'}? It is sent to the email address on their employee profile, and counts as released.</p>
+                {(() => {
+                  const noEmail = entries.filter(e => confirm.ids.includes(e.id) && !e.has_email);
+                  return noEmail.length > 0 ? <p className="text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">No email on file for: {noEmail.map(e => e.employee_name).join(', ')}. They will be skipped.</p> : null;
+                })()}
               </div>
             ) : confirm.kind === 'release' ? (
               <p className="text-sm text-gray-700">Release payslips for <b>{confirm.ids.length}</b> employee{confirm.ids.length === 1 ? '' : 's'}? They will be able to see them right away.</p>
@@ -583,9 +643,9 @@ export default function PayslipsMonitor() {
             {dialogError && <p className="text-xs text-red-600 font-medium">{dialogError}</p>}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 [&>button]:justify-center [&>button]:py-2.5 sm:[&>button]:py-2">
               <button onClick={() => setConfirm(null)} disabled={busy} className="btn-secondary">Cancel</button>
-              <button onClick={runConfirm} disabled={busy} className="btn-primary disabled:opacity-50">
+              <button onClick={runConfirm} disabled={busy || ((confirm.kind === 'return' || confirm.kind === 'reopen') && reason.trim().length < 3)} className="btn-primary disabled:opacity-50">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : null}
-                {confirm.kind === 'release' ? 'Confirm Release' : confirm.kind === 'mark_paid' ? 'Confirm Payment' : confirm.kind === 'submit' ? 'Submit' : confirm.kind === 'approve' ? 'Approve Payroll' : 'Confirm'}
+                {confirm.kind === 'release' ? 'Confirm Release' : confirm.kind === 'send_email' ? 'Send Email' : confirm.kind === 'mark_paid' ? 'Confirm Payment' : confirm.kind === 'submit' ? 'Submit' : confirm.kind === 'approve' ? 'Approve Payroll' : confirm.kind === 'return' ? 'Return to HR' : confirm.kind === 'reopen' ? 'Reopen Payroll' : 'Confirm'}
               </button>
             </div>
           </div>

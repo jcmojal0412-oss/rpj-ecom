@@ -11,15 +11,17 @@ import PayslipsMonitor from './PayslipsMonitor';
 // payslips below (the API never returns anyone else's to them).
 export default function PayslipsClient() {
   const [role, setRole] = useState<'loading' | 'admin' | 'employee'>('loading');
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+      setIsOwner(u?.role === 'owner');
       setRole(u && (u.role === 'owner' || (Array.isArray(u.permissions) && u.permissions.includes('payroll'))) ? 'admin' : 'employee');
     });
   }, []);
 
   if (role === 'loading') return <div className="flex justify-center py-16"><Loader2 className="animate-spin text-gray-300" size={24} /></div>;
-  if (role === 'admin') return <PayslipsMonitor />;
+  if (role === 'admin') return <PayslipsMonitor isOwner={isOwner} />;
   return <MyPayslips />;
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { payrollEditBlockedMessage } from '@/lib/payroll-lock';
 import { recomputePayrollEntry } from '@/lib/payroll-data';
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       JOIN payroll_periods p ON p.id = e.payroll_period_id WHERE e.id = ?
     `).get(params.id) as { id: number; payroll_period_id: number; status: string } | undefined;
     if (!entry) return NextResponse.json({ error: 'Payroll entry not found' }, { status: 404 });
-    if (entry.status === 'locked') return NextResponse.json({ error: 'This payroll period is locked and can no longer be edited.' }, { status: 409 });
+    const blocked = payrollEditBlockedMessage(entry.status);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
 
     runTransaction(() => {
       db.prepare(`

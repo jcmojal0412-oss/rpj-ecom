@@ -583,7 +583,8 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
 function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [detailEntry, setDetailEntry] = useState<any | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const locked = period.status === 'locked';
+  // Approved payroll is frozen too (not only locked) — editing needs a Reopen first.
+  const locked = ['approved', 'paid', 'locked'].includes(period.status);
 
   const totalEarnings = entries.reduce((s, e) => s + e.basic_pay + e.ot_pay + e.allowance_pay + e.bonus_earnings, 0);
   const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);

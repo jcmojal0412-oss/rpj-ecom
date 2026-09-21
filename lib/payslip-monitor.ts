@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { checkAttendanceWarnings, type PayrollEmployee } from './payroll-data';
+import { isValidEmail } from './payslip-email';
 
 // Everything the Payslips & Payroll Monitoring page shows is READ from the
 // existing payroll_entries / payroll_periods rows (nothing is recalculated
@@ -52,6 +53,9 @@ export interface MonitorEntry {
   payment_method: string | null;
   payment_reference: string | null;
   payslip_released_at: string | null;
+  has_email: boolean; // an email address is on file for "Send to Employee"
+  payslip_emailed_at: string | null;
+  payslip_emailed_to: string | null;
   issues: PayrollIssue[];
   has_issue: boolean; // error or warning (info-level items are notes, not problems)
   // Snapshot numbers, used by the breakdown and attendance-basis dialogs.
@@ -68,6 +72,7 @@ interface EntryRow {
   gross_pay: number; total_deductions: number; net_pay: number;
   payment_status: string | null; paid_amount: number | null; paid_at: string | null; payment_method: string | null; payment_reference: string | null;
   payslip_released_at: string | null; payslip_viewed_at: string | null; payslip_printed_at: string | null; payslip_downloaded_at: string | null;
+  payslip_emailed_at: string | null; payslip_emailed_to: string | null;
   sss_ee_contribution: number; philhealth_ee_contribution: number; pagibig_ee_contribution: number;
   [k: string]: any;
 }
@@ -83,8 +88,9 @@ export function listPeriods(db: Database.Database): MonitorPeriod[] {
 
 export function buildMonitor(db: Database.Database, periodId: number) {
   const period = db.prepare(`
-    SELECT id, label, from_date, to_date, pay_date, schedule, status, generated_at, reviewed_at, approved_at, paid_at, locked_at, payslips_generated_at
-    FROM payroll_periods WHERE id = ? AND voided_at IS NULL
+    SELECT p.id, p.label, p.from_date, p.to_date, p.pay_date, p.schedule, p.status, p.generated_at, p.reviewed_at, p.approved_at, p.paid_at, p.locked_at, p.payslips_generated_at,
+           p.return_kind, p.return_reason, p.returned_at, u.name AS returned_by_name
+    FROM payroll_periods p LEFT JOIN users u ON u.id = p.returned_by WHERE p.id = ? AND p.voided_at IS NULL
   `).get(periodId) as (MonitorPeriod & Record<string, any>) | undefined;
   if (!period) return null;
 
@@ -97,14 +103,14 @@ export function buildMonitor(db: Database.Database, periodId: number) {
   `).all(periodId) as { payroll_entry_id: number; c: number }[]) adjCount.set(r.payroll_entry_id, r.c);
 
   const getEmployee = db.prepare(`
-    SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, sss_enabled, philhealth_enabled, pagibig_enabled, department
+    SELECT id, full_name, work_days, rest_day, salary_type, basic_rate, allowance, ot_eligible, sss_enabled, philhealth_enabled, pagibig_enabled, department, email
     FROM employees WHERE id = ?
   `);
 
   const attendanceMatters = !['paid', 'locked'].includes(period.status);
 
   const entries: MonitorEntry[] = rows.map(r => {
-    const emp = getEmployee.get(r.employee_id) as (PayrollEmployee & { department: string | null }) | undefined;
+    const emp = getEmployee.get(r.employee_id) as (PayrollEmployee & { department: string | null; email: string | null }) | undefined;
     const paymentStatus = derivePaymentStatus(r, period.status);
     const payslipStatus = derivePayslipStatus(r, period.status);
 
@@ -146,6 +152,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
       payment_status: paymentStatus, payslip_status: payslipStatus,
       paid_at: r.paid_at, paid_amount: r.paid_amount, payment_method: r.payment_method, payment_reference: r.payment_reference,
       payslip_released_at: r.payslip_released_at,
+      has_email: isValidEmail(emp?.email), payslip_emailed_at: r.payslip_emailed_at, payslip_emailed_to: r.payslip_emailed_to,
       issues, has_issue: issues.some(i => i.severity !== 'info'),
       detail: {
         salary_type: r.salary_type_snapshot, basic_rate: r.basic_rate_snapshot,
@@ -223,7 +230,11 @@ export function buildMonitor(db: Database.Database, periodId: number) {
   `).all(periodId);
 
   return {
-    period: { ...period, released_all: entries.length > 0 && releasedCount === entries.length },
+    period: {
+      ...period, released_all: entries.length > 0 && releasedCount === entries.length,
+      // Owner may reopen an approved payroll only while nothing depends on it.
+      can_reopen: period.status === 'approved' && entries.every(e => !e.payslip_released_at && e.payment_status !== 'PAID' && e.payment_status !== 'PARTIALLY_PAID' && e.payment_status !== 'FAILED' && e.payment_status !== 'RETURNED'),
+    },
     entries, summary,
     owner: { gross, deductions, net, previous },
     breakdown, activity,
