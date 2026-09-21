@@ -470,6 +470,11 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<any | null>(null);
+  const [minOt, setMinOt] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/attendance/settings').then(r => r.ok ? r.json() : null).then(d => setMinOt(typeof d?.min_minutes_before_ot === 'number' ? d.min_minutes_before_ot : null));
+  }, []);
 
   const fetchRows = () => {
     setLoading(true);
@@ -488,6 +493,9 @@ function OtTab({ showToast }: { showToast: (m: string, t?: 'success' | 'error') 
           </button>
         ))}
       </div>
+      {minOt !== null && (
+        <p className="text-xs text-gray-400">Only overtime of {minOt} minutes or more is listed here (change it in HR Settings → Attendance Rules).</p>
+      )}
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-gray-300" size={24} /></div>

@@ -50,7 +50,7 @@ export function parseAttendanceSettings(rows: { key: string; value: string }[]):
     coffee_breaks_allowed: Number(get('attendance_coffee_breaks_allowed', '2')),
     lunch_break_paid: get('attendance_lunch_break_paid', '0') === '1',
     coffee_break_paid: get('attendance_coffee_break_paid', '0') === '1',
-    min_minutes_before_ot: Number(get('attendance_min_minutes_before_ot', '30')),
+    min_minutes_before_ot: Number(get('attendance_min_minutes_before_ot', '60')),
     selfie_required: get('attendance_selfie_required', '1') === '1',
     work_days: get('attendance_work_days', '1,2,3,4,5').split(',').filter(Boolean).map(Number),
   };

@@ -67,12 +67,40 @@ function flagOvertimeForDay(db: ReturnType<typeof getDb>, employee: Employee, da
   return info.changes > 0;
 }
 
+// Overtime only counts from the configured minimum (attendance_min_minutes_before_ot,
+// 60 by default). Requests that were created while the minimum was lower and
+// are still pending no longer qualify, so they're closed rather than left
+// cluttering the approval queue. Only 'pending' is ever touched - anything a
+// person already approved or rejected is left exactly as decided.
+function closeBelowMinimumRequests(db: ReturnType<typeof getDb>): number {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'attendance_min_minutes_before_ot'").get() as { value: string } | undefined;
+  const min = Number.isFinite(Number(row?.value)) && row?.value !== undefined ? Number(row.value) : 60;
+  const rows = db.prepare(
+    "SELECT id, employee_id, event_date, excess_minutes FROM attendance_ot_requests WHERE status = 'pending' AND excess_minutes < ?"
+  ).all(min) as { id: number; employee_id: number; event_date: string; excess_minutes: number }[];
+  if (rows.length === 0) return 0;
+
+  const close = db.prepare("UPDATE attendance_ot_requests SET status = 'rejected', approved_minutes = 0, remarks = ?, reviewed_at = ? WHERE id = ?");
+  const audit = db.prepare(`
+    INSERT INTO attendance_audit_log (actor_user_id, action, employee_id, event_date, details) VALUES (NULL, 'ot_auto_closed', ?, ?, ?)
+  `);
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    for (const r of rows) {
+      close.run(`Auto-closed: under the ${min}-minute OT minimum`, now, r.id);
+      audit.run(r.employee_id, r.event_date, `excess=${r.excess_minutes}min, minimum=${min}min`);
+    }
+  })();
+  return rows.length;
+}
+
 // Nothing here (or anywhere else in the codebase) sets status='approved'
 // automatically or touches payroll - approved_minutes stays NULL until a
 // manager reviews it. Only Active + Attendance Enabled employees are
 // considered.
 export function flagPotentialOvertime(): number {
   const db = getDb();
+  closeBelowMinimumRequests(db);
   const employees = activeAttendanceEmployees(db);
   let flagged = 0;
 

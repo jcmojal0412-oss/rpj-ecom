@@ -1921,12 +1921,21 @@ function seedAttendanceSettingsIfEmpty() {
     ['attendance_coffee_breaks_allowed', '2'],
     ['attendance_lunch_break_paid', '0'],
     ['attendance_coffee_break_paid', '0'],
-    ['attendance_min_minutes_before_ot', '30'],
+    ['attendance_min_minutes_before_ot', '60'],
     ['attendance_selfie_required', '1'],
     ['attendance_work_days', '1,2,3,4,5'],
   ];
   const insert = db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)');
   for (const [k, v] of defaults) insert.run(k, v);
+
+  // One-time: overtime only counts from 60 minutes (owner's rule). Raises an
+  // existing lower value once and records that it did, so a later change made
+  // in HR Settings -> Attendance Rules is never overwritten again.
+  const migrated = db.prepare("SELECT 1 FROM app_settings WHERE key = 'migration_ot_min_60'").get();
+  if (!migrated) {
+    db.prepare("UPDATE app_settings SET value = '60' WHERE key = 'attendance_min_minutes_before_ot' AND CAST(value AS INTEGER) < 60").run();
+    db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('migration_ot_min_60', '1')").run();
+  }
 }
 
 function seedBookingAvailabilityIfEmpty() {
