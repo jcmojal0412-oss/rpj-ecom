@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, runTransaction } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { computePayroll, type PayrollInput } from '@/lib/payroll';
-import { aggregateAttendanceForPeriod, getApprovedOtMinutes, NO_ATTENDANCE, type PayrollEmployee } from '@/lib/payroll-data';
+import { createPayrollEntry, type EntryEmployee } from '@/lib/payroll-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +11,6 @@ function requireAdmin(session: Awaited<ReturnType<typeof getSession>>) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
   return null;
-}
-
-function employeeCode(id: number) {
-  return `RPJ-${String(id).padStart(4, '0')}`;
 }
 
 export async function GET() {
@@ -89,7 +84,7 @@ export async function POST(req: NextRequest) {
         sss_enabled, philhealth_enabled, pagibig_enabled,
         sss_deduction_amount, philhealth_deduction_amount, pagibig_deduction_amount
       FROM employees WHERE employment_status = 'Active' AND (attendance_enabled = 1 OR pay_basis = 'fixed') AND payroll_schedule = ?
-    `).all(schedule) as (PayrollEmployee & { position: string | null; sss_deduction_amount: number; philhealth_deduction_amount: number; pagibig_deduction_amount: number })[];
+    `).all(schedule) as EntryEmployee[];
 
     let periodId = 0;
     runTransaction(() => {
@@ -99,75 +94,7 @@ export async function POST(req: NextRequest) {
       periodId = Number(periodInfo.lastInsertRowid);
 
       for (const employee of employees) {
-        // A fixed-rate employee (does not time in/out) has no attendance at
-        // all: same formula, zero attendance, so pay is exactly the fixed rate.
-        const fixed = employee.pay_basis === 'fixed';
-        const attendance = fixed ? NO_ATTENDANCE : aggregateAttendanceForPeriod(db, employee, from_date, to_date);
-        const approvedOtMinutes = !fixed && employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, from_date, to_date) : 0;
-
-        // Statutory Contributions are MANUAL per payroll run (not
-        // auto-computed) — but each entry starts PRE-FILLED with the
-        // employee's own default deduction amount (set on their 201 profile,
-        // Statutory Contributions section) instead of ₱0, so HR isn't
-        // retyping the same figure every cutoff. Still fully editable in
-        // Review Payroll (PUT /api/payroll/entries/[id]/contributions).
-        // Employer-share defaults aren't a thing yet (not asked for) — those
-        // always start at ₱0. Disabled programs (*_enabled = 0) always start
-        // at ₱0 regardless of any default on file. The bracket/percentage
-        // engine in lib/statutory-contributions.ts and lib/payroll-data.ts's
-        // computeStatutoryContributionsForPeriod() still exist, unused, in
-        // case auto-compute is turned back on later.
-        const input: PayrollInput = {
-          salaryType: employee.salary_type,
-          basicRate: employee.basic_rate,
-          allowance: employee.allowance,
-          workDaysInPeriod: attendance.workDaysInPeriod,
-          lateMinutes: attendance.lateMinutes,
-          undertimeMinutes: attendance.undertimeMinutes,
-          excessBreakMinutes: attendance.excessBreakMinutes,
-          absenceDays: attendance.absenceDays,
-          unpaidLeaveDays: attendance.unpaidLeaveDays,
-          approvedOtMinutes,
-          otMultiplier,
-          adjustments: [],
-          sssEmployeeContribution: employee.sss_enabled ? (employee.sss_deduction_amount || 0) : 0,
-          sssEmployerContribution: 0,
-          sssEcContribution: 0,
-          philhealthEmployeeContribution: employee.philhealth_enabled ? (employee.philhealth_deduction_amount || 0) : 0,
-          philhealthEmployerContribution: 0,
-          pagibigEmployeeContribution: employee.pagibig_enabled ? (employee.pagibig_deduction_amount || 0) : 0,
-          pagibigEmployerContribution: 0,
-        };
-        const breakdown = computePayroll(input);
-
-        const entryInsert = db.prepare(`
-          INSERT INTO payroll_entries (
-            payroll_period_id, employee_id, employee_name_snapshot, employee_code_snapshot, position_snapshot,
-            salary_type_snapshot, basic_rate_snapshot, allowance_snapshot,
-            work_days_count, late_minutes, undertime_minutes, excess_break_minutes, absence_days, unpaid_leave_days,
-            approved_ot_minutes, ot_multiplier_snapshot,
-            basic_pay, ot_pay, allowance_pay, bonus_earnings, gross_pay,
-            late_deduction, undertime_deduction, excess_break_deduction, absence_deduction, unpaid_leave_deduction,
-            other_deductions, total_deductions, net_pay,
-            contribution_basis_snapshot,
-            sss_ee_contribution, sss_er_contribution, sss_ec_contribution, sss_version_snapshot,
-            philhealth_ee_contribution, philhealth_er_contribution, philhealth_version_snapshot,
-            pagibig_ee_contribution, pagibig_er_contribution, pagibig_version_snapshot
-          ) VALUES (?,?,?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?, ?,?,?,?, ?,?,?, ?,?,?)
-        `).run(
-          periodId, employee.id, employee.full_name, employeeCode(employee.id), employee.position,
-          employee.salary_type, employee.basic_rate, employee.allowance,
-          attendance.workDaysInPeriod, attendance.lateMinutes, attendance.undertimeMinutes, attendance.excessBreakMinutes, attendance.absenceDays, attendance.unpaidLeaveDays,
-          approvedOtMinutes, otMultiplier,
-          breakdown.basicPay, breakdown.otPay, breakdown.allowancePay, breakdown.bonusEarnings, breakdown.grossPay,
-          breakdown.lateDeduction, breakdown.undertimeDeduction, breakdown.excessBreakDeduction, breakdown.absenceDeduction, breakdown.unpaidLeaveDeduction,
-          breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay,
-          0,
-          breakdown.sssEmployeeContribution, breakdown.sssEmployerContribution, breakdown.sssEcContribution, null,
-          breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, null,
-          breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, null
-        );
-        if (fixed) db.prepare(`UPDATE payroll_entries SET pay_basis_snapshot = 'fixed' WHERE id = ?`).run(entryInsert.lastInsertRowid);
+        createPayrollEntry(db, { periodId, fromDate: from_date, toDate: to_date, employee, otMultiplier });
       }
 
       db.prepare(`

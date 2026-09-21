@@ -91,10 +91,11 @@ const EVENT: Record<string, (emp: string) => string> = {
   returned: () => 'Returned to HR', reopened: () => 'Payroll reopened',
   adjustment_added: e => `Manual adjustment added for ${e}`, adjustment_removed: e => `Manual adjustment removed for ${e}`, contributions_updated: e => `Government deductions changed for ${e}`,
   attendance_refreshed: () => 'Attendance refreshed from records', voided: () => 'Payroll voided',
+  entry_added: e => `${e} added to the payroll run`, entry_removed: () => 'Employee removed from the payroll run', entry_amount_changed: () => 'Fixed pay changed for this run',
   payslip_email_bounced: e => `Payslip email to ${e} bounced`, payslip_email_failed: e => `Payslip email to ${e} failed to send`,
   payslip_email_complained: e => `${e} marked the payslip email as spam`,
 };
-const SHOW_DETAILS = new Set(['returned', 'reopened', 'adjustment_added', 'adjustment_removed', 'contributions_updated', 'attendance_refreshed', 'payment_partial', 'payment_failed', 'payment_returned', 'payslip_email_bounced', 'payslip_email_failed', 'payslip_email_complained']);
+const SHOW_DETAILS = new Set(['returned', 'reopened', 'adjustment_added', 'adjustment_removed', 'contributions_updated', 'attendance_refreshed', 'payment_partial', 'payment_failed', 'payment_returned', 'payslip_email_bounced', 'payslip_email_failed', 'payslip_email_complained', 'entry_added', 'entry_removed', 'entry_amount_changed']);
 
 function describeActivity(rows: any[]) {
   const out: { key: string; text: string; detail: string; actor: string; when: string }[] = [];

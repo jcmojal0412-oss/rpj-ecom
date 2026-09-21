@@ -1067,6 +1067,9 @@ function migrateSchema() {
   // entry keeps its own frozen copy, like every other payroll snapshot.
   addColIfMissing('employees', 'pay_basis', "pay_basis TEXT NOT NULL DEFAULT 'attendance'");
   addColIfMissing('payroll_entries', 'pay_basis_snapshot', "pay_basis_snapshot TEXT NOT NULL DEFAULT 'attendance'");
+  // A fixed-rate entry normally pays basic_rate / 2; HR may set a different
+  // amount for ONE run (e.g. a project payment). NULL = use the fixed rate.
+  addColIfMissing('payroll_entries', 'basic_pay_override', 'basic_pay_override REAL');
   addColIfMissing('payroll_entries', 'payslip_email_id', 'payslip_email_id TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status', 'payslip_email_status TEXT');
   addColIfMissing('payroll_entries', 'payslip_email_status_at', 'payslip_email_status_at TEXT');

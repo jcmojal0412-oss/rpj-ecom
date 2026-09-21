@@ -86,6 +86,8 @@ export interface PayrollInput {
   absenceDays: number;       // whole unexplained-absence days (no exception applied)
   unpaidLeaveDays: number;   // whole days on an unpaid-type approved leave (or unpaid official business)
   approvedOtMinutes: number; // ONLY approved_minutes from approved OT requests — pending/rejected never reach here
+  // Fixed-rate entries only: pay this amount as Basic Pay instead of basicRate / 2 (null / undefined = the normal formula).
+  basicPayOverride?: number | null;
   otMultiplier: number;
   adjustments: PayrollAdjustmentInput[];
   // Statutory Contributions V1 — already-computed EE/ER amounts for THIS
@@ -139,7 +141,9 @@ export function computePayroll(input: PayrollInput): PayrollBreakdown {
     : (input.workDaysInPeriod > 0 ? (input.basicRate / 2) / input.workDaysInPeriod : 0);
   const perMinuteRate = dailyRate / STANDARD_MINUTES_PER_DAY;
 
-  const basicPay = input.salaryType === 'Daily'
+  const basicPay = input.basicPayOverride != null
+    ? input.basicPayOverride
+    : input.salaryType === 'Daily'
     ? dailyRate * input.workDaysInPeriod
     : input.basicRate / 2;
 

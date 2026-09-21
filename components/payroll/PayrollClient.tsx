@@ -5,6 +5,7 @@ import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowL
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
+import { AddEmployeeToRunModal, EntryManage } from './PayrollEntryTools';
 import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, roundOtMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -583,6 +584,7 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
 function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [detailEntry, setDetailEntry] = useState<any | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   // Approved payroll is frozen too (not only locked) — editing needs a Reopen first.
   const locked = ['approved', 'paid', 'locked'].includes(period.status);
 
@@ -618,9 +620,14 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
         <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(totalEmployerContributions)}</p>
       </div>
 
-      <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium py-2 sm:py-0">
-        {showBreakdown ? 'Hide Employee Breakdown' : 'View Employee Breakdown'}
-      </button>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <button onClick={() => setShowBreakdown(s => !s)} className="text-sm text-orange-600 hover:text-orange-700 font-medium py-2 sm:py-0">
+          {showBreakdown ? 'Hide Employee Breakdown' : 'View Employee Breakdown'}
+        </button>
+        {!locked && (
+          <button onClick={() => setShowAdd(true)} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Plus size={13} /> Add employee to this run</button>
+        )}
+      </div>
 
       {showBreakdown && (
         <div className="card p-0 overflow-hidden">
@@ -679,6 +686,8 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
       )}
 
       <button onClick={onContinue} className="btn-primary text-base py-3 px-8 w-full sm:w-auto justify-center">Continue to Approve Payroll</button>
+
+      {showAdd && <AddEmployeeToRunModal periodId={period.id} onClose={() => setShowAdd(false)} onAdded={() => onRefresh()} showToast={showToast} />}
 
       {detailEntry && (
         <EntryDetailModal
@@ -783,6 +792,9 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
           <div className="flex justify-between text-base font-bold bg-gray-50 rounded-xl px-4 py-3">
             <span>NET PAY</span><span>{formatCurrency(entry.net_pay)}</span>
           </div>
+
+          {/* Only while the run is still being prepared. */}
+          {!locked && <EntryManage entry={entry} onChanged={() => { fetchDetail(); onChanged(); }} onRemoved={() => { onClose(); onChanged(); }} showToast={showToast} />}
 
           {/* Statutory Contributions are entered MANUALLY here, per payroll
               run — not auto-computed. Employee shares (above) reduce Net

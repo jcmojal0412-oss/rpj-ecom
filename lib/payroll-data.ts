@@ -326,6 +326,7 @@ export function recomputePayrollEntry(db: Database.Database, entryId: number): v
     unpaidLeaveDays: entry.unpaid_leave_days,
     approvedOtMinutes: entry.approved_ot_minutes,
     otMultiplier: entry.ot_multiplier_snapshot,
+    basicPayOverride: entry.basic_pay_override ?? null,
     adjustments: adjustments.map(a => ({ type: a.adjustment_type, amount: a.amount })),
     // Statutory contributions are based on basic salary, never on bonuses/
     // cash advances/loan deductions — so an adjustment change must NEVER
@@ -353,6 +354,89 @@ export function recomputePayrollEntry(db: Database.Database, entryId: number): v
     breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay,
     entryId
   );
+}
+
+export const employeeCode = (id: number) => `RPJ-${String(id).padStart(4, '0')}`;
+
+export interface EntryEmployee extends PayrollEmployee {
+  position: string | null;
+  sss_deduction_amount: number; philhealth_deduction_amount: number; pagibig_deduction_amount: number;
+}
+
+// Creates ONE snapshotted payroll entry for an employee in a period — the
+// single place that turns an employee + date range into stored payroll
+// numbers. Payroll generation calls it for every employee on the schedule, and
+// "Add employee to this run" calls it for one, so the two can never disagree.
+// A fixed-rate employee has no attendance (see NO_ATTENDANCE); an optional
+// `basicPayOverride` (fixed-rate only) sets that run's Basic Pay.
+export function createPayrollEntry(
+  db: Database.Database,
+  o: { periodId: number; fromDate: string; toDate: string; employee: EntryEmployee; otMultiplier: number; basicPayOverride?: number | null },
+): number {
+  const { employee } = o;
+  const fixed = employee.pay_basis === 'fixed';
+  const attendance = fixed ? NO_ATTENDANCE : aggregateAttendanceForPeriod(db, employee, o.fromDate, o.toDate);
+  const approvedOtMinutes = !fixed && employee.ot_eligible ? getApprovedOtMinutes(db, employee.id, o.fromDate, o.toDate) : 0;
+  const override = fixed && o.basicPayOverride != null ? o.basicPayOverride : null;
+
+  // Statutory Contributions are MANUAL per payroll run — each entry starts
+  // PRE-FILLED with the employee's own default deduction amount (their 201
+  // profile) instead of ₱0, still fully editable in Review Payroll. Employer
+  // shares always start at ₱0. Disabled programs always start at ₱0.
+  const input: PayrollInput = {
+    salaryType: employee.salary_type,
+    basicRate: employee.basic_rate,
+    allowance: employee.allowance,
+    workDaysInPeriod: attendance.workDaysInPeriod,
+    lateMinutes: attendance.lateMinutes,
+    undertimeMinutes: attendance.undertimeMinutes,
+    excessBreakMinutes: attendance.excessBreakMinutes,
+    absenceDays: attendance.absenceDays,
+    unpaidLeaveDays: attendance.unpaidLeaveDays,
+    approvedOtMinutes,
+    otMultiplier: o.otMultiplier,
+    basicPayOverride: override,
+    adjustments: [],
+    sssEmployeeContribution: employee.sss_enabled ? (employee.sss_deduction_amount || 0) : 0,
+    sssEmployerContribution: 0,
+    sssEcContribution: 0,
+    philhealthEmployeeContribution: employee.philhealth_enabled ? (employee.philhealth_deduction_amount || 0) : 0,
+    philhealthEmployerContribution: 0,
+    pagibigEmployeeContribution: employee.pagibig_enabled ? (employee.pagibig_deduction_amount || 0) : 0,
+    pagibigEmployerContribution: 0,
+  };
+  const breakdown = computePayroll(input);
+
+  const info = db.prepare(`
+    INSERT INTO payroll_entries (
+      payroll_period_id, employee_id, employee_name_snapshot, employee_code_snapshot, position_snapshot,
+      salary_type_snapshot, basic_rate_snapshot, allowance_snapshot,
+      work_days_count, late_minutes, undertime_minutes, excess_break_minutes, absence_days, unpaid_leave_days,
+      approved_ot_minutes, ot_multiplier_snapshot,
+      basic_pay, ot_pay, allowance_pay, bonus_earnings, gross_pay,
+      late_deduction, undertime_deduction, excess_break_deduction, absence_deduction, unpaid_leave_deduction,
+      other_deductions, total_deductions, net_pay,
+      contribution_basis_snapshot,
+      sss_ee_contribution, sss_er_contribution, sss_ec_contribution, sss_version_snapshot,
+      philhealth_ee_contribution, philhealth_er_contribution, philhealth_version_snapshot,
+      pagibig_ee_contribution, pagibig_er_contribution, pagibig_version_snapshot
+    ) VALUES (?,?,?,?,?, ?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?, ?,?,?,?, ?,?,?, ?,?,?)
+  `).run(
+    o.periodId, employee.id, employee.full_name, employeeCode(employee.id), employee.position,
+    employee.salary_type, employee.basic_rate, employee.allowance,
+    attendance.workDaysInPeriod, attendance.lateMinutes, attendance.undertimeMinutes, attendance.excessBreakMinutes, attendance.absenceDays, attendance.unpaidLeaveDays,
+    approvedOtMinutes, o.otMultiplier,
+    breakdown.basicPay, breakdown.otPay, breakdown.allowancePay, breakdown.bonusEarnings, breakdown.grossPay,
+    breakdown.lateDeduction, breakdown.undertimeDeduction, breakdown.excessBreakDeduction, breakdown.absenceDeduction, breakdown.unpaidLeaveDeduction,
+    breakdown.otherDeductions, breakdown.totalDeductions, breakdown.netPay,
+    0,
+    breakdown.sssEmployeeContribution, breakdown.sssEmployerContribution, breakdown.sssEcContribution, null,
+    breakdown.philhealthEmployeeContribution, breakdown.philhealthEmployerContribution, null,
+    breakdown.pagibigEmployeeContribution, breakdown.pagibigEmployerContribution, null,
+  );
+  const id = Number(info.lastInsertRowid);
+  if (fixed) db.prepare(`UPDATE payroll_entries SET pay_basis_snapshot = 'fixed', basic_pay_override = ? WHERE id = ?`).run(override, id);
+  return id;
 }
 
 export interface PayrollPeriodRef { id: number; label: string; status: string; from_date: string; to_date: string; }
