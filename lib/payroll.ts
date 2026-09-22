@@ -59,6 +59,32 @@ export function roundOtMinutesToBlock(otMinutes: number): number {
   return Math.floor(otMinutes / OT_ROUNDING_BLOCK_MINUTES) * OT_ROUNDING_BLOCK_MINUTES;
 }
 
+// ---------------- display helpers shared by the Payroll and Payslips screens ----------------
+
+// "3h 30m" / "45m" — used anywhere approved OT minutes are shown to a person.
+export function formatMinutesShort(m: number): string {
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+}
+
+// The per-day rate a payroll entry's Basic Pay was built from: a Daily
+// salary_type snapshots it directly; a Monthly one has no single stored
+// "daily rate", so this derives it from the half-month Basic Pay and the
+// days it actually covered (matches what generation itself divided by).
+// Undefined for a fixed-rate (freelance) entry — see isFixedRateEntry().
+export function dailyRateOf(e: { salary_type_snapshot?: string | null; salary_type?: string | null; basic_rate_snapshot?: number | null; basic_rate?: number | null; work_days_count: number }): number {
+  const salaryType = e.salary_type_snapshot ?? e.salary_type;
+  const rate = e.basic_rate_snapshot ?? e.basic_rate ?? 0;
+  if (salaryType === 'Daily') return rate;
+  return e.work_days_count > 0 ? (rate / 2) / e.work_days_count : 0;
+}
+
+// A fixed-rate (freelance) entry has no per-day attendance — Days / Daily
+// Rate / OT don't apply to them (see lib/payroll-data.ts's NO_ATTENDANCE).
+export function isFixedRateEntry(e: { pay_basis_snapshot?: string | null; pay_basis?: string | null }): boolean {
+  return (e.pay_basis_snapshot ?? e.pay_basis) === 'fixed';
+}
+
 export type AdjustmentType =
   | 'bonus' | 'incentive' | 'additional_allowance' | 'other_earning'
   | 'cash_advance' | 'loan_deduction' | 'other_deduction';

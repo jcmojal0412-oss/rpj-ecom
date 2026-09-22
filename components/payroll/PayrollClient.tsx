@@ -6,7 +6,7 @@ import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import { AddEmployeeToRunModal, EntryManage } from './PayrollEntryTools';
-import { getScheduleCutoffs, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, roundOtMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
+import { dailyRateOf, formatMinutesShort, getScheduleCutoffs, isFixedRateEntry, PAYROLL_SCHEDULE_LABELS, roundLateMinutesToBlock, roundOtMinutesToBlock, type AdjustmentType, type PayrollScheduleId } from '@/lib/payroll';
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', for_review: 'For Review', approved: 'Approved', paid: 'Paid', locked: 'Locked',
@@ -581,13 +581,10 @@ function StepCheckIssues({ periodId, onContinue }: { periodId: number; onContinu
 
 // ── Step 4: Review Payroll (summary + employee breakdown) ───────────────
 
-// A fixed-rate (freelance) employee has no per-day attendance — Days/Daily
-// Rate don't apply to them (see lib/payroll-data.ts NO_ATTENDANCE).
-const isFixedRate = (e: any) => e.pay_basis_snapshot === 'fixed';
-// Same fallback the entry detail modal already uses (see EntryDetailModal
-// below): Daily salary_type snapshots the rate directly; Monthly derives a
-// per-day figure from the half-month basic pay and the days it covered.
-const dailyRateOf = (e: any) => (e.salary_type_snapshot === 'Daily' ? e.basic_rate_snapshot : (e.work_days_count > 0 ? (e.basic_rate_snapshot / 2) / e.work_days_count : 0));
+// dailyRateOf / isFixedRateEntry / formatMinutesShort now live in lib/payroll.ts,
+// shared with the Payslips monitor so the two screens can never disagree.
+const isFixedRate = isFixedRateEntry;
+const fmtMin = formatMinutesShort;
 
 function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }: { period: any; entries: any[]; onRefresh: () => void; onContinue: () => void; showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [detailEntry, setDetailEntry] = useState<any | null>(null);
@@ -647,7 +644,8 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
                   <th className="table-header">Days</th>
                   <th className="table-header">Daily Rate</th>
                   <th className="table-header">Basic Pay</th>
-                  <th className="table-header">OT</th>
+                  <th className="table-header">OT Hours</th>
+                  <th className="table-header">OT Pay</th>
                   <th className="table-header">Allowance</th>
                   <th className="table-header">Late/Undertime</th>
                   <th className="table-header">Absence/Unpaid Leave</th>
@@ -660,8 +658,9 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
                   <tr key={e.id} onClick={() => setDetailEntry(e)} className="hover:bg-gray-50/60 cursor-pointer">
                     <td className="table-cell font-medium text-gray-900">{e.employee_name_snapshot}</td>
                     <td className="table-cell text-gray-600">{isFixedRate(e) ? '—' : e.work_days_count}</td>
-                    <td className="table-cell text-gray-600">{isFixedRate(e) ? '—' : formatCurrency(dailyRateOf(e))}</td>
+                    <td className="table-cell text-gray-600">{isFixedRate(e) ? <>{formatCurrency(e.basic_rate_snapshot)} <span className="text-gray-400">(Fixed)</span></> : formatCurrency(dailyRateOf(e))}</td>
                     <td className="table-cell">{formatCurrency(e.basic_pay)}</td>
+                    <td className="table-cell text-gray-600">{e.approved_ot_minutes > 0 ? fmtMin(roundOtMinutesToBlock(e.approved_ot_minutes)) : '—'}</td>
                     <td className="table-cell">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</td>
                     <td className="table-cell">{formatCurrency(e.allowance_pay + e.bonus_earnings)}</td>
                     <td className="table-cell text-red-500">{(e.late_deduction + e.undertime_deduction) > 0 ? `-${formatCurrency(e.late_deduction + e.undertime_deduction)}` : '—'}</td>
@@ -674,7 +673,7 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
             </table>
           </div>
 
-          {/* Phone: card per employee instead of the 10-column table. */}
+          {/* Phone: card per employee instead of the 11-column table. */}
           <div className="md:hidden p-2.5 space-y-2.5">
             {entries.map(e => (
               <div key={e.id} onClick={() => setDetailEntry(e)} className="rounded-xl border border-gray-200 bg-white p-3 cursor-pointer active:bg-gray-50">
@@ -684,9 +683,10 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Days</span><span className="font-medium text-gray-800">{isFixedRate(e) ? '—' : e.work_days_count}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">Daily Rate</span><span className="font-medium text-gray-800">{isFixedRate(e) ? '—' : formatCurrency(dailyRateOf(e))}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">Daily Rate</span><span className="font-medium text-gray-800">{isFixedRate(e) ? <>{formatCurrency(e.basic_rate_snapshot)} (Fixed)</> : formatCurrency(dailyRateOf(e))}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Basic Pay</span><span className="font-medium text-gray-800">{formatCurrency(e.basic_pay)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">OT</span><span className="font-medium text-gray-800">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">OT Hours</span><span className="font-medium text-gray-800">{e.approved_ot_minutes > 0 ? fmtMin(roundOtMinutesToBlock(e.approved_ot_minutes)) : '—'}</span></div>
+                  <div className="flex justify-between gap-2"><span className="text-gray-500">OT Pay</span><span className="font-medium text-gray-800">{e.ot_pay > 0 ? formatCurrency(e.ot_pay) : '—'}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Allowance</span><span className="font-medium text-gray-800">{formatCurrency(e.allowance_pay + e.bonus_earnings)}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Late/Undertime</span><span className="font-medium text-red-500">{(e.late_deduction + e.undertime_deduction) > 0 ? `-${formatCurrency(e.late_deduction + e.undertime_deduction)}` : '—'}</span></div>
                   <div className="flex justify-between gap-2"><span className="text-gray-500">Absence/Unpaid</span><span className="font-medium text-red-500">{(e.absence_deduction + e.unpaid_leave_deduction) > 0 ? `-${formatCurrency(e.absence_deduction + e.unpaid_leave_deduction)}` : '—'}</span></div>
@@ -769,8 +769,6 @@ export function EntryDetailModal({ entryId, locked, onClose, onChanged, showToas
     fetchDetail();
     onChanged();
   };
-
-  function fmtMin(m: number) { const h = Math.floor(m / 60), mm = m % 60; return h > 0 ? `${h}h ${mm}m` : `${mm}m`; }
 
   return (
     <Modal open={true} onClose={onClose} title={entry ? entry.employee_name_snapshot : 'Employee Pay'} size="md">

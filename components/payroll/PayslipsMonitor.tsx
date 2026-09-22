@@ -7,6 +7,7 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, MoreVertical, Receipt, Search, Users, Wallet, FileCheck2, Coins, TriangleAlert, X,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { dailyRateOf, formatMinutesShort, isFixedRateEntry, roundOtMinutesToBlock } from '@/lib/payroll';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import PayslipDocument from './PayslipDocument';
@@ -654,6 +655,10 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                         <tr className="border-b border-gray-100">
                           <th className="table-header w-10"><input type="checkbox" aria-label="Select all" checked={allShownSelected} onChange={toggleAll} className="rounded border-gray-300 text-orange-500" /></th>
                           <th className="table-header whitespace-nowrap">Employee</th>
+                          <th className="table-header whitespace-nowrap text-right">Days</th>
+                          <th className="table-header whitespace-nowrap text-right">Daily Rate</th>
+                          <th className="table-header whitespace-nowrap text-right">OT Hours</th>
+                          <th className="table-header whitespace-nowrap text-right">OT Pay</th>
                           <th className="table-header whitespace-nowrap text-right max-xl:hidden">Gross Pay</th>
                           <th className="table-header whitespace-nowrap text-right max-xl:hidden">Deductions</th>
                           <th className="table-header whitespace-nowrap text-right">Net Pay</th>
@@ -671,6 +676,12 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                               <p className="text-[11px] text-gray-400">{[e.employee_code, tidyDept(e.department), e.pay_basis === 'fixed' ? 'Fixed rate' : ''].filter(Boolean).join(' · ')}</p>
                               <p className="text-[11px] text-gray-400 xl:hidden tabular-nums">Gross {formatCurrency(e.gross_pay)} · Deductions {formatCurrency(e.total_deductions)}</p>
                             </td>
+                            <td className="table-cell text-right tabular-nums text-gray-600">{isFixedRateEntry(e) ? '—' : e.detail.work_days_count}</td>
+                            <td className="table-cell text-right tabular-nums text-gray-600">
+                              {isFixedRateEntry(e) ? <>{formatCurrency(e.detail.basic_rate)} <span className="text-gray-400">(Fixed)</span></> : formatCurrency(dailyRateOf(e.detail as any))}
+                            </td>
+                            <td className="table-cell text-right tabular-nums text-gray-600">{e.detail.approved_ot_minutes > 0 ? formatMinutesShort(roundOtMinutesToBlock(e.detail.approved_ot_minutes)) : '—'}</td>
+                            <td className="table-cell text-right tabular-nums text-gray-600">{e.detail.ot_pay ? formatCurrency(e.detail.ot_pay) : '—'}</td>
                             <td className="table-cell text-right tabular-nums max-xl:hidden">{formatCurrency(e.gross_pay)}</td>
                             <td className="table-cell text-right tabular-nums text-gray-600 max-xl:hidden">{formatCurrency(e.total_deductions)}</td>
                             <td className={`table-cell text-right tabular-nums font-semibold ${e.net_pay < 0 ? 'text-red-600' : ''}`}>{formatCurrency(e.net_pay)}</td>
@@ -698,7 +709,11 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                           </div>
                           <p className={`text-base font-bold tabular-nums shrink-0 ${e.net_pay < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(e.net_pay)}</p>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-xs text-gray-500 tabular-nums">
+                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-500 tabular-nums">
+                          <span>Days {isFixedRateEntry(e) ? '—' : e.detail.work_days_count}</span>
+                          <span>{isFixedRateEntry(e) ? <>{formatCurrency(e.detail.basic_rate)} (Fixed)</> : `${formatCurrency(dailyRateOf(e.detail as any))}/day`}</span>
+                          <span>OT {e.detail.approved_ot_minutes > 0 ? formatMinutesShort(roundOtMinutesToBlock(e.detail.approved_ot_minutes)) : '—'}</span>
+                          <span>OT Pay {e.detail.ot_pay ? formatCurrency(e.detail.ot_pay) : '—'}</span>
                           <span>Gross {formatCurrency(e.gross_pay)}</span><span>Deductions {formatCurrency(e.total_deductions)}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
