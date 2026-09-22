@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, MoreVertical, Receipt, Search, Users, Wallet, FileCheck2, Coins, TriangleAlert, X,
@@ -148,6 +149,30 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   const [issuesOnly, setIssuesOnly] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [menuFor, setMenuFor] = useState<number | null>(null);
+  // The dropdown is portaled to <body> and positioned by pixel coordinates
+  // (not CSS `absolute` inside the table) — the table's own scroll wrapper
+  // has `overflow-x-auto`, which clips any absolutely-positioned popover
+  // that tries to escape it, hiding the menu for rows near the table edge.
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  const MENU_WIDTH = 224; // w-56
+  const openActionMenu = (id: number, btn: HTMLButtonElement) => {
+    if (menuFor === id) { setMenuFor(null); setMenuPos(null); return; }
+    const r = btn.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.right - MENU_WIDTH), window.innerWidth - MENU_WIDTH - 8);
+    const openUp = window.innerHeight - r.bottom < 260 && r.top > 260;
+    setMenuPos(openUp ? { bottom: window.innerHeight - r.top + 4, left } : { top: r.bottom + 4, left });
+    setMenuFor(id);
+  };
+  // Once open, a scroll (the table's own horizontal/vertical scroll, or the
+  // page) or a resize would desync the portaled menu from its button —
+  // simplest safe fix is to close it, same as clicking away.
+  useEffect(() => {
+    if (menuFor === null) return;
+    const close = () => { setMenuFor(null); setMenuPos(null); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [menuFor]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [detail, setDetail] = useState<{ entry: Entry; kind: 'details' | 'attendance' | 'issues' | 'activity' } | null>(null);
@@ -342,20 +367,24 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   };
 
   const ActionCell = ({ e }: { e: Entry }) => (
-    <div className="relative flex items-center justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-1.5">
       <button onClick={() => setViewing(e)} className="text-xs font-medium text-orange-600 hover:text-orange-800 px-2 py-2 md:py-1 whitespace-nowrap">View Payslip</button>
-      <button onClick={() => setMenuFor(menuFor === e.id ? null : e.id)} aria-label="More actions"
+      <button onClick={(ev) => openActionMenu(e.id, ev.currentTarget)} aria-label="More actions" aria-expanded={menuFor === e.id}
         className="p-2.5 md:p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"><MoreVertical size={16} /></button>
-      {menuFor === e.id && (
+      {menuFor === e.id && menuPos && createPortal(
         <>
-          <button aria-label="Close menu" className="fixed inset-0 z-30 cursor-default" onClick={() => setMenuFor(null)} />
-          <div className="absolute right-0 top-full mt-1 z-40 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-1">
+          <button aria-label="Close menu" className="fixed inset-0 z-30 cursor-default" onClick={() => { setMenuFor(null); setMenuPos(null); }} />
+          <div
+            className="fixed z-40 w-56 bg-white rounded-xl border border-gray-200 shadow-lg py-1 max-h-[70vh] overflow-y-auto"
+            style={{ left: menuPos.left, top: menuPos.top, bottom: menuPos.bottom }}
+          >
             {menuItems(e).map(it => (
-              <button key={it.label} onClick={() => { setMenuFor(null); it.onClick(); }}
+              <button key={it.label} onClick={() => { setMenuFor(null); setMenuPos(null); it.onClick(); }}
                 className={`w-full text-left px-3.5 py-2.5 md:py-2 text-sm hover:bg-gray-50 ${it.danger ? 'text-red-600' : 'text-gray-700'}`}>{it.label}</button>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
