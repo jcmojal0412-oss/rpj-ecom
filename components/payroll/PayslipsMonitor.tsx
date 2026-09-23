@@ -14,7 +14,7 @@ import PayslipDocument from './PayslipDocument';
 
 // ── Types (mirror lib/payslip-monitor.ts) ────────────────────────────────
 type Issue = { code: string; severity: 'error' | 'warning' | 'info'; title: string; message: string; action: 'review_attendance' | 'open_employee' | 'edit_payroll' | null };
-interface Entry {
+export interface Entry {
   id: number; employee_id: number; employee_name: string; employee_code: string; position: string | null; department: string | null;
   gross_pay: number; total_deductions: number; net_pay: number;
   payment_status: string; payslip_status: string;
@@ -30,10 +30,10 @@ interface PeriodRef { id: number; label: string; from_date: string; to_date: str
 
 // Employee payment status is about whether THAT person was paid — the run's own
 // approval stages (draft / for approval / approved) are shown in the workflow.
-const PAYMENT_LABEL: Record<string, string> = { PENDING: 'Pending', PAID: 'Paid', PARTIALLY_PAID: 'Partially Paid', FAILED: 'Failed', RETURNED: 'Returned' };
-const PAYMENT_BADGE: Record<string, string> = { PENDING: 'badge-amber', PAID: 'badge-green', PARTIALLY_PAID: 'badge-amber', FAILED: 'badge-red', RETURNED: 'badge-red' };
-const PAYSLIP_LABEL: Record<string, string> = { DRAFT: 'Draft', READY: 'Ready', RELEASED: 'Released', VIEWED: 'Viewed', PRINTED: 'Printed', DOWNLOADED: 'Downloaded' };
-const PAYSLIP_BADGE: Record<string, string> = { DRAFT: 'badge-gray', READY: 'badge-blue', RELEASED: 'badge-green', VIEWED: 'badge-green', PRINTED: 'badge-green', DOWNLOADED: 'badge-green' };
+export const PAYMENT_LABEL: Record<string, string> = { PENDING: 'Pending', PAID: 'Paid', PARTIALLY_PAID: 'Partially Paid', FAILED: 'Failed', RETURNED: 'Returned' };
+export const PAYMENT_BADGE: Record<string, string> = { PENDING: 'badge-amber', PAID: 'badge-green', PARTIALLY_PAID: 'badge-amber', FAILED: 'badge-red', RETURNED: 'badge-red' };
+export const PAYSLIP_LABEL: Record<string, string> = { DRAFT: 'Draft', READY: 'Ready', RELEASED: 'Released', VIEWED: 'Viewed', PRINTED: 'Printed', DOWNLOADED: 'Downloaded' };
+export const PAYSLIP_BADGE: Record<string, string> = { DRAFT: 'badge-gray', READY: 'badge-blue', RELEASED: 'badge-green', VIEWED: 'badge-green', PRINTED: 'badge-green', DOWNLOADED: 'badge-green' };
 
 const FLOW = ['Draft', 'For Approval', 'Approved', 'Paid', 'Payslips Released'];
 const NEXT_ACTION = [
@@ -939,7 +939,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
 
 // "View Payroll Details": the breakdown plus the payment and payslip history for
 // this one employee, so none of it has to clutter the main table.
-function DetailsView({ entry }: { entry: Entry }) {
+export function DetailsView({ entry }: { entry: Entry }) {
   const d = entry.detail;
   const line = (label: string, amount: number, negative = false) => amount ? (
     <div key={label} className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-600">{label}</span><span className="tabular-nums">{negative ? '−' : ''}{formatCurrency(amount)}</span></div>

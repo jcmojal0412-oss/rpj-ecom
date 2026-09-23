@@ -83,7 +83,7 @@ export interface MonitorEntry {
 
 export interface MonitorPeriod {
   id: number; label: string; from_date: string; to_date: string; pay_date: string | null;
-  schedule: string | null; status: string;
+  schedule: string | null; status: string; voided_at?: string | null;
 }
 
 interface EntryRow {
@@ -105,18 +105,20 @@ const shortDate = (iso: string) => {
 };
 const daysInPeriod = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
 
-export function listPeriods(db: Database.Database): MonitorPeriod[] {
+// `includeVoided` is only ever true from the read-only Payroll History screen —
+// the active Payroll / Payslips workflow never touches a voided period.
+export function listPeriods(db: Database.Database, opts: { includeVoided?: boolean } = {}): MonitorPeriod[] {
   return db.prepare(`
-    SELECT id, label, from_date, to_date, pay_date, schedule, status FROM payroll_periods
-    WHERE voided_at IS NULL ORDER BY from_date DESC, id DESC
+    SELECT id, label, from_date, to_date, pay_date, schedule, status, voided_at FROM payroll_periods
+    ${opts.includeVoided ? '' : 'WHERE voided_at IS NULL'} ORDER BY from_date DESC, id DESC
   `).all() as MonitorPeriod[];
 }
 
-export function buildMonitor(db: Database.Database, periodId: number) {
+export function buildMonitor(db: Database.Database, periodId: number, opts: { includeVoided?: boolean } = {}) {
   const period = db.prepare(`
-    SELECT p.id, p.label, p.from_date, p.to_date, p.pay_date, p.schedule, p.status, p.generated_at, p.reviewed_at, p.approved_at, p.paid_at, p.locked_at, p.payslips_generated_at,
+    SELECT p.id, p.label, p.from_date, p.to_date, p.pay_date, p.schedule, p.status, p.voided_at, p.generated_at, p.reviewed_at, p.approved_at, p.paid_at, p.locked_at, p.payslips_generated_at,
            p.return_kind, p.return_reason, p.returned_at, u.name AS returned_by_name
-    FROM payroll_periods p LEFT JOIN users u ON u.id = p.returned_by WHERE p.id = ? AND p.voided_at IS NULL
+    FROM payroll_periods p LEFT JOIN users u ON u.id = p.returned_by WHERE p.id = ? ${opts.includeVoided ? '' : 'AND p.voided_at IS NULL'}
   `).get(periodId) as (MonitorPeriod & Record<string, any>) | undefined;
   if (!period) return null;
 
@@ -137,7 +139,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
   // Once payroll is approved its amounts and attendance basis are frozen, so
   // "fix the attendance / the deduction setup" is only actionable while it is
   // still being prepared.
-  const editable = !FINAL.includes(period.status);
+  const editable = !FINAL.includes(period.status) && !period.voided_at;
 
   // A government deduction only counts as "missing" when it is switched on for
   // this employee, their amount is ₱0, AND the company clearly deducts that
@@ -322,7 +324,7 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     period: {
       ...period, released_all: entries.length > 0 && releasedCount === entries.length,
       // Owner may reopen an approved payroll only while nothing depends on it.
-      can_reopen: period.status === 'approved' && entries.every(e => !e.payslip_released_at && e.payment_status === 'PENDING'),
+      can_reopen: period.status === 'approved' && !period.voided_at && entries.every(e => !e.payslip_released_at && e.payment_status === 'PENDING'),
     },
     entries, summary,
     // What the send dialog tells HR about how emails are handled.
@@ -330,4 +332,63 @@ export function buildMonitor(db: Database.Database, periodId: number) {
     owner: { gross, deductions, net, previous },
     breakdown, activity,
   };
+}
+
+// A superset of MonitorEntry's payment/payslip fields (plus the period this
+// entry belongs to) — deliberately shaped so <DetailsView> from the Payslips
+// monitor can render a HistoryEntry exactly as it renders a MonitorEntry.
+export interface HistoryEntry {
+  id: number; employee_id: number;
+  period_id: number; period_label: string; from_date: string; to_date: string; pay_date: string | null; schedule: string | null;
+  period_status: string; period_voided: boolean;
+  employee_name: string; employee_code: string; department: string | null; pay_basis: string;
+  gross_pay: number; total_deductions: number; net_pay: number;
+  payment_status: PaymentStatus; payslip_status: PayslipStatus;
+  paid_at: string | null; payment_date: string | null; paid_amount: number | null; payment_method: string | null; payment_reference: string | null; paid_by_name: string | null;
+  payslip_ref: string | null; payslip_released_at: string | null; payslip_first_viewed_at: string | null; payslip_last_viewed_at: string | null;
+  payslip_emailed_at: string | null; payslip_emailed_to: string | null;
+  payslip_email_status: MonitorEntry['payslip_email_status']; payslip_email_status_at: string | null;
+  detail: Record<string, number | string | null>;
+}
+
+// One employee's payroll_entries across every period they were ever part of
+// (oldest and newest, including voided periods) — the "by employee" side of
+// Payroll History. Read-only: no issue-checking, no editability, nothing
+// this screen does can change any figure.
+export function employeeHistory(db: Database.Database, employeeId: number, opts: { includeVoided?: boolean } = {}): HistoryEntry[] {
+  const rows = db.prepare(`
+    SELECT e.*, p.id AS p_id, p.label AS p_label, p.from_date AS p_from, p.to_date AS p_to, p.pay_date AS p_pay_date,
+           p.schedule AS p_schedule, p.status AS p_status, p.voided_at AS p_voided_at
+    FROM payroll_entries e JOIN payroll_periods p ON p.id = e.payroll_period_id
+    WHERE e.employee_id = ? ${opts.includeVoided ? '' : 'AND p.voided_at IS NULL'}
+    ORDER BY p.from_date DESC, e.id DESC
+  `).all(employeeId) as (EntryRow & { p_id: number; p_label: string; p_from: string; p_to: string; p_pay_date: string | null; p_schedule: string | null; p_status: string; p_voided_at: string | null })[];
+
+  const emp = db.prepare('SELECT department FROM employees WHERE id = ?').get(employeeId) as { department: string | null } | undefined;
+  const getUserName = db.prepare('SELECT name FROM users WHERE id = ?');
+
+  return rows.map(r => ({
+    id: r.id, employee_id: employeeId,
+    period_id: r.p_id, period_label: r.p_label, from_date: r.p_from, to_date: r.p_to, pay_date: r.p_pay_date, schedule: r.p_schedule,
+    period_status: r.p_status, period_voided: !!r.p_voided_at,
+    employee_name: r.employee_name_snapshot, employee_code: r.employee_code_snapshot, department: emp?.department ?? null, pay_basis: (r.pay_basis_snapshot ?? 'attendance') as string,
+    gross_pay: r.gross_pay, total_deductions: r.total_deductions, net_pay: r.net_pay,
+    payment_status: derivePaymentStatus(r, r.p_status), payslip_status: derivePayslipStatus(r, r.p_status),
+    paid_at: r.paid_at, payment_date: r.payment_date, paid_amount: r.paid_amount, payment_method: r.payment_method, payment_reference: r.payment_reference,
+    paid_by_name: r.paid_by ? ((getUserName.get(r.paid_by) as { name: string } | undefined)?.name ?? null) : null,
+    payslip_ref: (r.payslip_ref ?? null) as string | null, payslip_released_at: r.payslip_released_at,
+    payslip_first_viewed_at: r.payslip_viewed_at, payslip_last_viewed_at: r.payslip_last_viewed_at,
+    payslip_emailed_at: r.payslip_emailed_at, payslip_emailed_to: r.payslip_emailed_to,
+    payslip_email_status: (r.payslip_email_status ?? null) as MonitorEntry['payslip_email_status'], payslip_email_status_at: r.payslip_email_status_at ?? null,
+    detail: {
+      salary_type: r.salary_type_snapshot, basic_rate: r.basic_rate_snapshot,
+      work_days_count: r.work_days_count, late_minutes: r.late_minutes, undertime_minutes: r.undertime_minutes,
+      excess_break_minutes: r.excess_break_minutes, absence_days: r.absence_days, unpaid_leave_days: r.unpaid_leave_days,
+      approved_ot_minutes: r.approved_ot_minutes,
+      basic_pay: r.basic_pay, ot_pay: r.ot_pay, allowance_pay: r.allowance_pay, bonus_earnings: r.bonus_earnings,
+      late_deduction: r.late_deduction, undertime_deduction: r.undertime_deduction, excess_break_deduction: r.excess_break_deduction,
+      absence_deduction: r.absence_deduction, unpaid_leave_deduction: r.unpaid_leave_deduction, other_deductions: r.other_deductions,
+      sss_ee: r.sss_ee_contribution, philhealth_ee: r.philhealth_ee_contribution, pagibig_ee: r.pagibig_ee_contribution,
+    },
+  }));
 }

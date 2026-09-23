@@ -163,6 +163,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Payroll',          href: '/payroll',       icon: Banknote,       module: 'payroll', exact: true },
       { label: 'Payslips',         href: '/payslips',      icon: Receipt,        module: '_any' },
       { label: 'Payroll Reports',  href: '/payroll/reports', icon: BarChart3,    module: 'payroll' },
+      { label: 'Payroll History',  href: '/payroll/history', icon: History,      module: 'payroll' },
       { label: 'HR Settings',      href: '/hr-settings',   icon: Settings,       module: 'attendance' },
     ],
   },
