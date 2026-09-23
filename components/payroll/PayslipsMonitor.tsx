@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, MoreVertical, Receipt, Search, Users, Wallet, FileCheck2, Coins, TriangleAlert, X,
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, FileDown, Loader2, MoreVertical, Receipt, Search, Users, Wallet, FileCheck2, Coins, TriangleAlert, X,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { dailyRateOf, formatMinutesShort, isFixedRateEntry, roundOtMinutesToBlock } from '@/lib/payroll';
@@ -184,6 +184,7 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
   const [checking, setChecking] = useState(false);
   const [dialogError, setDialogError] = useState('');
   const [reason, setReason] = useState('');
+  const [sendingSummary, setSendingSummary] = useState(false);
 
   const load = useCallback(async (id?: number | null) => {
     setLoading(true);
@@ -317,6 +318,24 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
       await load(period.id);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // "Send Payroll Summary" — a one-page PDF (Employee / Basic Pay / OT Pay /
+  // Deductions / Net Pay + grand total) emailed to whoever handles
+  // disbursement, not the employees. Manual only, any period status.
+  const sendPayrollSummary = async () => {
+    if (sendingSummary) return;
+    setSendingSummary(true);
+    try {
+      const res = await fetch(`/api/payroll/periods/${period.id}/send-summary`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Could not send the payroll summary.', 'error'); return; }
+      showToast(`Payroll summary sent to ${d.sent_to.join(', ')}.`);
+    } catch {
+      showToast('Could not reach the server. Check your connection and try again.', 'error');
+    } finally {
+      setSendingSummary(false);
     }
   };
 
@@ -481,6 +500,10 @@ export default function PayslipsMonitor({ isOwner }: { isOwner: boolean }) {
                     title={period.can_reopen ? 'Reopen this payroll so its amounts can be edited again' : 'Payments or released payslips already depend on this payroll'}
                     className="btn-secondary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-40">Reopen Payroll</button>
                 )}
+                <button onClick={sendPayrollSummary} disabled={sendingSummary} title="Emails a one-page PDF (Employee, Basic Pay, OT, Deductions, Net Pay) to the payroll disbursement address — not to the employees."
+                  className="btn-secondary justify-center min-h-[44px] sm:min-h-0 disabled:opacity-50">
+                  {sendingSummary ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} Send Payroll Summary
+                </button>
                 <button onClick={() => router.push(`/payroll?period=${period.id}`)} className="btn-secondary justify-center min-h-[44px] sm:min-h-0">Open Payroll Run</button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, Plus, Trash2, Archive, Settings } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, ArrowLeft, FileDown, Plus, Trash2, Archive, Settings } from 'lucide-react';
 import { formatCurrency, formatDate, todayISO } from '@/lib/utils';
 import { Toast, useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
@@ -590,8 +590,27 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
   const [detailEntry, setDetailEntry] = useState<any | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [sendingSummary, setSendingSummary] = useState(false);
   // Approved payroll is frozen too (not only locked) — editing needs a Reopen first.
   const locked = ['approved', 'paid', 'locked'].includes(period.status);
+
+  // A one-page PDF (Employee / Basic Pay / OT / Deductions / Net Pay + grand
+  // total) emailed to whoever handles disbursement — not the employees, and
+  // never automatic. Available at any stage, including after approval.
+  const sendPayrollSummary = async () => {
+    if (sendingSummary) return;
+    setSendingSummary(true);
+    try {
+      const res = await fetch(`/api/payroll/periods/${period.id}/send-summary`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { showToast(d.error || 'Could not send the payroll summary.', 'error'); return; }
+      showToast(`Payroll summary sent to ${d.sent_to.join(', ')}.`);
+    } catch {
+      showToast('Could not reach the server. Check your connection and try again.', 'error');
+    } finally {
+      setSendingSummary(false);
+    }
+  };
 
   const totalEarnings = entries.reduce((s, e) => s + e.basic_pay + e.ot_pay + e.allowance_pay + e.bonus_earnings, 0);
   const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);
@@ -632,6 +651,10 @@ function StepReviewPayroll({ period, entries, onRefresh, onContinue, showToast }
         {!locked && (
           <button onClick={() => setShowAdd(true)} className="btn-secondary text-xs py-2.5 sm:py-1.5"><Plus size={13} /> Add employee to this run</button>
         )}
+        <button onClick={sendPayrollSummary} disabled={sendingSummary} title="Emails a one-page PDF (Employee, Basic Pay, OT, Deductions, Net Pay) to the payroll disbursement address — not to the employees."
+          className="btn-secondary text-xs py-2.5 sm:py-1.5 disabled:opacity-50">
+          {sendingSummary ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />} Send Payroll Summary
+        </button>
       </div>
 
       {showBreakdown && (
